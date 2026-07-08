@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Православные маршруты',
-  description: 'Сервис взаимного подвоза православных людей к храмам',
+  description: 'MVP сервиса взаимного подвоза к православным храмам',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

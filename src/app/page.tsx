@@ -1,69 +1,82 @@
-import { MapPin, CarFront, Church, Bell } from 'lucide-react';
+import Link from 'next/link';
 import { mockChurches, mockDrivers, mockRoutes, mockTrips } from '@/lib/mockData';
 
+const links = [
+  { href: '/churches', label: 'Все храмы', text: 'Посмотреть храмы с доступными маршрутами.' },
+  { href: '/churches/pokrov-catanzaro', label: 'Покров в Катандзаро', text: 'Открыть пример карточки храма.' },
+  { href: '/drivers', label: 'Водители', text: 'Увидеть публичные профили без контактов.' },
+];
+
 export default function HomePage() {
-  const church = mockChurches[0];
-
   return (
-    <main className="min-h-screen px-4 py-6">
-      <section className="mx-auto max-w-5xl">
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
-          <p className="mb-3 text-sm font-medium text-amber-700">MVP v0.1</p>
-          <h1 className="text-3xl font-bold tracking-tight md:text-5xl">Православные маршруты</h1>
-          <p className="mt-4 max-w-2xl text-lg text-slate-600">
-            Найдите храм и попросите место у водителя, который уже едет на службу.
-          </p>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <button className="rounded-2xl bg-slate-900 px-5 py-3 text-white">Мне нужно место</button>
-            <button className="rounded-2xl border border-slate-300 px-5 py-3">Могу подвезти</button>
-          </div>
-        </div>
+    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+      <header className="flex items-center justify-between gap-4 py-3">
+        <Link className="text-lg font-bold" href="/">
+          Православные маршруты
+        </Link>
+        <Link className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-semibold" href="/churches">
+          Найти храм
+        </Link>
+      </header>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <article className="rounded-3xl bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-2 text-slate-700">
-              <Church size={22} />
-              <span className="font-semibold">Карточка храма</span>
-            </div>
-            <h2 className="text-2xl font-bold">{church.name}</h2>
-            <p className="mt-2 text-slate-600">{church.address}</p>
-            <p className="mt-2 text-sm text-slate-500">Языки: {church.languages.join(', ')}</p>
-            <p className="mt-2 text-sm text-slate-500">Юрисдикция: {church.jurisdiction}</p>
-            <a
-              className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-slate-300 px-4 py-2"
-              href={`https://www.google.com/maps/search/?api=1&query=${church.location.lat},${church.location.lng}`}
-              target="_blank"
+      <section className="grid flex-1 content-center gap-8 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-amber-800">Mock-only MVP</p>
+          <h1 className="mt-3 text-4xl font-bold tracking-normal text-stone-950 sm:text-5xl">
+            Как мне попасть в храм?
+          </h1>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-700">
+            Сервис соединяет пассажира без машины с водителем, который уже едет в конкретный православный храм.
+            Сейчас это чистый прототип на mock data: без Firebase, авторизации, карт, Telegram, платежей, SMS и
+            WhatsApp API.
+          </p>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <Link className="rounded-lg bg-stone-950 px-5 py-4 text-center font-semibold text-white" href="/churches">
+              Смотреть храмы
+            </Link>
+            <Link
+              className="rounded-lg border border-stone-300 bg-white px-5 py-4 text-center font-semibold text-stone-950"
+              href="/churches/pokrov-catanzaro"
             >
-              <MapPin size={18} /> Открыть в Google Maps
-            </a>
-          </article>
-
-          <article className="rounded-3xl bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-2 text-slate-700">
-              <CarFront size={22} />
-              <span className="font-semibold">Поездки и маршруты</span>
-            </div>
-            <p className="text-slate-600">Активных водителей: {mockDrivers.length}</p>
-            <p className="text-slate-600">Регулярных маршрутов: {mockRoutes.length}</p>
-            <p className="text-slate-600">Ближайших поездок: {mockTrips.length}</p>
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-              <p className="font-semibold">{mockRoutes[0].originLabel} → {church.name}</p>
-              <p className="mt-1 text-sm text-slate-600">
-                Каждое воскресенье, выезд {mockRoutes[0].recurrence.typicalDepartureTime}, мест: {mockRoutes[0].seats}
-              </p>
-            </div>
-          </article>
+              Мне нужно место
+            </Link>
+          </div>
         </div>
 
-        <article className="mt-6 rounded-3xl bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2 text-slate-700">
-            <Bell size={22} />
-            <span className="font-semibold">Уведомления</span>
-          </div>
-          <p className="text-slate-600">
-            В MVP будут in-app, push, email и Telegram-уведомления. WhatsApp — как кнопка связи после принятия заявки.
-          </p>
-        </article>
+        <aside className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-bold">Что уже есть</h2>
+          <dl className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-stone-100 p-4">
+              <dt className="text-sm text-stone-600">Храмы</dt>
+              <dd className="text-3xl font-bold">{mockChurches.length}</dd>
+            </div>
+            <div className="rounded-lg bg-stone-100 p-4">
+              <dt className="text-sm text-stone-600">Водители</dt>
+              <dd className="text-3xl font-bold">{mockDrivers.length}</dd>
+            </div>
+            <div className="rounded-lg bg-stone-100 p-4">
+              <dt className="text-sm text-stone-600">Маршруты</dt>
+              <dd className="text-3xl font-bold">{mockRoutes.length}</dd>
+            </div>
+            <div className="rounded-lg bg-stone-100 p-4">
+              <dt className="text-sm text-stone-600">Поездки</dt>
+              <dd className="text-3xl font-bold">{mockTrips.length}</dd>
+            </div>
+          </dl>
+        </aside>
+      </section>
+
+      <section className="grid gap-4 pb-8 md:grid-cols-3">
+        {links.map((link) => (
+          <Link
+            className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm transition hover:border-amber-700"
+            href={link.href}
+            key={link.href}
+          >
+            <h2 className="text-lg font-bold">{link.label}</h2>
+            <p className="mt-2 text-sm leading-6 text-stone-600">{link.text}</p>
+          </Link>
+        ))}
       </section>
     </main>
   );

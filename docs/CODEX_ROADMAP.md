@@ -57,3 +57,9 @@ Do not ask Codex to build the whole product in one task. Use these steps.
 
 31. Add ru/en/it/ro interface strings.
 32. Add language switcher.
+
+## Current Task 1 status
+
+- Next.js App Router project scaffolded with TypeScript, Tailwind CSS, ESLint, and mock data only.
+- Public routes added: `/`, `/churches`, `/churches/[slug]`, `/drivers`, `/drivers/[id]`.
+- Firebase, auth, Google Maps, Telegram bot, payments, SMS, WhatsApp API, and admin features are intentionally not implemented.

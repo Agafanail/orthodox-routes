@@ -1,6 +1,3 @@
-export type Locale = 'ru' | 'en' | 'it' | 'ro';
-export type UserRole = 'passenger' | 'driver' | 'church_admin' | 'admin';
-
 export type ChurchStatus = 'unverified' | 'claimed' | 'verified' | 'hidden';
 
 export type Church = {
@@ -28,10 +25,10 @@ export type Church = {
 };
 
 export type DriverPublicProfile = {
-  userId: string;
+  id: string;
   publicName: string;
   photoUrl?: string;
-  departureArea?: string;
+  departureArea: string;
   visibleChurchIds: string[];
 };
 

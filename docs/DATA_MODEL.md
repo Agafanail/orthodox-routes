@@ -199,3 +199,9 @@ type Notification = {
   createdAt: Timestamp;
 };
 ```
+
+## Current mock-only implementation note
+
+Task 1 does not add Firebase. The runnable Next.js prototype uses in-memory mock arrays in `src/lib/mockData.ts`
+with public `Church`, `DriverPublicProfile`, `Route`, and `Trip` TypeScript types in `src/lib/types.ts`.
+Driver phone and WhatsApp fields are intentionally absent from the public mock driver type and UI.
