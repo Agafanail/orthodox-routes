@@ -42,6 +42,28 @@
 - Если меняешь схему данных, обнови `docs/DATA_MODEL.md`.
 - Если добавляешь feature, обнови `docs/CODEX_ROADMAP.md`.
 
+## Documentation Synchronization Rules
+
+- The documentation is part of the product.
+- Every product change must update the documentation in the same task.
+- If a task changes product concept, user flows, UX, screen structure, navigation, buttons, entity relationships, visibility rules, permissions, public/private data, status transitions, or business rules, then the affected documentation must be updated before the task is considered complete.
+- At minimum, check and update these files when relevant:
+  - `docs/PROJECT_MAP.md`
+  - `docs/PROJECT_SPEC_V0_1.md`
+  - `docs/DATA_MODEL.md`
+  - `docs/UX_RULES.md`
+- Mermaid diagrams are the product visualization source of truth.
+- The Mermaid diagrams must always match the current implementation and current product concept.
+- If the diagrams become outdated, the task is incomplete.
+- Codex must never silently change product concept, business logic, user journeys, UX decisions, button placement, navigation, screen hierarchy, or terminology.
+- If Codex believes a product change is needed, it must describe the recommendation separately and wait for explicit approval.
+- At the end of every task, Codex must explicitly report:
+  - Task type: Product Change or Technical Change
+  - Which documentation files were updated
+  - Whether Mermaid diagrams were updated
+  - If diagrams were not updated, why not
+  - Whether lint and build passed
+
 ## Безопасность
 
 - Не логируй телефоны, токены, private keys.
