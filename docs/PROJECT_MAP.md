@@ -19,10 +19,12 @@ flowchart TD
     A["Orthodox Routes<br/>Православные маршруты"] --> B["Church Page<br/>Transport Board"]
 
     B --> C["Church information"]
+    B --> C1["Church image or local fallback"]
     B --> D["Service schedule"]
     B --> E["Active driver offers"]
     B --> F["Active passenger requests"]
     B --> G["Page-level creation actions"]
+    B --> H["Temporary personal mock panels<br/>not public church content"]
 
     E --> E1["One-time driver trips"]
     E --> E2["Regular driver routes"]
@@ -37,6 +39,10 @@ flowchart TD
 
     G --> G1["Создать запрос<br/>Passenger creates an open request"]
     G --> G2["Создать поездку / маршрут<br/>Driver creates an offer"]
+
+    H --> H1["Мои уведомления"]
+    H --> H2["Мой отклик<br/>only after driver response"]
+    H --> H3["Мой запрос водителю<br/>only after targeted request"]
 
     E5 --> M["Potential match"]
     F3 --> M
@@ -59,10 +65,12 @@ flowchart TD
 ```mermaid
 flowchart TD
     CP["Church Page"] --> INFO["Church Info"]
+    CP --> HERO["Church image<br/>or local fallback illustration"]
     CP --> SCHEDULE["Service Schedule"]
     CP --> OFFERS["Block: Кто едет и может подвезти"]
     CP --> REQUESTS["Block: Кому нужно место"]
     CP --> CREATE["Page-level creation actions"]
+    CP --> PERSONAL["Temporary personal mock UI<br/>not public board content"]
 
     OFFERS --> O1["Driver Offer Card"]
     O1 --> O2["Driver name"]
@@ -85,6 +93,10 @@ flowchart TD
 
     O7 --> T1["Creates targeted passenger request to this driver offer"]
     R7 --> T2["Creates driver response to this passenger request"]
+
+    PERSONAL --> P1["Мои уведомления"]
+    PERSONAL --> P2["Мой отклик<br/>conditional"]
+    PERSONAL --> P3["Мой запрос водителю<br/>conditional"]
 ```
 
 ## 3. Passenger Journey
@@ -99,28 +111,32 @@ flowchart TD
 
     A -->|Yes| A1["Passenger opens driver offer card"]
     A1 --> A2["Clicks: Попросить подвезти"]
-    A2 --> A3["Fills minimal contact/request data"]
-    A3 --> A4["Targeted request sent to this driver"]
-    A4 --> A4N["Driver receives notification"]
-    A4N --> A5{"Driver accepts?"}
-    A5 -->|Yes| A6["RideMatch created"]
+    A2 --> A3["Targeted request modal opens<br/>with driver and offer context"]
+    A3 --> A4["Validated targeted request<br/>saved to localStorage"]
+    A4 --> A4N["Personal mock notifications created"]
+    A4 --> A4P["Private panel:<br/>Мой запрос водителю"]
+    A4P --> A5["Current mock waits for driver<br/>no acceptance implemented"]
+    A5 --> A5F["Future: driver accepts?"]
+    A5F -->|Yes| A6["RideMatch created"]
     A6 --> A7["Contacts shared with participants"]
     A7 --> A8["Passenger goes to church"]
-    A5 -->|No| A9["Passenger can try another offer or create open request"]
+    A5F -->|No| A9["Passenger can try another offer or create open request"]
 
     A -->|No| B1["Passenger clicks page action: Создать запрос"]
-    B1 --> B2["Passenger fills open request form"]
-    B2 --> B3["Request appears in passenger requests block"]
+    B1 --> B2["Validated modal opens"]
+    B2 --> B3["Request saved to localStorage<br/>and appears in passenger requests block"]
     B3 --> B3M["Automatic matching checks compatible driver offers"]
     B3M --> B3N["Passenger and relevant drivers may receive suggestions"]
     B3N --> B4["Drivers see this request on church page"]
     B4 --> B5["Driver clicks: Подвезти"]
-    B5 --> B6{"Passenger confirms driver response?"}
-    B6 -->|Yes| B7["RideMatch created"]
-    B7 --> B8["Request hidden from public board"]
-    B8 --> B9["Contacts shared with participants"]
-    B9 --> A8
-    B6 -->|No| B10["Request remains open or is cancelled"]
+    B5 --> B6["Mock DriverResponse created"]
+    B6 --> B7["Mock notification created"]
+    B7 --> B8["Request hidden while response is active"]
+    B8 --> B9["Passenger contact shown only in<br/>private mock panel Мой отклик"]
+    B9 --> B10{"Driver cancels response?"}
+    B10 -->|Yes| B11["Response cancelled"]
+    B11 --> B12["Request returns to public board"]
+    B10 -->|No| A8
 ```
 
 ## 4. Driver Journey
@@ -206,6 +222,9 @@ erDiagram
         string address
         string languages
         string publicContact
+        string imageUrl
+        string imageAlt
+        string imageSource
     }
 
     SERVICE_EVENT {
@@ -330,8 +349,9 @@ stateDiagram-v2
 
     OpenPublicRequest --> VisibleOnChurchBoard
     VisibleOnChurchBoard --> DriverResponsePending: driver clicks Подвезти
-    DriverResponsePending --> Matched: passenger confirms driver
-    DriverResponsePending --> VisibleOnChurchBoard: passenger rejects driver
+    DriverResponsePending --> HiddenFromPublicBoard: mock response active
+    DriverResponsePending --> VisibleOnChurchBoard: driver cancels response
+    DriverResponsePending --> Matched: future confirmation flow
 
     TargetedToDriverOffer --> WaitingForDriver
     WaitingForDriver --> Matched: driver accepts
@@ -433,11 +453,11 @@ flowchart TD
 
     B -->|Driver clicks Подвезти| D["Create DriverResponse<br/>linked to PassengerRequest"]
     D --> D1["Notify passenger"]
-    D1 --> D2{"Passenger accepts?"}
-    D2 -->|Yes| D3["Create RideMatch"]
-    D3 --> D4["Share contacts with participants"]
-    D3 --> D5["Hide PassengerRequest from public board"]
-    D2 -->|No| D6["No match<br/>No contacts shared"]
+    D1 --> D2["Current mock: hide PassengerRequest<br/>while response is active"]
+    D2 --> D3["Show passenger contact only in<br/>private mock panel Мой отклик"]
+    D3 --> D4{"Driver cancels response?"}
+    D4 -->|Yes| D5["Cancel DriverResponse<br/>return request to public board"]
+    D4 -->|No| D6["Future confirmation may create RideMatch"]
 
     B -->|New open PassengerRequest| E["Run automatic matching"]
     E --> E1["Find compatible active DriverOffers"]
@@ -480,4 +500,78 @@ flowchart TD
     G -->|Yes| H["Create MatchSuggestion"]
 
     H --> I["Notify relevant users"]
+```
+
+## 12. Current Mock Passenger Request Flow
+
+```mermaid
+flowchart TD
+    A["Passenger clicks page action:<br/>Создать запрос"] --> B["Modal opens without visible registration"]
+    B --> C["Passenger enters request data"]
+    C --> C1{"Phone and optional email valid?<br/>Consent checked?"}
+    C1 -->|No| C2["Show field validation messages"]
+    C2 --> C
+    C1 -->|Yes| D["Create open PassengerRequest"]
+    D --> E["Persist in namespaced localStorage"]
+    E --> F["Request appears in Кому нужно место"]
+    E --> G["Personal mock notification created"]
+    E --> H["Run simple mock matching"]
+    H --> I{"Compatible visible offer exists?"}
+    I -->|Yes| J["Personal mock notification:<br/>Найдены возможные водители"]
+    I -->|No| F
+
+    F --> K["Driver clicks Подвезти<br/>on request card"]
+    K --> L["Persist mock DriverResponse"]
+    L --> M["Personal mock notification created"]
+    L --> N["Request hidden from public list"]
+    L --> O["Private panel Мой отклик appears<br/>with passenger contact"]
+
+    O --> P["Driver clicks Отменить отклик"]
+    P --> Q{"Confirm cancellation?"}
+    Q -->|Yes| R["Persist cancelled response"]
+    R --> S["Request returns to public list"]
+    R --> T["Personal mock notification:<br/>Отклик отменен"]
+    Q -->|No| O
+```
+
+## 13. Targeted Request and Mock Persistence
+
+```mermaid
+flowchart TD
+    A["Passenger clicks Попросить подвезти<br/>on route or trip card"] --> B["Targeted request modal opens"]
+    B --> C["Show driver and offer context"]
+    C --> D["Validate international phone,<br/>optional email, count, pickup, consent"]
+    D --> E["Create targeted PassengerRequest<br/>publicVisible = false"]
+    E --> F["Persist in<br/>orthodox-routes:targeted-requests"]
+    F --> G["Do not show in Кому нужно место"]
+    F --> H["Show private panel:<br/>Мой запрос водителю"]
+    F --> I["Persist personal mock notifications"]
+    H --> J["Contacts remain private<br/>driver acceptance not implemented"]
+
+    LS["Namespaced localStorage"] --> L1["passenger-requests"]
+    LS --> L2["driver-responses"]
+    LS --> L3["targeted-requests"]
+    LS --> L4["notifications"]
+    L1 --> R["State survives navigation,<br/>back/forward, and refresh"]
+    L2 --> R
+    L3 --> R
+    L4 --> R
+```
+
+## 14. Personal Notifications and Delivery
+
+```mermaid
+flowchart LR
+    A["Product event"] --> B["Personal Notification record"]
+    B --> C["Production personal notification center"]
+    B --> D["Future MVP delivery channel"]
+    D --> D1["Web push / PWA push"]
+    D --> D2["Email"]
+    B --> E["Later possible channel:<br/>Telegram bot"]
+
+    M["Current mock"] --> M1["localStorage notification"]
+    M1 --> M2["Temporary Мои уведомления block<br/>on church page for testing only"]
+
+    X["Privacy"] --> X1["Never show another user's notifications"]
+    X --> X2["Never include phone or email in notification text"]
 ```

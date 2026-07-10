@@ -63,3 +63,17 @@ Do not ask Codex to build the whole product in one task. Use these steps.
 - Next.js App Router project scaffolded with TypeScript, Tailwind CSS, ESLint, and mock data only.
 - Public routes added: `/`, `/churches`, `/churches/[slug]`, `/drivers`, `/drivers/[id]`.
 - Firebase, auth, Google Maps, Telegram bot, payments, SMS, WhatsApp API, and admin features are intentionally not implemented.
+
+## Current mock passenger request flow
+
+- Church pages include a client-side mock transport board.
+- Passenger can click «Создать запрос», complete a validated modal form, and create an open request without visible registration.
+- Request appears in «Кому нужно место» with only safe public data.
+- Driver can click «Подвезти», which creates a mock DriverResponse, hides the request from the public list, and shows passenger contact only in the personal mock «Мой отклик» area.
+- Driver can cancel the mock response; after confirmation the request returns to the public list.
+- «Попросить подвезти» on a route or trip opens a targeted request modal, saves a private request linked to that offer, and shows it in «Мой запрос водителю» without publishing it on the board.
+- Passenger requests, responses, targeted requests, and personal mock notifications persist in namespaced localStorage across navigation and refresh.
+- Phone values are normalized and validated as international numbers; visible dates use `dd.mm.yyyy` and `dd.mm.yyyy в HH:mm`.
+- The church hero supports a future uploaded image and currently uses a local fallback illustration.
+- Mock in-app notifications are temporarily shown on the church page as personal testing UI. Production will move them to a personal notification center; web push/PWA push and email are planned delivery channels, with Telegram possible later.
+- No Firebase, auth, backend, real push, email, Telegram, SMS, WhatsApp API, Google Maps, or new dependencies are implemented.

@@ -42,6 +42,9 @@ type Church = {
   jurisdiction: string;
   languages: Array<'ru' | 'it' | 'en' | 'ro' | string>;
   address: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  imageSource: 'uploaded' | 'default';
   location?: { lat: number; lng: number };
   publicContact?: {
     phone?: string;
@@ -56,6 +59,8 @@ type Church = {
   updatedAt: Timestamp;
 };
 ```
+
+The church hero uses `imageUrl` when a photo exists and a local standard Orthodox church illustration when it does not. A parish coordinator may upload a photo later, but upload and Storage are not part of the current mock implementation.
 
 ## serviceEvents/{serviceEventId}
 
@@ -195,6 +200,7 @@ type PassengerRequestStatus =
   | 'draft'
   | 'open'
   | 'waitingForDriver'
+  | 'pendingContact'
   | 'matched'
   | 'declined'
   | 'cancelled'
@@ -207,11 +213,19 @@ type PassengerRequest = {
   churchId: string;
   serviceEventId?: string;
   targetDriverOfferId?: string;
-  approximatePickupArea: string;
+  pickupZone: {
+    label: string;
+    centerLat?: number;
+    centerLng?: number;
+    radiusMeters?: number;
+  };
   hubPointId?: string;
   passengerCount: number;
+  phonePrivate: string;
+  emailPrivate?: string;
   safePublicComment?: string;
   privateComment?: string;
+  consentToShareContact: boolean;
   status: PassengerRequestStatus;
   publicVisible: boolean;
   createdAt: Timestamp;
@@ -228,6 +242,10 @@ const isPassengerRequestPublic = (request: PassengerRequest) =>
 
 Public passenger request cards must never expose phone, exact address, private contact, or sensitive personal details.
 
+Current mock request creation does not require visible registration. Open and targeted requests are persisted in browser localStorage and can later become backend records and lightweight `PassengerProfile` data.
+
+For the current mock implementation, `pickupZone.label` is the only used pickup field. `centerLat`, `centerLng`, and `radiusMeters` are reserved for a future approximate circular pickup zone. Do not add maps yet.
+
 When a passenger clicks «Попросить подвезти» on a specific `DriverOffer`, create a targeted `PassengerRequest` with `targetDriverOfferId` and `status: 'waitingForDriver'`, then notify the driver. Contacts are shared only if the driver accepts and a `RideMatch` is created.
 
 ## driverResponses/{driverResponseId}
@@ -241,13 +259,16 @@ type DriverResponse = {
   passengerRequestId: string;
   driverOfferId?: string;
   message?: string;
-  status: 'pendingPassengerConfirmation' | 'accepted' | 'declined' | 'expired';
+  status: 'pendingPassengerConfirmation' | 'pendingContact' | 'accepted' | 'declined' | 'cancelled' | 'expired';
   createdAt: Timestamp;
+  cancelledAt?: Timestamp;
   updatedAt: Timestamp;
 };
 ```
 
 When a driver clicks «Подвезти» on a specific `PassengerRequest`, create a `DriverResponse` with `status: 'pendingPassengerConfirmation'`, then notify the passenger. Contacts are shared only if the passenger accepts and a `RideMatch` is created.
+
+Current mock implementation uses `status: 'pendingContact'` immediately after «Подвезти», hides the passenger request from the public board, shows passenger contact in the mock response area, and supports cancelling the response. Cancelling returns the request to `status: 'open'` and `publicVisible: true`.
 
 ## rideMatches/{rideMatchId}
 
@@ -368,12 +389,24 @@ type Notification = {
 };
 ```
 
-Current MVP documentation covers `channel: 'inApp'` and mock notification state only. `email`, `webPush`, and `telegram` are future channels and must not imply real delivery implementation yet.
+A notification is a personal record inside the app; a delivery channel is the way that record reaches its recipient outside the app. Production notifications belong to a personal notification center and must never be shown to another user.
+
+Current MVP documentation covers `channel: 'inApp'` and localStorage-backed mock notification state only. Web push/PWA push and email are planned MVP delivery channels because users may not open the app often. Telegram is a possible later channel. None of these external delivery channels are implemented in the current mock.
 
 Notification text must not expose phone, exact address, private contact, or sensitive personal data. It may expose only safe summary data: first name, church, service/event, approximate area or hub, number of passengers, available seats, and short safe comment.
 
 ## Current mock-only implementation note
 
-The current runnable Next.js prototype uses in-memory mock arrays in `src/lib/mockData.ts` and public TypeScript types in `src/lib/types.ts`.
+Static churches, drivers, routes, and trips remain mock arrays in `src/lib/mockData.ts`. User-created private mock state uses these namespaced browser localStorage keys:
+
+- `orthodox-routes:passenger-requests`;
+- `orthodox-routes:driver-responses`;
+- `orthodox-routes:targeted-requests`;
+- `orthodox-routes:notifications`;
+- `orthodox-routes:passenger-draft` for optional form prefilling.
+
+Open passenger requests are public only while `status === 'open'` and `publicVisible === true`. Targeted requests always have `publicVisible === false` and never appear in «Кому нужно место». Active driver responses and targeted requests are shown only in temporary personal mock panels. Real persistence and per-user authorization belong to the future backend/Firestore implementation.
+
+All user-visible calendar dates use `dd.mm.yyyy`; date and time use `dd.mm.yyyy в HH:mm`. ISO strings remain valid internal storage values but are not rendered directly.
 
 Firebase, auth, Google Maps, Telegram bot, payments, SMS, WhatsApp Business API, and admin features are intentionally not implemented in the current code.

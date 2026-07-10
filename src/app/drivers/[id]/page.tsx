@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { formatDateTime } from '@/lib/dateFormat';
 import { getDriverById, getDriverRoutes, getDriverTrips, mockChurches, mockDrivers } from '@/lib/mockData';
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
-const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const dayNames = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
 export function generateStaticParams() {
   return mockDrivers.map((driver) => ({ id: driver.id }));
@@ -78,8 +79,8 @@ export default async function DriverPage({ params }: PageProps) {
               <article className="rounded-lg bg-stone-100 p-4" key={route.id}>
                 <h3 className="font-semibold">{route.originLabel}</h3>
                 <p className="mt-2 text-sm text-stone-700">
-                  {route.recurrence.daysOfWeek.map((day) => dayNames[day]).join(', ')} at{' '}
-                  {route.recurrence.typicalDepartureTime}; seats: {route.seats}
+                  {route.recurrence.daysOfWeek.map((day) => dayNames[day]).join(', ')} в{' '}
+                  {route.recurrence.typicalDepartureTime}; мест: {route.seats}
                 </p>
               </article>
             ))}
@@ -91,9 +92,9 @@ export default async function DriverPage({ params }: PageProps) {
           <div className="mt-4 grid gap-3">
             {trips.map((trip) => (
               <article className="rounded-lg bg-stone-100 p-4" key={trip.id}>
-                <h3 className="font-semibold">{trip.date}</h3>
+                <h3 className="font-semibold">{formatDateTime(trip.date, trip.departureTime)}</h3>
                 <p className="mt-2 text-sm text-stone-700">
-                  {trip.departureTime} from {trip.originLabel}; available seats: {trip.seatsAvailable}
+                  Выезд из {trip.originLabel}; свободных мест: {trip.seatsAvailable}
                 </p>
               </article>
             ))}

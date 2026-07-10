@@ -7,6 +7,9 @@ export type Church = {
   jurisdiction: string;
   languages: string[];
   address: string;
+  imageUrl: string;
+  imageAlt: string;
+  imageSource: 'uploaded' | 'default';
   location: { lat: number; lng: number };
   googlePlaceId?: string;
   contacts?: {
@@ -61,4 +64,64 @@ export type Trip = {
   seatsAvailable: number;
   returnTrip: boolean;
   status: 'open' | 'full' | 'cancelled' | 'completed';
+};
+
+export type PickupZone = {
+  label: string;
+  centerLat?: number;
+  centerLng?: number;
+  radiusMeters?: number;
+};
+
+export type PassengerRequestStatus = 'open' | 'waitingForDriver' | 'pendingContact' | 'cancelled';
+
+export type PassengerRequest = {
+  id: string;
+  churchId: string;
+  firstName: string;
+  phonePrivate: string;
+  emailPrivate?: string;
+  serviceEvent: string;
+  passengerCount: number;
+  pickupZone: PickupZone;
+  safePublicComment?: string;
+  consentToShareContact: boolean;
+  status: PassengerRequestStatus;
+  publicVisible: boolean;
+  createdAt: string;
+};
+
+export type DriverResponse = {
+  id: string;
+  passengerRequestId: string;
+  status: 'pendingContact' | 'cancelled';
+  createdAt: string;
+  cancelledAt?: string;
+};
+
+export type TargetedPassengerRequest = {
+  id: string;
+  churchId: string;
+  driverId: string;
+  driverName: string;
+  targetOfferId: string;
+  targetOfferType: 'regularRoute' | 'oneTimeTrip';
+  offerContext: string;
+  firstName: string;
+  phonePrivate: string;
+  emailPrivate?: string;
+  passengerCount: number;
+  pickupZone: PickupZone;
+  privateComment?: string;
+  consentToShareContact: boolean;
+  status: 'waitingForDriver';
+  publicVisible: false;
+  createdAt: string;
+};
+
+export type MockNotification = {
+  id: string;
+  churchId: string;
+  message: string;
+  createdAt: string;
 };
