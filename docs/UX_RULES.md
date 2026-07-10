@@ -67,6 +67,8 @@ Never show publicly:
 - private contact;
 - sensitive personal details.
 
+The optional passenger comment is public in an open request. Both open and targeted request forms limit comments to 300 characters and show: «Не указывайте телефон, точный домашний адрес или другие личные данные.» This is a user-facing warning plus the native `maxLength` constraint, not automated filtering or moderation.
+
 ## Passenger flow
 
 1. Open app.

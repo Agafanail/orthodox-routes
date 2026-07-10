@@ -163,6 +163,8 @@ Hero страницы использует изображение храма. К
 - приватный контакт;
 - чувствительные личные детали.
 
+Optional comment ограничен 300 символами. Рядом с полем показывается предупреждение: «Не указывайте телефон, точный домашний адрес или другие личные данные.» В текущем mock это только пользовательское предупреждение и нативный `maxLength`, без автоматической фильтрации или модерации.
+
 Контакты водителя и пассажира раскрываются только после подтвержденного match.
 
 ## Current mock passenger request flow
@@ -179,7 +181,7 @@ Hero страницы использует изображение храма. К
 - service/event: required;
 - passenger count: required;
 - pickup area: required;
-- comment: optional;
+- comment: optional, maximum 300 characters;
 - consent checkbox: required.
 
 Pickup area сейчас является текстовым label. Модель должна быть готова к будущей approximate circular pickup zone:

@@ -397,10 +397,15 @@ function RequestDialog({
             <label className="grid min-w-0 gap-1 text-sm font-semibold lg:col-span-2">
               Комментарий <span className="font-normal text-stone-500">(необязательно)</span>
               <textarea
+                aria-describedby="comment-privacy-help"
                 className="min-h-24 w-full min-w-0 resize-y rounded-lg border border-stone-300 px-3 py-3 font-normal"
+                maxLength={300}
                 onChange={(event) => onChange({ ...draft, comment: event.target.value })}
                 value={draft.comment}
               />
+              <span className="text-xs font-normal leading-5 text-stone-600" id="comment-privacy-help">
+                Не указывайте телефон, точный домашний адрес или другие личные данные.
+              </span>
             </label>
           </div>
 
