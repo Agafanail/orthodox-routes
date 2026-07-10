@@ -101,7 +101,8 @@ flowchart TD
     A1 --> A2["Clicks: Попросить подвезти"]
     A2 --> A3["Fills minimal contact/request data"]
     A3 --> A4["Targeted request sent to this driver"]
-    A4 --> A5{"Driver accepts?"}
+    A4 --> A4N["Driver receives notification"]
+    A4N --> A5{"Driver accepts?"}
     A5 -->|Yes| A6["RideMatch created"]
     A6 --> A7["Contacts shared with participants"]
     A7 --> A8["Passenger goes to church"]
@@ -110,7 +111,9 @@ flowchart TD
     A -->|No| B1["Passenger clicks page action: Создать запрос"]
     B1 --> B2["Passenger fills open request form"]
     B2 --> B3["Request appears in passenger requests block"]
-    B3 --> B4["Drivers see this request on church page"]
+    B3 --> B3M["Automatic matching checks compatible driver offers"]
+    B3M --> B3N["Passenger and relevant drivers may receive suggestions"]
+    B3N --> B4["Drivers see this request on church page"]
     B4 --> B5["Driver clicks: Подвезти"]
     B5 --> B6{"Passenger confirms driver response?"}
     B6 -->|Yes| B7["RideMatch created"]
@@ -134,7 +137,8 @@ flowchart TD
     A1 --> A2["Clicks: Подвезти"]
     A2 --> A3["Driver confirms availability"]
     A3 --> A4["Driver response sent to passenger"]
-    A4 --> A5{"Passenger confirms?"}
+    A4 --> A4N["Passenger receives notification"]
+    A4N --> A5{"Passenger confirms?"}
     A5 -->|Yes| A6["RideMatch created"]
     A6 --> A7["Passenger request hidden from public board"]
     A7 --> A8["Contacts shared with participants"]
@@ -148,8 +152,10 @@ flowchart TD
     B3 -->|Regular route| B5["Creates regular route"]
     B4 --> B6["Driver offer appears on church page"]
     B5 --> B6
+    B6 --> B6M["Automatic matching checks compatible passenger requests"]
+    B6M --> B6N["Driver and relevant passengers may receive suggestions"]
 
-    B6 --> B7["Passenger clicks:<br/>Попросить подвезти"]
+    B6N --> B7["Passenger clicks:<br/>Попросить подвезти"]
     B7 --> B8["Driver receives targeted passenger request"]
     B8 --> B9{"Driver accepts?"}
     B9 -->|Yes| B10["RideMatch created"]
@@ -185,6 +191,9 @@ erDiagram
     PASSENGER_REQUEST ||--o| RIDE_MATCH : may_be_matched_by
     DRIVER_OFFER ||--o| RIDE_MATCH : may_be_used_in
     DRIVER_RESPONSE ||--o| RIDE_MATCH : may_create
+    PASSENGER_REQUEST ||--o{ MATCH_SUGGESTION : may_generate
+    DRIVER_OFFER ||--o{ MATCH_SUGGESTION : may_generate
+    USER ||--o{ NOTIFICATION : receives
 
     HUB_POINT ||--o{ PASSENGER_REQUEST : may_be_pickup_area
     HUB_POINT ||--o{ DRIVER_OFFER : may_be_stop
@@ -262,6 +271,27 @@ erDiagram
         string driverId
         string passengerRequestId
         string message
+        string status
+    }
+
+    MATCH_SUGGESTION {
+        string id
+        string churchId
+        string serviceEventId
+        string passengerRequestId
+        string driverOfferId
+        string priority
+        string reason
+        string status
+    }
+
+    NOTIFICATION {
+        string id
+        string recipientUserId
+        string type
+        string title
+        string message
+        string channel
         string status
     }
 
@@ -385,4 +415,69 @@ flowchart TD
     D1 --> D2["Driver responds to this specific passenger"]
 
     X["Wrong pattern"] --> X1["Do not place generic<br/>Мне нужно место / Могу подвезти<br/>as abstract church page buttons"]
+```
+
+## 10. Matching & Notifications
+
+```mermaid
+flowchart TD
+    A["New activity happens"] --> B{"Activity type"}
+
+    B -->|Passenger clicks Попросить подвезти| C["Create targeted PassengerRequest<br/>linked to DriverOffer"]
+    C --> C1["Notify driver"]
+    C1 --> C2{"Driver accepts?"}
+    C2 -->|Yes| C3["Create RideMatch"]
+    C3 --> C4["Share contacts with participants"]
+    C3 --> C5["Decrease free seats"]
+    C2 -->|No| C6["No match<br/>No contacts shared"]
+
+    B -->|Driver clicks Подвезти| D["Create DriverResponse<br/>linked to PassengerRequest"]
+    D --> D1["Notify passenger"]
+    D1 --> D2{"Passenger accepts?"}
+    D2 -->|Yes| D3["Create RideMatch"]
+    D3 --> D4["Share contacts with participants"]
+    D3 --> D5["Hide PassengerRequest from public board"]
+    D2 -->|No| D6["No match<br/>No contacts shared"]
+
+    B -->|New open PassengerRequest| E["Run automatic matching"]
+    E --> E1["Find compatible active DriverOffers"]
+    E1 --> E2{"Compatible offers found?"}
+    E2 -->|Yes| E3["Create MatchSuggestions"]
+    E3 --> E4["Notify passenger about possible drivers"]
+    E3 --> E5["Notify relevant drivers about passenger request"]
+    E2 -->|No| E6["Request remains visible on church board"]
+
+    B -->|New DriverOffer| F["Run automatic matching"]
+    F --> F1["Find compatible open PassengerRequests"]
+    F1 --> F2{"Compatible requests found?"}
+    F2 -->|Yes| F3["Create MatchSuggestions"]
+    F3 --> F4["Notify driver about possible passengers"]
+    F3 --> F5["Notify relevant passengers about driver offer"]
+    F2 -->|No| F6["DriverOffer remains visible on church board"]
+```
+
+## 11. Automatic Matching Rules
+
+```mermaid
+flowchart TD
+    A["Potential match candidate"] --> B{"Same church?"}
+    B -->|No| X["Not compatible"]
+    B -->|Yes| C{"Same or compatible service/date?"}
+
+    C -->|No| X
+    C -->|Yes| D{"Driver offer has free seats?"}
+
+    D -->|No| X
+    D -->|Yes| E{"Passenger request is open?"}
+
+    E -->|No| X
+    E -->|Yes| F{"Pickup area or hub compatible enough?"}
+
+    F -->|No| Y["Low priority or no suggestion"]
+    F -->|Yes| G{"Both items publicVisible?"}
+
+    G -->|No| X
+    G -->|Yes| H["Create MatchSuggestion"]
+
+    H --> I["Notify relevant users"]
 ```

@@ -70,10 +70,12 @@ Never show publicly:
 4. View the church transport board.
 5. If a suitable driver offer exists, tap «Попросить подвезти» inside that offer card.
 6. Fill minimal contact/request data, maximum 5 fields.
-7. Wait for driver answer.
-8. If accepted, see participant contact.
-9. If no suitable offer exists, tap page action «Создать запрос».
-10. The open request appears in the passenger requests block while active.
+7. Driver receives a targeted notification.
+8. Wait for driver answer.
+9. If accepted, see participant contact.
+10. If no suitable offer exists, tap page action «Создать запрос».
+11. The open request appears in the passenger requests block while active.
+12. The app may notify the passenger about compatible driver offers.
 
 Passenger profile should feel like a short request form, not heavy registration.
 
@@ -85,10 +87,12 @@ Passenger profile should feel like a short request form, not heavy registration.
 4. View the church transport board.
 5. If a suitable passenger request exists, tap «Подвезти» inside that request card.
 6. Confirm availability.
-7. If passenger confirms, contacts open to participants.
-8. If creating supply instead, tap page action «Создать поездку / маршрут».
-9. Create a driver profile if needed.
-10. Create one-time trip or regular route.
+7. Passenger receives a targeted notification.
+8. If passenger confirms, contacts open to participants.
+9. If creating supply instead, tap page action «Создать поездку / маршрут».
+10. Create a driver profile if needed.
+11. Create one-time trip or regular route.
+12. The app may notify the driver about compatible passenger requests.
 
 Driver profile can be more complete because the driver takes responsibility for others.
 
@@ -114,6 +118,21 @@ Driver profile can be more complete because the driver takes responsibility for 
 - Do not force language choice on first visit.
 - Provide a manual language switcher somewhere in the UI.
 - Supported MVP languages: `ru`, `it`, `en`, `ro`.
+
+## Matching and notifications UX
+
+- Users should not need to constantly monitor the app manually.
+- The app should surface relevant possible matches through notifications.
+- A notification is not a confirmed match.
+- Match suggestions should help users return to the relevant driver offer or passenger request.
+- Notification actions must lead to the relevant card, request, or offer.
+- Notification text must be short, safe, and privacy-preserving.
+- Do not show private contacts inside notification text.
+- Do not show phone, exact address, private contact, or sensitive personal data in notifications.
+- Notification text may show only safe summary data: first name, church, service/event, approximate area or hub, number of passengers, available seats, and short safe comment.
+- Contacts become visible only after the required confirmation creates a RideMatch.
+- Current MVP UX may use an in-app notification center and mock notification state.
+- Email, web push, and Telegram are future channels, not current delivery requirements.
 
 ## Public board visibility
 

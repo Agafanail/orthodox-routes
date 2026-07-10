@@ -11,6 +11,8 @@ Public church pages show only active board items:
 - `matched`, `full`, `cancelled`, `expired`, and `completed` items are hidden from the public board.
 - Hidden items remain in internal history and must not be deleted just because they are no longer public.
 - Private contacts are shared only after a confirmed `RideMatch`.
+- Notifications and `MatchSuggestion` records do not create a confirmed match by themselves.
+- A `RideMatch` is created only after the required confirmation.
 
 ## users/{userId}
 
@@ -146,7 +148,14 @@ type ParishCoordinatorProfile = {
 A `DriverOffer` is the public board entity for both one-time trips and regular routes.
 
 ```ts
-type DriverOfferStatus = 'draft' | 'active' | 'full' | 'cancelled' | 'expired' | 'completed';
+type DriverOfferStatus =
+  | 'draft'
+  | 'active'
+  | 'pendingRequest'
+  | 'full'
+  | 'cancelled'
+  | 'expired'
+  | 'completed';
 
 type DriverOffer = {
   id: string;
@@ -185,8 +194,7 @@ A `PassengerRequest` can be open on the church board or targeted to a specific `
 type PassengerRequestStatus =
   | 'draft'
   | 'open'
-  | 'targeted_to_driver_offer'
-  | 'driver_response_pending'
+  | 'waitingForDriver'
   | 'matched'
   | 'declined'
   | 'cancelled'
@@ -220,6 +228,8 @@ const isPassengerRequestPublic = (request: PassengerRequest) =>
 
 Public passenger request cards must never expose phone, exact address, private contact, or sensitive personal details.
 
+When a passenger clicks «Попросить подвезти» on a specific `DriverOffer`, create a targeted `PassengerRequest` with `targetDriverOfferId` and `status: 'waitingForDriver'`, then notify the driver. Contacts are shared only if the driver accepts and a `RideMatch` is created.
+
 ## driverResponses/{driverResponseId}
 
 Driver response is created when a driver clicks «Подвезти» on a concrete passenger request.
@@ -231,11 +241,13 @@ type DriverResponse = {
   passengerRequestId: string;
   driverOfferId?: string;
   message?: string;
-  status: 'pending_passenger_confirmation' | 'accepted_by_passenger' | 'declined_by_passenger' | 'cancelled';
+  status: 'pendingPassengerConfirmation' | 'accepted' | 'declined' | 'expired';
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
 ```
+
+When a driver clicks «Подвезти» on a specific `PassengerRequest`, create a `DriverResponse` with `status: 'pendingPassengerConfirmation'`, then notify the passenger. Contacts are shared only if the passenger accepts and a `RideMatch` is created.
 
 ## rideMatches/{rideMatchId}
 
@@ -265,6 +277,39 @@ After a `RideMatch` is confirmed:
 - the matched `PassengerRequest` is hidden from the public board;
 - the matched `DriverOffer.freeSeats` decreases;
 - the `DriverOffer` remains public only if seats remain and it is still active.
+
+## matchSuggestions/{matchSuggestionId}
+
+`MatchSuggestion` records are automatic suggestions, not confirmed matches.
+
+```ts
+type MatchSuggestion = {
+  id: string;
+  churchId: string;
+  serviceEventId?: string;
+  passengerRequestId: string;
+  driverOfferId: string;
+  priority: 'low' | 'medium' | 'high';
+  reason: string;
+  status:
+    | 'suggested'
+    | 'dismissed'
+    | 'convertedToRequest'
+    | 'convertedToResponse'
+    | 'expired';
+  createdAt: Timestamp;
+};
+```
+
+Simple MVP matching rules:
+
+- same church;
+- same or compatible service/event/date;
+- driver offer has free seats;
+- passenger request is open;
+- approximate pickup area or hub is compatible enough;
+- both items have `publicVisible === true`;
+- neither item is expired, cancelled, full, completed, or already matched.
 
 ## hubPoints/{hubPointId}
 
@@ -301,26 +346,31 @@ type ChurchClaim = {
 ```ts
 type Notification = {
   id: string;
-  userId: string;
+  recipientUserId: string;
   type:
-    | 'passenger_request_created'
-    | 'driver_response_created'
-    | 'ride_match_confirmed'
-    | 'driver_offer_updated'
-    | 'driver_offer_cancelled';
+    | 'targetedPassengerRequestCreated'
+    | 'driverResponseCreated'
+    | 'matchSuggestionCreated'
+    | 'rideMatchConfirmed'
+    | 'driverOfferUpdated'
+    | 'driverOfferCancelled';
   title: string;
-  body: string;
-  relatedId?: string;
-  read: boolean;
-  channels: {
-    inApp: boolean;
-    push?: 'sent' | 'failed' | 'skipped';
-    email?: 'sent' | 'failed' | 'skipped';
-    telegram?: 'sent' | 'failed' | 'skipped';
-  };
+  message: string;
+  relatedChurchId?: string;
+  relatedServiceEventId?: string;
+  relatedPassengerRequestId?: string;
+  relatedDriverOfferId?: string;
+  relatedDriverResponseId?: string;
+  relatedRideMatchId?: string;
+  status: 'unread' | 'read' | 'archived';
+  channel: 'inApp' | 'email' | 'webPush' | 'telegram';
   createdAt: Timestamp;
 };
 ```
+
+Current MVP documentation covers `channel: 'inApp'` and mock notification state only. `email`, `webPush`, and `telegram` are future channels and must not imply real delivery implementation yet.
+
+Notification text must not expose phone, exact address, private contact, or sensitive personal data. It may expose only safe summary data: first name, church, service/event, approximate area or hub, number of passengers, available seats, and short safe comment.
 
 ## Current mock-only implementation note
 
