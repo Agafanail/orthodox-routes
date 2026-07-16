@@ -38,6 +38,7 @@ npm run dev
 Проверка проекта:
 
 ```bash
+npm test
 npm run lint
 npm run build
 ```

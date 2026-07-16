@@ -3,6 +3,20 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { formatDateTime } from '@/lib/dateFormat';
+import {
+  cancelDriverResponse,
+  createPendingDriverResponse,
+  isDriverResponseActive,
+  isPassengerRequestPublic,
+  markPassengerRequestResponded,
+  restorePassengerRequestAfterCancellation,
+} from '@/lib/passengerRequestState';
+import {
+  validatePassengerRequestDraft,
+  type PassengerRequestDraft,
+  type PassengerRequestDraftErrors,
+} from '@/lib/passengerRequestValidation';
+import { readStoredArray } from '@/lib/storage';
 import type {
   Church,
   DriverPublicProfile,
@@ -13,19 +27,6 @@ import type {
   TargetedPassengerRequest,
   Trip,
 } from '@/lib/types';
-
-type PassengerRequestDraft = {
-  firstName: string;
-  phone: string;
-  email: string;
-  serviceEvent: string;
-  passengerCount: string;
-  pickupArea: string;
-  comment: string;
-  consent: boolean;
-};
-
-type DraftErrors = Partial<Record<keyof PassengerRequestDraft, string>>;
 
 type RequestDialogContext =
   | { mode: 'open' }
@@ -86,27 +87,13 @@ function getInitialDraft(): PassengerRequestDraft {
   }
 }
 
-function readStoredArray<T>(key: string): T[] {
-  if (typeof window === 'undefined') {
-    return [];
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(window.localStorage.getItem(key) ?? '[]');
-    return Array.isArray(parsed) ? (parsed as T[]) : [];
-  } catch {
-    window.localStorage.removeItem(key);
-    return [];
-  }
-}
-
 function usePersistentArray<T>(key: string) {
   const [items, setItems] = useState<T[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
-      setItems(readStoredArray<T>(key));
+      setItems(readStoredArray<T>(window.localStorage, key));
       setLoaded(true);
     }, 0);
 
@@ -145,46 +132,6 @@ function getServiceOptions(routes: Route[], trips: Trip[]) {
   }));
 
   return [...tripOptions, ...routeOptions, { value: 'Литургия', label: 'Литургия' }];
-}
-
-function normalizePhone(phone: string) {
-  return phone.replace(/[\s\-()]/g, '');
-}
-
-function validateDraft(draft: PassengerRequestDraft, requireService: boolean) {
-  const errors: DraftErrors = {};
-  const normalizedPhone = normalizePhone(draft.phone);
-  const passengerCount = Number.parseInt(draft.passengerCount, 10);
-
-  if (!draft.firstName.trim()) {
-    errors.firstName = 'Введите имя.';
-  }
-
-  if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
-    errors.phone = 'Введите номер в международном формате, например +39 333 123 4567.';
-  }
-
-  if (draft.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
-    errors.email = 'Введите корректный email, например name@example.com.';
-  }
-
-  if (requireService && !draft.serviceEvent) {
-    errors.serviceEvent = 'Выберите службу или событие.';
-  }
-
-  if (!Number.isFinite(passengerCount) || passengerCount < 1) {
-    errors.passengerCount = 'Укажите количество пассажиров от 1.';
-  }
-
-  if (!draft.pickupArea.trim()) {
-    errors.pickupArea = 'Укажите удобную точку встречи.';
-  }
-
-  if (!draft.consent) {
-    errors.consent = 'Нужно подтвердить согласие на передачу контакта водителю.';
-  }
-
-  return { errors, normalizedPhone, passengerCount };
 }
 
 function NotificationCenter({ notifications }: { notifications: MockNotification[] }) {
@@ -229,7 +176,7 @@ function RequestDialog({
 }: {
   context: RequestDialogContext;
   draft: PassengerRequestDraft;
-  errors: DraftErrors;
+  errors: PassengerRequestDraftErrors;
   serviceOptions: Array<{ value: string; label: string }>;
   onCancel: () => void;
   onChange: (draft: PassengerRequestDraft) => void;
@@ -483,7 +430,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
   const serviceOptions = useMemo(() => getServiceOptions(routes, trips), [routes, trips]);
   const [dialogContext, setDialogContext] = useState<RequestDialogContext | null>(null);
   const [draft, setDraft] = useState<PassengerRequestDraft>(getInitialDraft);
-  const [draftErrors, setDraftErrors] = useState<DraftErrors>({});
+  const [draftErrors, setDraftErrors] = useState<PassengerRequestDraftErrors>({});
   const [passengerRequests, setPassengerRequests] = usePersistentArray<PassengerRequest>(storageKeys.passengerRequests);
   const [driverResponses, setDriverResponses] = usePersistentArray<DriverResponse>(storageKeys.driverResponses);
   const [targetedRequests, setTargetedRequests] = usePersistentArray<TargetedPassengerRequest>(
@@ -533,7 +480,10 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       return;
     }
 
-    const { errors, normalizedPhone, passengerCount } = validateDraft(draft, dialogContext.mode === 'open');
+    const { errors, normalizedPhone, passengerCount } = validatePassengerRequestDraft(
+      draft,
+      dialogContext.mode === 'open',
+    );
 
     if (Object.keys(errors).length > 0) {
       setDraftErrors(errors);
@@ -601,18 +551,11 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
   }
 
   function handleRespond(request: PassengerRequest) {
-    const response: DriverResponse = {
-      id: makeId('driver-response'),
-      passengerRequestId: request.id,
-      status: 'pendingContact',
-      createdAt: new Date().toISOString(),
-    };
+    const response = createPendingDriverResponse(request.id, makeId('driver-response'), new Date().toISOString());
 
     setDriverResponses((current) => [response, ...current]);
     setPassengerRequests((current) =>
-      current.map((item) =>
-        item.id === request.id ? { ...item, status: 'pendingContact', publicVisible: false } : item,
-      ),
+      current.map((item) => (item.id === request.id ? markPassengerRequestResponded(item) : item)),
     );
     addNotification(`Водитель откликнулся на запрос ${request.firstName}.`);
   }
@@ -622,24 +565,24 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       return;
     }
 
+    const cancelledAt = new Date().toISOString();
+
     setDriverResponses((current) =>
-      current.map((item) =>
-        item.id === response.id ? { ...item, status: 'cancelled', cancelledAt: new Date().toISOString() } : item,
-      ),
+      current.map((item) => (item.id === response.id ? cancelDriverResponse(item, cancelledAt) : item)),
     );
     setPassengerRequests((current) =>
       current.map((item) =>
-        item.id === response.passengerRequestId ? { ...item, status: 'open', publicVisible: true } : item,
+        item.id === response.passengerRequestId ? restorePassengerRequestAfterCancellation(item) : item,
       ),
     );
     addNotification('Отклик отменен.');
   }
 
   const churchRequests = passengerRequests.filter((request) => request.churchId === church.id);
-  const activeRequests = churchRequests.filter((request) => request.publicVisible && request.status === 'open');
+  const activeRequests = churchRequests.filter(isPassengerRequestPublic);
   const activeResponses = driverResponses.filter(
     (response) =>
-      response.status === 'pendingContact' && churchRequests.some((request) => request.id === response.passengerRequestId),
+      isDriverResponseActive(response) && churchRequests.some((request) => request.id === response.passengerRequestId),
   );
   const churchTargetedRequests = targetedRequests.filter((request) => request.churchId === church.id);
   const churchNotifications = notifications.filter((notification) => notification.churchId === church.id);

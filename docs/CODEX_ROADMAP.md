@@ -17,13 +17,14 @@ Roadmap follows the approved product sequence: validate the church transport boa
 - User-visible date formatting as `dd.mm.yyyy` and `dd.mm.yyyy в HH:mm`.
 - Church hero with a local Byzantine fallback image.
 - Public passenger comments limited to 300 characters with a privacy warning; no automated moderation.
+- Initial Vitest unit-test foundation for validation, date formatting, request visibility/state transitions, and safe localStorage parsing.
 
 The current prototype has no backend, authentication, real user isolation, push/email delivery, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features.
 
 ## Next priorities
 
 1. Clean and componentize the current mock UI without changing approved flows.
-2. Add automated tests for validation, localStorage persistence, public/private visibility, open requests, targeted requests, response cancellation, and date formatting.
+2. Expand automated coverage beyond the initial pure-logic unit tests; component and end-to-end tests remain future work.
 3. Complete the driver offer creation mock flow for one-time trips and regular routes.
 4. Define and validate the real confirmation and `RideMatch` flow, including when contacts are shared and seats decrease.
 5. Introduce authentication and backend persistence only after the mock request and confirmation flows are stable.
