@@ -133,6 +133,8 @@ Driver profile can be more complete because the driver takes responsibility for 
 - Short forms.
 - Passenger request forms contain only the fields required by the open or targeted flow; email and comment remain optional.
 - Modal forms remain single-column on mobile and may use two columns only when every field stays within the dialog. Inputs, selects, textareas, consent text, and action buttons must never overflow the modal.
+- Normal focused form controls use a neutral stone/gray focus state. Red styling appears only after submit validation identifies an error for that field.
+- Editing an invalid field clears only that field's error; other unresolved field errors remain visible until corrected or the form is submitted again.
 - Avoid dropdowns with huge lists on mobile.
 - Use search + suggestions.
 - Do not ask for exact home address.

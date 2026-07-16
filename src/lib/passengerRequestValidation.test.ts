@@ -2,12 +2,34 @@ import { describe, expect, it } from 'vitest';
 import {
   EMAIL_VALIDATION_MESSAGE,
   PHONE_VALIDATION_MESSAGE,
+  clearPassengerRequestDraftFieldError,
   isInternationalPhoneValid,
   isOptionalEmailValid,
   normalizePhone,
   validatePassengerRequestDraft,
   type PassengerRequestDraft,
 } from './passengerRequestValidation';
+
+describe('passenger request field errors', () => {
+  it('removes only the selected field error without mutating the original object', () => {
+    const errors = { firstName: 'Name error', phone: 'Phone error' };
+
+    const result = clearPassengerRequestDraftFieldError(errors, 'firstName');
+
+    expect(result).toEqual({ phone: 'Phone error' });
+    expect(result).not.toBe(errors);
+    expect(errors).toEqual({ firstName: 'Name error', phone: 'Phone error' });
+  });
+
+  it('preserves all errors when the selected field has no error', () => {
+    const errors = { phone: 'Phone error', consent: 'Consent error' };
+
+    const result = clearPassengerRequestDraftFieldError(errors, 'email');
+
+    expect(result).toBe(errors);
+    expect(result).toEqual(errors);
+  });
+});
 
 describe('phone validation', () => {
   it.each([

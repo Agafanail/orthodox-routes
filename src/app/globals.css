@@ -37,7 +37,22 @@ a[href]:hover {
   filter: brightness(0.94);
 }
 
-:where(a[href], button, input, select, textarea):focus-visible {
+:where(a[href], button):focus-visible {
   outline: 3px solid #b45309;
   outline-offset: 2px;
+}
+
+:where(input, select, textarea):focus-visible {
+  border-color: #78716c;
+  outline: 2px solid #a8a29e;
+  outline-offset: 2px;
+}
+
+:where(input, select, textarea)[aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
+:where(input, select, textarea)[aria-invalid="true"]:focus-visible {
+  border-color: #dc2626;
+  outline-color: #ef4444;
 }

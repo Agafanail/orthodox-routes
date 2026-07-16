@@ -12,6 +12,7 @@ import {
   restorePassengerRequestAfterCancellation,
 } from '@/lib/passengerRequestState';
 import {
+  clearPassengerRequestDraftFieldError,
   validatePassengerRequestDraft,
   type PassengerRequestDraft,
   type PassengerRequestDraftErrors,
@@ -179,7 +180,7 @@ function RequestDialog({
   errors: PassengerRequestDraftErrors;
   serviceOptions: Array<{ value: string; label: string }>;
   onCancel: () => void;
-  onChange: (draft: PassengerRequestDraft) => void;
+  onChange: (draft: PassengerRequestDraft, fieldName: keyof PassengerRequestDraft) => void;
   onSubmit: () => void;
 }) {
   const targeted = context.mode === 'targeted';
@@ -257,7 +258,7 @@ function RequestDialog({
                 aria-invalid={Boolean(errors.firstName)}
                 autoFocus
                 className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                onChange={(event) => onChange({ ...draft, firstName: event.target.value })}
+                onChange={(event) => onChange({ ...draft, firstName: event.target.value }, 'firstName')}
                 required
                 value={draft.firstName}
               />
@@ -270,7 +271,7 @@ function RequestDialog({
                 aria-invalid={Boolean(errors.phone)}
                 className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
                 inputMode="tel"
-                onChange={(event) => onChange({ ...draft, phone: event.target.value })}
+                onChange={(event) => onChange({ ...draft, phone: event.target.value }, 'phone')}
                 placeholder="+39 333 123 4567"
                 required
                 type="tel"
@@ -284,7 +285,7 @@ function RequestDialog({
                 aria-describedby={errors.email ? 'email-error' : undefined}
                 aria-invalid={Boolean(errors.email)}
                 className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                onChange={(event) => onChange({ ...draft, email: event.target.value })}
+                onChange={(event) => onChange({ ...draft, email: event.target.value }, 'email')}
                 type="email"
                 value={draft.email}
               />
@@ -297,7 +298,7 @@ function RequestDialog({
                   aria-describedby={errors.serviceEvent ? 'service-error' : undefined}
                   aria-invalid={Boolean(errors.serviceEvent)}
                   className="w-full min-w-0 max-w-full rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                  onChange={(event) => onChange({ ...draft, serviceEvent: event.target.value })}
+                  onChange={(event) => onChange({ ...draft, serviceEvent: event.target.value }, 'serviceEvent')}
                   required
                   value={draft.serviceEvent}
                 >
@@ -318,7 +319,7 @@ function RequestDialog({
                 aria-invalid={Boolean(errors.passengerCount)}
                 className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
                 min="1"
-                onChange={(event) => onChange({ ...draft, passengerCount: event.target.value })}
+                onChange={(event) => onChange({ ...draft, passengerCount: event.target.value }, 'passengerCount')}
                 required
                 type="number"
                 value={draft.passengerCount}
@@ -331,7 +332,7 @@ function RequestDialog({
                 aria-describedby={errors.pickupArea ? 'pickup-area-error pickup-area-help' : 'pickup-area-help'}
                 aria-invalid={Boolean(errors.pickupArea)}
                 className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                onChange={(event) => onChange({ ...draft, pickupArea: event.target.value })}
+                onChange={(event) => onChange({ ...draft, pickupArea: event.target.value }, 'pickupArea')}
                 required
                 value={draft.pickupArea}
               />
@@ -347,7 +348,7 @@ function RequestDialog({
                 aria-describedby="comment-privacy-help"
                 className="min-h-24 w-full min-w-0 resize-y rounded-lg border border-stone-300 px-3 py-3 font-normal"
                 maxLength={300}
-                onChange={(event) => onChange({ ...draft, comment: event.target.value })}
+                onChange={(event) => onChange({ ...draft, comment: event.target.value }, 'comment')}
                 value={draft.comment}
               />
               <span className="text-xs font-normal leading-5 text-stone-600" id="comment-privacy-help">
@@ -362,7 +363,7 @@ function RequestDialog({
               aria-invalid={Boolean(errors.consent)}
               checked={draft.consent}
               className="mt-1 h-4 w-4"
-              onChange={(event) => onChange({ ...draft, consent: event.target.checked })}
+              onChange={(event) => onChange({ ...draft, consent: event.target.checked }, 'consent')}
               required
               type="checkbox"
             />
@@ -810,9 +811,9 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
           draft={draft}
           errors={draftErrors}
           onCancel={closeDialog}
-          onChange={(nextDraft) => {
+          onChange={(nextDraft, fieldName) => {
             setDraft(nextDraft);
-            setDraftErrors({});
+            setDraftErrors((current) => clearPassengerRequestDraftFieldError(current, fieldName));
           }}
           onSubmit={handleSubmitRequest}
           serviceOptions={serviceOptions}
