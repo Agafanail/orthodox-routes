@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { connection } from 'next/server';
 import { getDriverRoutes, getDriverTrips, mockChurches, mockDrivers } from '@/lib/mockData';
 
 function churchNames(ids: string[]) {
@@ -8,7 +9,10 @@ function churchNames(ids: string[]) {
     .join(', ');
 }
 
-export default function DriversPage() {
+export default async function DriversPage() {
+  await connection();
+  const now = new Date();
+
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <nav className="mb-7 flex items-center justify-between">
@@ -29,7 +33,7 @@ export default function DriversPage() {
       <section className="mt-7 grid gap-4 md:grid-cols-2">
         {mockDrivers.map((driver) => {
           const routes = getDriverRoutes(driver.id);
-          const trips = getDriverTrips(driver.id);
+          const trips = getDriverTrips(driver.id, now);
 
           return (
             <Link

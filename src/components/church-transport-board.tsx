@@ -238,7 +238,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       setPassengerRequests((current) => [request, ...current]);
       addNotification(`Создан запрос: ${request.firstName} ищет место на ${request.serviceEvent}.`);
 
-      if (routes.length > 0 || trips.some((trip) => trip.seatsAvailable > 0)) {
+      if (routes.length > 0 || trips.length > 0) {
         addNotification('Найдены возможные водители для вашего запроса.');
       }
     }

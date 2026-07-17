@@ -91,7 +91,7 @@ export function DriverOffers({
       <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
         <h2 className="text-xl font-bold">Ближайшие поездки</h2>
         <div className="mt-4 grid gap-3">
-          {trips.map((trip) => {
+          {trips.length > 0 ? trips.map((trip) => {
             const driverName = getDriverName(drivers, trip.driverId);
             const dateTime = formatDateTime(trip.date, trip.departureTime);
             const offerContext = `Разовая поездка: ${dateTime}, выезд из ${trip.originLabel}`;
@@ -120,7 +120,11 @@ export function DriverOffers({
                 </button>
               </article>
             );
-          })}
+          }) : (
+            <p className="rounded-lg bg-stone-100 p-4 text-sm text-stone-600">
+              Нет доступных разовых поездок.
+            </p>
+          )}
         </div>
       </div>
     </section>

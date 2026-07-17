@@ -405,6 +405,8 @@ Static churches, drivers, routes, and trips remain mock arrays in `src/lib/mockD
 - `orthodox-routes:notifications`;
 - `orthodox-routes:passenger-draft` for optional form prefilling.
 
+A mock one-time `Trip` is publicly available only while `status === 'open'`, `seatsAvailable > 0`, and the local value composed from `date` and `departureTime` has not passed. The same rule filters church and driver trip selectors, church-board offers, and passenger service/event choices. Regular-route visibility is unchanged.
+
 Open passenger requests are public only while `status === 'open'` and `publicVisible === true`. Targeted requests always have `publicVisible === false` and never appear in «Кому нужно место». Active driver responses and targeted requests are shown only in temporary personal mock panels. Real persistence and per-user authorization belong to the future backend/Firestore implementation.
 
 All user-visible calendar dates use `dd.mm.yyyy`; date and time use `dd.mm.yyyy в HH:mm`. ISO strings remain valid internal storage values but are not rendered directly.

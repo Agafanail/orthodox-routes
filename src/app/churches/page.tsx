@@ -1,7 +1,11 @@
 import Link from 'next/link';
+import { connection } from 'next/server';
 import { getChurchDrivers, getChurchRoutes, getChurchTrips, mockChurches } from '@/lib/mockData';
 
-export default function ChurchesPage() {
+export default async function ChurchesPage() {
+  await connection();
+  const now = new Date();
+
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <nav className="mb-7 flex items-center justify-between">
@@ -22,7 +26,7 @@ export default function ChurchesPage() {
         {mockChurches.map((church) => {
           const driverCount = getChurchDrivers(church.id).length;
           const routeCount = getChurchRoutes(church.id).length;
-          const tripCount = getChurchTrips(church.id).length;
+          const tripCount = getChurchTrips(church.id, now).length;
 
           return (
             <Link

@@ -172,6 +172,7 @@ Driver profile can be more complete because the driver takes responsibility for 
 - Matched, cancelled, expired, or completed passenger requests are hidden.
 - Active driver offers with free seats are visible.
 - Full, cancelled, expired, or completed driver offers are hidden.
+- A one-time trip is visible and available in the passenger service/event choices only while `status === 'open'`, `seatsAvailable > 0`, and its local departure date and time have not passed.
 - Hidden items remain in internal history.
 - Targeted passenger requests are never public board items.
 

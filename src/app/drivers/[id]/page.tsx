@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { connection } from 'next/server';
 import { formatDateTime } from '@/lib/dateFormat';
 import { getDriverById, getDriverRoutes, getDriverTrips, mockChurches, mockDrivers } from '@/lib/mockData';
 
@@ -14,6 +15,8 @@ export function generateStaticParams() {
 }
 
 export default async function DriverPage({ params }: PageProps) {
+  await connection();
+  const now = new Date();
   const { id } = await params;
   const driver = getDriverById(id);
 
@@ -23,7 +26,7 @@ export default async function DriverPage({ params }: PageProps) {
 
   const churches = mockChurches.filter((church) => driver.visibleChurchIds.includes(church.id));
   const routes = getDriverRoutes(driver.id);
-  const trips = getDriverTrips(driver.id);
+  const trips = getDriverTrips(driver.id, now);
 
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-4 py-6 sm:px-6 lg:px-8">

@@ -1,4 +1,5 @@
 import type { Church, DriverPublicProfile, Route, Trip } from './types';
+import { isOneTimeTripAvailable } from './tripVisibility';
 
 export const mockChurches: Church[] = [
   {
@@ -154,14 +155,14 @@ export function getChurchRoutes(churchId: string) {
   return mockRoutes.filter((route) => route.churchId === churchId && route.status === 'active');
 }
 
-export function getChurchTrips(churchId: string) {
-  return mockTrips.filter((trip) => trip.churchId === churchId && trip.status === 'open');
+export function getChurchTrips(churchId: string, now: Date) {
+  return mockTrips.filter((trip) => trip.churchId === churchId && isOneTimeTripAvailable(trip, now));
 }
 
 export function getDriverRoutes(driverId: string) {
   return mockRoutes.filter((route) => route.driverId === driverId && route.status === 'active');
 }
 
-export function getDriverTrips(driverId: string) {
-  return mockTrips.filter((trip) => trip.driverId === driverId && trip.status === 'open');
+export function getDriverTrips(driverId: string, now: Date) {
+  return mockTrips.filter((trip) => trip.driverId === driverId && isOneTimeTripAvailable(trip, now));
 }

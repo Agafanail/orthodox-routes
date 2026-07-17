@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
+import { connection } from 'next/server';
 import { ChurchTransportBoard } from '@/components/church-transport-board';
 import {
   getChurchBySlug,
@@ -19,6 +20,8 @@ export function generateStaticParams() {
 }
 
 export default async function ChurchPage({ params }: PageProps) {
+  await connection();
+  const now = new Date();
   const { slug } = await params;
   const church = getChurchBySlug(slug);
 
@@ -28,7 +31,7 @@ export default async function ChurchPage({ params }: PageProps) {
 
   const drivers = getChurchDrivers(church.id);
   const routes = getChurchRoutes(church.id);
-  const trips = getChurchTrips(church.id);
+  const trips = getChurchTrips(church.id, now);
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
