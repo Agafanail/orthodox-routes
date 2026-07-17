@@ -43,43 +43,139 @@
 - Для храма максимально простая карточка.
 - Каждый экран должен отвечать на вопрос пользователя: «Как мне попасть в храм?»
 
-## Качество кода
+## Безопасность и качество кода
 
-- Не добавляй тяжелые библиотеки без необходимости.
-- Не пиши неиспользуемый код «на будущее».
-- Все функции с доступом к личным данным держи явно типизированными.
-- Перед завершением задачи запускай `npm test`, если в `package.json` есть script `test`, а также `npm run lint` и `npm run build`, если проект уже собран.
-- После отправки одобренного коммита, если доступен GitHub CLI, проверь соответствующий запуск GitHub Actions CI.
-- Не утверждай, что отправленная задача полностью проверена, пока GitHub Actions выполняется или завершился с ошибкой.
-- Статус GitHub Actions CI сообщай отдельно от результатов локальных `npm test`, `npm run lint` и `npm run build`.
-- Если меняешь схему данных, обнови `docs/DATA_MODEL.md`.
-- Если добавляешь feature, обнови `docs/CODEX_ROADMAP.md`.
-
-## Documentation Synchronization Rules
-
-- The documentation is part of the product.
-- Every product change must update the documentation in the same task.
-- If a task changes product concept, user flows, UX, screen structure, navigation, buttons, entity relationships, visibility rules, permissions, public/private data, status transitions, or business rules, then the affected documentation must be updated before the task is considered complete.
-- At minimum, check and update these files when relevant:
-  - `docs/PROJECT_MAP.md`
-  - `docs/PROJECT_SPEC_V0_1.md`
-  - `docs/DATA_MODEL.md`
-  - `docs/UX_RULES.md`
-- Mermaid diagrams are the product visualization source of truth.
-- The Mermaid diagrams must always match the current implementation and current product concept.
-- If the diagrams become outdated, the task is incomplete.
-- Codex must never silently change product concept, business logic, user journeys, UX decisions, button placement, navigation, screen hierarchy, or terminology.
-- If Codex believes a product change is needed, it must describe the recommendation separately and wait for explicit approval.
-- At the end of every task, Codex must explicitly report:
-  - Task type: Product Change or Technical Change
-  - Which documentation files were updated
-  - Whether Mermaid diagrams were updated
-  - If diagrams were not updated, why not
-  - Whether lint and build passed
-
-## Безопасность
-
-- Не логируй телефоны, токены, private keys.
+- Не логируй телефоны, токены и private keys.
 - Не клади secrets в клиентский код. Если Firebase config или Google Maps browser key появятся позже, используй только публичную конфигурацию и доменные ограничения.
 - Firestore rules должны запрещать чтение приватных контактов до подтверждения заявки.
 - Админские операции должны быть доступны только пользователям с role `admin`.
+- Все функции с доступом к личным данным держи явно типизированными.
+- Не добавляй тяжелые библиотеки без необходимости и не пиши неиспользуемый код «на будущее».
+
+## Классификация задач
+
+- **Product Change** — меняет продуктовую концепцию, пользовательское поведение, UX, данные, видимость, права, статусы или бизнес-правила.
+- **Technical Change** — меняет код, конфигурацию, зависимости, workflow или внутреннее техническое поведение без изменения продуктовой концепции.
+- **Technical Refactor** — меняет только внутреннюю структуру или реализацию при сохранении наблюдаемого поведения.
+- **Documentation-only Change** — меняет только документацию и не затрагивает исполняемый или генерируемый контент.
+
+Промпт задачи может явно переопределить конкретное правило по умолчанию. Отсутствие правила в промпте не отменяет `AGENTS.md`. Все инструкции этого файла применяются автоматически и не требуют повторения в каждой задаче.
+
+## Default Task Protocol
+
+Для каждой задачи Codex должен:
+
+- сначала прочитать `AGENTS.md`;
+- изучить только относящиеся к задаче файлы и документацию;
+- до редактирования проверить текущий Git status и существующий diff;
+- оставаться в утвержденном scope, не делать несвязанный cleanup;
+- не писать спекулятивный код для будущего использования;
+- не добавлять зависимости без явного требования;
+- сохранять публичные import paths, если задача явно их не меняет;
+- перед отчетом проверить финальный status, stat и полный релевантный diff;
+- определить, требуют ли изменения синхронизации документации и Mermaid;
+- никогда не создавать commit и не выполнять push без явной инструкции.
+
+## Technical Refactor Preservation Contract
+
+Для задачи типа **Technical Refactor** по умолчанию сохраняются:
+
+- продуктовое поведение;
+- видимый UI, copy, орфография и пунктуация;
+- rendered markup, насколько это разумно возможно;
+- Tailwind-классы и responsive layout;
+- accessibility behavior и `aria-*` атрибуты;
+- правила валидации и поведение ошибок;
+- privacy boundaries и видимость public/private данных;
+- значения и переходы статусов, порядок элементов;
+- localStorage keys и формы хранимых данных;
+- routes, links и публичные component import paths;
+- смысл domain entities и бизнес-правила;
+- тексты уведомлений.
+
+Разрешено менять только внутреннюю файловую структуру, imports, границы компонентов и private implementation details. Не вводи без явного требования Context, reducers, stores, repositories, service layers, event buses или generic abstractions.
+
+## Product Change Protocol
+
+- Документация является частью продукта.
+- Никогда молча не меняй продуктовую концепцию, терминологию, flows, screen hierarchy, кнопки, статусы, видимость, permissions, privacy или бизнес-правила.
+- Обновляй всю затронутую документацию в той же задаче.
+- Mermaid-диаграммы являются product visualization source of truth и должны соответствовать текущей реализации и продуктовой концепции; обновляй их при изменении документированной структуры продукта. Если диаграммы устарели, задача не завершена.
+- Обновляй `docs/CODEX_ROADMAP.md` для завершенных product features.
+- Обновляй `docs/DATA_MODEL.md` при изменении entities, fields, relationships, statuses или storage.
+- Обновляй `docs/UX_RULES.md` при изменении UX, copy, interactions, forms, accessibility или visibility.
+- Обновляй `docs/PROJECT_MAP.md` и `docs/PROJECT_SPEC_V0_1.md`, когда затронуты их продуктовые описания.
+- Если предлагается неутвержденное продуктовое изменение, сообщи рекомендацию отдельно и не реализуй ее без явного одобрения.
+
+## Verification Protocol
+
+Для изменений source code, UI, configuration, dependencies, workflow и Technical Refactor запусти:
+
+- `npm test`;
+- `npm run lint`;
+- `npm run build`;
+- `git diff --check`.
+
+Для Documentation-only Change достаточно:
+
+- `git diff --check`;
+- проверить полный documentation diff.
+
+`npm test`, lint и build для documentation-only задачи не нужны, если документация не влияет на generated или executable content.
+
+Всегда проверяй `git status --short`, `git diff --stat` и полный релевантный diff. Если build непреднамеренно изменил `next-env.d.ts`, восстанови его. Не изменяй `package.json`, `package-lock.json`, зависимости или `next-env.d.ts`, если задача этого прямо не требует. LF/CRLF warnings сообщай отдельно от ошибок.
+
+## Browser Verification Protocol
+
+Browser verification обязателен, если задача может затронуть rendered UI или interactions, включая component extraction. Проверяй только релевантные сценарии, включая где применимо:
+
+- desktop width и mobile width около 390 px;
+- основные измененные flows;
+- validation и focus behavior;
+- keyboard interaction;
+- закрытие modal и body scroll locking;
+- privacy visibility;
+- отсутствие horizontal overflow.
+
+Для Documentation-only Change и чистой non-UI logic задачи browser verification не нужен, если он явно не запрошен. Не меняй продуктовое поведение ради ограничения browser tool.
+
+## Git и commit policy
+
+Во время implementation task не создавай commit и не выполняй push без явной инструкции. Если commit и push явно запрошены:
+
+- сначала проверь финальный diff;
+- не изменяй файлы;
+- создай один целостный commit, если не указано иное;
+- выбери краткий точный imperative summary и короткое description;
+- отправь текущую утвержденную branch;
+- не создавай дополнительный commit только ради изменения commit message;
+- сообщи commit summary, SHA и pushed branch.
+
+## GitHub Actions CI policy
+
+После push утвержденного commit, если доступен GitHub CLI:
+
+- найди CI run, соответствующий этому commit;
+- дождись финального результата;
+- при необходимости изучи failed logs;
+- не изменяй файлы без отдельного одобрения fix;
+- сообщай local verification и remote CI раздельно;
+- не утверждай полную проверку, пока CI pending или failed.
+
+## Standard Final Report
+
+Финальный отчет должен быть компактным и содержать только фактически выполненные проверки:
+
+- task type;
+- added, changed, moved или deleted files;
+- краткое описание реализации;
+- намеренно измененное и явно сохраненное поведение;
+- обновленную документацию;
+- обновление Mermaid или причину, почему оно не требовалось;
+- результат tests и число tests, если доступно;
+- результаты lint, build и `git diff --check`;
+- browser verification, где применимо;
+- изменения dependencies и package files;
+- commit/push status;
+- CI status, если push был явно выполнен;
+- warnings отдельно от errors.
