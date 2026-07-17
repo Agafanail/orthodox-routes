@@ -403,7 +403,31 @@ Static churches, drivers, routes, and trips remain mock arrays in `src/lib/mockD
 - `orthodox-routes:driver-responses`;
 - `orthodox-routes:targeted-requests`;
 - `orthodox-routes:notifications`;
-- `orthodox-routes:passenger-draft` for optional form prefilling.
+- `orthodox-routes:passenger-draft` for optional form prefilling;
+- `orthodox-routes:local-driver-profile` for one private browser-local driver identity;
+- `orthodox-routes:local-trips` for locally created one-time trip history;
+- `orthodox-routes:local-routes` for locally created regular route history.
+
+The browser-local driver profile has this mock-only shape:
+
+```ts
+type LocalDriverProfile = {
+  ownerId: string;
+  driverId: string;
+  publicName: string;
+  phonePrivate: string;
+  emailPrivate?: string;
+  departureArea: string;
+};
+```
+
+Only `driverId`, `publicName`, `departureArea`, and active-offer church IDs are copied into a derived `DriverPublicProfile`. Private phone and email are never copied into public profiles, routes, trips, cards, or notifications.
+
+Locally created trips use the existing `Trip` shape. Locally created routes use the existing `Route` shape with explicit `status: 'cancelled'` support. Cancellation changes only the status, keeps the record in localStorage history, and removes it from merged active offers. Ownership requires both membership in the matching local offer collection and the current local profile `driverId`; it is never inferred from a displayed name.
+
+Hydration parses local profile and offer records into explicit safe shapes. Malformed or outdated entries are ignored, unexpected fields are discarded, duplicate local IDs are suppressed, and IDs colliding with static drivers or offers are not merged into the public board.
+
+Browser localStorage is not an authorization boundary and can be manually modified. Authentication, server persistence, per-user ownership, and cancellation authorization must be enforced by future backend rules.
 
 A mock one-time `Trip` is publicly available only while `status === 'open'`, `seatsAvailable > 0`, and the local value composed from `date` and `departureTime` has not passed. The same rule filters church and driver trip selectors, church-board offers, and passenger service/event choices. Regular-route visibility is unchanged.
 

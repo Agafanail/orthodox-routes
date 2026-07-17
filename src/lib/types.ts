@@ -35,6 +35,15 @@ export type DriverPublicProfile = {
   visibleChurchIds: string[];
 };
 
+export type LocalDriverProfile = {
+  ownerId: string;
+  driverId: string;
+  publicName: string;
+  phonePrivate: string;
+  emailPrivate?: string;
+  departureArea: string;
+};
+
 export type Route = {
   id: string;
   churchId: string;
@@ -48,7 +57,7 @@ export type Route = {
   };
   seats: number;
   returnTrip: boolean;
-  status: 'active' | 'paused' | 'archived';
+  status: 'active' | 'paused' | 'archived' | 'cancelled';
 };
 
 export type Trip = {

@@ -111,11 +111,17 @@ After «Попросить подвезти» on a driver offer, open a targeted
 10. Driver can click «Отменить отклик» and confirm cancellation.
 11. If cancelled, the request returns to the public list and a mock notification is created.
 12. If creating supply instead, tap page action «Создать поездку / маршрут».
-13. Create a driver profile if needed.
-14. Create one-time trip or regular route.
-15. The app may notify the driver about compatible passenger requests.
+13. In the modal, choose «Разовая поездка» or «Регулярный маршрут».
+14. On the first local offer, enter public name, private phone, optional private email, and approximate departure area. Later offers reuse this browser-local profile.
+15. Enter departure place, one meeting point, seats, return-trip choice, and either one-time date/time or regular weekdays/usual time.
+16. Submit with «Создать поездку» or «Создать маршрут»; the offer appears immediately on the current church board and in applicable passenger choices.
+17. After a one-time trip, the compact «Едете так каждую неделю?» prompt may reopen a prefilled regular-route form without carrying over the date.
+18. Only locally owned offers show «Отменить поездку» or «Отменить маршрут». Confirmed cancellation hides the offer but keeps local history.
+19. The app may notify the driver about compatible passenger requests.
 
 Driver profile can be more complete because the driver takes responsibility for others.
+
+The offer modal is mobile-first, closes by its close control, «Отмена», overlay click, or Escape, and locks body scrolling while open. The first invalid field receives focus. Driver phone and email are private fields and must not appear in public cards, offer objects, or notifications. A local-only driver card is not linked to a server driver route.
 
 ## Church flow
 
@@ -178,6 +184,7 @@ Driver profile can be more complete because the driver takes responsibility for 
 
 ## Mock persistence
 
-- Open passenger requests, driver responses, targeted requests, and personal mock notifications use namespaced localStorage keys.
+- Open passenger requests, driver responses, targeted requests, personal mock notifications, one local driver profile, and local trip/route history use namespaced localStorage keys.
 - State survives back/forward navigation, internal route navigation, and browser refresh.
-- This is mock-only browser persistence. Production persistence, authorization, and user isolation belong to the future backend/Firestore implementation.
+- Local ownership is based on the current browser profile plus membership in the local offer collections, never on a displayed driver name.
+- localStorage can be manually modified and is not real authorization. Production persistence, authorization, ownership checks, and user isolation belong to the future backend/Firestore implementation.

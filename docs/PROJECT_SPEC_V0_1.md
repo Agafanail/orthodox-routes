@@ -218,6 +218,22 @@ Consent text должен явно объяснять, что телефон и 
 
 Mock state использует ключи `orthodox-routes:passenger-requests`, `orthodox-routes:driver-responses`, `orthodox-routes:targeted-requests` и `orthodox-routes:notifications`. Реальное разделение пользователей и хранение данных будут обеспечены auth и backend позже.
 
+## Current mock driver offer flow
+
+Водитель нажимает page-level действие «Создать поездку / маршрут». Открывается mobile-first модальный диалог с тем же заголовком, close control, «Отмена», overlay close и Escape support. Пока диалог открыт, body scroll заблокирован; при ошибках фокус переходит к первому невалидному полю.
+
+Первое создание предложения в браузере собирает public name, private phone, optional private email и approximate departure area. Профиль получает стабильные mock `ownerId` и `driverId` и сохраняется в `orthodox-routes:local-driver-profile`. Следующие предложения используют этот профиль без повторного ввода. Из него выводится безопасный `DriverPublicProfile`; телефон и email не попадают в публичный профиль, offer records, карточки или уведомления. Local-only driver card показывается без ссылки на server-rendered driver route и только пока у водителя есть активное предложение для текущего храма.
+
+Водитель выбирает «Разовая поездка» или «Регулярный маршрут». Общие поля: departure place, одна meeting-point label, seats и return-trip checkbox. Разовая поездка также требует будущие local date/time и создается с `status: 'open'`, `seatsTotal === seatsAvailable`. Регулярный маршрут требует хотя бы один weekday и usual departure time и создается с `status: 'active'`. Активные local offers объединяются со static mock offers и сразу участвуют в board cards, targeted passenger requests, service/event choices и existing possible-match notifications.
+
+После разовой поездки показывается временный prompt «Едете так каждую неделю?». «Создать регулярный маршрут» открывает route mode с сохраненными departure place, meeting point, departure time, seats и return-trip choice; date не переносится, weekdays водитель выбирает вручную. «Не сейчас» закрывает prompt. Регулярный маршрут автоматически не создается.
+
+Только предложения из `orthodox-routes:local-trips` и `orthodox-routes:local-routes`, связанные с текущим local profile `driverId`, получают «Отменить поездку» или «Отменить маршрут». После confirmation статус становится `cancelled`, предложение исчезает из public board и passenger choices, но остается в localStorage history; создается безопасное mock notification. Static и foreign offers не имеют cancellation controls. Ownership не определяется по отображаемому имени.
+
+Malformed or outdated local offer records are ignored during hydration. Unexpected fields are discarded, and local IDs that collide with static driver or offer IDs are not merged into public board data or passenger flows.
+
+Это mock ownership: localStorage можно изменить вручную. Реальные identity, persistence, ownership и cancellation authorization должны быть реализованы позже через authentication, backend records и server security rules.
+
 ## Matching & Notifications v0.1
 
 Пользователь не должен постоянно вручную открывать приложение и искать подходящие карточки. Приложение должно поднимать релевантные события через уведомления и подсказки совпадений.

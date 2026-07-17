@@ -22,18 +22,18 @@ Roadmap follows the approved product sequence: validate the church transport boa
 - First church transport board component-extraction refactor for the request dialog, passenger request card, and mock notification center.
 - Second church transport board presentational extraction for page actions, request and response panels, targeted requests, and driver offers.
 - Centralized one-time-trip visibility based on open status, available seats, and a local departure date and time that has not passed.
+- Complete local mock driver-offer flow with reusable driver identity, one-time trips, regular routes, cancellation history, and one-time-to-regular suggestion.
 
 The current prototype has no backend, authentication, real user isolation, push/email delivery, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features.
 
 ## Next priorities
 
-1. Complete the driver offer creation mock flow for one-time trips and regular routes.
+1. Define and validate the confirmation and `RideMatch` mock flow, including when contacts are shared and seats decrease.
 2. Expand automated coverage beyond the initial pure-logic unit tests; component and end-to-end tests remain future work.
-3. Define and validate the real confirmation and `RideMatch` flow, including when contacts are shared and seats decrease.
-4. Introduce authentication and backend persistence only after the mock request and confirmation flows are stable.
-5. Move personal notifications into a dedicated personal notification center.
-6. Add web/PWA push and email delivery after notification ownership and backend events are defined.
-7. Consider maps for church discovery/approximate pickup zones and Telegram as a later optional channel only after the core product is validated.
+3. Introduce authentication and backend persistence only after the mock request and confirmation flows are stable.
+4. Move personal notifications into a dedicated personal notification center.
+5. Add web/PWA push and email delivery after notification ownership and backend events are defined.
+6. Consider maps for church discovery/approximate pickup zones and Telegram as a later optional channel only after the core product is validated.
 
 ## Later product work
 

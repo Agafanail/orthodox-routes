@@ -166,8 +166,14 @@ flowchart TD
     B2 --> B3{"Offer type?"}
     B3 -->|One-time trip| B4["Creates one-time trip"]
     B3 -->|Regular route| B5["Creates regular route"]
-    B4 --> B6["Driver offer appears on church page"]
+    B4 --> B4S{"Едете так каждую неделю?"}
+    B4S -->|Создать регулярный маршрут| B4P["Reopens regular form<br/>with offer fields prefilled"]
+    B4P --> B5
+    B4S -->|Не сейчас| B6["Driver offer appears on church page"]
     B5 --> B6
+    B6 --> B6C{"Local owner cancels?"}
+    B6C -->|Confirms| B6H["Status cancelled<br/>hidden from board<br/>kept in local history"]
+    B6C -->|No or not locally owned| B6
     B6 --> B6M["Automatic matching checks compatible passenger requests"]
     B6M --> B6N["Driver and relevant passengers may receive suggestions"]
 
@@ -386,7 +392,9 @@ stateDiagram-v2
     SeatsDecreased --> ActiveVisible: free seats remain
     SeatsDecreased --> Full: no free seats left
 
-    ActiveVisible --> Cancelled: driver cancels
+    ActiveVisible --> CancellationCheck: cancellation requested
+    CancellationCheck --> ActiveVisible: not locally owned or not confirmed
+    CancellationCheck --> Cancelled: local owner confirms
     ActiveVisible --> Expired: service time passed
 
     Full --> HiddenFromPublicBoard
