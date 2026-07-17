@@ -8,3 +8,5 @@ export type RequestDialogContext =
       driverName: string;
       offerContext: string;
     };
+
+export type TargetedRequestDialogInput = Omit<Extract<RequestDialogContext, { mode: 'targeted' }>, 'mode'>;

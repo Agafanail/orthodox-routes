@@ -20,6 +20,7 @@ Roadmap follows the approved product sequence: validate the church transport boa
 - Initial Vitest unit-test foundation for validation, date formatting, request visibility/state transitions, and safe localStorage parsing.
 - Basic GitHub Actions CI for clean-install tests, lint, and production builds on main-branch pushes and pull requests.
 - First church transport board component-extraction refactor for the request dialog, passenger request card, and mock notification center.
+- Second church transport board presentational extraction for page actions, request and response panels, targeted requests, and driver offers.
 
 The current prototype has no backend, authentication, real user isolation, push/email delivery, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features.
 

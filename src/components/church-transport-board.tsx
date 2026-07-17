@@ -1,11 +1,17 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { ActiveDriverResponses } from '@/components/church-transport-board/active-driver-responses';
+import { DriverOffers } from '@/components/church-transport-board/driver-offers';
 import { NotificationCenter } from '@/components/church-transport-board/notification-center';
-import { PassengerRequestCard } from '@/components/church-transport-board/passenger-request-card';
+import { PageActions } from '@/components/church-transport-board/page-actions';
+import { PassengerRequestList } from '@/components/church-transport-board/passenger-request-list';
 import { RequestDialog } from '@/components/church-transport-board/request-dialog';
-import type { RequestDialogContext } from '@/components/church-transport-board/types';
+import { TargetedRequestPanel } from '@/components/church-transport-board/targeted-request-panel';
+import type {
+  RequestDialogContext,
+  TargetedRequestDialogInput,
+} from '@/components/church-transport-board/types';
 import { formatDateTime } from '@/lib/dateFormat';
 import {
   cancelDriverResponse,
@@ -47,8 +53,6 @@ const storageKeys = {
   targetedRequests: 'orthodox-routes:targeted-requests',
   notifications: 'orthodox-routes:notifications',
 } as const;
-
-const dayNames = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
 const emptyDraft: PassengerRequestDraft = {
   firstName: '',
@@ -107,10 +111,6 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function getDriverName(drivers: DriverPublicProfile[], driverId: string) {
-  return drivers.find((driver) => driver.id === driverId)?.publicName ?? 'Водитель';
-}
-
 function getServiceOptions(routes: Route[], trips: Trip[]) {
   const tripOptions = trips.map((trip) => {
     const dateTime = formatDateTime(trip.date, trip.departureTime);
@@ -158,7 +158,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     setDialogContext({ mode: 'open' });
   }
 
-  function openTargetedRequestDialog(context: Omit<Extract<RequestDialogContext, { mode: 'targeted' }>, 'mode'>) {
+  function openTargetedRequestDialog(context: TargetedRequestDialogInput) {
     setDraft((current) => ({ ...current, serviceEvent: '', comment: '', consent: false }));
     setDraftErrors({});
     setDialogContext({ mode: 'targeted', ...context });
@@ -293,218 +293,28 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     <section className="mt-5 grid gap-5">
       <NotificationCenter notifications={churchNotifications} />
 
-      <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-bold">Действия на странице храма</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <button
-            className="rounded-lg bg-stone-950 px-5 py-4 font-semibold text-white"
-            onClick={openOpenRequestDialog}
-            type="button"
-          >
-            Создать запрос
-          </button>
-          <button
-            className="rounded-lg border border-stone-300 px-5 py-4 font-semibold"
-            onClick={() => addNotification('Создание поездки / маршрута будет добавлено в следующем mock-flow.')}
-            type="button"
-          >
-            Создать поездку / маршрут
-          </button>
-        </div>
-      </div>
+      <PageActions
+        onCreateOffer={() => addNotification('Создание поездки / маршрута будет добавлено в следующем mock-flow.')}
+        onCreateRequest={openOpenRequestDialog}
+      />
 
-      <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-bold">Кому нужно место</h2>
-        <p className="mt-2 text-sm leading-6 text-stone-600">
-          Открытые запросы пассажиров. Публично показываются только безопасные данные.
-        </p>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {activeRequests.length > 0 ? (
-            activeRequests.map((request) => (
-              <PassengerRequestCard key={request.id} onRespond={handleRespond} request={request} />
-            ))
-          ) : (
-            <p className="rounded-lg bg-stone-100 p-4 text-sm text-stone-600">Пока нет открытых запросов.</p>
-          )}
-        </div>
-      </section>
+      <PassengerRequestList onRespond={handleRespond} requests={activeRequests} />
 
-      {activeResponses.length > 0 ? (
-        <section className="rounded-lg border border-sky-200 bg-sky-50 p-5">
-          <h2 className="text-xl font-bold">Мой отклик</h2>
-          <p className="mt-2 text-sm leading-6 text-stone-700">
-            В реальном приложении это увидит только водитель, который откликнулся.
-          </p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {activeResponses.map((response) => {
-              const request = churchRequests.find((item) => item.id === response.passengerRequestId);
+      <ActiveDriverResponses
+        onCancelResponse={handleCancelResponse}
+        passengerRequests={churchRequests}
+        responses={activeResponses}
+      />
 
-              if (!request) {
-                return null;
-              }
+      <TargetedRequestPanel requests={churchTargetedRequests} />
 
-              return (
-                <article className="rounded-lg bg-white p-4" key={response.id}>
-                  <h3 className="font-semibold">Отклик на запрос {request.firstName}</h3>
-                  <dl className="mt-3 grid gap-2 text-sm text-stone-700">
-                    <div>
-                      <dt className="font-semibold">Телефон</dt>
-                      <dd>{request.phonePrivate}</dd>
-                    </div>
-                    {request.emailPrivate ? (
-                      <div>
-                        <dt className="font-semibold">Email</dt>
-                        <dd>{request.emailPrivate}</dd>
-                      </div>
-                    ) : null}
-                    <div>
-                      <dt className="font-semibold">Точка встречи</dt>
-                      <dd>{request.pickupZone.label}</dd>
-                    </div>
-                  </dl>
-                  <button
-                    className="mt-4 rounded-lg border border-stone-300 px-4 py-3 font-semibold"
-                    onClick={() => handleCancelResponse(response)}
-                    type="button"
-                  >
-                    Отменить отклик
-                  </button>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
-
-      {churchTargetedRequests.length > 0 ? (
-        <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
-          <h2 className="text-xl font-bold">Мой запрос водителю</h2>
-          <p className="mt-2 text-sm leading-6 text-stone-700">
-            Это личная mock-зона. Контакты пока не переданы: водитель еще не принял запрос.
-          </p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {churchTargetedRequests.map((request) => (
-              <article className="rounded-lg bg-white p-4" key={request.id}>
-                <h3 className="font-semibold">Водитель: {request.driverName}</h3>
-                <p className="mt-2 text-sm leading-6 text-stone-700">{request.offerContext}</p>
-                <dl className="mt-3 grid gap-2 text-sm text-stone-700">
-                  <div>
-                    <dt className="font-semibold">Пассажиры</dt>
-                    <dd>{request.passengerCount}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-semibold">Точка встречи</dt>
-                    <dd>{request.pickupZone.label}</dd>
-                  </div>
-                </dl>
-                <p className="mt-3 text-xs font-semibold uppercase text-emerald-800">Ожидает ответа водителя</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="grid gap-5 lg:grid-cols-3">
-        <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold">Видимые водители</h2>
-          <div className="mt-4 grid gap-3">
-            {drivers.map((driver) => (
-              <Link className="rounded-lg bg-stone-100 p-4" href={`/drivers/${driver.id}`} key={driver.id}>
-                <div className="flex items-center gap-3">
-                  {driver.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img alt="" className="h-12 w-12 rounded-full object-cover" src={driver.photoUrl} />
-                  ) : (
-                    <span className="grid h-12 w-12 place-items-center rounded-full bg-amber-800 font-bold text-white">
-                      {driver.publicName.slice(0, 1)}
-                    </span>
-                  )}
-                  <div>
-                    <p className="font-semibold">{driver.publicName}</p>
-                    <p className="text-sm text-stone-600">{driver.departureArea}</p>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold">Кто едет регулярно</h2>
-          <div className="mt-4 grid gap-3">
-            {routes.map((route) => {
-              const driverName = getDriverName(drivers, route.driverId);
-              const offerContext = `Регулярный маршрут: ${route.originLabel} → ${church.name}, ${route.recurrence.daysOfWeek
-                .map((day) => dayNames[day])
-                .join(', ')} в ${route.recurrence.typicalDepartureTime}`;
-
-              return (
-                <article className="rounded-lg bg-stone-100 p-4" key={route.id}>
-                  <h3 className="font-semibold">
-                    {route.originLabel} → {church.name}
-                  </h3>
-                  <p className="mt-2 text-sm text-stone-700">
-                    {route.recurrence.daysOfWeek.map((day) => dayNames[day]).join(', ')} в{' '}
-                    {route.recurrence.typicalDepartureTime}; мест: {route.seats}
-                  </p>
-                  <p className="mt-1 text-sm text-stone-600">Водитель: {driverName}</p>
-                  <button
-                    className="mt-4 w-full rounded-lg bg-white px-4 py-3 font-semibold text-stone-950"
-                    onClick={() =>
-                      openTargetedRequestDialog({
-                        offerId: route.id,
-                        offerType: 'regularRoute',
-                        driverId: route.driverId,
-                        driverName,
-                        offerContext,
-                      })
-                    }
-                    type="button"
-                  >
-                    Попросить подвезти
-                  </button>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold">Ближайшие поездки</h2>
-          <div className="mt-4 grid gap-3">
-            {trips.map((trip) => {
-              const driverName = getDriverName(drivers, trip.driverId);
-              const dateTime = formatDateTime(trip.date, trip.departureTime);
-              const offerContext = `Разовая поездка: ${dateTime}, выезд из ${trip.originLabel}`;
-
-              return (
-                <article className="rounded-lg bg-stone-100 p-4" key={trip.id}>
-                  <h3 className="font-semibold">{dateTime}</h3>
-                  <p className="mt-2 text-sm text-stone-700">
-                    Выезд из {trip.originLabel}; свободных мест: {trip.seatsAvailable}
-                  </p>
-                  <p className="mt-1 text-sm text-stone-600">Водитель: {driverName}</p>
-                  <button
-                    className="mt-4 w-full rounded-lg bg-white px-4 py-3 font-semibold text-stone-950"
-                    onClick={() =>
-                      openTargetedRequestDialog({
-                        offerId: trip.id,
-                        offerType: 'oneTimeTrip',
-                        driverId: trip.driverId,
-                        driverName,
-                        offerContext,
-                      })
-                    }
-                    type="button"
-                  >
-                    Попросить подвезти
-                  </button>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      <DriverOffers
+        church={church}
+        drivers={drivers}
+        onRequestRide={openTargetedRequestDialog}
+        routes={routes}
+        trips={trips}
+      />
 
       {dialogContext ? (
         <RequestDialog
