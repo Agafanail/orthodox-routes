@@ -42,3 +42,9 @@ npm test
 npm run lint
 npm run build
 ```
+
+## GitHub Actions CI
+
+GitHub Actions автоматически запускается при push в `main` и для pull request, направленных в `main`. CI выполняет `npm ci`, `npm test`, `npm run lint` и `npm run build`; зеленая проверка означает, что зафиксированное состояние репозитория прошло проверку в чистом окружении.
+
+Перед коммитом по-прежнему необходимо локально запускать тесты, lint и production build.

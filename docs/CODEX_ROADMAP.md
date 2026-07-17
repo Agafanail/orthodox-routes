@@ -18,6 +18,7 @@ Roadmap follows the approved product sequence: validate the church transport boa
 - Church hero with a local Byzantine fallback image.
 - Public passenger comments limited to 300 characters with a privacy warning; no automated moderation.
 - Initial Vitest unit-test foundation for validation, date formatting, request visibility/state transitions, and safe localStorage parsing.
+- Basic GitHub Actions CI for clean-install tests, lint, and production builds on main-branch pushes and pull requests.
 
 The current prototype has no backend, authentication, real user isolation, push/email delivery, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features.
 
