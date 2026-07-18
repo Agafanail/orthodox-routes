@@ -13,7 +13,7 @@ export function ActiveDriverResponses({
     <section className="rounded-lg border border-sky-200 bg-sky-50 p-5">
       <h2 className="text-xl font-bold">Мой отклик</h2>
       <p className="mt-2 text-sm leading-6 text-stone-700">
-        В реальном приложении это увидит только водитель, который откликнулся.
+        Контакт показан здесь после вашего отклика.
       </p>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {responses.map((response) => {

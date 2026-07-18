@@ -4,6 +4,8 @@ import type {
   PassengerRequestDraftErrors,
 } from '@/lib/passengerRequestValidation';
 import type { RequestDialogContext } from '@/components/church-transport-board/types';
+import { ServiceSelectionField } from '@/components/church-transport-board/service-selection-field';
+import type { ServiceOption } from '@/lib/serviceOptions';
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
@@ -25,7 +27,7 @@ export function RequestDialog({
   context: RequestDialogContext;
   draft: PassengerRequestDraft;
   errors: PassengerRequestDraftErrors;
-  serviceOptions: Array<{ value: string; label: string }>;
+  serviceOptions: ServiceOption[];
   onCancel: () => void;
   onChange: (draft: PassengerRequestDraft, fieldName: keyof PassengerRequestDraft) => void;
   onSubmit: () => void;
@@ -68,7 +70,7 @@ export function RequestDialog({
               {targeted ? 'Попросить подвезти' : 'Создать запрос на поездку'}
             </h2>
             <p className="mt-2 text-sm leading-6 text-stone-600">
-              Контакты не будут видны публично. Они откроются только водителю, который откликнется.
+              Ваши контакты увидит только водитель, который откликнется.
             </p>
           </div>
           <button
@@ -139,25 +141,17 @@ export function RequestDialog({
               <FieldError id="email-error" message={errors.email} />
             </label>
             {!targeted ? (
-              <label className="grid min-w-0 gap-1 text-sm font-semibold">
-                Служба / событие
-                <select
-                  aria-describedby={errors.serviceEvent ? 'service-error' : undefined}
-                  aria-invalid={Boolean(errors.serviceEvent)}
-                  className="w-full min-w-0 max-w-full rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                  onChange={(event) => onChange({ ...draft, serviceEvent: event.target.value }, 'serviceEvent')}
-                  required
-                  value={draft.serviceEvent}
-                >
-                  <option value="">Выберите службу</option>
-                  {serviceOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <FieldError id="service-error" message={errors.serviceEvent} />
-              </label>
+              <div className="min-w-0 lg:col-span-2">
+                <ServiceSelectionField
+                  error={errors.date ?? errors.selectedServiceId}
+                  errorId="service-error"
+                  label="К какой службе хотите поехать?*"
+                  name="passenger-service"
+                  onChange={(selection, fieldName) => onChange({ ...draft, ...selection }, fieldName)}
+                  options={serviceOptions}
+                  selection={draft}
+                />
+              </div>
             ) : null}
             <label className="grid min-w-0 gap-1 text-sm font-semibold">
               Количество пассажиров
@@ -215,8 +209,7 @@ export function RequestDialog({
               type="checkbox"
             />
             <span className="min-w-0">
-              Я понимаю, что мои телефон и email не будут видны публично, но будут открыты водителю, который нажмет
-              «Подвезти».
+              Я согласен передать телефон и email водителю, который предложит подвезти меня.
               <FieldError id="consent-error" message={errors.consent} />
             </span>
           </label>

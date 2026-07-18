@@ -10,7 +10,7 @@ const baseTrip: Trip = {
   date: '2026-07-19',
   departureTime: '08:15',
   originLabel: 'Test origin',
-  meetingPoints: [{ label: 'Test meeting point' }],
+  maxDetourKm: 0,
   seatsTotal: 2,
   seatsAvailable: 1,
   returnTrip: false,

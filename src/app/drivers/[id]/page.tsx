@@ -55,7 +55,7 @@ export default async function DriverPage({ params }: PageProps) {
           </div>
         </div>
         <p className="mt-5 rounded-lg bg-stone-100 p-4 text-sm leading-6 text-stone-700">
-          Контакты водителя не показываются публично. Они открываются пассажиру только после принятия заявки.
+          Контакты водителя увидит только пассажир, с которым водитель договорится о поездке.
         </p>
       </section>
 
@@ -76,7 +76,7 @@ export default async function DriverPage({ params }: PageProps) {
         </div>
 
         <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold">Маршруты</h2>
+          <h2 className="text-xl font-bold">Регулярные поездки</h2>
           <div className="mt-4 grid gap-3">
             {routes.map((route) => (
               <article className="rounded-lg bg-stone-100 p-4" key={route.id}>
@@ -91,7 +91,7 @@ export default async function DriverPage({ params }: PageProps) {
         </div>
 
         <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold">Поездки</h2>
+          <h2 className="text-xl font-bold">Разовые поездки</h2>
           <div className="mt-4 grid gap-3">
             {trips.map((trip) => (
               <article className="rounded-lg bg-stone-100 p-4" key={trip.id}>

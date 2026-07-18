@@ -26,8 +26,7 @@ export default async function DriversPage() {
 
       <h1 className="text-3xl font-bold text-stone-950">Водители</h1>
       <p className="mt-3 max-w-2xl leading-7 text-stone-700">
-        Здесь видны только публичные данные: имя, район выезда, храмы, маршруты и поездки. Телефон и WhatsApp не
-        показываются.
+        Здесь можно увидеть имя водителя, откуда он едет, выбранные храмы и поездки. Телефон и WhatsApp не показываются.
       </p>
 
       <section className="mt-7 grid gap-4 md:grid-cols-2">
@@ -57,7 +56,7 @@ export default async function DriversPage() {
               </div>
               <p className="mt-4 text-sm leading-6 text-stone-700">Храмы: {churchNames(driver.visibleChurchIds)}</p>
               <p className="mt-2 text-sm text-stone-600">
-                {routes.length} route(s), {trips.length} upcoming trip(s)
+                Регулярных поездок: {routes.length}; разовых поездок: {trips.length}
               </p>
             </Link>
           );

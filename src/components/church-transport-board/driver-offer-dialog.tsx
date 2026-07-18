@@ -1,9 +1,13 @@
 import { useEffect, useRef } from 'react';
+import { ServiceSelectionField } from '@/components/church-transport-board/service-selection-field';
 import type {
   DriverOfferDraft,
   DriverOfferDraftErrors,
   DriverOfferMode,
 } from '@/lib/driverOfferState';
+import { maxDetourKmValues } from '@/lib/driverOfferState';
+import type { ChurchService } from '@/lib/types';
+import { getChurchServiceOptions } from '@/lib/serviceOptions';
 
 const weekdayOptions = [
   { value: 1, label: 'Пн' },
@@ -15,6 +19,17 @@ const weekdayOptions = [
   { value: 0, label: 'Вс' },
 ];
 
+const seatOptions = Array.from({ length: 55 }, (_, index) => index + 1);
+
+const maxDetourLabels: Record<(typeof maxDetourKmValues)[number], string> = {
+  0: '0 км — только по маршруту',
+  2: 'до 2 км',
+  5: 'до 5 км',
+  10: 'до 10 км',
+  15: 'до 15 км',
+  20: 'до 20 км',
+};
+
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
     <span className="text-sm font-normal text-red-700" id={id} role="alert">
@@ -23,10 +38,18 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   ) : null;
 }
 
+const fieldClassName =
+  'w-full min-w-0 rounded-lg border border-stone-300 bg-white px-3 py-3 font-normal';
+
 export function DriverOfferDialog({
   draft,
   errors,
   savedProfile,
+  services,
+  submitAttempt,
+  successPrefill,
+  onAddRegular,
+  onBlur,
   onCancel,
   onChange,
   onModeChange,
@@ -34,7 +57,12 @@ export function DriverOfferDialog({
 }: {
   draft: DriverOfferDraft;
   errors: DriverOfferDraftErrors;
-  savedProfile: { publicName: string; departureArea: string } | null;
+  savedProfile: { publicName: string } | null;
+  services: ChurchService[];
+  submitAttempt: number;
+  successPrefill: DriverOfferDraft | null;
+  onAddRegular: () => void;
+  onBlur: (fieldName: keyof DriverOfferDraft) => void;
   onCancel: () => void;
   onChange: (draft: DriverOfferDraft, fieldName: keyof DriverOfferDraft) => void;
   onModeChange: (mode: DriverOfferMode) => void;
@@ -60,10 +88,10 @@ export function DriverOfferDialog({
   }, [onCancel]);
 
   useEffect(() => {
-    if (Object.keys(errors).length > 0) {
+    if (submitAttempt > 0) {
       formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
     }
-  }, [errors]);
+  }, [submitAttempt]);
 
   function toggleWeekday(day: number, checked: boolean) {
     const weekdays = checked ? [...draft.weekdays, day] : draft.weekdays.filter((value) => value !== day);
@@ -85,12 +113,12 @@ export function DriverOfferDialog({
       <div className="mx-auto min-h-full w-full min-w-0 overflow-hidden bg-white p-5 shadow-xl sm:min-h-0 sm:max-w-3xl sm:rounded-lg sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-2xl font-bold" id="driver-offer-dialog-title">
-              Создать поездку / маршрут
+            <h2
+              className={successPrefill ? 'text-3xl font-bold text-emerald-900' : 'text-2xl font-bold'}
+              id="driver-offer-dialog-title"
+            >
+              {successPrefill ? 'Поездка создана' : 'Создать поездку'}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-stone-600">
-              Контакты водителя сохраняются только в локальном mock-профиле и не показываются публично.
-            </p>
           </div>
           <button
             aria-label="Закрыть"
@@ -103,242 +131,283 @@ export function DriverOfferDialog({
           </button>
         </div>
 
-        <div aria-label="Тип предложения" className="mt-5 grid grid-cols-2 rounded-lg bg-stone-100 p-1" role="group">
-          <button
-            aria-pressed={draft.offerType === 'trip'}
-            className={`rounded-lg px-3 py-3 text-sm font-semibold ${
-              draft.offerType === 'trip' ? 'bg-white shadow-sm' : 'text-stone-600'
-            }`}
-            onClick={() => onModeChange('trip')}
-            type="button"
-          >
-            Разовая поездка
-          </button>
-          <button
-            aria-pressed={draft.offerType === 'route'}
-            className={`rounded-lg px-3 py-3 text-sm font-semibold ${
-              draft.offerType === 'route' ? 'bg-white shadow-sm' : 'text-stone-600'
-            }`}
-            onClick={() => onModeChange('route')}
-            type="button"
-          >
-            Регулярный маршрут
-          </button>
-        </div>
+        {successPrefill ? (
+          <section className="offer-success-panel mt-8 max-w-2xl">
+            <h3 className="text-lg font-semibold text-stone-800">Ездите в храм так регулярно?</h3>
+            <p className="mt-2 leading-6 text-stone-600">
+              Можно добавить регулярную поездку с теми же данными.
+            </p>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button
+                className="rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white"
+                onClick={onAddRegular}
+                type="button"
+              >
+                Добавить регулярную поездку
+              </button>
+              <button
+                className="rounded-lg border border-stone-300 bg-white px-5 py-3 font-semibold"
+                onClick={onCancel}
+                type="button"
+              >
+                Закрыть
+              </button>
+            </div>
+          </section>
+        ) : (
+          <>
+            <div aria-label="Тип поездки" className="mt-5 grid grid-cols-2 rounded-lg bg-stone-100 p-1" role="group">
+              <button
+                aria-pressed={draft.offerType === 'trip'}
+                className={`rounded-lg px-3 py-3 text-sm font-semibold ${
+                  draft.offerType === 'trip' ? 'bg-white shadow-sm' : 'text-stone-600'
+                }`}
+                onClick={() => onModeChange('trip')}
+                type="button"
+              >
+                Разовая поездка
+              </button>
+              <button
+                aria-pressed={draft.offerType === 'route'}
+                className={`rounded-lg px-3 py-3 text-sm font-semibold ${
+                  draft.offerType === 'route' ? 'bg-white shadow-sm' : 'text-stone-600'
+                }`}
+                onClick={() => onModeChange('route')}
+                type="button"
+              >
+                Регулярная поездка
+              </button>
+            </div>
 
-        <form
-          className="mt-5 grid gap-5"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSubmit();
-          }}
-          ref={formRef}
-        >
-          {savedProfile ? (
-            <section className="rounded-lg bg-emerald-50 p-4 text-sm leading-6 text-stone-700">
-              <h3 className="font-semibold">Водитель: {savedProfile.publicName}</h3>
-              <p>{savedProfile.departureArea}</p>
-              <p className="mt-1 text-xs">Сохраненный локальный профиль будет использован повторно.</p>
-            </section>
-          ) : (
-            <fieldset className="grid min-w-0 gap-4 rounded-lg border border-stone-200 p-4 md:grid-cols-2">
-              <legend className="px-1 font-semibold">Локальный профиль водителя</legend>
-              <label className="grid min-w-0 gap-1 text-sm font-semibold">
-                Публичное имя
-                <input
-                  aria-describedby={errors.publicName ? 'driver-public-name-error' : undefined}
-                  aria-invalid={Boolean(errors.publicName)}
-                  autoFocus
-                  className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                  onChange={(event) => onChange({ ...draft, publicName: event.target.value }, 'publicName')}
-                  required
-                  value={draft.publicName}
-                />
-                <FieldError id="driver-public-name-error" message={errors.publicName} />
-              </label>
-              <label className="grid min-w-0 gap-1 text-sm font-semibold">
-                Примерный район выезда
-                <input
-                  aria-describedby={errors.departureArea ? 'driver-area-error' : undefined}
-                  aria-invalid={Boolean(errors.departureArea)}
-                  className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                  onChange={(event) => onChange({ ...draft, departureArea: event.target.value }, 'departureArea')}
-                  required
-                  value={draft.departureArea}
-                />
-                <FieldError id="driver-area-error" message={errors.departureArea} />
-              </label>
-              <label className="grid min-w-0 gap-1 text-sm font-semibold">
-                Телефон
-                <input
-                  aria-describedby={errors.phone ? 'driver-phone-error driver-contact-help' : 'driver-contact-help'}
-                  aria-invalid={Boolean(errors.phone)}
-                  className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                  inputMode="tel"
-                  onChange={(event) => onChange({ ...draft, phone: event.target.value }, 'phone')}
-                  placeholder="+39 333 123 4567"
-                  required
-                  type="tel"
-                  value={draft.phone}
-                />
-                <FieldError id="driver-phone-error" message={errors.phone} />
-              </label>
-              <label className="grid min-w-0 gap-1 text-sm font-semibold">
-                Email <span className="font-normal text-stone-500">(необязательно)</span>
-                <input
-                  aria-describedby={errors.email ? 'driver-email-error driver-contact-help' : 'driver-contact-help'}
-                  aria-invalid={Boolean(errors.email)}
-                  className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                  onChange={(event) => onChange({ ...draft, email: event.target.value }, 'email')}
-                  type="email"
-                  value={draft.email}
-                />
-                <FieldError id="driver-email-error" message={errors.email} />
-              </label>
-              <p className="text-xs leading-5 text-stone-600 md:col-span-2" id="driver-contact-help">
-                Телефон и email не попадут в публичный профиль, карточки поездок или уведомления.
-              </p>
-            </fieldset>
-          )}
-
-          <fieldset className="grid min-w-0 gap-4 md:grid-cols-2">
-            <legend className="sr-only">Данные предложения</legend>
-            <label className="grid min-w-0 gap-1 text-sm font-semibold">
-              Место выезда
-              <input
-                aria-describedby={errors.originLabel ? 'offer-origin-error' : undefined}
-                aria-invalid={Boolean(errors.originLabel)}
-                autoFocus={Boolean(savedProfile)}
-                className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                onChange={(event) => onChange({ ...draft, originLabel: event.target.value }, 'originLabel')}
-                required
-                value={draft.originLabel}
-              />
-              <FieldError id="offer-origin-error" message={errors.originLabel} />
-            </label>
-            <label className="grid min-w-0 gap-1 text-sm font-semibold">
-              Точка встречи
-              <input
-                aria-describedby={errors.meetingPoint ? 'offer-meeting-error' : undefined}
-                aria-invalid={Boolean(errors.meetingPoint)}
-                className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                onChange={(event) => onChange({ ...draft, meetingPoint: event.target.value }, 'meetingPoint')}
-                required
-                value={draft.meetingPoint}
-              />
-              <FieldError id="offer-meeting-error" message={errors.meetingPoint} />
-            </label>
-            <label className="grid min-w-0 gap-1 text-sm font-semibold">
-              Количество мест
-              <input
-                aria-describedby={errors.seats ? 'offer-seats-error' : undefined}
-                aria-invalid={Boolean(errors.seats)}
-                className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                min="1"
-                onChange={(event) => onChange({ ...draft, seats: event.target.value }, 'seats')}
-                required
-                type="number"
-                value={draft.seats}
-              />
-              <FieldError id="offer-seats-error" message={errors.seats} />
-            </label>
-
-            {draft.offerType === 'trip' ? (
-              <>
-                <label className="grid min-w-0 gap-1 text-sm font-semibold">
-                  Дата
-                  <input
-                    aria-describedby={errors.date ? 'offer-date-error' : undefined}
-                    aria-invalid={Boolean(errors.date)}
-                    className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                    onChange={(event) => onChange({ ...draft, date: event.target.value }, 'date')}
-                    required
-                    type="date"
-                    value={draft.date}
-                  />
-                  <FieldError id="offer-date-error" message={errors.date} />
-                </label>
-                <label className="grid min-w-0 gap-1 text-sm font-semibold">
-                  Время выезда
-                  <input
-                    aria-describedby={errors.departureTime ? 'offer-time-error' : undefined}
-                    aria-invalid={Boolean(errors.departureTime)}
-                    className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                    onChange={(event) => onChange({ ...draft, departureTime: event.target.value }, 'departureTime')}
-                    required
-                    type="time"
-                    value={draft.departureTime}
-                  />
-                  <FieldError id="offer-time-error" message={errors.departureTime} />
-                </label>
-              </>
-            ) : (
-              <>
-                <fieldset
-                  aria-describedby={errors.weekdays ? 'offer-weekdays-error' : undefined}
-                  aria-invalid={Boolean(errors.weekdays)}
-                  className="grid min-w-0 gap-2 md:col-span-2"
-                  tabIndex={-1}
-                >
-                  <legend className="text-sm font-semibold">Дни недели</legend>
-                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-                    {weekdayOptions.map((day) => (
-                      <label
-                        className="flex min-w-0 items-center justify-center gap-2 rounded-lg border border-stone-300 px-2 py-3 text-sm font-semibold"
-                        key={day.value}
-                      >
-                        <input
-                          checked={draft.weekdays.includes(day.value)}
-                          onChange={(event) => toggleWeekday(day.value, event.target.checked)}
-                          type="checkbox"
-                        />
-                        {day.label}
-                      </label>
-                    ))}
-                  </div>
-                  <FieldError id="offer-weekdays-error" message={errors.weekdays} />
-                </fieldset>
-                <label className="grid min-w-0 gap-1 text-sm font-semibold">
-                  Обычное время выезда
-                  <input
-                    aria-describedby={errors.departureTime ? 'offer-time-error' : undefined}
-                    aria-invalid={Boolean(errors.departureTime)}
-                    className="w-full min-w-0 rounded-lg border border-stone-300 px-3 py-3 font-normal"
-                    onChange={(event) => onChange({ ...draft, departureTime: event.target.value }, 'departureTime')}
-                    required
-                    type="time"
-                    value={draft.departureTime}
-                  />
-                  <FieldError id="offer-time-error" message={errors.departureTime} />
-                </label>
-              </>
-            )}
-          </fieldset>
-
-          <label className="flex min-w-0 gap-3 rounded-lg bg-stone-100 p-4 text-sm leading-6 text-stone-700">
-            <input
-              checked={draft.returnTrip}
-              className="mt-1 h-4 w-4"
-              onChange={(event) => onChange({ ...draft, returnTrip: event.target.checked }, 'returnTrip')}
-              type="checkbox"
-            />
-            Обратная поездка планируется
-          </label>
-
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row">
-            <button className="w-full rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white sm:w-auto" type="submit">
-              {draft.offerType === 'trip' ? 'Создать поездку' : 'Создать маршрут'}
-            </button>
-            <button
-              className="w-full rounded-lg border border-stone-300 px-5 py-3 font-semibold sm:w-auto"
-              onClick={onCancel}
-              type="button"
+            <form
+              className="mt-5 grid gap-5"
+              noValidate
+              onSubmit={(event) => {
+                event.preventDefault();
+                onSubmit();
+              }}
+              ref={formRef}
             >
-              Отмена
-            </button>
-          </div>
-        </form>
+              {savedProfile ? (
+                <section className="rounded-lg bg-emerald-50 p-4 text-sm leading-6 text-stone-700">
+                  <h3 className="font-semibold">Водитель: {savedProfile.publicName}</h3>
+                  <p className="mt-1">Ваши контактные данные будут использованы для этой поездки.</p>
+                </section>
+              ) : (
+                <fieldset className="grid min-w-0 gap-4 rounded-lg border border-stone-200 p-4 md:grid-cols-2">
+                  <legend className="px-1 font-semibold">Данные водителя</legend>
+                  <p className="text-sm text-stone-600 md:col-span-2">Поля со звёздочкой обязательны.</p>
+                  <label className="grid min-w-0 gap-1 text-sm font-semibold">
+                    Имя*
+                    <input
+                      aria-describedby={errors.publicName ? 'driver-public-name-error' : undefined}
+                      aria-invalid={Boolean(errors.publicName)}
+                      className={fieldClassName}
+                      onBlur={() => onBlur('publicName')}
+                      onChange={(event) => onChange({ ...draft, publicName: event.target.value }, 'publicName')}
+                      required
+                      value={draft.publicName}
+                    />
+                    <FieldError id="driver-public-name-error" message={errors.publicName} />
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-sm font-semibold">
+                    Телефон*
+                    <input
+                      aria-describedby={errors.phone ? 'driver-phone-error driver-contact-help' : 'driver-contact-help'}
+                      aria-invalid={Boolean(errors.phone)}
+                      className={fieldClassName}
+                      inputMode="tel"
+                      onBlur={() => onBlur('phone')}
+                      onChange={(event) => onChange({ ...draft, phone: event.target.value }, 'phone')}
+                      placeholder="+39 333 123 4567"
+                      required
+                      type="tel"
+                      value={draft.phone}
+                    />
+                    <FieldError id="driver-phone-error" message={errors.phone} />
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-sm font-semibold">
+                    Email
+                    <input
+                      aria-describedby={errors.email ? 'driver-email-error driver-contact-help' : 'driver-contact-help'}
+                      aria-invalid={Boolean(errors.email)}
+                      className={fieldClassName}
+                      onBlur={() => onBlur('email')}
+                      onChange={(event) => onChange({ ...draft, email: event.target.value }, 'email')}
+                      type="email"
+                      value={draft.email}
+                    />
+                    <FieldError id="driver-email-error" message={errors.email} />
+                  </label>
+                  <p className="text-xs leading-5 text-stone-600 md:col-span-2" id="driver-contact-help">
+                    Телефон и email не будут показываться на странице. Их увидит только пассажир, с которым вы договоритесь о поездке.
+                  </p>
+                </fieldset>
+              )}
+
+              <fieldset className="grid min-w-0 gap-4 md:grid-cols-2">
+                <legend className="sr-only">Данные поездки</legend>
+                <label className="grid min-w-0 gap-1 text-sm font-semibold">
+                  Откуда вы едете?*
+                  <input
+                    aria-describedby={errors.originLabel ? 'offer-origin-error' : undefined}
+                    aria-invalid={Boolean(errors.originLabel)}
+                    className={fieldClassName}
+                    onBlur={() => onBlur('originLabel')}
+                    onChange={(event) => onChange({ ...draft, originLabel: event.target.value }, 'originLabel')}
+                    placeholder="Squillace"
+                    required
+                    value={draft.originLabel}
+                  />
+                  <FieldError id="offer-origin-error" message={errors.originLabel} />
+                </label>
+
+                <label className="grid min-w-0 gap-1 text-sm font-semibold md:col-span-2">
+                  На сколько километров вы готовы отклониться от маршрута?*
+                  <select
+                    aria-describedby={errors.maxDetourKm ? 'offer-max-detour-error' : undefined}
+                    aria-invalid={Boolean(errors.maxDetourKm)}
+                    className={fieldClassName}
+                    onBlur={() => onBlur('maxDetourKm')}
+                    onChange={(event) => onChange({ ...draft, maxDetourKm: event.target.value }, 'maxDetourKm')}
+                    required
+                    value={draft.maxDetourKm}
+                  >
+                    <option value="">Выберите</option>
+                    {maxDetourKmValues.map((value) => (
+                      <option key={value} value={value}>{maxDetourLabels[value]}</option>
+                    ))}
+                  </select>
+                  <FieldError id="offer-max-detour-error" message={errors.maxDetourKm} />
+                </label>
+
+                <label className="grid min-w-0 gap-1 text-sm font-semibold">
+                  Свободных мест*
+                  <select
+                    aria-describedby={errors.seats ? 'offer-seats-error' : undefined}
+                    aria-invalid={Boolean(errors.seats)}
+                    className={fieldClassName}
+                    onBlur={() => onBlur('seats')}
+                    onChange={(event) => onChange({ ...draft, seats: event.target.value }, 'seats')}
+                    required
+                    value={draft.seats}
+                  >
+                    <option value="">Выберите</option>
+                    {seatOptions.map((seats) => (
+                      <option key={seats} value={seats}>{seats}</option>
+                    ))}
+                  </select>
+                  <FieldError id="offer-seats-error" message={errors.seats} />
+                </label>
+
+                {draft.offerType === 'trip' ? (
+                  <>
+                    <div className="grid min-w-0 gap-3 md:col-span-2">
+                      <ServiceSelectionField
+                        error={errors.date ?? errors.selectedServiceId}
+                        errorId="offer-service-error"
+                        label="К какой службе вы едете?*"
+                        name="driver-service"
+                        onBlur={(fieldName) => onBlur(fieldName)}
+                        onChange={(selection, fieldName) =>
+                          onChange({ ...draft, ...selection }, fieldName)
+                        }
+                        options={getChurchServiceOptions(services)}
+                        selection={draft}
+                      />
+                    </div>
+                    <label className="grid min-w-0 gap-1 text-sm font-semibold md:col-span-2">
+                      Примерное время выезда*
+                      <input
+                        aria-describedby={errors.departureTime ? 'offer-time-error offer-time-help' : 'offer-time-help'}
+                        aria-invalid={Boolean(errors.departureTime)}
+                        className={fieldClassName}
+                        onBlur={() => onBlur('departureTime')}
+                        onInput={(event) => onChange({ ...draft, departureTime: event.currentTarget.value }, 'departureTime')}
+                        required
+                        type="time"
+                        value={draft.departureTime}
+                      />
+                      <span className="text-xs font-normal leading-5 text-stone-600" id="offer-time-help">
+                        Пассажир увидит это время и сможет понять, подходит ли ему поездка.
+                      </span>
+                      <FieldError id="offer-time-error" message={errors.departureTime} />
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    <fieldset
+                      aria-describedby={errors.weekdays ? 'offer-weekdays-error' : undefined}
+                      aria-invalid={Boolean(errors.weekdays)}
+                      className="grid min-w-0 gap-2 md:col-span-2"
+                      onBlur={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget)) {
+                          onBlur('weekdays');
+                        }
+                      }}
+                      tabIndex={-1}
+                    >
+                      <legend className="text-sm font-semibold">Дни недели*</legend>
+                      <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                        {weekdayOptions.map((day) => (
+                          <label
+                            className="flex min-w-0 items-center justify-center gap-2 rounded-lg border border-stone-300 px-2 py-3 text-sm font-semibold"
+                            key={day.value}
+                          >
+                            <input
+                              checked={draft.weekdays.includes(day.value)}
+                              onChange={(event) => toggleWeekday(day.value, event.target.checked)}
+                              type="checkbox"
+                            />
+                            {day.label}
+                          </label>
+                        ))}
+                      </div>
+                      <FieldError id="offer-weekdays-error" message={errors.weekdays} />
+                    </fieldset>
+                    <label className="grid min-w-0 gap-1 text-sm font-semibold">
+                      Обычное время выезда*
+                      <input
+                        aria-describedby={errors.departureTime ? 'offer-time-error' : undefined}
+                        aria-invalid={Boolean(errors.departureTime)}
+                        className={fieldClassName}
+                        onBlur={() => onBlur('departureTime')}
+                        onInput={(event) => onChange({ ...draft, departureTime: event.currentTarget.value }, 'departureTime')}
+                        required
+                        type="time"
+                        value={draft.departureTime}
+                      />
+                      <FieldError id="offer-time-error" message={errors.departureTime} />
+                    </label>
+                  </>
+                )}
+              </fieldset>
+
+              <label className="flex min-w-0 gap-3 rounded-lg bg-stone-100 p-4 text-sm leading-6 text-stone-700">
+                <input
+                  checked={draft.returnTrip}
+                  className="mt-1 h-4 w-4"
+                  onChange={(event) => onChange({ ...draft, returnTrip: event.target.checked }, 'returnTrip')}
+                  type="checkbox"
+                />
+                Могу подвезти обратно
+              </label>
+
+              <div className="flex min-w-0 flex-col gap-3 sm:flex-row">
+                <button className="w-full rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white sm:w-auto" type="submit">
+                  {draft.offerType === 'trip' ? 'Создать поездку' : 'Создать регулярную поездку'}
+                </button>
+                <button
+                  className="w-full rounded-lg border border-stone-300 px-5 py-3 font-semibold sm:w-auto"
+                  onClick={onCancel}
+                  type="button"
+                >
+                  Отмена
+                </button>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

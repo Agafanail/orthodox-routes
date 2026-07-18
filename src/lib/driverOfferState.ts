@@ -6,20 +6,29 @@ import {
   normalizePhone,
 } from './passengerRequestValidation';
 import { isOneTimeTripAvailable } from './tripVisibility';
-import type { DriverPublicProfile, LocalDriverProfile, Route, Trip } from './types';
+import { resolveServiceSelection, validateServiceSelection } from './serviceOptions';
+import type {
+  ChurchService,
+  DriverPublicProfile,
+  LocalDriverProfile,
+  Route,
+  Trip,
+} from './types';
 
 export type DriverOfferMode = 'trip' | 'route';
+
+export const maxDetourKmValues = [0, 2, 5, 10, 15, 20] as const;
 
 export type DriverOfferDraft = {
   offerType: DriverOfferMode;
   publicName: string;
   phone: string;
   email: string;
-  departureArea: string;
   originLabel: string;
-  meetingPoint: string;
+  maxDetourKm: string;
   seats: string;
   returnTrip: boolean;
+  selectedServiceId: string;
   date: string;
   departureTime: string;
   weekdays: number[];
@@ -33,11 +42,11 @@ export function createEmptyDriverOfferDraft(offerType: DriverOfferMode = 'trip')
     publicName: '',
     phone: '',
     email: '',
-    departureArea: '',
     originLabel: '',
-    meetingPoint: '',
-    seats: '1',
+    maxDetourKm: '',
+    seats: '',
     returnTrip: false,
+    selectedServiceId: '',
     date: '',
     departureTime: '',
     weekdays: [],
@@ -57,13 +66,50 @@ export function clearDriverOfferDraftFieldError(
   return remainingErrors;
 }
 
-export function validateDriverOfferDraft(draft: DriverOfferDraft, requireProfile: boolean, now: Date) {
+function getLocalDateParts(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const date = new Date(year, month, day);
+  return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day
+    ? { date, year, month, day }
+    : null;
+}
+
+function isLocalDate(value: unknown): value is string {
+  return typeof value === 'string' && getLocalDateParts(value) !== null;
+}
+
+function isLocalTime(value: unknown): value is string {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  return Boolean(match && Number(match[1]) < 24 && Number(match[2]) < 60);
+}
+
+export function resolveDriverOfferDate(draft: DriverOfferDraft, services: ChurchService[] = []) {
+  return resolveServiceSelection(draft, services).date;
+}
+
+export function validateDriverOfferDraft(
+  draft: DriverOfferDraft,
+  requireProfile: boolean,
+  now: Date,
+  services: ChurchService[] = [],
+) {
   const errors: DriverOfferDraftErrors = {};
   const seats = Number(draft.seats);
 
   if (requireProfile) {
     if (!draft.publicName.trim()) {
-      errors.publicName = 'Введите публичное имя.';
+      errors.publicName = 'Введите имя.';
     }
 
     if (!isInternationalPhoneValid(draft.phone)) {
@@ -73,45 +119,39 @@ export function validateDriverOfferDraft(draft: DriverOfferDraft, requireProfile
     if (!isOptionalEmailValid(draft.email)) {
       errors.email = EMAIL_VALIDATION_MESSAGE;
     }
-
-    if (!draft.departureArea.trim()) {
-      errors.departureArea = 'Укажите примерный район выезда.';
-    }
   }
 
   if (!draft.originLabel.trim()) {
-    errors.originLabel = 'Укажите место выезда.';
+    errors.originLabel = 'Укажите, откуда вы едете.';
   }
 
-  if (!draft.meetingPoint.trim()) {
-    errors.meetingPoint = 'Укажите одну точку встречи.';
+  if (!maxDetourKmValues.some((value) => String(value) === draft.maxDetourKm)) {
+    errors.maxDetourKm = 'Выберите максимальное отклонение от маршрута.';
   }
 
-  if (!Number.isInteger(seats) || seats < 1) {
-    errors.seats = 'Укажите количество мест от 1.';
+  if (!Number.isInteger(seats) || seats < 1 || seats > 55) {
+    errors.seats = 'Выберите количество свободных мест.';
   }
 
   if (draft.offerType === 'trip') {
-    if (!draft.date) {
-      errors.date = 'Укажите дату поездки.';
-    }
+    const serviceErrors = validateServiceSelection(draft, services, now);
+    Object.assign(errors, serviceErrors);
 
     if (!draft.departureTime) {
-      errors.departureTime = 'Укажите время выезда.';
+      errors.departureTime = 'Укажите примерное время выезда.';
     }
 
+    const tripDate = resolveDriverOfferDate(draft, services);
     if (
-      draft.date &&
+      !errors.selectedServiceId &&
+      !errors.date &&
+      tripDate &&
       draft.departureTime &&
       Number.isInteger(seats) &&
-      seats > 0 &&
+      seats >= 1 &&
+      seats <= 55 &&
       !isOneTimeTripAvailable(
-        {
-          date: draft.date,
-          departureTime: draft.departureTime,
-          seatsAvailable: seats,
-          status: 'open',
-        },
+        { date: tripDate, departureTime: draft.departureTime, seatsAvailable: seats, status: 'open' },
         now,
       )
     ) {
@@ -130,6 +170,22 @@ export function validateDriverOfferDraft(draft: DriverOfferDraft, requireProfile
   return { errors, normalizedPhone: normalizePhone(draft.phone), seats };
 }
 
+export function validateDriverOfferField(
+  draft: DriverOfferDraft,
+  fieldName: keyof DriverOfferDraft,
+  requireProfile: boolean,
+  now: Date,
+  services: ChurchService[] = [],
+) {
+  const { errors } = validateDriverOfferDraft(draft, requireProfile, now, services);
+
+  if (fieldName === 'date' || fieldName === 'selectedServiceId') {
+    return errors.date ?? errors.selectedServiceId;
+  }
+
+  return errors[fieldName];
+}
+
 export function createLocalDriverProfile(
   draft: DriverOfferDraft,
   ownerId: string,
@@ -141,7 +197,6 @@ export function createLocalDriverProfile(
     publicName: draft.publicName.trim(),
     phonePrivate: normalizePhone(draft.phone),
     emailPrivate: draft.email.trim() || undefined,
-    departureArea: draft.departureArea.trim(),
   };
 }
 
@@ -161,20 +216,19 @@ export function isLocalDriverProfile(value: unknown): value is LocalDriverProfil
     typeof profile.phonePrivate === 'string' &&
     isInternationalPhoneValid(profile.phonePrivate) &&
     (profile.emailPrivate === undefined ||
-      (typeof profile.emailPrivate === 'string' && isOptionalEmailValid(profile.emailPrivate))) &&
-    typeof profile.departureArea === 'string' &&
-    Boolean(profile.departureArea.trim())
+      (typeof profile.emailPrivate === 'string' && isOptionalEmailValid(profile.emailPrivate)))
   );
 }
 
 export function toDriverPublicProfile(
   profile: LocalDriverProfile,
   visibleChurchIds: string[],
+  originLabel: string,
 ): DriverPublicProfile {
   return {
     id: profile.driverId,
     publicName: profile.publicName,
-    departureArea: profile.departureArea,
+    departureArea: originLabel,
     visibleChurchIds,
   };
 }
@@ -184,20 +238,22 @@ export function createLocalTrip(
   churchId: string,
   driverId: string,
   tripId: string,
+  services: ChurchService[] = [],
 ): Trip {
   const seats = Number(draft.seats);
   return {
     id: tripId,
     churchId,
     driverId,
-    date: draft.date,
+    date: resolveDriverOfferDate(draft, services),
     departureTime: draft.departureTime,
     originLabel: draft.originLabel.trim(),
-    meetingPoints: [{ label: draft.meetingPoint.trim() }],
+    maxDetourKm: Number(draft.maxDetourKm),
     seatsTotal: seats,
     seatsAvailable: seats,
     returnTrip: draft.returnTrip,
     status: 'open',
+    serviceEventId: draft.selectedServiceId || undefined,
   };
 }
 
@@ -212,7 +268,7 @@ export function createLocalRoute(
     churchId,
     driverId,
     originLabel: draft.originLabel.trim(),
-    meetingPoints: [{ label: draft.meetingPoint.trim() }],
+    maxDetourKm: Number(draft.maxDetourKm),
     recurrence: {
       daysOfWeek: [...draft.weekdays].sort((left, right) => left - right),
       typicalDepartureTime: draft.departureTime,
@@ -227,10 +283,7 @@ export function createRegularRoutePrefill(draft: DriverOfferDraft): DriverOfferD
   return {
     ...draft,
     offerType: 'route',
-    publicName: '',
-    phone: '',
-    email: '',
-    departureArea: '',
+    selectedServiceId: '',
     date: '',
     weekdays: [],
   };
@@ -248,48 +301,30 @@ export function isRegularRouteAvailable(route: Pick<Route, 'status'>) {
   return route.status === 'active';
 }
 
+export function getMaxDetourCopy(maxDetourKm: number) {
+  return maxDetourKm === 0
+    ? 'Едет только по своему маршруту'
+    : `Готов отклониться от маршрута до ${maxDetourKm} км`;
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && Boolean(value.trim());
 }
 
-function isLocalDate(value: unknown): value is string {
-  if (typeof value !== 'string') {
-    return false;
-  }
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) {
-    return false;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]) - 1;
-  const day = Number(match[3]);
-  const date = new Date(year, month, day);
-  return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day;
-}
-
-function isLocalTime(value: unknown): value is string {
-  if (typeof value !== 'string') {
-    return false;
-  }
-
-  const match = /^(\d{2}):(\d{2})$/.exec(value);
-  return Boolean(match && Number(match[1]) < 24 && Number(match[2]) < 60);
-}
-
-function parseMeetingPoints(value: unknown): Route['meetingPoints'] | null {
-  if (!Array.isArray(value) || value.length === 0 || !value.every((point) => {
-    if (!point || typeof point !== 'object') {
-      return false;
+function parseOriginLabel(value: Record<string, unknown>) {
+  for (const candidate of [value.originLabel, value.departureArea, value.departurePlace]) {
+    if (isNonEmptyString(candidate)) {
+      return candidate.trim();
     }
-
-    return isNonEmptyString((point as { label?: unknown }).label);
-  })) {
-    return null;
   }
 
-  return value.map((point) => ({ label: (point as { label: string }).label.trim() }));
+  return null;
+}
+
+function parseMaxDetourKm(value: unknown) {
+  return typeof value === 'number' && maxDetourKmValues.includes(value as (typeof maxDetourKmValues)[number])
+    ? value
+    : 0;
 }
 
 export function parseLocalDriverProfile(value: unknown): LocalDriverProfile | null {
@@ -303,7 +338,6 @@ export function parseLocalDriverProfile(value: unknown): LocalDriverProfile | nu
     publicName: value.publicName.trim(),
     phonePrivate: normalizePhone(value.phonePrivate),
     emailPrivate: value.emailPrivate?.trim() || undefined,
-    departureArea: value.departureArea.trim(),
   };
 }
 
@@ -312,8 +346,8 @@ export function parseLocalTrip(value: unknown): Trip | null {
     return null;
   }
 
-  const trip = value as Partial<Trip>;
-  const meetingPoints = parseMeetingPoints(trip.meetingPoints);
+  const trip = value as Partial<Trip> & Record<string, unknown>;
+  const originLabel = parseOriginLabel(trip);
   const validStatuses: Trip['status'][] = ['open', 'full', 'cancelled', 'completed'];
 
   if (
@@ -322,16 +356,17 @@ export function parseLocalTrip(value: unknown): Trip | null {
     !isNonEmptyString(trip.driverId) ||
     !isLocalDate(trip.date) ||
     !isLocalTime(trip.departureTime) ||
-    !isNonEmptyString(trip.originLabel) ||
-    !meetingPoints ||
+    !originLabel ||
     !Number.isInteger(trip.seatsTotal) ||
     Number(trip.seatsTotal) < 1 ||
+    Number(trip.seatsTotal) > 55 ||
     !Number.isInteger(trip.seatsAvailable) ||
     Number(trip.seatsAvailable) < 0 ||
     Number(trip.seatsAvailable) > Number(trip.seatsTotal) ||
     typeof trip.returnTrip !== 'boolean' ||
     !validStatuses.includes(trip.status as Trip['status']) ||
-    (trip.routeId !== undefined && !isNonEmptyString(trip.routeId))
+    (trip.routeId !== undefined && !isNonEmptyString(trip.routeId)) ||
+    (trip.serviceEventId !== undefined && !isNonEmptyString(trip.serviceEventId))
   ) {
     return null;
   }
@@ -343,12 +378,13 @@ export function parseLocalTrip(value: unknown): Trip | null {
     routeId: trip.routeId,
     date: trip.date,
     departureTime: trip.departureTime,
-    originLabel: trip.originLabel.trim(),
-    meetingPoints,
+    originLabel,
+    maxDetourKm: parseMaxDetourKm(trip.maxDetourKm),
     seatsTotal: Number(trip.seatsTotal),
     seatsAvailable: Number(trip.seatsAvailable),
     returnTrip: trip.returnTrip,
     status: trip.status as Trip['status'],
+    serviceEventId: trip.serviceEventId,
   };
 }
 
@@ -357,8 +393,8 @@ export function parseLocalRoute(value: unknown): Route | null {
     return null;
   }
 
-  const route = value as Partial<Route>;
-  const meetingPoints = parseMeetingPoints(route.meetingPoints);
+  const route = value as Partial<Route> & Record<string, unknown>;
+  const originLabel = parseOriginLabel(route);
   const recurrence = route.recurrence;
   const validStatuses: Route['status'][] = ['active', 'paused', 'archived', 'cancelled'];
 
@@ -366,8 +402,7 @@ export function parseLocalRoute(value: unknown): Route | null {
     !isNonEmptyString(route.id) ||
     !isNonEmptyString(route.churchId) ||
     !isNonEmptyString(route.driverId) ||
-    !isNonEmptyString(route.originLabel) ||
-    !meetingPoints ||
+    !originLabel ||
     !recurrence ||
     !Array.isArray(recurrence.daysOfWeek) ||
     recurrence.daysOfWeek.length === 0 ||
@@ -375,6 +410,7 @@ export function parseLocalRoute(value: unknown): Route | null {
     !isLocalTime(recurrence.typicalDepartureTime) ||
     !Number.isInteger(route.seats) ||
     Number(route.seats) < 1 ||
+    Number(route.seats) > 55 ||
     typeof route.returnTrip !== 'boolean' ||
     !validStatuses.includes(route.status as Route['status'])
   ) {
@@ -385,8 +421,8 @@ export function parseLocalRoute(value: unknown): Route | null {
     id: route.id,
     churchId: route.churchId,
     driverId: route.driverId,
-    originLabel: route.originLabel.trim(),
-    meetingPoints,
+    originLabel,
+    maxDetourKm: parseMaxDetourKm(route.maxDetourKm),
     recurrence: {
       daysOfWeek: [...new Set(recurrence.daysOfWeek)].sort((left, right) => left - right),
       typicalDepartureTime: recurrence.typicalDepartureTime,

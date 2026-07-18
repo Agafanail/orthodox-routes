@@ -2,9 +2,9 @@ import Link from 'next/link';
 import { mockChurches, mockDrivers, mockRoutes, mockTrips } from '@/lib/mockData';
 
 const links = [
-  { href: '/churches', label: 'Все храмы', text: 'Посмотреть храмы с доступными маршрутами.' },
+  { href: '/churches', label: 'Все храмы', text: 'Посмотреть храмы с доступными поездками.' },
   { href: '/churches/pokrov-catanzaro', label: 'Покров в Катандзаро', text: 'Открыть пример карточки храма.' },
-  { href: '/drivers', label: 'Водители', text: 'Увидеть публичные профили без контактов.' },
+  { href: '/drivers', label: 'Водители', text: 'Увидеть, кто может подвезти к храму.' },
 ];
 
 export default function HomePage() {
@@ -21,14 +21,13 @@ export default function HomePage() {
 
       <section className="grid flex-1 content-center gap-8 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-amber-800">Mock-only MVP</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-amber-800">Помощь в дороге к храму</p>
           <h1 className="mt-3 text-4xl font-bold tracking-normal text-stone-950 sm:text-5xl">
             Как мне попасть в храм?
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-700">
             Сервис соединяет пассажира без машины с водителем, который уже едет в конкретный православный храм.
-            Сейчас это чистый прототип на mock data: без Firebase, авторизации, карт, Telegram, платежей, SMS и
-            WhatsApp API.
+            Выберите храм, найдите подходящую поездку или попросите водителя подвезти вас.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link className="rounded-lg bg-stone-950 px-5 py-4 text-center font-semibold text-white" href="/churches">
@@ -55,7 +54,7 @@ export default function HomePage() {
               <dd className="text-3xl font-bold">{mockDrivers.length}</dd>
             </div>
             <div className="rounded-lg bg-stone-100 p-4">
-              <dt className="text-sm text-stone-600">Маршруты</dt>
+              <dt className="text-sm text-stone-600">Регулярные поездки</dt>
               <dd className="text-3xl font-bold">{mockRoutes.length}</dd>
             </div>
             <div className="rounded-lg bg-stone-100 p-4">

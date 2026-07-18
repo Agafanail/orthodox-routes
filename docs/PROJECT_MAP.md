@@ -12,6 +12,8 @@ It is a church transport board where drivers and passengers coordinate rides to 
 
 The central screen is the church page. The church page works as a transport board for that church.
 
+User-facing copy describes actions and consequences in plain language for ordinary parishioners. Implementation concepts remain in technical documentation and never appear in the UI.
+
 ## 1. Product Overview
 
 ```mermaid
@@ -37,8 +39,8 @@ flowchart TD
     F1 --> F2["Button: Подвезти"]
     F2 --> F3["Driver responds to this specific passenger request"]
 
-    G --> G1["Создать запрос<br/>Passenger creates an open request"]
-    G --> G2["Создать поездку / маршрут<br/>Driver creates an offer"]
+    G --> G1["Я пассажир<br/>Попросить подвезти<br/>creates an open request"]
+    G --> G2["Я водитель<br/>Предложить поездку<br/>creates an offer"]
 
     H --> H1["Мои уведомления"]
     H --> H2["Мой отклик<br/>only after driver response"]
@@ -72,9 +74,14 @@ flowchart TD
     CP --> CREATE["Page-level creation actions"]
     CP --> PERSONAL["Temporary personal mock UI<br/>not public board content"]
 
+    SCHEDULE --> S1{"Structured future services?"}
+    S1 -->|Yes| S2["Shared compact dropdown<br/>up to five services"]
+    S1 -->|No| S3["Empty public schedule state<br/>forms show only Другая дата"]
+
     OFFERS --> O1["Driver Offer Card"]
     O1 --> O2["Driver name"]
-    O1 --> O3["Approximate departure area"]
+    O1 --> O3["Trip-specific origin"]
+    O1 --> O3A["Maximum detour in kilometres"]
     O1 --> O4["Service / date / time"]
     O1 --> O5["Free seats"]
     O1 --> O6["Offer type:<br/>one-time trip or regular route"]
@@ -88,8 +95,8 @@ flowchart TD
     R1 --> R6["Short safe comment"]
     R1 --> R7["Button: Подвезти"]
 
-    CREATE --> C1["Создать запрос"]
-    CREATE --> C2["Создать поездку / маршрут"]
+    CREATE --> C1["Я пассажир<br/>Попросить подвезти"]
+    CREATE --> C2["Я водитель<br/>Предложить поездку"]
 
     O7 --> T1["Creates targeted passenger request to this driver offer"]
     R7 --> T2["Creates driver response to this passenger request"]
@@ -97,6 +104,21 @@ flowchart TD
     PERSONAL --> P1["Мои уведомления"]
     PERSONAL --> P2["Мой отклик<br/>conditional"]
     PERSONAL --> P3["Мой запрос водителю<br/>conditional"]
+```
+
+### Church-list counters
+
+```mermaid
+flowchart TD
+    A["General churches page"] --> B["Server-rendered static counts<br/>hydration baseline"]
+    B --> C["Client reads and sanitizes<br/>browser-local driver offers"]
+    C --> D["Central merge and visibility helpers"]
+    D --> E{"Same churchId?"}
+    E -->|No| X["Exclude from this church"]
+    E -->|Yes| F["Exclude cancelled/inactive routes<br/>and cancelled/expired/full trips"]
+    F --> G["Count unique active drivers"]
+    F --> H["Count active regular trips"]
+    F --> I["Count visible one-time trips"]
 ```
 
 ## 3. Passenger Journey
@@ -122,7 +144,7 @@ flowchart TD
     A7 --> A8["Passenger goes to church"]
     A5F -->|No| A9["Passenger can try another offer or create open request"]
 
-    A -->|No| B1["Passenger clicks page action: Создать запрос"]
+    A -->|No| B1["Passenger uses role action:<br/>Я пассажир / Попросить подвезти"]
     B1 --> B2["Validated modal opens"]
     B2 --> B3["Request saved to localStorage<br/>and appears in passenger requests block"]
     B3 --> B3M["Automatic matching checks compatible driver offers"]
@@ -161,15 +183,18 @@ flowchart TD
     A8 --> A9["Ride to church"]
     A5 -->|No| A10["No match; no contacts shared"]
 
-    A -->|No| B1["Driver clicks page action:<br/>Создать поездку / маршрут"]
-    B1 --> B2["Driver creates driver profile if needed"]
+    A -->|No| B1["Driver uses role action:<br/>Я водитель / Предложить поездку"]
+    B1 --> B2["Driver enters name and private contacts if needed<br/>no profile-level departure area"]
     B2 --> B3{"Offer type?"}
-    B3 -->|One-time trip| B4["Creates one-time trip"]
-    B3 -->|Regular route| B5["Creates regular route"]
-    B4 --> B4S{"Едете так каждую неделю?"}
-    B4S -->|Создать регулярный маршрут| B4P["Reopens regular form<br/>with offer fields prefilled"]
+    B3 -->|One-time trip| B4["Origin + maxDetourKm<br/>seats 1–55 + return trip"]
+    B4 --> B4D{"Shared compact service dropdown<br/>or separate alternative date?"}
+    B4D --> B4T["Independent approximate<br/>departure time"]
+    B4T --> B4C["Create one-time trip<br/>dialog stays open"]
+    B4C --> B4S{"Поездка создана<br/>Ездите в храм так регулярно?"}
+    B4S -->|Добавить регулярную поездку| B4P["Same dialog switches to regular form<br/>offer fields prefilled<br/>service and date cleared"]
     B4P --> B5
-    B4S -->|Не сейчас| B6["Driver offer appears on church page"]
+    B4S -->|Закрыть| B6["Driver offer appears on church page"]
+    B3 -->|Regular trip| B5["Origin + maxDetourKm<br/>weekdays + usual time<br/>seats 1–55 + return trip"]
     B5 --> B6
     B6 --> B6C{"Local owner cancels?"}
     B6C -->|Confirms| B6H["Status cancelled<br/>hidden from board<br/>kept in local history"]
@@ -272,7 +297,8 @@ erDiagram
         string churchId
         string serviceEventId
         string offerType
-        string approximateDepartureArea
+        string originLabel
+        int maxDetourKm
         int freeSeats
         string status
         boolean publicVisible
@@ -283,6 +309,7 @@ erDiagram
         string passengerId
         string churchId
         string serviceEventId
+        string serviceDate
         string targetDriverOfferId
         string approximatePickupArea
         int passengerCount
@@ -433,8 +460,8 @@ flowchart TD
     A --> C["Driver offer cards"]
     A --> D["Passenger request cards"]
 
-    B --> B1["Создать запрос"]
-    B --> B2["Создать поездку / маршрут"]
+    B --> B1["Я пассажир<br/>Попросить подвезти"]
+    B --> B2["Я водитель<br/>Предложить поездку"]
 
     C --> C1["Попросить подвезти"]
     C1 --> C2["Passenger asks this specific driver"]
@@ -514,8 +541,8 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["Passenger clicks page action:<br/>Создать запрос"] --> B["Modal opens without visible registration"]
-    B --> C["Passenger enters request data"]
+    A["Passenger uses role action:<br/>Я пассажир / Попросить подвезти"] --> B["General request modal opens<br/>without visible registration"]
+    B --> C["Passenger enters request data<br/>shared service dropdown or separate date"]
     C --> C1{"Phone and optional email valid?<br/>Consent checked?"}
     C1 -->|No| C2["Show field validation messages"]
     C2 --> C

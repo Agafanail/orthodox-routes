@@ -5,7 +5,7 @@ export function TargetedRequestPanel({ requests }: { requests: TargetedPassenger
     <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
       <h2 className="text-xl font-bold">Мой запрос водителю</h2>
       <p className="mt-2 text-sm leading-6 text-stone-700">
-        Это личная mock-зона. Контакты пока не переданы: водитель еще не принял запрос.
+        Водитель ещё не принял запрос, поэтому контакты пока не переданы.
       </p>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {requests.map((request) => (

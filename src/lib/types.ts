@@ -1,5 +1,12 @@
 export type ChurchStatus = 'unverified' | 'claimed' | 'verified' | 'hidden';
 
+export type ChurchService = {
+  id: string;
+  name: string;
+  date: string;
+  startTime: string;
+};
+
 export type Church = {
   id: string;
   name: string;
@@ -23,6 +30,7 @@ export type Church = {
     regular?: string;
     exceptions?: string;
     lastUpdatedAt?: string;
+    services?: ChurchService[];
   };
   status: ChurchStatus;
 };
@@ -41,7 +49,6 @@ export type LocalDriverProfile = {
   publicName: string;
   phonePrivate: string;
   emailPrivate?: string;
-  departureArea: string;
 };
 
 export type Route = {
@@ -49,7 +56,7 @@ export type Route = {
   churchId: string;
   driverId: string;
   originLabel: string;
-  meetingPoints: Array<{ label: string; location?: { lat: number; lng: number } }>;
+  maxDetourKm: number;
   recurrence: {
     daysOfWeek: number[];
     typicalDepartureTime: string;
@@ -68,11 +75,12 @@ export type Trip = {
   date: string;
   departureTime: string;
   originLabel: string;
-  meetingPoints: Array<{ label: string; location?: { lat: number; lng: number } }>;
+  maxDetourKm: number;
   seatsTotal: number;
   seatsAvailable: number;
   returnTrip: boolean;
   status: 'open' | 'full' | 'cancelled' | 'completed';
+  serviceEventId?: string;
 };
 
 export type PickupZone = {
@@ -91,6 +99,8 @@ export type PassengerRequest = {
   phonePrivate: string;
   emailPrivate?: string;
   serviceEvent: string;
+  serviceEventId?: string;
+  serviceDate?: string;
   passengerCount: number;
   pickupZone: PickupZone;
   safePublicComment?: string;

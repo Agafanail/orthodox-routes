@@ -6,6 +6,8 @@ The central screen is the church page.
 
 The church page is a transport board for one church and must answer: «Как мне попасть в храм?»
 
+All user-facing copy must use plain human language for ordinary parishioners. UI text must describe the action or consequence, never implementation concepts such as local/mock/public profiles, local history, localStorage, persisted state, or ownership IDs. Technical terms remain appropriate in code and technical documentation.
+
 It shows:
 
 - church information;
@@ -21,14 +23,15 @@ Main action buttons must belong to specific cards when they act on a specific pe
 
 - «Попросить подвезти» belongs inside a driver offer card.
 - «Подвезти» belongs inside a passenger request card.
-- «Создать запрос» is a page-level creation action on the church page.
-- «Создать поездку / маршрут» is a page-level creation action on the church page.
+- The page-level passenger role card uses «Я пассажир», «Укажите, откуда и к какой службе хотите поехать.», and «Попросить подвезти» to open a general public request.
+- The page-level driver role card uses «Я водитель», «Укажите, откуда и когда вы едете и сколько у вас свободных мест.», and «Предложить поездку» to open driver offer creation.
+- «Попросить подвезти» inside a specific driver-offer card remains a targeted request and must not be confused with the general passenger action.
 
 Do not place generic «Мне нужно место» / «Могу подвезти» as abstract primary actions detached from specific cards.
 
-Do not show a heavy registration step when a passenger creates the first request. The visible button is «Создать запрос», not «Создать запрос и зарегистрироваться».
+Do not show a heavy registration step when a passenger creates the first request. The page-level button is «Попросить подвезти» and the modal submit remains «Создать запрос»; never use «Создать запрос и зарегистрироваться».
 
-«Создать запрос» opens a modal titled «Создать запрос на поездку». On desktop it is centered; on mobile it is a large full-width dialog. It has a close control, «Отмена», and Escape support. Successful submit closes it.
+The general «Попросить подвезти» passenger action opens a modal titled «Создать запрос на поездку». On desktop it is centered; on mobile it is a large full-width dialog. It has a close control, «Отмена», and Escape support. Successful submit closes it.
 
 ## Driver offer card
 
@@ -37,7 +40,8 @@ The card shows a concrete driver trip or regular route.
 It should show:
 
 - driver name;
-- approximate departure area;
+- trip-specific origin;
+- maximum detour in kilometres, or a clear statement that the driver follows only their route;
 - service / date / time;
 - free seats;
 - offer type: one-time trip or regular route;
@@ -80,8 +84,8 @@ The optional passenger comment is public in an open request. Both open and targe
 7. Driver receives a targeted notification.
 8. Wait for driver answer.
 9. If accepted, see participant contact.
-10. If no suitable offer exists, tap page action «Создать запрос».
-11. Fill first name, phone, optional email, service/event, passenger count, pickup area, optional comment, and consent in the modal.
+10. If no suitable offer exists, tap «Попросить подвезти» in the «Я пассажир» role card.
+11. Fill first name, phone, optional email, a future church service or separate alternative date, passenger count, pickup area, optional comment, and consent in the modal.
 12. The open request appears in the passenger requests block while active.
 13. The app may notify the passenger about compatible driver offers.
 
@@ -110,18 +114,24 @@ After «Попросить подвезти» on a driver offer, open a targeted
 9. Passenger contact opens in the private mock area «Мой отклик» after the driver clicks «Подвезти»; this area is absent before a response exists.
 10. Driver can click «Отменить отклик» and confirm cancellation.
 11. If cancelled, the request returns to the public list and a mock notification is created.
-12. If creating supply instead, tap page action «Создать поездку / маршрут».
-13. In the modal, choose «Разовая поездка» or «Регулярный маршрут».
-14. On the first local offer, enter public name, private phone, optional private email, and approximate departure area. Later offers reuse this browser-local profile.
-15. Enter departure place, one meeting point, seats, return-trip choice, and either one-time date/time or regular weekdays/usual time.
-16. Submit with «Создать поездку» or «Создать маршрут»; the offer appears immediately on the current church board and in applicable passenger choices.
-17. After a one-time trip, the compact «Едете так каждую неделю?» prompt may reopen a prefilled regular-route form without carrying over the date.
-18. Only locally owned offers show «Отменить поездку» or «Отменить маршрут». Confirmed cancellation hides the offer but keeps local history.
-19. The app may notify the driver about compatible passenger requests.
+12. If creating supply instead, tap «Предложить поездку» in the «Я водитель» role card.
+13. In the modal, choose «Разовая поездка» or «Регулярная поездка».
+14. On the first browser-local offer, enter name, private phone, and optional private email. Labels use asterisks for required fields; the UI does not ask for a profile-level departure area.
+15. For every offer, enter the trip-specific origin, choose a numeric maximum detour from `0`, `2`, `5`, `10`, `15`, or `20` kilometres, choose 1–55 free seats, and set the return-trip choice. Do not require pickup-point enumeration.
+16. For a one-time trip, use the shared compact dropdown to choose one of up to five nearest future church services or use the separately visible «Другая дата» field, then enter an independent approximate departure time. Selecting a service clears the alternative date and entering a date clears the service.
+17. For a regular trip, choose at least one weekday and the usual departure time.
+18. After creating a one-time trip, replace the form heading and body with one clean success state led by «Поездка создана». Show the visually secondary «Ездите в храм так регулярно?» suggestion without a nested bordered card. «Добавить регулярную поездку» switches the same dialog to a prefilled regular form without carrying over the service or date; «Закрыть» closes it.
+19. A regular trip is never created automatically.
+20. Only browser-owned offers show cancellation. The confirmation explains only that passengers will no longer be able to choose the trip; internal cancelled-history behavior is not exposed in UI copy.
+21. The app may notify the driver about compatible passenger requests.
 
 Driver profile can be more complete because the driver takes responsibility for others.
 
-The offer modal is mobile-first, closes by its close control, «Отмена», overlay click, or Escape, and locks body scrolling while open. The first invalid field receives focus. Driver phone and email are private fields and must not appear in public cards, offer objects, or notifications. A local-only driver card is not linked to a server driver route.
+The offer modal is mobile-first, closes by its close control, «Отмена», overlay click, or Escape, and locks body scrolling while open. Untouched fields show no errors. A field validates on blur; once its error is visible, it revalidates while edited without removing unrelated errors. Submit validates the whole form, preserves entered data, keeps the dialog open when invalid, and focuses the first invalid field. Driver phone and email are private fields and must not appear in public cards, offer objects, or notifications. A browser-local driver card is not linked to a server driver route, and its displayed origin is derived from that driver's active offers for the current church.
+
+The open passenger form and one-time driver form use the same compact native service dropdown and shared future-service options. Long labels must remain constrained by the modal width. «Другая дата» is always a separate visible date field, never a dropdown option. If a church has no structured future services, neither form renders an empty or disabled dropdown; only the date field is shown. The second mock church intentionally covers this no-schedule state.
+
+`maxDetourKm` is not a map match. Until route geometry exists, the UI must not claim that a passenger is on the route or within the selected distance; the driver evaluates the passenger's requested pickup location manually.
 
 ## Church flow
 
@@ -139,8 +149,8 @@ The offer modal is mobile-first, closes by its close control, «Отмена», 
 - Short forms.
 - Passenger request forms contain only the fields required by the open or targeted flow; email and comment remain optional.
 - Modal forms remain single-column on mobile and may use two columns only when every field stays within the dialog. Inputs, selects, textareas, consent text, and action buttons must never overflow the modal.
-- Normal focused form controls use a neutral stone/gray focus state. Red styling appears only after submit validation identifies an error for that field.
-- Editing an invalid field clears only that field's error; other unresolved field errors remain visible until corrected or the form is submitted again.
+- Normal focused form controls use a neutral stone/gray focus state. Red styling appears only after blur or submit validation identifies an error for that field.
+- Editing an invalid field revalidates only that field; other unresolved field errors remain visible until corrected or the form is submitted again.
 - Avoid dropdowns with huge lists on mobile.
 - Use search + suggestions.
 - Do not ask for exact home address.
@@ -181,6 +191,7 @@ The offer modal is mobile-first, closes by its close control, «Отмена», 
 - A one-time trip is visible and available in the passenger service/event choices only while `status === 'open'`, `seatsAvailable > 0`, and its local departure date and time have not passed.
 - Hidden items remain in internal history.
 - Targeted passenger requests are never public board items.
+- Church-list counters merge static and sanitized browser-local offers by church. They count unique active drivers, active regular trips, and visible one-time trips using the centralized visibility rules.
 
 ## Mock persistence
 

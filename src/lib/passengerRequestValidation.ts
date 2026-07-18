@@ -1,8 +1,12 @@
+import { validateServiceSelection } from './serviceOptions';
+import type { ChurchService } from './types';
+
 export type PassengerRequestDraft = {
   firstName: string;
   phone: string;
   email: string;
-  serviceEvent: string;
+  selectedServiceId: string;
+  date: string;
   passengerCount: string;
   pickupArea: string;
   comment: string;
@@ -41,7 +45,12 @@ export function isOptionalEmailValid(email: string) {
   return !trimmedEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
 }
 
-export function validatePassengerRequestDraft(draft: PassengerRequestDraft, requireService: boolean) {
+export function validatePassengerRequestDraft(
+  draft: PassengerRequestDraft,
+  requireService: boolean,
+  now = new Date(),
+  services: ChurchService[] = [],
+) {
   const errors: PassengerRequestDraftErrors = {};
   const normalizedPhone = normalizePhone(draft.phone);
   const passengerCount = Number.parseInt(draft.passengerCount, 10);
@@ -58,8 +67,9 @@ export function validatePassengerRequestDraft(draft: PassengerRequestDraft, requ
     errors.email = EMAIL_VALIDATION_MESSAGE;
   }
 
-  if (requireService && !draft.serviceEvent) {
-    errors.serviceEvent = 'Выберите службу или событие.';
+  if (requireService) {
+    const serviceErrors = validateServiceSelection(draft, services, now);
+    Object.assign(errors, serviceErrors);
   }
 
   if (!Number.isFinite(passengerCount) || passengerCount < 1) {

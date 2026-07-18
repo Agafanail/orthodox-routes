@@ -5,6 +5,7 @@ import { ActiveDriverResponses } from '@/components/church-transport-board/activ
 import { DriverOfferDialog } from '@/components/church-transport-board/driver-offer-dialog';
 import { DriverOffers } from '@/components/church-transport-board/driver-offers';
 import { NotificationCenter } from '@/components/church-transport-board/notification-center';
+import { OfferCancellationDialog } from '@/components/church-transport-board/offer-cancellation-dialog';
 import { PageActions } from '@/components/church-transport-board/page-actions';
 import { PassengerRequestList } from '@/components/church-transport-board/passenger-request-list';
 import { RequestDialog } from '@/components/church-transport-board/request-dialog';
@@ -14,28 +15,28 @@ import type {
   TargetedRequestDialogInput,
 } from '@/components/church-transport-board/types';
 import { formatDateTime } from '@/lib/dateFormat';
+import { mergeChurchOffers } from '@/lib/churchOfferCounts';
 import {
   cancelLocalRoute,
   cancelLocalTrip,
-  clearDriverOfferDraftFieldError,
   createEmptyDriverOfferDraft,
   createLocalDriverProfile,
   createLocalRoute,
   createLocalTrip,
   createRegularRoutePrefill,
-  excludeIdCollisions,
   isLocallyOwnedOffer,
-  isRegularRouteAvailable,
   isTargetedOfferAvailable,
   parseLocalDriverProfile,
   parseLocalRoute,
   parseLocalTrip,
-  toDriverPublicProfile,
+  validateDriverOfferField,
   validateDriverOfferDraft,
   type DriverOfferDraft,
   type DriverOfferDraftErrors,
   type DriverOfferMode,
 } from '@/lib/driverOfferState';
+import { driverOfferStorageKeys } from '@/lib/driverOfferStorage';
+import { formatServiceSelection, getChurchServiceOptions, getFutureChurchServices } from '@/lib/serviceOptions';
 import {
   cancelDriverResponse,
   createPendingDriverResponse,
@@ -51,7 +52,6 @@ import {
   type PassengerRequestDraftErrors,
 } from '@/lib/passengerRequestValidation';
 import { readStoredArray } from '@/lib/storage';
-import { isOneTimeTripAvailable } from '@/lib/tripVisibility';
 import type {
   Church,
   DriverPublicProfile,
@@ -77,16 +77,15 @@ const storageKeys = {
   driverResponses: 'orthodox-routes:driver-responses',
   targetedRequests: 'orthodox-routes:targeted-requests',
   notifications: 'orthodox-routes:notifications',
-  localDriverProfile: 'orthodox-routes:local-driver-profile',
-  localTrips: 'orthodox-routes:local-trips',
-  localRoutes: 'orthodox-routes:local-routes',
+  ...driverOfferStorageKeys,
 } as const;
 
 const emptyDraft: PassengerRequestDraft = {
   firstName: '',
   phone: '',
   email: '',
-  serviceEvent: '',
+  selectedServiceId: '',
+  date: '',
   passengerCount: '1',
   pickupArea: '',
   comment: '',
@@ -179,23 +178,6 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function getServiceOptions(routes: Route[], trips: Trip[]) {
-  const tripOptions = trips.map((trip) => {
-    const dateTime = formatDateTime(trip.date, trip.departureTime);
-    return {
-      value: `Литургия ${dateTime}`,
-      label: `Литургия ${dateTime}, выезд из ${trip.originLabel}`,
-    };
-  });
-
-  const routeOptions = routes.map((route) => ({
-    value: `Воскресная литургия, выезд в ${route.recurrence.typicalDepartureTime}`,
-    label: `Воскресная литургия, маршрут от ${route.originLabel} в ${route.recurrence.typicalDepartureTime}`,
-  }));
-
-  return [...tripOptions, ...routeOptions, { value: 'Литургия', label: 'Литургия' }];
-}
-
 export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchTransportBoardProps) {
   const [dialogContext, setDialogContext] = useState<RequestDialogContext | null>(null);
   const [draft, setDraft] = useState<PassengerRequestDraft>(getInitialDraft);
@@ -203,7 +185,11 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
   const [offerDialogOpen, setOfferDialogOpen] = useState(false);
   const [offerDraft, setOfferDraft] = useState<DriverOfferDraft>(() => createEmptyDriverOfferDraft());
   const [offerDraftErrors, setOfferDraftErrors] = useState<DriverOfferDraftErrors>({});
+  const [offerSubmitAttempt, setOfferSubmitAttempt] = useState(0);
   const [regularRouteSuggestion, setRegularRouteSuggestion] = useState<DriverOfferDraft | null>(null);
+  const [pendingCancellation, setPendingCancellation] = useState<
+    { offerType: 'trip'; offer: Trip } | { offerType: 'route'; offer: Route } | null
+  >(null);
   const [availabilityNow, setAvailabilityNow] = useState(() => new Date());
   const [passengerRequests, setPassengerRequests] = usePersistentArray<PassengerRequest>(storageKeys.passengerRequests);
   const [driverResponses, setDriverResponses] = usePersistentArray<DriverResponse>(storageKeys.driverResponses);
@@ -223,79 +209,30 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     return () => window.clearInterval(visibilityTimer);
   }, []);
 
-  const localDriverIdCollides = Boolean(
-    localDriverProfile && drivers.some((driver) => driver.id === localDriverProfile.driverId),
-  );
-  const eligibleLocalTrips = useMemo(
+  const mergedOffers = useMemo(
     () =>
-      localDriverProfile && !localDriverIdCollides
-        ? excludeIdCollisions(
-            localTrips.filter((trip) => trip.driverId === localDriverProfile.driverId),
-            trips,
-          )
-        : [],
-    [localDriverIdCollides, localDriverProfile, localTrips, trips],
+      mergeChurchOffers({
+        churchId: church.id,
+        staticDrivers: drivers,
+        staticRoutes: routes,
+        staticTrips: trips,
+        localDriverProfile,
+        localRoutes,
+        localTrips,
+        now: availabilityNow,
+      }),
+    [availabilityNow, church.id, drivers, localDriverProfile, localRoutes, localTrips, routes, trips],
   );
-  const eligibleLocalRoutes = useMemo(
-    () =>
-      localDriverProfile && !localDriverIdCollides
-        ? excludeIdCollisions(
-            localRoutes.filter((route) => route.driverId === localDriverProfile.driverId),
-            routes,
-          )
-        : [],
-    [localDriverIdCollides, localDriverProfile, localRoutes, routes],
-  );
-  const visibleLocalTrips = useMemo(
-    () =>
-      eligibleLocalTrips.filter(
-        (trip) => trip.churchId === church.id && isOneTimeTripAvailable(trip, availabilityNow),
-      ),
-    [availabilityNow, church.id, eligibleLocalTrips],
-  );
-  const visibleLocalRoutes = useMemo(
-    () =>
-      eligibleLocalRoutes.filter(
-        (route) => route.churchId === church.id && isRegularRouteAvailable(route),
-      ),
-    [church.id, eligibleLocalRoutes],
-  );
-  const mergedTrips = useMemo(
-    () => [
-      ...trips.filter((trip) => trip.churchId === church.id && isOneTimeTripAvailable(trip, availabilityNow)),
-      ...visibleLocalTrips,
-    ],
-    [availabilityNow, church.id, trips, visibleLocalTrips],
-  );
-  const mergedRoutes = useMemo(
-    () => [
-      ...routes.filter((route) => route.churchId === church.id && isRegularRouteAvailable(route)),
-      ...visibleLocalRoutes,
-    ],
-    [church.id, routes, visibleLocalRoutes],
-  );
-  const localVisibleChurchIds = useMemo(
-    () => [
-      ...new Set([
-        ...eligibleLocalRoutes.filter(isRegularRouteAvailable).map((route) => route.churchId),
-        ...eligibleLocalTrips
-          .filter((trip) => isOneTimeTripAvailable(trip, availabilityNow))
-          .map((trip) => trip.churchId),
-      ]),
-    ],
-    [availabilityNow, eligibleLocalRoutes, eligibleLocalTrips],
-  );
-  const localPublicDriver =
-    localDriverProfile && (visibleLocalRoutes.length > 0 || visibleLocalTrips.length > 0)
-      ? toDriverPublicProfile(localDriverProfile, localVisibleChurchIds)
-      : null;
-  const mergedDrivers = useMemo(
-    () =>
-      localPublicDriver
-        ? [...drivers.filter((driver) => driver.id !== localPublicDriver.id), localPublicDriver]
-        : drivers,
-    [drivers, localPublicDriver],
-  );
+  const {
+    drivers: mergedDrivers,
+    routes: mergedRoutes,
+    trips: mergedTrips,
+    visibleLocalRoutes,
+    visibleLocalTrips,
+    eligibleLocalRoutes,
+    eligibleLocalTrips,
+    localPublicDriver,
+  } = mergedOffers;
   const ownedTripIds = useMemo(
     () =>
       visibleLocalTrips.map((trip) => trip.id),
@@ -306,9 +243,13 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       visibleLocalRoutes.map((route) => route.id),
     [visibleLocalRoutes],
   );
+  const futureChurchServices = useMemo(
+    () => getFutureChurchServices(church.schedule?.services, availabilityNow),
+    [availabilityNow, church.schedule?.services],
+  );
   const serviceOptions = useMemo(
-    () => getServiceOptions(mergedRoutes, mergedTrips),
-    [mergedRoutes, mergedTrips],
+    () => getChurchServiceOptions(futureChurchServices),
+    [futureChurchServices],
   );
 
   function addNotification(message: string) {
@@ -327,27 +268,93 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     setRegularRouteSuggestion(null);
     setOfferDraft(nextDraft);
     setOfferDraftErrors({});
+    setOfferSubmitAttempt(0);
     setOfferDialogOpen(true);
   }
 
   function closeDriverOfferDialog() {
     setOfferDialogOpen(false);
     setOfferDraftErrors({});
+    setOfferSubmitAttempt(0);
+    setRegularRouteSuggestion(null);
   }
 
   function changeDriverOfferMode(mode: DriverOfferMode) {
-    setOfferDraft((current) => ({ ...current, offerType: mode }));
+    setOfferDraft((current) => ({
+      ...current,
+      offerType: mode,
+      selectedServiceId: mode === 'route' ? '' : current.selectedServiceId,
+      date: mode === 'route' ? '' : current.date,
+    }));
     setOfferDraftErrors({});
+    setOfferSubmitAttempt(0);
+  }
+
+  function validateOfferField(fieldName: keyof DriverOfferDraft) {
+    const message = validateDriverOfferField(
+      offerDraft,
+      fieldName,
+      !localDriverProfile,
+      new Date(),
+      church.schedule?.services,
+    );
+
+    setOfferDraftErrors((current) => {
+      const next = { ...current };
+      const errorField = fieldName === 'date' ? 'date' : fieldName;
+      if (fieldName === 'date' || fieldName === 'selectedServiceId') {
+        delete next.date;
+        delete next.selectedServiceId;
+      }
+      if (message) {
+        next[errorField] = message;
+      } else {
+        delete next[errorField];
+      }
+      return next;
+    });
+  }
+
+  function changeOfferDraft(nextDraft: DriverOfferDraft, fieldName: keyof DriverOfferDraft) {
+    setOfferDraft(nextDraft);
+    setOfferDraftErrors((current) => {
+      const shouldRevalidate =
+        Boolean(current[fieldName]) ||
+        ((fieldName === 'date' || fieldName === 'selectedServiceId') && Boolean(current.date || current.selectedServiceId));
+
+      if (!shouldRevalidate) {
+        return current;
+      }
+
+      const message = validateDriverOfferField(
+        nextDraft,
+        fieldName,
+        !localDriverProfile,
+        new Date(),
+        church.schedule?.services,
+      );
+      const nextErrors = { ...current };
+      if (fieldName === 'date' || fieldName === 'selectedServiceId') {
+        delete nextErrors.date;
+        delete nextErrors.selectedServiceId;
+      } else {
+        delete nextErrors[fieldName];
+      }
+      if (message) {
+        nextErrors[fieldName === 'selectedServiceId' ? 'selectedServiceId' : fieldName] = message;
+      }
+      return nextErrors;
+    });
   }
 
   function openOpenRequestDialog() {
-    setDraft((current) => ({ ...current, serviceEvent: '', comment: '', consent: false }));
+    setDraft((current) => ({ ...current, selectedServiceId: '', date: '', comment: '', consent: false }));
     setDraftErrors({});
     setDialogContext({ mode: 'open' });
   }
 
   function openTargetedRequestDialog(context: TargetedRequestDialogInput) {
-    setDraft((current) => ({ ...current, serviceEvent: '', comment: '', consent: false }));
+    setDraft((current) => ({ ...current, selectedServiceId: '', date: '', comment: '', consent: false }));
     setDraftErrors({});
     setDialogContext({ mode: 'targeted', ...context });
   }
@@ -373,6 +380,8 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     const { errors, normalizedPhone, passengerCount } = validatePassengerRequestDraft(
       draft,
       dialogContext.mode === 'open',
+      new Date(),
+      church.schedule?.services,
     );
 
     if (Object.keys(errors).length > 0) {
@@ -428,7 +437,11 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
         firstName: draft.firstName.trim(),
         phonePrivate: normalizedPhone,
         emailPrivate: draft.email.trim() || undefined,
-        serviceEvent: draft.serviceEvent,
+        serviceEvent: formatServiceSelection(draft, church.schedule?.services ?? []),
+        serviceEventId: draft.selectedServiceId || undefined,
+        serviceDate: draft.selectedServiceId
+          ? church.schedule?.services?.find((service) => service.id === draft.selectedServiceId)?.date
+          : draft.date,
         passengerCount,
         pickupZone: { label: draft.pickupArea.trim() },
         safePublicComment: draft.comment.trim() || undefined,
@@ -457,10 +470,16 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
 
   function handleSubmitDriverOffer() {
     const now = new Date();
-    const { errors } = validateDriverOfferDraft(offerDraft, !localDriverProfile, now);
+    const { errors } = validateDriverOfferDraft(
+      offerDraft,
+      !localDriverProfile,
+      now,
+      church.schedule?.services,
+    );
 
     if (Object.keys(errors).length > 0) {
       setOfferDraftErrors(errors);
+      setOfferSubmitAttempt((current) => current + 1);
       return;
     }
 
@@ -473,15 +492,23 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     }
 
     if (offerDraft.offerType === 'trip') {
-      const trip = createLocalTrip(offerDraft, church.id, profile.driverId, makeId('local-trip'));
+      const trip = createLocalTrip(
+        offerDraft,
+        church.id,
+        profile.driverId,
+        makeId('local-trip'),
+        church.schedule?.services,
+      );
       setLocalTrips((current) => [trip, ...current]);
       addNotification(`Создана поездка: ${formatDateTime(trip.date, trip.departureTime)}, выезд из ${trip.originLabel}.`);
       setRegularRouteSuggestion(createRegularRoutePrefill(offerDraft));
     } else {
       const route = createLocalRoute(offerDraft, church.id, profile.driverId, makeId('local-route'));
       setLocalRoutes((current) => [route, ...current]);
-      addNotification(`Создан регулярный маршрут: выезд из ${route.originLabel} в ${route.recurrence.typicalDepartureTime}.`);
+      addNotification(`Создана регулярная поездка: выезд из ${route.originLabel} в ${route.recurrence.typicalDepartureTime}.`);
       setRegularRouteSuggestion(null);
+      setOfferDraft(createEmptyDriverOfferDraft());
+      closeDriverOfferDialog();
     }
 
     if (
@@ -493,33 +520,45 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     }
 
     setAvailabilityNow(now);
-    setOfferDraft(createEmptyDriverOfferDraft());
-    closeDriverOfferDialog();
   }
 
   function handleCancelTrip(trip: Trip) {
-    if (
-      !isLocallyOwnedOffer(trip, localTrips, localDriverProfile) ||
-      !window.confirm('Отменить поездку? Она исчезнет с публичной доски, но останется в локальной истории.')
-    ) {
+    if (!isLocallyOwnedOffer(trip, localTrips, localDriverProfile)) {
       return;
     }
-
-    setLocalTrips((current) => current.map((item) => (item.id === trip.id ? cancelLocalTrip(item) : item)));
-    setAvailabilityNow(new Date());
-    addNotification('Поездка отменена.');
+    setPendingCancellation({ offerType: 'trip', offer: trip });
   }
 
   function handleCancelRoute(route: Route) {
-    if (
-      !isLocallyOwnedOffer(route, localRoutes, localDriverProfile) ||
-      !window.confirm('Отменить маршрут? Он исчезнет с публичной доски, но останется в локальной истории.')
-    ) {
+    if (!isLocallyOwnedOffer(route, localRoutes, localDriverProfile)) {
+      return;
+    }
+    setPendingCancellation({ offerType: 'route', offer: route });
+  }
+
+  function confirmOfferCancellation() {
+    if (!pendingCancellation) {
       return;
     }
 
-    setLocalRoutes((current) => current.map((item) => (item.id === route.id ? cancelLocalRoute(item) : item)));
-    addNotification('Маршрут отменен.');
+    if (pendingCancellation.offerType === 'trip') {
+      setLocalTrips((current) =>
+        current.map((item) =>
+          item.id === pendingCancellation.offer.id ? cancelLocalTrip(item) : item,
+        ),
+      );
+      addNotification('Поездка отменена.');
+    } else {
+      setLocalRoutes((current) =>
+        current.map((item) =>
+          item.id === pendingCancellation.offer.id ? cancelLocalRoute(item) : item,
+        ),
+      );
+      addNotification('Регулярная поездка отменена.');
+    }
+
+    setPendingCancellation(null);
+    setAvailabilityNow(new Date());
   }
 
   function handleRespond(request: PassengerRequest) {
@@ -533,7 +572,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
   }
 
   function handleCancelResponse(response: DriverResponse) {
-    if (!window.confirm('Отменить отклик и вернуть запрос в публичный список?')) {
+    if (!window.confirm('Отменить отклик? Пассажир снова сможет получить предложения от водителей.')) {
       return;
     }
 
@@ -578,28 +617,6 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
         onCreateRequest={openOpenRequestDialog}
       />
 
-      {regularRouteSuggestion ? (
-        <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
-          <h2 className="text-lg font-bold">Едете так каждую неделю?</h2>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-            <button
-              className="rounded-lg bg-stone-950 px-4 py-3 font-semibold text-white"
-              onClick={() => openDriverOfferDialog(regularRouteSuggestion)}
-              type="button"
-            >
-              Создать регулярный маршрут
-            </button>
-            <button
-              className="rounded-lg border border-stone-300 px-4 py-3 font-semibold"
-              onClick={() => setRegularRouteSuggestion(null)}
-              type="button"
-            >
-              Не сейчас
-            </button>
-          </div>
-        </section>
-      ) : null}
-
       <PassengerRequestList onRespond={handleRespond} requests={activeRequests} />
 
       <ActiveDriverResponses
@@ -629,16 +646,32 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
           errors={offerDraftErrors}
           savedProfile={
             localDriverProfile
-              ? { publicName: localDriverProfile.publicName, departureArea: localDriverProfile.departureArea }
+              ? { publicName: localDriverProfile.publicName }
               : null
           }
-          onCancel={closeDriverOfferDialog}
-          onChange={(nextDraft, fieldName) => {
-            setOfferDraft(nextDraft);
-            setOfferDraftErrors((current) => clearDriverOfferDraftFieldError(current, fieldName));
+          services={futureChurchServices}
+          submitAttempt={offerSubmitAttempt}
+          successPrefill={regularRouteSuggestion}
+          onAddRegular={() => {
+            if (regularRouteSuggestion) {
+              setOfferDraft(regularRouteSuggestion);
+              setOfferDraftErrors({});
+              setRegularRouteSuggestion(null);
+            }
           }}
+          onBlur={validateOfferField}
+          onCancel={closeDriverOfferDialog}
+          onChange={changeOfferDraft}
           onModeChange={changeDriverOfferMode}
           onSubmit={handleSubmitDriverOffer}
+        />
+      ) : null}
+
+      {pendingCancellation ? (
+        <OfferCancellationDialog
+          offerType={pendingCancellation.offerType}
+          onCancel={() => setPendingCancellation(null)}
+          onConfirm={confirmOfferCancellation}
         />
       ) : null}
 
@@ -650,7 +683,15 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
           onCancel={closeDialog}
           onChange={(nextDraft, fieldName) => {
             setDraft(nextDraft);
-            setDraftErrors((current) => clearPassengerRequestDraftFieldError(current, fieldName));
+            setDraftErrors((current) => {
+              if (fieldName === 'date' || fieldName === 'selectedServiceId') {
+                const nextErrors = { ...current };
+                delete nextErrors.date;
+                delete nextErrors.selectedServiceId;
+                return nextErrors;
+              }
+              return clearPassengerRequestDraftFieldError(current, fieldName);
+            });
           }}
           onSubmit={handleSubmitRequest}
           serviceOptions={serviceOptions}

@@ -23,6 +23,8 @@ Roadmap follows the approved product sequence: validate the church transport boa
 - Second church transport board presentational extraction for page actions, request and response panels, targeted requests, and driver offers.
 - Centralized one-time-trip visibility based on open status, available seats, and a local departure date and time that has not passed.
 - Complete local mock driver-offer flow with reusable driver identity, one-time trips, regular routes, cancellation history, and one-time-to-regular suggestion.
+- Human-language driver-offer UI with trip-specific origin, numeric maximum detour, 1–55 seat selection, blur/touched validation, in-dialog regular-trip suggestion, human cancellation copy, and static-plus-browser-local church counters.
+- Role-labelled passenger/driver page actions, a single-state trip-success screen, origin-to-church offers with numeric maximum detour, shared compact service/date selection, and an intentional no-schedule church scenario.
 
 The current prototype has no backend, authentication, real user isolation, push/email delivery, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features.
 

@@ -168,8 +168,8 @@ type DriverOffer = {
   churchId: string;
   serviceEventId?: string;
   offerType: 'one_time_trip' | 'regular_route';
-  approximateDepartureArea: string;
-  hubPointIds?: string[];
+  originLabel: string;
+  maxDetourKm: 0 | 2 | 5 | 10 | 15 | 20;
   departureAt?: Timestamp;
   recurrence?: {
     daysOfWeek: number[]; // 0 Sunday ... 6 Saturday
@@ -212,6 +212,7 @@ type PassengerRequest = {
   passengerId: string;
   churchId: string;
   serviceEventId?: string;
+  serviceDate?: string; // local YYYY-MM-DD
   targetDriverOfferId?: string;
   pickupZone: {
     label: string;
@@ -399,6 +400,8 @@ Notification text must not expose phone, exact address, private contact, or sens
 
 Static churches, drivers, routes, and trips remain mock arrays in `src/lib/mockData.ts`. User-created private mock state uses these namespaced browser localStorage keys:
 
+`Church.schedule.services` may contain structured mock `ChurchService` entries with `id`, `name`, local ISO `date`, and local `startTime`. One shared helper sorts these entries by local start, excludes past or malformed services, limits the result to five, and formats the compact native dropdown used by both open passenger requests and one-time driver offers. A separate visible alternative-date field is mutually exclusive with the selected service. This structure does not infer driver departure time.
+
 - `orthodox-routes:passenger-requests`;
 - `orthodox-routes:driver-responses`;
 - `orthodox-routes:targeted-requests`;
@@ -417,19 +420,24 @@ type LocalDriverProfile = {
   publicName: string;
   phonePrivate: string;
   emailPrivate?: string;
-  departureArea: string;
 };
 ```
 
-Only `driverId`, `publicName`, `departureArea`, and active-offer church IDs are copied into a derived `DriverPublicProfile`. Private phone and email are never copied into public profiles, routes, trips, cards, or notifications.
+The legacy mock profile `departureArea` field is accepted and discarded during hydration. New driver data does not request or depend on it. A derived `DriverPublicProfile` receives its displayed origin from that driver's active offers for the current church. Private phone and email are never copied into public profiles, routes, trips, cards, or notifications.
 
-Locally created trips use the existing `Trip` shape. Locally created routes use the existing `Route` shape with explicit `status: 'cancelled'` support. Cancellation changes only the status, keeps the record in localStorage history, and removes it from merged active offers. Ownership requires both membership in the matching local offer collection and the current local profile `driverId`; it is never inferred from a displayed name.
+Locally created `Trip` and `Route` records model a route from `originLabel` to the current church and store `maxDetourKm` as one of `0`, `2`, `5`, `10`, `15`, or `20`. Drivers do not enumerate pickup points. Until maps are implemented, the distance is only a stated willingness to detour; the driver manually evaluates each passenger's requested pickup location. Older stored records may still contain `pickupMethod`, `pickupDetails`, `meetingPoints`, `departureArea`, or `departurePlace`; hydration discards obsolete pickup fields, uses a readable legacy origin where needed, and assigns the conservative `maxDetourKm: 0` fallback when the field is absent or unsupported. A one-time `Trip` may preserve `serviceEventId`; its `date` is derived from the selected service or the alternative date, while `departureTime` remains an independent required driver input. Seats are integers from 1 through 55 in both new and hydrated records.
+
+Locally created routes keep explicit `status: 'cancelled'` support. Cancellation changes only the status, keeps the record in localStorage history, and removes it from merged active offers. Ownership requires both membership in the matching local offer collection and the current local profile `driverId`; it is never inferred from a displayed name.
 
 Hydration parses local profile and offer records into explicit safe shapes. Malformed or outdated entries are ignored, unexpected fields are discarded, duplicate local IDs are suppressed, and IDs colliding with static drivers or offers are not merged into the public board.
 
 Browser localStorage is not an authorization boundary and can be manually modified. Authentication, server persistence, per-user ownership, and cancellation authorization must be enforced by future backend rules.
 
-A mock one-time `Trip` is publicly available only while `status === 'open'`, `seatsAvailable > 0`, and the local value composed from `date` and `departureTime` has not passed. The same rule filters church and driver trip selectors, church-board offers, and passenger service/event choices. Regular-route visibility is unchanged.
+A mock one-time `Trip` is publicly available only while `status === 'open'`, `seatsAvailable > 0`, and the local value composed from `date` and `departureTime` has not passed. The same rule filters church and driver trip selectors and church-board offers. Passenger and driver service dropdowns use the church's structured future services rather than deriving schedule choices from transport offers. Regular-route visibility is unchanged.
+
+The second mock church intentionally has no `schedule` data. It is the stable no-schedule scenario: its public page renders the empty schedule state, and open passenger and one-time driver forms render only the alternative-date field.
+
+The general church list uses the same centralized merge and visibility helpers as the church board. Per-church counters include static and sanitized browser-local records, isolate offers by `churchId`, count each active driver once, exclude inactive/cancelled routes, and exclude cancelled, expired, full, or otherwise unavailable one-time trips. The server-rendered static counts are the hydration baseline; browser-local counts are merged after the client mounts.
 
 Open passenger requests are public only while `status === 'open'` and `publicVisible === true`. Targeted requests always have `publicVisible === false` and never appear in «Кому нужно место». Active driver responses and targeted requests are shown only in temporary personal mock panels. Real persistence and per-user authorization belong to the future backend/Firestore implementation.
 

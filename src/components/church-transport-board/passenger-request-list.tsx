@@ -12,7 +12,7 @@ export function PassengerRequestList({
     <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
       <h2 className="text-xl font-bold">Кому нужно место</h2>
       <p className="mt-2 text-sm leading-6 text-stone-600">
-        Открытые запросы пассажиров. Публично показываются только безопасные данные.
+        Запросы пассажиров, которым нужно место в машине.
       </p>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {requests.length > 0 ? (

@@ -23,7 +23,7 @@ export function PassengerRequestCard({
       {request.safePublicComment ? (
         <p className="mt-3 text-sm leading-6 text-stone-700">{request.safePublicComment}</p>
       ) : null}
-      <p className="mt-3 text-xs leading-5 text-stone-600">Контакт скрыт публично и откроется только после отклика.</p>
+      <p className="mt-3 text-xs leading-5 text-stone-600">Контакт увидит только водитель, который откликнется.</p>
       <button
         className="mt-4 w-full rounded-lg bg-stone-950 px-4 py-3 font-semibold text-white"
         onClick={() => onRespond(request)}

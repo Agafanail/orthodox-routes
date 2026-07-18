@@ -9,6 +9,13 @@ import {
   validatePassengerRequestDraft,
   type PassengerRequestDraft,
 } from './passengerRequestValidation';
+import { getChurchServiceOptions, getFutureChurchServices } from './serviceOptions';
+import type { ChurchService } from './types';
+
+const services: ChurchService[] = [
+  { id: 'service-1', name: 'Литургия', date: '2026-07-20', startTime: '09:00' },
+];
+const now = new Date(2026, 6, 19, 12, 0);
 
 describe('passenger request field errors', () => {
   it('removes only the selected field error without mutating the original object', () => {
@@ -68,7 +75,8 @@ describe('passenger request draft messages', () => {
     firstName: 'Мария',
     phone: '+39 333 123 4567',
     email: '',
-    serviceEvent: 'Литургия',
+    selectedServiceId: 'service-1',
+    date: '',
     passengerCount: '1',
     pickupArea: 'Вокзал',
     comment: '',
@@ -76,12 +84,29 @@ describe('passenger request draft messages', () => {
   };
 
   it('preserves the phone validation message', () => {
-    const result = validatePassengerRequestDraft({ ...validDraft, phone: '12345' }, true);
+    const result = validatePassengerRequestDraft({ ...validDraft, phone: '12345' }, true, now, services);
     expect(result.errors.phone).toBe(PHONE_VALIDATION_MESSAGE);
   });
 
   it('preserves the email validation message', () => {
-    const result = validatePassengerRequestDraft({ ...validDraft, email: 'invalid' }, true);
+    const result = validatePassengerRequestDraft({ ...validDraft, email: 'invalid' }, true, now, services);
     expect(result.errors.email).toBe(EMAIL_VALIDATION_MESSAGE);
+  });
+
+  it('uses the shared church service options', () => {
+    expect(getChurchServiceOptions(getFutureChurchServices(services, now))).toEqual([
+      { value: 'service-1', label: 'Литургия — 20.07.2026, 09:00' },
+    ]);
+  });
+
+  it('supports a no-schedule church with another date', () => {
+    const result = validatePassengerRequestDraft(
+      { ...validDraft, selectedServiceId: '', date: '2026-07-20' },
+      true,
+      now,
+      [],
+    );
+    expect(result.errors.selectedServiceId).toBeUndefined();
+    expect(result.errors.date).toBeUndefined();
   });
 });

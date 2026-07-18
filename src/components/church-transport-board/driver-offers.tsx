@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { TargetedRequestDialogInput } from '@/components/church-transport-board/types';
 import { formatDateTime } from '@/lib/dateFormat';
+import { getMaxDetourCopy } from '@/lib/driverOfferState';
 import type { Church, DriverPublicProfile, Route, Trip } from '@/lib/types';
 
 const dayNames = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
@@ -54,7 +55,7 @@ export function DriverOffers({
   return (
     <section className="grid gap-5 lg:grid-cols-3">
       <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-bold">Видимые водители</h2>
+        <h2 className="text-xl font-bold">Водители</h2>
         <div className="mt-4 grid gap-3">
           {drivers.map((driver) => (
             localDriverId === driver.id ? (
@@ -71,11 +72,11 @@ export function DriverOffers({
       </div>
 
       <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-bold">Кто едет регулярно</h2>
+        <h2 className="text-xl font-bold">Регулярные поездки</h2>
         <div className="mt-4 grid gap-3">
           {routes.map((route) => {
             const driverName = getDriverName(drivers, route.driverId);
-            const offerContext = `Регулярный маршрут: ${route.originLabel} → ${church.name}, ${route.recurrence.daysOfWeek
+            const offerContext = `Регулярная поездка: ${route.originLabel} → ${church.name}, ${route.recurrence.daysOfWeek
               .map((day) => dayNames[day])
               .join(', ')} в ${route.recurrence.typicalDepartureTime}`;
 
@@ -85,6 +86,12 @@ export function DriverOffers({
                   {route.originLabel} → {church.name}
                 </h3>
                 <p className="mt-2 text-sm text-stone-700">
+                  Выезжает из {route.originLabel}
+                </p>
+                <p className="mt-1 text-sm text-stone-600">
+                  {getMaxDetourCopy(route.maxDetourKm)}
+                </p>
+                <p className="mt-1 text-sm text-stone-600">
                   {route.recurrence.daysOfWeek.map((day) => dayNames[day]).join(', ')} в{' '}
                   {route.recurrence.typicalDepartureTime}; мест: {route.seats}
                 </p>
@@ -111,7 +118,7 @@ export function DriverOffers({
                       onClick={() => onCancelRoute(route)}
                       type="button"
                     >
-                      Отменить маршрут
+                      Отменить поездку
                     </button>
                   ) : null}
                 </div>
@@ -122,7 +129,7 @@ export function DriverOffers({
       </div>
 
       <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-bold">Ближайшие поездки</h2>
+        <h2 className="text-xl font-bold">Разовые поездки</h2>
         <div className="mt-4 grid gap-3">
           {trips.length > 0 ? (
             trips.map((trip) => {
@@ -134,8 +141,12 @@ export function DriverOffers({
                 <article className="rounded-lg bg-stone-100 p-4" key={trip.id}>
                   <h3 className="font-semibold">{dateTime}</h3>
                   <p className="mt-2 text-sm text-stone-700">
-                    Выезд из {trip.originLabel}; свободных мест: {trip.seatsAvailable}
+                    Выезжает из {trip.originLabel}
                   </p>
+                  <p className="mt-1 text-sm text-stone-600">
+                    {getMaxDetourCopy(trip.maxDetourKm)}
+                  </p>
+                  <p className="mt-1 text-sm text-stone-600">Свободных мест: {trip.seatsAvailable}</p>
                   <p className="mt-1 text-sm text-stone-600">Водитель: {driverName}</p>
                   <div className="mt-4 grid gap-2">
                     <button
