@@ -1,4 +1,5 @@
 import type { PublicPassengerRequestItem } from '@/lib/rideMatchState';
+import { getBoardCardId } from '@/components/church-transport-board/board-card';
 
 export function PassengerRequestCard({
   item,
@@ -8,7 +9,7 @@ export function PassengerRequestCard({
   onRespond: (requestId: string) => void;
 }) {
   return (
-    <article className="rounded-lg bg-stone-100 p-4">
+    <article className="rounded-lg bg-stone-100 p-4" id={getBoardCardId(item.id)}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="font-semibold">{item.firstName}</h3>

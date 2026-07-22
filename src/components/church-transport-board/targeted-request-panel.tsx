@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getBoardCardId } from '@/components/church-transport-board/board-card';
 import { formatDate } from '@/lib/dateFormat';
 import { formatSeatCount } from '@/lib/russianCount';
 import type { TargetedPassengerRequest } from '@/lib/types';
@@ -31,7 +32,7 @@ export function TargetedRequestPanel({
           const partialCount = Math.min(partialCounts[request.id] ?? Math.max(1, maxPartial), Math.max(1, maxPartial));
 
           return (
-            <article className="rounded-lg bg-white p-4" key={request.id}>
+            <article className="rounded-lg bg-white p-4" id={getBoardCardId(request.id)} key={request.id}>
               <h3 className="font-semibold">Водитель: {request.driverName}</h3>
               <p className="mt-2 text-sm leading-6 text-stone-700">{request.offerContext}</p>
               <p className="mt-1 text-sm text-stone-700">Дата: {request.rideDate ? formatDate(request.rideDate) : 'нужно выбрать заново'}</p>

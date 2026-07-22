@@ -57,23 +57,41 @@ a[href]:hover {
   outline-color: #ef4444;
 }
 
-@keyframes offer-success-enter {
+@keyframes action-feedback-enter {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(-8px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
-.offer-success-panel {
-  animation: offer-success-enter 180ms ease-out;
+@keyframes action-result-highlight {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0);
+  }
+  25%, 65% {
+    box-shadow: 0 0 0 4px rgb(16 185 129 / 0.32);
+  }
+}
+
+.action-feedback {
+  animation: action-feedback-enter 180ms ease-out;
+}
+
+.action-result-highlight {
+  animation: action-result-highlight 1800ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .offer-success-panel {
+  .action-feedback,
+  .action-result-highlight {
     animation: none;
+  }
+
+  .action-result-highlight {
+    box-shadow: 0 0 0 3px rgb(16 185 129 / 0.32);
   }
 }

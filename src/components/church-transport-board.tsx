@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActionFeedback, type ActionFeedbackMessage } from '@/components/church-transport-board/action-feedback';
 import { ActiveDriverResponses } from '@/components/church-transport-board/active-driver-responses';
+import { getBoardCardId } from '@/components/church-transport-board/board-card';
+import { CompletedActivity } from '@/components/church-transport-board/completed-activity';
 import { DriverOfferDialog } from '@/components/church-transport-board/driver-offer-dialog';
 import { DriverOffers } from '@/components/church-transport-board/driver-offers';
 import { DriverResponseDialog } from '@/components/church-transport-board/driver-response-dialog';
@@ -23,7 +26,6 @@ import {
   createLocalDriverProfile,
   createLocalRoute,
   createLocalTrip,
-  createRegularRoutePrefill,
   isLocallyOwnedOffer,
   parseLocalDriverProfile,
   parseLocalRoute,
@@ -203,17 +205,18 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     match: RideMatch;
     participant: 'passenger' | 'driver';
   } | null>(null);
-  const [flowMessage, setFlowMessage] = useState('');
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedbackMessage | null>(null);
+  const [revealTarget, setRevealTarget] = useState<{ id: string; sequence: number } | null>(null);
   const [offerDialogOpen, setOfferDialogOpen] = useState(false);
   const [offerDraft, setOfferDraft] = useState<DriverOfferDraft>(() => createEmptyDriverOfferDraft());
   const [offerDraftErrors, setOfferDraftErrors] = useState<DriverOfferDraftErrors>({});
   const [offerSubmitAttempt, setOfferSubmitAttempt] = useState(0);
-  const [regularRouteSuggestion, setRegularRouteSuggestion] = useState<DriverOfferDraft | null>(null);
   const [pendingCancellation, setPendingCancellation] = useState<
     { offerType: 'trip'; offer: Trip } | { offerType: 'route'; offer: Route } | null
   >(null);
   const [availabilityNow, setAvailabilityNow] = useState(() => new Date());
   const confirmationLocks = useRef(new Set<string>());
+  const revealSequence = useRef(0);
 
   const [passengerRequests, setPassengerRequests] = usePersistentArray(storageKeys.passengerRequests, parsePassengerRequest);
   const [driverResponses, setDriverResponses] = usePersistentArray(storageKeys.driverResponses, parseDriverResponse);
@@ -228,6 +231,41 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     const timer = window.setInterval(() => setAvailabilityNow(new Date()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!revealTarget) return;
+
+    let highlightTimer: number | undefined;
+    const revealTimer = window.setTimeout(() => {
+      const target = document.getElementById(revealTarget.id);
+      if (!target) return;
+
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+      target.classList.add('action-result-highlight');
+      highlightTimer = window.setTimeout(() => target.classList.remove('action-result-highlight'), 1_800);
+    }, 50);
+
+    return () => {
+      window.clearTimeout(revealTimer);
+      if (highlightTimer) window.clearTimeout(highlightTimer);
+      document.getElementById(revealTarget.id)?.classList.remove('action-result-highlight');
+    };
+  }, [revealTarget]);
+
+  const dismissActionFeedback = useCallback(() => setActionFeedback(null), []);
+
+  function showActionFeedback(
+    message: string,
+    tone: ActionFeedbackMessage['tone'] = 'success',
+    entityId?: string,
+  ) {
+    setActionFeedback({ id: makeId('action-feedback'), message, tone });
+    if (entityId) {
+      revealSequence.current += 1;
+      setRevealTarget({ id: getBoardCardId(entityId), sequence: revealSequence.current });
+    }
+  }
 
   const mergedOffers = useMemo(
     () => mergeChurchOffers({
@@ -334,7 +372,6 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
 
   function openDriverOfferDialog(nextDraft = createEmptyDriverOfferDraft()) {
     setResponseRequest(null);
-    setRegularRouteSuggestion(null);
     setOfferDraft(nextDraft);
     setOfferDraftErrors({});
     setOfferSubmitAttempt(0);
@@ -345,7 +382,6 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     setOfferDialogOpen(false);
     setOfferDraftErrors({});
     setOfferSubmitAttempt(0);
-    setRegularRouteSuggestion(null);
   }
 
   function changeDriverOfferMode(mode: DriverOfferMode) {
@@ -554,6 +590,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       setTargetedRequests((current) => [request, ...current]);
       addNotification(`Запрос отправлен водителю ${request.driverName}.`, 'passenger');
       addNotification(`Новый запрос на ${request.passengerCount} пассажиров.`, 'driver');
+      showActionFeedback('Запрос водителю отправлен', 'success', request.id);
     } else {
       const request: PassengerRequest = {
         id: makeId('passenger-request'),
@@ -578,6 +615,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       };
       setPassengerRequests((current) => [request, ...current]);
       addNotification(`Создан запрос: ${request.firstName} ищет место на ${request.serviceEvent}.`, 'passenger');
+      showActionFeedback('Запрос опубликован', 'success', request.id);
 
       const hasCompatibleOffer = [...allRawTrips, ...allRoutes].some((offer) => {
         if (!request.serviceDate || offer.churchId !== church.id) return false;
@@ -617,7 +655,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       now: new Date(),
     });
     if (!stillCompatible || !availability.active) {
-      setFlowMessage('Этот запрос уже отправлен или выбранная поездка больше недоступна.');
+      showActionFeedback('Не удалось отправить запрос: выбранная поездка больше недоступна.', 'error');
       closeDialog();
       return;
     }
@@ -640,6 +678,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     setTargetedRequests((current) => [request, ...current]);
     addNotification(`Запрос отправлен водителю ${request.driverName}.`, 'passenger');
     addNotification(`Новый запрос на ${request.passengerCount} пассажиров.`, 'driver');
+    showActionFeedback('Запрос водителю отправлен', 'success', request.id);
     closeDialog();
   }
 
@@ -659,7 +698,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       const trip = createLocalTrip(offerDraft, church.id, profile.driverId, makeId('local-trip'), church.schedule?.services);
       setLocalTrips((current) => [trip, ...current]);
       addNotification(`Создана поездка: ${formatDateTime(trip.date, trip.departureTime)}, выезд из ${trip.originLabel}.`, 'driver');
-      setRegularRouteSuggestion(createRegularRoutePrefill(offerDraft));
+      showActionFeedback('Поездка опубликована', 'success', trip.id);
       if (passengerRequests.some((request) => request.churchId === church.id && request.status === 'open' && request.serviceDate === trip.date)) {
         addNotification('Найдены возможные пассажиры для нового предложения.', 'driver');
       }
@@ -667,14 +706,14 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       const route = createLocalRoute(offerDraft, church.id, profile.driverId, makeId('local-route'));
       setLocalRoutes((current) => [route, ...current]);
       addNotification(`Создана регулярная поездка: выезд из ${route.originLabel} в ${route.recurrence.typicalDepartureTime}.`, 'driver');
+      showActionFeedback('Регулярная поездка опубликована', 'success', route.id);
       if (passengerRequests.some((request) => request.churchId === church.id && request.status === 'open' && Boolean(request.serviceDate && routeIncludesDate(route, request.serviceDate)))) {
         addNotification('Найдены возможные пассажиры для нового предложения.', 'driver');
       }
-      setRegularRouteSuggestion(null);
-      setOfferDraft(createEmptyDriverOfferDraft());
-      closeDriverOfferDialog();
     }
 
+    setOfferDraft(createEmptyDriverOfferDraft());
+    closeDriverOfferDialog();
     setAvailabilityNow(now);
   }
 
@@ -708,9 +747,11 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     if (pendingCancellation.offerType === 'trip') {
       setLocalTrips((current) => current.map((item) => item.id === pendingCancellation.offer.id ? cancelLocalTrip(item) : item));
       addNotification('Поездка отменена.', 'driver');
+      showActionFeedback('Поездка отменена');
     } else {
       setLocalRoutes((current) => current.map((item) => item.id === pendingCancellation.offer.id ? cancelLocalRoute(item) : item));
       addNotification('Регулярная поездка отменена.', 'driver');
+      showActionFeedback('Регулярная поездка отменена');
     }
     if (nextState.rideMatches.filter((match) => match.cancelledAt === timestamp).length > 0) {
       addNotification('Договорённость отменена водителем. Можно опубликовать запрос снова.', 'passenger');
@@ -742,17 +783,18 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       now,
     }).find((item) => item.offerId === offer.offerId && item.offerType === offer.offerType);
     if (!currentOffer) {
-      setFlowMessage('В этой поездке уже недостаточно свободных мест.');
+      showActionFeedback('Не удалось отправить предложение: в поездке недостаточно мест.', 'error');
       setResponseRequest(null);
       return;
     }
     const response = createPendingDriverResponse({ request: responseRequest, offer: currentOffer, offeredPassengerCount, id: makeId('driver-response'), createdAt: now.toISOString() });
     if (!response) {
-      setFlowMessage('Не удалось отправить предложение. Проверьте количество мест.');
+      showActionFeedback('Не удалось отправить предложение. Проверьте количество мест.', 'error');
       return;
     }
     setDriverResponses((current) => [response, ...current]);
     addNotification(`Водитель предложил ${formatSeatCount(response.offeredPassengerCount)} для запроса ${responseRequest.firstName}.`, 'passenger');
+    showActionFeedback('Предложение отправлено', 'success', response.id);
     setResponseRequest(null);
   }
 
@@ -783,7 +825,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
           isDriverResponseActive(response),
       )
     ) {
-      setFlowMessage('Вы уже отправили предложение этому пассажиру.');
+      showActionFeedback('Не удалось отправить предложение: оно уже было отправлено.', 'error');
       setResponseRequest(null);
       return;
     }
@@ -802,6 +844,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     if (!localDriverProfile) setLocalDriverProfile(profile);
     setDriverResponses((current) => [response, ...current]);
     addNotification(`Водитель предложил ${formatSeatCount(response.offeredPassengerCount)} для запроса ${responseRequest.firstName}.`, 'passenger');
+    showActionFeedback('Предложение отправлено', 'success', response.id);
     setResponseRequest(null);
   }
 
@@ -827,12 +870,13 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     });
 
     if (!result.ok) {
-      setFlowMessage(
+      showActionFeedback(
         result.reason === 'insufficientSeats'
           ? 'В этой поездке уже недостаточно свободных мест.'
           : result.reason === 'driverContactUnavailable'
             ? 'Контакт водителя недоступен. Выберите другое предложение.'
             : 'Эта договорённость уже обработана или больше недоступна.',
+        'error',
       );
       confirmationLocks.current.delete(sourceId);
       return;
@@ -841,7 +885,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     applyWorkflowState(result.state);
     addNotification(`Поездка подтверждена для ${result.rideMatch.confirmedPassengerCount} пассажиров.`, 'passenger');
     addNotification('Пассажир подтвердил поездку. Контакты доступны в договорённости.', 'driver');
-    setFlowMessage('Поездка подтверждена. Контакты открыты только участникам.');
+    showActionFeedback('Поездка подтверждена', 'success', result.rideMatch.id);
     setAvailabilityNow(now);
   }
 
@@ -867,13 +911,19 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       routes: allRoutes, trips: allRawTrips, now,
     });
     if (!result.ok) {
-      setFlowMessage(result.reason === 'insufficientSeats' ? 'В этой поездке уже недостаточно свободных мест.' : 'Запрос больше нельзя подтвердить.');
+      showActionFeedback(
+        result.reason === 'insufficientSeats'
+          ? 'В этой поездке уже недостаточно свободных мест.'
+          : 'Запрос больше нельзя подтвердить.',
+        'error',
+      );
       confirmationLocks.current.delete(resolved.id);
       return;
     }
     applyWorkflowState(result.state);
     addNotification(`Водитель ${resolved.driverName} подтвердил поездку.`, 'passenger');
     addNotification('Поездка подтверждена. Контакты участников открыты.', 'driver');
+    showActionFeedback('Поездка подтверждена', 'success', result.rideMatch.id);
     setAvailabilityNow(now);
   }
 
@@ -882,31 +932,35 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     if (!resolved.rideDate) return;
     const availability = getOfferAvailability({ offerId: resolved.targetOfferId, offerType: resolved.targetOfferType, rideDate: resolved.rideDate, routes: allRoutes, trips: allRawTrips, rideMatches, now: new Date() });
     if (!availability.active || count > availability.availableSeats) {
-      setFlowMessage('В этой поездке уже недостаточно свободных мест.');
+      showActionFeedback('Не удалось отправить предложение: в поездке недостаточно мест.', 'error');
       return;
     }
     const updated = offerPartialTargetedRequest(resolved, count, new Date().toISOString());
     if (!updated) return;
     setTargetedRequests((current) => current.map((item) => item.id === request.id ? updated : item));
     addNotification(`${resolved.driverName} может подвезти ${count} из ${resolved.passengerCount} человек.`, 'passenger');
+    showActionFeedback('Предложение отправлено', 'success', updated.id);
   }
 
   function handleDeclineTargeted(request: TargetedPassengerRequest) {
     const timestamp = new Date().toISOString();
     setTargetedRequests((current) => current.map((item) => item.id === request.id ? declineTargetedRequest(item, timestamp) : item));
     addNotification('Адресный запрос отклонён.', request.status === 'waitingForDriver' ? 'passenger' : 'driver');
+    showActionFeedback('Запрос отклонён');
   }
 
   function handleCancelResponse(response: DriverResponse) {
     const timestamp = new Date().toISOString();
     setDriverResponses((current) => current.map((item) => item.id === response.id ? cancelDriverResponse(item, timestamp) : item));
     addNotification('Предложение водителя отменено.', 'passenger');
+    showActionFeedback('Предложение отменено');
   }
 
   function handleDeclineResponse(response: DriverResponse) {
     const timestamp = new Date().toISOString();
     setDriverResponses((current) => current.map((item) => item.id === response.id ? declineDriverResponse(item, timestamp) : item));
     addNotification('Пассажир отклонил предложение водителя.', 'driver');
+    showActionFeedback('Предложение отклонено');
   }
 
   function handleCancelMatch(match: RideMatch, participant: 'passenger' | 'driver') {
@@ -919,6 +973,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     applyWorkflowState(cancelRideMatch(currentWorkflowState(), pendingMatchCancellation.match.id, now.toISOString()));
     addNotification('Договорённость отменена. Запрос можно опубликовать снова.', 'passenger');
     addNotification('Договорённость отменена, места снова доступны.', 'driver');
+    showActionFeedback('Договорённость отменена', 'success', pendingMatchCancellation.match.id);
     setPendingMatchCancellation(null);
     setAvailabilityNow(now);
   }
@@ -932,11 +987,13 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     setPassengerRequests((current) => [request, ...current]);
     setRideMatches((current) => current.map((item) => item.id === match.id ? markRemainingNeedHandled(item, timestamp) : item));
     addNotification(`Создан новый запрос для ${count} пассажиров.`, 'passenger');
+    showActionFeedback('Запрос опубликован', 'success', request.id);
   }
 
   function handleNoMoreSeatsNeeded(match: RideMatch) {
     const timestamp = new Date().toISOString();
     setRideMatches((current) => current.map((item) => item.id === match.id ? markRemainingNeedHandled(item, timestamp) : item));
+    showActionFeedback('Запрос обновлён', 'success', match.id);
   }
 
   const churchRequests = passengerRequests.filter((request) => request.churchId === church.id);
@@ -985,13 +1042,6 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     driverNames,
     now: availabilityNow,
   });
-  const completedPassengerRequests = completedSummaries.filter(
-    (summary) => summary.section === 'passengerRequests',
-  );
-  const completedOffers = completedSummaries.filter(
-    (summary) =>
-      summary.section === 'oneTimeTrips' || summary.section === 'regularRouteOccurrences',
-  );
   const churchNotifications = notifications.filter((notification) => notification.churchId === church.id);
   const dialogTargetedAvailability = dialogContext?.mode === 'targeted' && isLocalDate(targetedRideDate)
     ? getOfferAvailability({
@@ -1018,8 +1068,8 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
 
   return (
     <section className="mt-5 grid gap-5">
+      <ActionFeedback feedback={actionFeedback} onDismiss={dismissActionFeedback} />
       <NotificationCenter notifications={churchNotifications} />
-      {flowMessage ? <div aria-live="polite" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-stone-800">{flowMessage}</div> : null}
       <PageActions onCreateOffer={() => openDriverOfferDialog()} onCreateRequest={openOpenRequestDialog} />
       <ActiveDriverResponses
         driverNames={driverNames}
@@ -1059,7 +1109,6 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
       />
       <div className="grid items-start gap-5 lg:grid-cols-2">
         <PassengerRequestList
-          completedSummaries={completedPassengerRequests}
           onRespond={(requestId) => {
             const request = churchRequests.find((item) => item.id === requestId);
             if (request) setResponseRequest(request);
@@ -1068,7 +1117,6 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
         />
         <DriverOffers
           church={church}
-          completedOffers={completedOffers}
           drivers={mergedDrivers}
           onCancelRoute={handleCancelRoute}
           onCancelTrip={handleCancelTrip}
@@ -1079,6 +1127,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
           trips={mergedTrips}
         />
       </div>
+      <CompletedActivity summaries={completedSummaries} />
 
       {responseRequest ? (
         <DriverResponseDialog
@@ -1095,13 +1144,6 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
         <DriverOfferDialog
           draft={offerDraft}
           errors={offerDraftErrors}
-          onAddRegular={() => {
-            if (regularRouteSuggestion) {
-              setOfferDraft(regularRouteSuggestion);
-              setOfferDraftErrors({});
-              setRegularRouteSuggestion(null);
-            }
-          }}
           onBlur={validateOfferField}
           onCancel={closeDriverOfferDialog}
           onChange={changeOfferDraft}
@@ -1110,7 +1152,6 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
           savedProfile={localDriverProfile ? { publicName: localDriverProfile.publicName } : null}
           services={futureChurchServices}
           submitAttempt={offerSubmitAttempt}
-          successPrefill={regularRouteSuggestion}
         />
       ) : null}
       {pendingCancellation ? (

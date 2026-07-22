@@ -1,5 +1,6 @@
 import { formatDate } from '@/lib/dateFormat';
 import type { PassengerRequest, RideMatch, TargetedPassengerRequest } from '@/lib/types';
+import { getBoardCardId } from '@/components/church-transport-board/board-card';
 
 export function RideMatchPanel({
   matches,
@@ -43,7 +44,7 @@ export function RideMatchPanel({
           const cancelled = match.status === 'cancelled';
 
           return (
-            <article className="rounded-lg bg-white p-4" key={match.id}>
+            <article className="rounded-lg bg-white p-4" id={getBoardCardId(match.id)} key={match.id}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h3 className="font-semibold">{match.passengerName} и {match.driverName}</h3>

@@ -17,7 +17,8 @@ Roadmap follows the approved product sequence: validate the church transport boa
 - Date-specific regular-route capacity and one-time-trip capacity derived from confirmed RideMatches.
 - Up to five future regular-route occurrences with independent availability, disabled full dates, and non-blocking over-capacity request warnings.
 - Private participant contacts only after confirmation, plus safe mock notifications.
-- Side-by-side desktop / stacked mobile `Ищут место` and `Предлагают поездки` areas. Passenger completion stays with passenger requests; driver-offer completion uses one shared `Уже договорились` section after active regular and one-time subsections, including partial and full dated route occurrences.
+- Side-by-side desktop / stacked mobile `Ищут место` and `Предлагают поездки` areas, followed by one shared `Уже договорились` section with up to five upcoming completed passenger requests, one-time trips, and partial or full dated route occurrences.
+- Compact transient action feedback with automatic scrolling and brief highlighting of the created or updated card.
 - Namespaced localStorage persistence for open requests, responses, targeted requests, RideMatches, and notifications, with safe parsing of legacy and malformed records.
 - Personal mock notification panel for development/testing.
 - International phone normalization/validation and optional email validation.
@@ -29,9 +30,9 @@ Roadmap follows the approved product sequence: validate the church transport boa
 - First church transport board component-extraction refactor for the request dialog, passenger request card, and mock notification center.
 - Second church transport board presentational extraction for page actions, request and response panels, targeted requests, and driver offers.
 - Centralized one-time-trip visibility based on open status, available seats, and a local departure date and time that has not passed.
-- Complete local mock driver-offer flow with reusable driver identity, one-time trips, regular routes, cancellation history, and one-time-to-regular suggestion.
-- Human-language driver-offer UI with trip-specific origin, numeric maximum detour, 1–55 seat selection, blur/touched validation, in-dialog regular-trip suggestion, human cancellation copy, and static-plus-browser-local church counters.
-- Role-labelled passenger/driver page actions, a single-state trip-success screen, origin-to-church offers with numeric maximum detour, shared compact service/date selection, and an intentional no-schedule church scenario.
+- Complete local mock driver-offer flow with reusable driver identity, one-time trips, regular routes, and cancellation history.
+- Human-language driver-offer UI with trip-specific origin, numeric maximum detour, 1–55 seat selection, blur/touched validation, human cancellation copy, and static-plus-browser-local church counters.
+- Role-labelled passenger/driver page actions, origin-to-church offers with numeric maximum detour, shared compact service/date selection, and an intentional no-schedule church scenario.
 
 The current prototype has no backend, authentication, real user isolation, push/email delivery, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features.
 

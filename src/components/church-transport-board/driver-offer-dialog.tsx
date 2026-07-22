@@ -46,8 +46,6 @@ export function DriverOfferDialog({
   savedProfile,
   services,
   submitAttempt,
-  successPrefill,
-  onAddRegular,
   onBlur,
   onCancel,
   onChange,
@@ -59,8 +57,6 @@ export function DriverOfferDialog({
   savedProfile: { publicName: string } | null;
   services: ChurchService[];
   submitAttempt: number;
-  successPrefill: DriverOfferDraft | null;
-  onAddRegular: () => void;
   onBlur: (fieldName: keyof DriverOfferDraft) => void;
   onCancel: () => void;
   onChange: (draft: DriverOfferDraft, fieldName: keyof DriverOfferDraft) => void;
@@ -134,12 +130,7 @@ export function DriverOfferDialog({
       <div className="mx-auto min-h-full w-full min-w-0 overflow-hidden bg-white p-5 shadow-xl sm:min-h-0 sm:max-w-3xl sm:rounded-lg sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h2
-              className={successPrefill ? 'text-3xl font-bold text-emerald-900' : 'text-2xl font-bold'}
-              id="driver-offer-dialog-title"
-            >
-              {successPrefill ? 'Поездка создана' : 'Создать поездку'}
-            </h2>
+            <h2 className="text-2xl font-bold" id="driver-offer-dialog-title">Создать поездку</h2>
           </div>
           <button
             aria-label="Закрыть"
@@ -152,31 +143,7 @@ export function DriverOfferDialog({
           </button>
         </div>
 
-        {successPrefill ? (
-          <section className="offer-success-panel mt-8 max-w-2xl">
-            <h3 className="text-lg font-semibold text-stone-800">Ездите в храм так регулярно?</h3>
-            <p className="mt-2 leading-6 text-stone-600">
-              Можно добавить регулярную поездку с теми же данными.
-            </p>
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <button
-                className="rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white"
-                onClick={onAddRegular}
-                type="button"
-              >
-                Добавить регулярную поездку
-              </button>
-              <button
-                className="rounded-lg border border-stone-300 bg-white px-5 py-3 font-semibold"
-                onClick={onCancel}
-                type="button"
-              >
-                Оставить разовой
-              </button>
-            </div>
-          </section>
-        ) : (
-          <>
+        <>
             <div aria-label="Тип поездки" className="mt-5 grid grid-cols-2 rounded-lg bg-stone-100 p-1" role="group">
               <button
                 aria-pressed={draft.offerType === 'trip'}
@@ -423,7 +390,6 @@ export function DriverOfferDialog({
               </div>
             </form>
           </>
-        )}
       </div>
     </div>
   );

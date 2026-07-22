@@ -132,7 +132,7 @@ If the selected offer occurrence still has at least one seat but fewer than the 
 14. For every offer, enter the trip-specific origin, choose a numeric maximum detour from `0`, `2`, `5`, `10`, `15`, or `20` kilometres, choose 1–55 free seats with the shared editable minus/value/plus control, and set the return-trip choice. Do not require pickup-point enumeration.
 15. For a one-time trip, use the shared compact dropdown to choose one of up to five nearest future church services or use the separately visible «Другая дата» field, then enter an independent approximate departure time.
 16. For a regular trip, choose at least one weekday and the usual departure time.
-17. After creating a one-time trip, replace the form with the existing clean «Поездка создана» success state and optional regular-route prefill; «Оставить разовой» closes the already-published one-time result.
+17. After creating either offer type, close the dialog, show compact transient success feedback, and move to the published card.
 18. Only browser-owned offers show cancellation. If future confirmed matches exist, the dialog warns that those agreements will also be cancelled and affected passengers notified.
 19. The app may notify the driver about compatible passenger requests using cautious date/church compatibility language, not map claims.
 
@@ -143,6 +143,8 @@ The offer modal is mobile-first, closes by its close control, «Отмена», 
 When no compatible public driver offer exists, the short private-offer form opens with one concise sentence naming the passenger, destination church, and selected service or concrete date, then explains that the driver should complete only the missing trip data. It must not imply that the offer is public.
 
 Two-column form fields reserve one compact inline-validation row below each control. Showing a phone or email error must not move the neighboring control; mobile keeps the same fields in a natural single column without horizontal overflow.
+
+Successful create, send, update, and confirmation actions use a compact green status at the top center of the viewport. It is dismissible, announced to assistive technology, disappears after about four seconds, and does not interrupt the workflow. Close an open dialog, smoothly scroll to the created or updated card, briefly highlight it, and respect reduced-motion preferences. Actual save or processing failures use the same compact pattern in red. Field validation remains inline and must never be replaced by transient feedback. This action feedback is ephemeral UI state and is separate from persisted personal mock notifications.
 
 Passenger count and driver free-seat count use the same reusable control: accessible minus and plus buttons around a directly editable number input. Both accept only integers from 1 through 55, disable stepping at the boundaries, support keyboard, pointer, and touch input, and remain within the mobile modal width.
 
@@ -214,8 +216,8 @@ The open passenger form and one-time driver form use the same compact native ser
 - Hidden items remain in internal history.
 - Targeted passenger requests are never public board items.
 - Church-list counters merge static and sanitized browser-local offers by church. They count unique active drivers, active regular trips, and visible one-time trips using the centralized visibility rules.
-- Resolved passenger requests keep their compact `Уже договорились` subsection under «Ищут место». Inside «Предлагают поездки», one shared `Уже договорились` section appears after both active subsections and may contain full one-time trips plus partial or full date-specific regular occurrences.
-- Public completed activity is aggregated once per root passenger request, once per one-time trip, and once per `routeId + rideDate`. Partial regular occurrences use a yellow `Часть мест занята` badge and occupied count; full occurrences and full one-time trips use gray completed cards. Cards identify the offer type, are non-clickable and action-free, and exclude phone, email, pickup area, private comments, exact addresses, and other private data.
+- One shared `Уже договорились` section appears below both primary columns and combines completed passenger requests, full one-time trips, and partial or full date-specific regular occurrences. Hide it when empty and show at most five upcoming cards.
+- Public completed activity is aggregated once per root passenger request, once per one-time trip, and once per `routeId + rideDate`. Partial regular occurrences use a yellow `Часть мест занята` badge and occupied count; full occurrences, full one-time trips, and passenger summaries use gray completed cards. Cards identify the offer type where relevant, are non-clickable and action-free, and exclude phone, email, pickup area, private comments, exact addresses, and other private data.
 - Every active status uses a text label in addition to color: «Ищет поездку», «Часть группы уже едет», «Есть свободные места», or «Часть мест занята» as appropriate. Private panels retain their confirmation and cancellation labels.
 
 ## Mock persistence

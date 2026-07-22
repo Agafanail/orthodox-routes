@@ -1,8 +1,7 @@
-import { CompletedActivity } from '@/components/church-transport-board/completed-activity';
+import { getBoardCardId } from '@/components/church-transport-board/board-card';
 import type { TargetedRequestDialogInput } from '@/components/church-transport-board/types';
 import { formatDate, formatDateTime } from '@/lib/dateFormat';
 import { getMaxDetourCopy } from '@/lib/driverOfferState';
-import type { CompletedActivitySummary } from '@/lib/rideMatchState';
 import { formatAvailableOfTotal, formatSeatCount } from '@/lib/russianCount';
 import type { Church, DriverPublicProfile, Route, Trip } from '@/lib/types';
 
@@ -17,7 +16,6 @@ export function DriverOffers({
   drivers,
   routes,
   trips,
-  completedOffers,
   ownedRouteIds,
   ownedTripIds,
   onRequestRide,
@@ -28,7 +26,6 @@ export function DriverOffers({
   drivers: DriverPublicProfile[];
   routes: Route[];
   trips: Trip[];
-  completedOffers: CompletedActivitySummary[];
   ownedRouteIds: string[];
   ownedTripIds: string[];
   onRequestRide: (context: TargetedRequestDialogInput) => void;
@@ -50,7 +47,7 @@ export function DriverOffers({
                 .join(', ')} в ${route.recurrence.typicalDepartureTime}`;
 
               return (
-                <article className="rounded-lg bg-stone-100 p-4" key={route.id}>
+                <article className="rounded-lg bg-stone-100 p-4" id={getBoardCardId(route.id)} key={route.id}>
                   <h4 className="font-semibold">
                     {route.originLabel} → {church.name}
                   </h4>
@@ -113,7 +110,7 @@ export function DriverOffers({
                 const partiallyOccupied = occupiedSeats > 0;
 
                 return (
-                  <article className="rounded-lg bg-stone-100 p-4" key={trip.id}>
+                  <article className="rounded-lg bg-stone-100 p-4" id={getBoardCardId(trip.id)} key={trip.id}>
                     <h4 className="font-semibold">{dateTime}</h4>
                     <p className="mt-2 text-sm text-stone-700">Выезжает из {trip.originLabel}</p>
                     <p className="mt-1 text-sm text-stone-600">{getMaxDetourCopy(trip.maxDetourKm)}</p>
@@ -168,7 +165,6 @@ export function DriverOffers({
           </div>
         </section>
 
-        <CompletedActivity summaries={completedOffers} />
       </div>
     </section>
   );

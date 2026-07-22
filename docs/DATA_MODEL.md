@@ -8,7 +8,7 @@ Public church pages show only active board items:
 
 - `PassengerRequest` is public only while `status === 'open'` and `publicVisible === true`.
 - `DriverOffer` is public only while `status === 'active'`, `freeSeats > 0`, and `publicVisible === true`.
-- Active items stay first. Passenger completion remains in its passenger-request area. Driver-offer completion uses one shared `Уже договорились` section after active regular and one-time subsections.
+- Active items stay first in the two primary board columns. All public completion uses one shared `Уже договорились` section below both columns.
 - Cancelled and expired items never appear as successful public activity.
 - Hidden items remain in internal history and must not be deleted just because they are no longer public.
 - Private contacts are shared only after a confirmed `RideMatch`.
@@ -507,7 +507,7 @@ Open passenger requests remain public while any number of driver responses are p
 
 Static mock driver phone/email data lives in a separate private source keyed by driver ID. Browser-created drivers use `LocalDriverProfile`. Neither source is copied into `DriverPublicProfile`, Route, Trip, public card props, public completed summaries, or notification text. Confirmed RideMatches keep explicit private contact snapshots so cancelled participant history remains useful.
 
-The compact `Уже договорились` selector returns explicit safe fields only and limits the church page to five recent, still-date-relevant results. It aggregates by root passenger request, one-time trip, or `regularRouteId + rideDate`. Partially occupied one-time trips and passenger requests with an active linked remainder are excluded. A regular-route occurrence is included as soon as it has a confirmed RideMatch: partial occupancy carries the yellow `Часть мест занята` state, while a full occurrence uses the gray completed state. Passenger summaries remain in the passenger section; all driver-offer summaries share one section after active regular and one-time offers. Summaries never contain contact fields, pickup areas, exact addresses, private comments, actions, or cancelled records.
+The compact `Уже договорились` selector returns explicit safe fields only and limits the church page to five recent, still-date-relevant results. It aggregates by root passenger request, one-time trip, or `regularRouteId + rideDate`. Partially occupied one-time trips and passenger requests with an active linked remainder are excluded. A regular-route occurrence is included as soon as it has a confirmed RideMatch: partial occupancy carries the yellow `Часть мест занята` state, while a full occurrence uses the gray completed state. Passenger and driver-offer summaries render together in one shared section below both primary columns. Summaries never contain contact fields, pickup areas, exact addresses, private comments, actions, or cancelled records.
 
 All user-visible calendar dates use `dd.mm.yyyy`; date and time use `dd.mm.yyyy в HH:mm`. ISO strings remain valid internal storage values but are not rendered directly.
 

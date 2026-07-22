@@ -1,14 +1,11 @@
-import { CompletedActivity } from '@/components/church-transport-board/completed-activity';
 import { PassengerRequestCard } from '@/components/church-transport-board/passenger-request-card';
-import type { CompletedActivitySummary, PublicPassengerRequestItem } from '@/lib/rideMatchState';
+import type { PublicPassengerRequestItem } from '@/lib/rideMatchState';
 
 export function PassengerRequestList({
   requests,
-  completedSummaries,
   onRespond,
 }: {
   requests: PublicPassengerRequestItem[];
-  completedSummaries: CompletedActivitySummary[];
   onRespond: (requestId: string) => void;
 }) {
   return (
@@ -26,7 +23,6 @@ export function PassengerRequestList({
           <p className="rounded-lg bg-stone-100 p-4 text-sm text-stone-600">Пока нет открытых запросов.</p>
         )}
       </div>
-      <CompletedActivity summaries={completedSummaries} />
     </section>
   );
 }

@@ -7,6 +7,7 @@ This document visualizes the current mock-only product. Orthodox Routes is a chu
 ```mermaid
 flowchart TD
     CP["Church page"] --> N["Temporary personal mock notifications"]
+    CP --> F["Transient action feedback<br/>toast + scroll + highlight"]
     CP --> A["Role actions"]
     CP --> DR["Pending private responses and targeted requests"]
     CP --> PM["Private participant RideMatch history"]
@@ -29,16 +30,13 @@ flowchart TD
     O1 --> O3["Попросить подвезти"]
     O2 --> O3
 
-    L --> C1["Nested Уже договорились: resolved requests"]
-    OT --> C2["Shared driver-offer Уже договорились"]
-    RR --> C2
-    C2 --> C3["One-time full cards + dated route cards<br/>partial yellow / full gray"]
-    C1 --> SAFE["Aggregated safe gray summaries"]
-    C2 --> SAFE
-    C3 --> SAFE
+    L --> C["One shared Уже договорились<br/>below both primary columns"]
+    OT --> C
+    RR --> C
+    C --> SAFE["Up to five upcoming safe summaries<br/>partial yellow / full gray"]
 ```
 
-Active content is first and actionable. Every meaningful state has a text label; color is supplementary. Completed summaries are gray, static, and visually non-clickable.
+Active content is first and actionable. Every meaningful state has a text label; color is supplementary. Completed summaries are static and visually non-clickable; partial route occurrences are yellow and full summaries are gray.
 
 ### Church-list counters
 
@@ -182,11 +180,8 @@ flowchart TD
     E -->|"One-time trip"| T1["Origin + maximum detour<br/>service or alternative date + departure time"]
     T1 --> T2["Seats 1–55 + return-trip choice"]
     T2 --> T3["Validate and create browser-owned trip"]
-    T3 --> T4{"Ездите в храм так регулярно?"}
-    T4 -->|"Добавить регулярную поездку"| R1["Switch same dialog to regular form<br/>preserve reusable offer fields"]
-    T4 -->|"Оставить разовой"| V["Show active offer on church board"]
+    T3 --> V["Close dialog, show success feedback,<br/>scroll to active offer"]
     E -->|"Regular route"| R1A["Origin + maximum detour<br/>weekdays + usual departure time"]
-    R1 --> R1A
     R1A --> R2["Seats 1–55 + return-trip choice"]
     R2 --> R3["Validate and create browser-owned route"]
     R3 --> V
@@ -315,7 +310,7 @@ flowchart TD
     LP -. "never copied" .-> PUBLIC["Public profiles, routes, trips, cards"]
     SP -. "never copied" .-> PUBLIC
     PP -. "never copied" .-> PUBLIC
-    RM -. "explicit safe aggregated selector only" .-> SUMMARY["Passenger summary or shared driver-offer<br/>Уже договорились summaries"]
+    RM -. "explicit safe aggregated selector only" .-> SUMMARY["One shared passenger + driver-offer<br/>Уже договорились section"]
     RM -. "no contact text" .-> NOTIFY["Notifications"]
 ```
 

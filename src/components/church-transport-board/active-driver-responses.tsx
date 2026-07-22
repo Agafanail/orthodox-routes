@@ -1,6 +1,7 @@
 import { formatDate } from '@/lib/dateFormat';
 import { formatSeatCount } from '@/lib/russianCount';
 import type { DriverResponse, PassengerRequest } from '@/lib/types';
+import { getBoardCardId } from '@/components/church-transport-board/board-card';
 
 export function ActiveDriverResponses({
   responses,
@@ -29,7 +30,7 @@ export function ActiveDriverResponses({
           if (!request) return null;
 
           return (
-            <article className="rounded-lg bg-white p-4" key={response.id}>
+            <article className="rounded-lg bg-white p-4" id={getBoardCardId(response.id)} key={response.id}>
               <h3 className="font-semibold">{driverNames[response.driverId] ?? 'Водитель'} предлагает подвезти</h3>
               <p className="mt-2 text-sm leading-6 text-stone-700">
                 {response.offeredPassengerCount} из {request.passengerCount} пассажиров · {formatDate(response.rideDate)}
