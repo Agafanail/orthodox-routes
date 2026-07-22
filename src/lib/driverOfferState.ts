@@ -44,7 +44,7 @@ export function createEmptyDriverOfferDraft(offerType: DriverOfferMode = 'trip')
     email: '',
     originLabel: '',
     maxDetourKm: '',
-    seats: '',
+    seats: '1',
     returnTrip: false,
     selectedServiceId: '',
     date: '',
@@ -447,18 +447,6 @@ export function excludeIdCollisions<T extends { id: string }>(
     seenIds.add(item.id);
     return true;
   });
-}
-
-export function isTargetedOfferAvailable(
-  offerId: string,
-  offerType: 'regularRoute' | 'oneTimeTrip',
-  routes: Route[],
-  trips: Trip[],
-  now: Date,
-) {
-  return offerType === 'regularRoute'
-    ? routes.some((route) => route.id === offerId && isRegularRouteAvailable(route))
-    : trips.some((trip) => trip.id === offerId && isOneTimeTripAvailable(trip, now));
 }
 
 type OfferIdentity = Pick<Route | Trip, 'id' | 'driverId'>;

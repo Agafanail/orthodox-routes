@@ -8,7 +8,8 @@ Public church pages show only active board items:
 
 - `PassengerRequest` is public only while `status === 'open'` and `publicVisible === true`.
 - `DriverOffer` is public only while `status === 'active'`, `freeSeats > 0`, and `publicVisible === true`.
-- `matched`, `full`, `cancelled`, `expired`, and `completed` items are hidden from the public board.
+- Active items stay first. Passenger completion remains in its passenger-request area. Driver-offer completion uses one shared `Уже договорились` section after active regular and one-time subsections.
+- Cancelled and expired items never appear as successful public activity.
 - Hidden items remain in internal history and must not be deleted just because they are no longer public.
 - Private contacts are shared only after a confirmed `RideMatch`.
 - Notifications and `MatchSuggestion` records do not create a confirmed match by themselves.
@@ -193,44 +194,41 @@ const isDriverOfferPublic = (offer: DriverOffer) =>
 
 ## passengerRequests/{passengerRequestId}
 
-A `PassengerRequest` can be open on the church board or targeted to a specific `DriverOffer`.
+A `PassengerRequest` is the public request concept used by the current runtime. A private request aimed at one driver offer is a separate `TargetedPassengerRequest` concept.
 
 ```ts
 type PassengerRequestStatus =
-  | 'draft'
   | 'open'
-  | 'waitingForDriver'
-  | 'pendingContact'
   | 'matched'
-  | 'declined'
+  | 'partiallyMatched'
   | 'cancelled'
-  | 'expired'
-  | 'completed';
+  | 'expired';
+
+type PickupZone = {
+  label: string;
+  centerLat?: number;
+  centerLng?: number;
+  radiusMeters?: number;
+};
 
 type PassengerRequest = {
   id: string;
-  passengerId: string;
   churchId: string;
-  serviceEventId?: string;
-  serviceDate?: string; // local YYYY-MM-DD
-  targetDriverOfferId?: string;
-  pickupZone: {
-    label: string;
-    centerLat?: number;
-    centerLng?: number;
-    radiusMeters?: number;
-  };
-  hubPointId?: string;
-  passengerCount: number;
+  firstName: string;
   phonePrivate: string;
   emailPrivate?: string;
+  serviceEvent: string;
+  serviceEventId?: string;
+  serviceDate?: string; // local YYYY-MM-DD
+  passengerCount: number;
+  pickupZone: PickupZone;
   safePublicComment?: string;
-  privateComment?: string;
   consentToShareContact: boolean;
   status: PassengerRequestStatus;
   publicVisible: boolean;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: string; // ISO timestamp
+  updatedAt?: string; // ISO timestamp
+  sourcePassengerRequestId?: string;
 };
 ```
 
@@ -243,11 +241,51 @@ const isPassengerRequestPublic = (request: PassengerRequest) =>
 
 Public passenger request cards must never expose phone, exact address, private contact, or sensitive personal details.
 
-Current mock request creation does not require visible registration. Open and targeted requests are persisted in browser localStorage and can later become backend records and lightweight `PassengerProfile` data.
+Current mock request creation does not require visible registration. Open and targeted requests are persisted separately in browser localStorage and can later become backend records and lightweight `PassengerProfile` data.
 
 For the current mock implementation, `pickupZone.label` is the only used pickup field. `centerLat`, `centerLng`, and `radiusMeters` are reserved for a future approximate circular pickup zone. Do not add maps yet.
 
-When a passenger clicks «Попросить подвезти» on a specific `DriverOffer`, create a targeted `PassengerRequest` with `targetDriverOfferId` and `status: 'waitingForDriver'`, then notify the driver. Contacts are shared only if the driver accepts and a `RideMatch` is created.
+## targetedPassengerRequests/{targetedPassengerRequestId}
+
+`TargetedPassengerRequest` is always private and points to one concrete driver offer occurrence.
+
+```ts
+type PublicDriverOfferType = 'regularRoute' | 'oneTimeTrip';
+
+type TargetedPassengerRequest = {
+  id: string;
+  churchId: string;
+  driverId: string;
+  driverName: string;
+  targetOfferId: string;
+  targetOfferType: PublicDriverOfferType;
+  offerContext: string;
+  rideDate?: string; // local YYYY-MM-DD; required for an actionable request
+  serviceEvent: string;
+  serviceEventId?: string;
+  firstName: string;
+  phonePrivate: string;
+  emailPrivate?: string;
+  passengerCount: number;
+  pickupZone: PickupZone;
+  privateComment?: string;
+  consentToShareContact: boolean;
+  offeredPassengerCount?: number;
+  status:
+    | 'waitingForDriver'
+    | 'pendingPassengerConfirmation'
+    | 'matched'
+    | 'declined'
+    | 'cancelled'
+    | 'expired';
+  publicVisible: false;
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp
+  sourcePassengerRequestId?: string;
+};
+```
+
+When a passenger clicks «Попросить подвезти» on a specific `DriverOffer`, create a private targeted request with a concrete `rideDate` and `status: 'waitingForDriver'`, then notify the driver. A one-time trip fixes the date. A regular route offers up to five future dates whose weekdays are in its recurrence; each date has independently derived availability, and a full date stays visible but disabled. If an open compatible `PassengerRequest` is reused, `sourcePassengerRequestId` identifies that source instead of creating an unrelated duplicate. A source already targeted to the same offer and date is excluded. Full driver acceptance closes the source request and creates the RideMatch immediately; a smaller offer changes the targeted request to `pendingPassengerConfirmation` and creates a match only after passenger acceptance.
 
 ## driverResponses/{driverResponseId}
 
@@ -258,18 +296,25 @@ type DriverResponse = {
   id: string;
   driverId: string;
   passengerRequestId: string;
-  driverOfferId?: string;
-  message?: string;
-  status: 'pendingPassengerConfirmation' | 'pendingContact' | 'accepted' | 'declined' | 'cancelled' | 'expired';
-  createdAt: Timestamp;
-  cancelledAt?: Timestamp;
-  updatedAt: Timestamp;
+  driverOfferId: string;
+  driverOfferType: 'regularRoute' | 'oneTimeTrip' | 'privateDriverOffer';
+  rideDate: string; // local YYYY-MM-DD
+  offeredPassengerCount: number;
+  status: 'pendingPassengerConfirmation' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp
+  cancelledAt?: string; // ISO timestamp
+  privateOffer?: {
+    originLabel: string;
+    departureTime: string;
+    maxDetourKm?: number;
+  };
 };
 ```
 
 When a driver clicks «Подвезти» on a specific `PassengerRequest`, create a `DriverResponse` with `status: 'pendingPassengerConfirmation'`, then notify the passenger. Contacts are shared only if the passenger accepts and a `RideMatch` is created.
 
-Current mock implementation uses `status: 'pendingContact'` immediately after «Подвезти», hides the passenger request from the public board, shows passenger contact in the mock response area, and supports cancelling the response. Cancelling returns the request to `status: 'open'` and `publicVisible: true`.
+When compatible browser-owned public offers exist, the current mock links the response to the selected trip or route occurrence with available seats. When none exists, `driverOfferType: 'privateDriverOffer'` and `privateOffer` represent a request-only offer; its response ID is the private offer ID. It is persisted with the other responses but is never inserted into public Trip or Route collections, so unused seats are not published. A pending response does not hide the open request, reserve capacity, or reveal contacts. Passenger acceptance revalidates the public occurrence or the private departure, creates the RideMatch, closes the original request, and expires its other pending responses. Legacy `pendingContact` responses hydrate as inactive `expired` records and never disclose contacts.
 
 ## rideMatches/{rideMatchId}
 
@@ -278,18 +323,27 @@ Current mock implementation uses `status: 'pendingContact'` immediately after «
 ```ts
 type RideMatch = {
   id: string;
-  passengerRequestId: string;
-  driverOfferId: string;
-  driverResponseId?: string;
-  passengerId: string;
-  driverId: string;
   churchId: string;
-  serviceEventId?: string;
+  passengerRequestId: string;
+  targetedPassengerRequestId?: string;
+  driverResponseId?: string;
+  driverId: string;
+  driverOfferId: string;
+  driverOfferType: 'regularRoute' | 'oneTimeTrip' | 'privateDriverOffer';
+  rideDate: string; // local YYYY-MM-DD
+  originalPassengerCount: number;
+  confirmedPassengerCount: number;
   status: 'confirmed' | 'cancelled' | 'completed';
-  contactsSharedAt?: Timestamp;
-  confirmedAt: Timestamp;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  passengerName: string;
+  driverName: string;
+  passengerContactPrivate: { phone: string; email?: string };
+  driverContactPrivate: { phone: string; email?: string };
+  confirmedAt: string; // ISO timestamp
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp
+  cancelledAt?: string; // ISO timestamp
+  remainingNeedHandledAt?: string; // ISO timestamp
+  driverOfferDepartureTime?: string; // private offer departure snapshot
 };
 ```
 
@@ -297,8 +351,15 @@ After a `RideMatch` is confirmed:
 
 - contacts are shared only with participants;
 - the matched `PassengerRequest` is hidden from the public board;
-- the matched `DriverOffer.freeSeats` decreases;
-- the `DriverOffer` remains public only if seats remain and it is still active.
+- the matched request closes as `matched` or `partiallyMatched`;
+- other pending driver responses and linked targeted requests to the same open request expire;
+- occupied seats are derived from confirmed RideMatches for the same concrete public offer and date;
+- a one-time trip remains public only while derived availability is positive;
+- a regular route remains active globally, while each occurrence date has independent capacity.
+
+Pending requests, responses, partial counteroffers, notifications, and suggestions never create RideMatches or reserve capacity. Private targeted driver offers have no public capacity ledger; their confirmed RideMatch stores the private departure time needed by cancellation and republication checks. Cancellation keeps the RideMatch and private contact snapshots in participant history but excludes it from occupied-seat calculations. Cancelling a public offer cancels its future confirmed RideMatches before hiding the offer.
+
+Direct republication after cancellation compares local calendar values without a UTC conversion. A known driver-offer departure time is the boundary; otherwise a structured church service uses its start time. Exact boundary time is already closed. An alternative date with no known time remains eligible through that entire local date.
 
 ## matchSuggestions/{matchSuggestionId}
 
@@ -406,6 +467,7 @@ Static churches, drivers, routes, and trips remain mock arrays in `src/lib/mockD
 - `orthodox-routes:driver-responses`;
 - `orthodox-routes:targeted-requests`;
 - `orthodox-routes:notifications`;
+- `orthodox-routes:ride-matches` for confirmed, cancelled, and completed mock agreements;
 - `orthodox-routes:passenger-draft` for optional form prefilling;
 - `orthodox-routes:local-driver-profile` for one private browser-local driver identity;
 - `orthodox-routes:local-trips` for locally created one-time trip history;
@@ -439,7 +501,13 @@ The second mock church intentionally has no `schedule` data. It is the stable no
 
 The general church list uses the same centralized merge and visibility helpers as the church board. Per-church counters include static and sanitized browser-local records, isolate offers by `churchId`, count each active driver once, exclude inactive/cancelled routes, and exclude cancelled, expired, full, or otherwise unavailable one-time trips. The server-rendered static counts are the hydration baseline; browser-local counts are merged after the client mounts.
 
-Open passenger requests are public only while `status === 'open'` and `publicVisible === true`. Targeted requests always have `publicVisible === false` and never appear in «Кому нужно место». Active driver responses and targeted requests are shown only in temporary personal mock panels. Real persistence and per-user authorization belong to the future backend/Firestore implementation.
+Open passenger requests remain public while any number of driver responses are pending. Targeted requests always have `publicVisible === false` and never appear in «Ищут место». A targeted request stores a concrete `rideDate`; regular-route dates must match the recurrence weekday. Reusing an open request preserves its ID through `sourcePassengerRequestId`, and compatibility is based on church plus service or concrete date. A partial acceptance closes the original request, and any remaining need becomes a new linked open request copied from the preserved data. The public selector resolves that link to the root request so the remaining card states the original group size and does not create a simultaneous completed duplicate.
+
+`orthodox-routes:ride-matches` is the source of truth for newly confirmed occupied seats. One-time trips retain their initial `seatsAvailable` as a legacy/static baseline, then subtract confirmed RideMatches. Regular routes never mutate global capacity: availability is `route.seats` minus confirmed matches for the same `driverOfferId` and `rideDate`. Every confirmation rechecks pending status, active offer, future occurrence, and available seats before creating one match.
+
+Static mock driver phone/email data lives in a separate private source keyed by driver ID. Browser-created drivers use `LocalDriverProfile`. Neither source is copied into `DriverPublicProfile`, Route, Trip, public card props, public completed summaries, or notification text. Confirmed RideMatches keep explicit private contact snapshots so cancelled participant history remains useful.
+
+The compact `Уже договорились` selector returns explicit safe fields only and limits the church page to five recent, still-date-relevant results. It aggregates by root passenger request, one-time trip, or `regularRouteId + rideDate`. Partially occupied one-time trips and passenger requests with an active linked remainder are excluded. A regular-route occurrence is included as soon as it has a confirmed RideMatch: partial occupancy carries the yellow `Часть мест занята` state, while a full occurrence uses the gray completed state. Passenger summaries remain in the passenger section; all driver-offer summaries share one section after active regular and one-time offers. Summaries never contain contact fields, pickup areas, exact addresses, private comments, actions, or cancelled records.
 
 All user-visible calendar dates use `dd.mm.yyyy`; date and time use `dd.mm.yyyy в HH:mm`. ISO strings remain valid internal storage values but are not rendered directly.
 

@@ -15,7 +15,7 @@ Orthodox Routes — не Orthodox Uber. Это транспортная доск
 - Пассажир не выбирает абстрактный каталог водителей. Он видит страницу храма, активные предложения водителей и активные запросы пассажиров.
 - Контакты водителя и пассажира открываются только после подтвержденного совпадения.
 - Уведомление или автоматическая подсказка не создают подтвержденный match сами по себе.
-- Публичная доска показывает только активные элементы. История не удаляется, но скрывается с публичной страницы.
+- Публичная доска показывает «Ищут место» слева и «Предлагают поездки» справа на desktop, в том же порядке вертикально на mobile. Активные элементы идут первыми. Пассажирские summary остаются в своём подразделе, а предложения водителей используют один общий «Уже договорились» после регулярных и разовых поездок; cancelled и прошедшая активность остаются только в приватной истории.
 - Не заставлять пользователя выбирать язык при первом входе. Язык определяется из браузера/устройства, ручной переключатель доступен в интерфейсе.
 - MVP-языки: `ru`, `it`, `en`, `ro`.
 
@@ -139,12 +139,12 @@ Hero страницы использует изображение храма. К
 
 ## Видимость и статусы
 
-- PassengerRequest видим на странице храма только пока он активен/открыт.
-- Когда PassengerRequest получает подтвержденный match, он исчезает с публичной страницы храма.
+- PassengerRequest видим на странице храма только пока он активен/открыт. Повторно опубликованный остаток частично закрытого запроса показывается одной активной карточкой, связанной для отображения с первоначальным количеством.
+- Когда потребность PassengerRequest полностью закрыта, активная карточка исчезает и заменяется одним безопасным summary в «Ищут место».
 - DriverOffer видим на странице храма только пока он активен и есть свободные места.
-- Когда у DriverOffer не остается свободных мест, он исчезает с публичной страницы храма.
+- Когда у разового DriverOffer не остается свободных мест, его активная карточка исчезает и заменяется одним безопасным summary в подразделе «Разовые поездки». Полностью занятая дата регулярного маршрута агрегируется отдельно в подразделе «Регулярные поездки».
 - Разовая mock-поездка видима на транспортной доске только при `status === 'open'`, `seatsAvailable > 0` и еще не наступившем локальном времени выезда, составленном из `date` и `departureTime`. Выбор службы в формах берётся из структурированного расписания храма, а не из транспортных предложений.
-- Expired, cancelled, completed, matched и full элементы исчезают с публичной транспортной доски.
+- Expired и cancelled элементы исчезают с публичной транспортной доски. Частично занятые разовые поездки и запросы с активным остатком остаются только в активных списках. Каждая будущая дата регулярного маршрута с подтверждёнными пассажирами получает один безопасный summary: жёлтый для частичной занятости и серый для полной. Разовые и регулярные summaries водителей находятся в одном общем «Уже договорились».
 - Скрытые элементы не удаляются из системы; они остаются во внутренней истории.
 
 ## Приватность
@@ -168,55 +168,27 @@ Optional comment ограничен 300 символами. Рядом с пол
 
 Контакты водителя и пассажира раскрываются только после подтвержденного match.
 
-## Current mock passenger request flow
+## Current mock passenger request and confirmation flow
 
-Текущая реализация заявки пассажира работает в браузере и сохраняет mock-state в namespaced localStorage. Она переживает переходы по маршрутам, back/forward и обновление страницы в том же браузере, но не является production persistence и не заменяет будущий backend/Firestore.
+The browser-only implementation persists safely parsed records in namespaced localStorage and survives navigation and refresh in the same browser. It is not production persistence or user isolation.
 
-The passenger selects «Попросить подвезти» in the page-level «Я пассажир» role card. This opens the general public-request dialog «Создать запрос на поездку»; the same copy inside a specific driver-offer card remains a separate targeted flow. On desktop the dialog is centered; on mobile it is a large full-width panel. It closes by its close control, «Отмена», or Escape. Do not show heavy registration or use «Создать запрос и зарегистрироваться».
+The general «Я пассажир» action creates an open PassengerRequest for one concrete church service/date. It remains public while zero, one, or several DriverResponses are pending. «Подвезти» opens a response dialog; it never exposes contacts immediately. When compatible browser-owned public offers exist, the driver selects one concrete one-time trip or regular-route occurrence and may offer any positive count up to both available capacity and requested passengers. Without a compatible public offer, the same dialog shows the short «Предложить места пассажиру» form and creates a private targeted driver offer with origin, departure time, offered count, optional maximum detour, and any driver contact fields not already stored. Its introduction names the passenger, destination church, and selected service or concrete date before asking for only the missing trip data. This private offer is addressed only to the request, never appears as a public Trip or Route, and does not publish unused seats.
 
-Поля формы:
+The passenger can accept or decline each pending response. Acceptance revalidates pending state, active offer or private departure, future date, recurrence, and seats; creates exactly one RideMatch; closes the original request as matched or partially matched; accepts the chosen response; expires other pending driver responses and linked targeted requests; and then exposes both participants' provided phone/optional email in their private match card. Pending responses neither reserve seats nor hide the request.
 
-- first name: required;
-- phone: required;
-- email: optional;
-- one of a future structured church service or a separate alternative date: required;
-- passenger count: required;
-- pickup area: required;
-- comment: optional, maximum 300 characters;
-- consent checkbox: required.
+A targeted request is always private. A one-time trip fixes `rideDate`; a regular route lists up to five nearest future recurrence-compatible dates with independent availability, keeps full dates visible but disabled, and stores the selected concrete `rideDate`. If the requested group exceeds current availability while at least one seat remains, submission stays enabled and a yellow inline warning explains that the driver may offer fewer seats or decline. Zero availability disables submission, and final acceptance always revalidates capacity. The driver may accept the full count, decline, or offer fewer seats. Full acceptance is the final confirmation. A smaller offer remains pending without contacts or reservation until the passenger chooses «Принять N мест».
 
-Pickup area сейчас является текстовым label. Модель должна быть готова к будущей approximate circular pickup zone:
+Before showing a new targeted-request form, the dialog finds compatible open PassengerRequests for the same church and service or concrete date. One compatible request is summarized directly; several can be selected. «Отправить этот запрос» creates a private targeted request linked through `sourcePassengerRequestId`; «Создать другой запрос» opens the normal form. Requests already sent to the same offer occurrence are excluded. Full confirmation closes the source request, while partial confirmation closes it as partially matched and preserves the existing remaining-need actions.
 
-- label;
-- optional center latitude;
-- optional center longitude;
-- optional radius in meters.
+Partial acceptance closes the original request. Private actions can publish a new open request for exactly the remaining count, open the existing passenger form prefilled for editing, or record that no more seats are needed. Copied data includes passenger name, private contacts, church, service/date, pickup area, safe comment, and consent; the public UI does not expose the traceability link.
 
-Consent text должен явно объяснять, что телефон и email не видны публично, но будут открыты водителю, который нажмет «Подвезти».
+RideMatches use `orthodox-routes:ride-matches` and statuses `confirmed | cancelled | completed`. Confirmed matches are the source of newly occupied seats. One-time availability subtracts confirmed match counts from its initial available-seat baseline. Regular route availability is calculated independently for each `driverOfferId + rideDate`; capacity is never reduced globally. Cancellation keeps private history and contact snapshots, returns only that occurrence's seats, and never republishes a request automatically. The dialog title is «Отменить договорённость?». Passenger cancellation explains that the driver can offer the seats again and the preserved request can be republished; driver cancellation explains that the passenger receives a notification and the seats become available to others.
 
-Телефон обязателен. Перед проверкой из него удаляются пробелы, дефисы и скобки. Нормализованное значение должно начинаться с `+`, содержать от 8 до 15 цифр после `+`, а первая цифра после `+` не может быть `0`. Сообщение ошибки: «Введите номер в международном формате, например +39 333 123 4567.» Email необязателен, но введенное значение должно выглядеть как email.
+After cancellation, the passenger may publish again from preserved data or open the prefilled form. Direct publication uses local calendar parsing: when the matched offer has a departure time it is allowed only before that time; otherwise a structured church service is allowed only before its start time. An alternative date without a known time remains eligible for its entire local date. Previous dates are disabled and future dates remain eligible. Cancelling a driver offer first cancels its future confirmed RideMatches and creates safe notifications; past regular-route matches remain unchanged.
 
-Все видимые даты показываются как `dd.mm.yyyy`, а дата со временем — как `dd.mm.yyyy в HH:mm`. Raw ISO date не выводится пользователю.
+The required passenger consent copy is: «После подтверждения поездки водитель увидит мой телефон и электронную почту, если я её указал, а я увижу его контакты. Я согласен на это.» The required checkbox is unchecked by default and resets in copied, prefilled, edit, and republication forms. Where the driver form displays equivalent consent, use: «После подтверждения поездки пассажир увидит мой телефон и электронную почту, если я её указал, а я увижу его контакты. Я согласен на это.» Before confirmation, phone/email never appear in public cards, pending panels, completed summaries, or notification text. Every active driver-offer card states once that contacts open after confirmation. Static mock driver contacts live in a separate private source keyed by driver ID; browser-created drivers use LocalDriverProfile.
 
-После отправки:
-
-- создается mock PassengerRequest и сохраняется в `orthodox-routes:passenger-requests`;
-- запрос появляется в блоке «Кому нужно место»;
-- создается mock in-app notification;
-- запускается простой mock matching check по существующим видимым поездкам/маршрутам этого храма;
-- если найдено совместимое предложение водителя, создается mock notification «Найдены возможные водители для вашего запроса.»
-
-Когда водитель нажимает «Подвезти» на карточке PassengerRequest:
-
-- сразу создается mock DriverResponse;
-- сразу создается mock notification;
-- PassengerRequest скрывается из активного публичного блока «Кому нужно место» на время активного отклика;
-- контакт пассажира показывается только в персональной mock-зоне «Мой отклик» после клика;
-- PassengerRequest и DriverResponse синхронно сохраняются в localStorage.
-
-Публичный пустой блок «Отклики» не показывается. «Мой отклик» появляется только после действия конкретного mock-водителя и поясняет, что в production эти данные доступны только ему. Для текущего mock-flow не нужен confirmation modal перед первичным «Подвезти». После отклика водитель может нажать «Отменить отклик»; это требует confirmation. Если отклик отменен, запрос возвращается в публичный список и создается mock notification «Отклик отменен.»
-
-Mock state использует ключи `orthodox-routes:passenger-requests`, `orthodox-routes:driver-responses`, `orthodox-routes:targeted-requests` и `orthodox-routes:notifications`. Реальное разделение пользователей и хранение данных будут обеспечены auth и backend позже.
+The public board has two natural-height areas: «Ищут место» and «Предлагают поездки»; the latter retains «Регулярные поездки» and «Разовые поездки», followed by one shared «Уже договорились» section. The church-page driver directory block is removed, while `/drivers` and driver names in offers remain. Public completion is aggregated once per root passenger request, once per one-time trip, and once per `routeId + rideDate`. A partially occupied one-time trip or request with an active remaining need never also appears as completed. A partial regular occurrence remains date-specific and uses the yellow `Часть мест занята` state without completing the recurring route; a full occurrence is gray. Summaries identify regular versus one-time supply and contain no contact, pickup area, exact address, private comment, or third-party actions. Cancelled records appear only in private history with «Отменено».
 
 ## Current mock driver offer flow
 
@@ -224,15 +196,15 @@ The driver selects «Предложить поездку» in the page-level «�
 
 The first browser-local offer collects name, private phone, and optional private email. Required labels use an asterisk and the form explains that phone and email are visible only to a passenger with whom the driver arranges a trip. Departure area is not driver-profile data. Older stored profiles with `departureArea` remain readable, but hydration discards that field. Later offers reuse the stored driver data without exposing private contacts. The local driver card is unlinked and derives its displayed origin from active offers for the current church.
 
-The driver chooses «Разовая поездка» or «Регулярная поездка». Every offer models a route from a trip-specific origin to the current church and requires a numeric `maxDetourKm` choice from `0`, `2`, `5`, `10`, `15`, or `20`, 1–55 seats, and a return-trip value. Drivers do not enumerate pickup points. Until map geometry is implemented, the selected distance is only the driver's stated willingness to detour; each passenger's requested pickup location is evaluated manually. Older stored pickup fields are accepted and discarded, older origin fields are sanitized where practical, and missing or unsupported `maxDetourKm` falls back to `0`.
+The driver chooses «Разовая поездка» or «Регулярная поездка». Every offer models a route from a trip-specific origin to the current church and requires a numeric `maxDetourKm` choice from `0`, `2`, `5`, `10`, `15`, or `20`, 1–55 seats, and a return-trip value. Passenger count and driver free seats use the same directly editable minus/value/plus control with accessible buttons and disabled boundaries. Drivers do not enumerate pickup points. Until map geometry is implemented, the selected distance is only the driver's stated willingness to detour; each passenger's requested pickup location is evaluated manually. Older stored pickup fields are accepted and discarded, older origin fields are sanitized where practical, and missing or unsupported `maxDetourKm` falls back to `0`.
 
-For a one-time trip, the dialog uses the same compact native service dropdown and shared future-service options as the open passenger form. It shows up to five nearest future structured services and an always-visible separate «Другая дата» field. Past services are excluded. Selecting a service clears the alternative date; entering an alternative date clears the service. Exactly one is required, a past alternative date is rejected, and the selected service ID is preserved on the created trip. The independent «Примерное время выезда*» remains required and is not inferred from service start time. A one-time trip is created with `status: 'open'` and `seatsTotal === seatsAvailable`.
+For a one-time trip, the dialog uses the same compact native service dropdown and shared future-service options as the open passenger form. It shows up to five nearest future structured services and an always-visible separate «Другая дата» field under the required group label «Когда вы едете *». Past services are excluded. Selecting a service clears the alternative date; entering an alternative date clears the service. Exactly one is required, a past alternative date is rejected, and the selected service ID is preserved on the created trip. «Другая дата» has no separate required marker. The independent «Примерное время выезда*» remains required and is not inferred from service start time. A one-time trip is created with `status: 'open'` and `seatsTotal === seatsAvailable`.
 
-For a regular trip, at least one weekday and «Обычное время выезда*» are required. It is created with `status: 'active'`. Untouched fields show no errors; fields validate on blur; a visible field error revalidates during edits without clearing unrelated errors. Submit validates the complete form, retains all input after an invalid attempt, keeps the dialog open, and focuses the first invalid field.
+For a regular trip, at least one weekday and «Обычное время выезда*» are required. It is created with `status: 'active'`. Open and targeted passenger forms use the same validation interaction as this driver form: required markers, blur validation, inline red errors, field-only revalidation during edits, preserved values, and first-invalid focus after an invalid submit. Two-column fields reserve a compact inline-error row so an error does not move the neighboring control. Passenger name, phone, count, pickup area, applicable service/date, and consent are required; email and comment remain visibly optional.
 
-After a successful one-time trip, the existing modal becomes one clear success state led by «Поездка создана»; it does not retain the form heading or render a bordered nested card. The smaller «Ездите в храм так регулярно?» suggestion explains that the same data can be reused. «Добавить регулярную поездку» switches the dialog to a prefilled regular-trip form with origin, `maxDetourKm`, departure time, seats, return-trip value, and driver data. It clears the selected church service, alternative date, and weekdays. «Закрыть» closes the dialog. No regular trip is created automatically and no separate church-page suggestion card is shown.
+After a successful one-time trip, the existing modal becomes one clear success state led by «Поездка создана»; it does not retain the form heading or render a bordered nested card. The smaller «Ездите в храм так регулярно?» suggestion explains that the same data can be reused. «Добавить регулярную поездку» switches the dialog to a prefilled regular-trip form with origin, `maxDetourKm`, departure time, seats, return-trip value, and driver data. It clears the selected church service, alternative date, and weekdays. «Оставить разовой» closes the dialog because the one-time trip is already published. No regular trip is created automatically and no separate church-page suggestion card is shown.
 
-Only offers in `orthodox-routes:local-trips` and `orthodox-routes:local-routes` tied to the current stored driver identity receive cancellation controls. The custom confirmation says that passengers will no longer be able to choose the trip and uses «Не отменять» / «Отменить поездку». Confirmation changes status to `cancelled`, removes the offer from visible board and passenger choices, and retains internal history without exposing that implementation detail in UI copy.
+Only offers in `orthodox-routes:local-trips` and `orthodox-routes:local-routes` tied to the current stored driver identity receive cancellation controls. The custom confirmation says that passengers will no longer be able to choose the trip and uses «Не отменять» / «Отменить поездку». When future confirmed RideMatches are linked, it also gives their count and warns that those agreements will be cancelled and passengers notified. Confirmation changes the offer status to `cancelled`, removes it from visible board and passenger choices, cancels only linked future confirmed matches, and retains history.
 
 Malformed or outdated local offer records are ignored during hydration. Unexpected fields are discarded, seat values outside 1–55 are rejected, and local IDs that collide with static driver or offer IDs are not merged into board data or passenger flows. The general church list uses the centralized merge and visibility rules to count unique active drivers, active regular trips, and visible one-time trips from both static and browser-local data, isolated per church and hydrated without server/client markup mismatch.
 
@@ -249,22 +221,29 @@ The second mock church intentionally has no schedule data and serves as a stable
 Когда пассажир нажимает «Попросить подвезти» внутри конкретной карточки предложения водителя:
 
 - открывается модальный диалог с именем водителя и контекстом поездки или маршрута;
-- собираются имя, международный телефон, optional email, число пассажиров, район посадки, optional comment и consent;
-- создается targeted PassengerRequest, связанный с этой поездкой или маршрутом, и сохраняется в localStorage;
-- targeted request не показывается в публичном блоке «Кому нужно место»;
+- для регулярного маршрута сначала выбирается одна из пяти ближайших дат с отдельной доступностью мест;
+- если есть совместимые открытые запросы, пассажир повторно использует один из них или выбирает «Создать другой запрос»;
+- при создании другого запроса собираются имя, международный телефон, optional email, число пассажиров, район посадки, optional comment и consent;
+- создается targeted PassengerRequest, связанный с этой поездкой или с конкретной будущей датой регулярного маршрута, и сохраняется в localStorage;
+- повторно использованный запрос связан с исходным PassengerRequest через `sourcePassengerRequestId`; повторная отправка того же источника на ту же поездку и дату исключается;
+- targeted request не показывается в публичном блоке «Ищут место»;
 - пассажир видит безопасное summary в персональной mock-зоне «Мой запрос водителю»;
 - создаются личные mock-уведомления об отправке запроса;
-- контакты не раскрываются, потому что принятие водителем в текущем mock не реализовано.
-
-В будущем водитель сможет принять или отклонить targeted request. RideMatch создается и контакты раскрываются только после принятия.
+- водитель может принять весь запрос, отклонить его или предложить меньше мест;
+- полное принятие сразу создает RideMatch, а частичное предложение ждет принятия пассажиром;
+- контакты раскрываются только после создания RideMatch.
 
 Когда водитель нажимает «Подвезти» внутри конкретной карточки запроса пассажира:
 
 - создается DriverResponse, связанный с этим PassengerRequest;
+- если есть совместимые публичные предложения водителя, DriverResponse связан с выбранным предложением, датой и числом мест;
+- иначе короткая форма создает приватное адресное предложение с местом и временем выезда, числом мест и optional отклонением; публичные Trip или Route не создаются;
 - пассажир получает уведомление;
 - пассажир может принять или отклонить ответ;
 - RideMatch создается только если пассажир принимает;
 - контакты раскрываются только после принятия.
+
+Открытый PassengerRequest остается публичным, пока ответы ожидают решения. Первый ответ не скрывает и не монополизирует запрос. Принятие одного ответа закрывает исходный запрос и переводит остальные pending responses в `expired`.
 
 ### Автоматические подсказки совпадений
 
@@ -286,9 +265,10 @@ The second mock church intentionally has no schedule data and serves as a stable
 - та же или совместимая служба/дата;
 - у DriverOffer есть свободные места;
 - PassengerRequest открыт;
-- примерный район посадки или hub достаточно совместим;
-- оба элемента имеют `publicVisible = true`;
+- regular route recurrence includes the concrete date;
 - элементы не expired, cancelled, full, completed или already matched.
+
+Без карт нельзя утверждать географическую совместимость. Notification copy использует осторожную формулировку: «Возможно, эта поездка вам подходит.»
 
 ### Каналы уведомлений
 

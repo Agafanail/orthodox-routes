@@ -7,11 +7,18 @@ Roadmap follows the approved product sequence: validate the church transport boa
 - Next.js App Router prototype with React, TypeScript, Tailwind CSS, and ESLint.
 - Public routes for churches and drivers without registration.
 - Church page as the central transport board.
-- Visible drivers, regular routes, and one-time trips.
+- Standalone driver pages plus driver names inside visible regular routes and one-time trips.
 - Open passenger request modal.
 - Targeted passenger request modal linked to a specific route or trip.
-- Mock driver response, cancellation, and conditional private mock panels.
-- Namespaced localStorage persistence for open requests, responses, targeted requests, and notifications.
+- Compatible open-request reuse for targeted passenger requests, including source linking and duplicate prevention per offer occurrence.
+- Confirmed `RideMatch` flows in both directions: driver acceptance of a targeted request and passenger acceptance of a driver response.
+- Private targeted driver offers when no compatible public trip or route exists; unused seats are not published publicly.
+- Partial seat counteroffers, remaining-request republication/editing, and safe cancellation history.
+- Date-specific regular-route capacity and one-time-trip capacity derived from confirmed RideMatches.
+- Up to five future regular-route occurrences with independent availability, disabled full dates, and non-blocking over-capacity request warnings.
+- Private participant contacts only after confirmation, plus safe mock notifications.
+- Side-by-side desktop / stacked mobile `Ищут место` and `Предлагают поездки` areas. Passenger completion stays with passenger requests; driver-offer completion uses one shared `Уже договорились` section after active regular and one-time subsections, including partial and full dated route occurrences.
+- Namespaced localStorage persistence for open requests, responses, targeted requests, RideMatches, and notifications, with safe parsing of legacy and malformed records.
 - Personal mock notification panel for development/testing.
 - International phone normalization/validation and optional email validation.
 - User-visible date formatting as `dd.mm.yyyy` and `dd.mm.yyyy в HH:mm`.
@@ -30,12 +37,25 @@ The current prototype has no backend, authentication, real user isolation, push/
 
 ## Next priorities
 
-1. Define and validate the confirmation and `RideMatch` mock flow, including when contacts are shared and seats decrease.
-2. Expand automated coverage beyond the initial pure-logic unit tests; component and end-to-end tests remain future work.
-3. Introduce authentication and backend persistence only after the mock request and confirmation flows are stable.
-4. Move personal notifications into a dedicated personal notification center.
-5. Add web/PWA push and email delivery after notification ownership and backend events are defined.
-6. Consider maps for church discovery/approximate pickup zones and Telegram as a later optional channel only after the core product is validated.
+1. Expand automated coverage with component and end-to-end tests after the current pure transition helpers are stable.
+2. Introduce authentication and backend persistence only after the mock request and confirmation flows are stable.
+3. Move personal notifications and private match history into dedicated authenticated personal areas.
+4. Add web/PWA push and email delivery after notification ownership and backend events are defined.
+5. Consider maps for church discovery/approximate pickup zones and Telegram as a later optional channel only after the core product is validated.
+
+## Before any real multi-user pilot
+
+### Privacy and terms readiness
+
+- Draft a Privacy Policy and Terms of Use for the actual product architecture.
+- Obtain legal review for the actual launch countries.
+- Link both documents from registration and relevant product surfaces.
+- Require an unchecked registration acceptance checkbox.
+- After backend and authentication exist, record the accepted document versions and timestamp.
+- Explain participant-to-participant phone and email disclosure clearly.
+- Define access, correction, export, and deletion request handling.
+
+Do not draft final legal text until backend, authentication, processors, retention periods, hosting, analytics, notification providers, and launch jurisdictions are known.
 
 ## Later product work
 

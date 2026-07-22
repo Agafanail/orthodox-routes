@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ServiceSelectionField } from '@/components/church-transport-board/service-selection-field';
+import { CountControl } from '@/components/church-transport-board/count-control';
 import type {
   DriverOfferDraft,
   DriverOfferDraftErrors,
@@ -19,8 +20,6 @@ const weekdayOptions = [
   { value: 0, label: 'Вс' },
 ];
 
-const seatOptions = Array.from({ length: 55 }, (_, index) => index + 1);
-
 const maxDetourLabels: Record<(typeof maxDetourKmValues)[number], string> = {
   0: '0 км — только по маршруту',
   2: 'до 2 км',
@@ -31,11 +30,11 @@ const maxDetourLabels: Record<(typeof maxDetourKmValues)[number], string> = {
 };
 
 function FieldError({ id, message }: { id: string; message?: string }) {
-  return message ? (
-    <span className="text-sm font-normal text-red-700" id={id} role="alert">
+  return (
+    <span className="min-h-5 text-sm font-normal text-red-700" id={id} role={message ? 'alert' : undefined}>
       {message}
     </span>
-  ) : null;
+  );
 }
 
 const fieldClassName =
@@ -69,6 +68,16 @@ export function DriverOfferDialog({
   onSubmit: () => void;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const blurValidationReadyRef = useRef(false);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.querySelector<HTMLElement>('[data-dialog-initial-focus]')?.focus();
+    return () => {
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, []);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -88,6 +97,13 @@ export function DriverOfferDialog({
   }, [onCancel]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      blurValidationReadyRef.current = true;
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     if (submitAttempt > 0) {
       formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
     }
@@ -96,6 +112,10 @@ export function DriverOfferDialog({
   function toggleWeekday(day: number, checked: boolean) {
     const weekdays = checked ? [...draft.weekdays, day] : draft.weekdays.filter((value) => value !== day);
     onChange({ ...draft, weekdays }, 'weekdays');
+  }
+
+  function handleBlur(fieldName: keyof DriverOfferDraft) {
+    if (blurValidationReadyRef.current) onBlur(fieldName);
   }
 
   return (
@@ -109,6 +129,7 @@ export function DriverOfferDialog({
         }
       }}
       role="dialog"
+      ref={dialogRef}
     >
       <div className="mx-auto min-h-full w-full min-w-0 overflow-hidden bg-white p-5 shadow-xl sm:min-h-0 sm:max-w-3xl sm:rounded-lg sm:p-6">
         <div className="flex items-start justify-between gap-4">
@@ -150,7 +171,7 @@ export function DriverOfferDialog({
                 onClick={onCancel}
                 type="button"
               >
-                Закрыть
+                Оставить разовой
               </button>
             </div>
           </section>
@@ -197,27 +218,28 @@ export function DriverOfferDialog({
                 <fieldset className="grid min-w-0 gap-4 rounded-lg border border-stone-200 p-4 md:grid-cols-2">
                   <legend className="px-1 font-semibold">Данные водителя</legend>
                   <p className="text-sm text-stone-600 md:col-span-2">Поля со звёздочкой обязательны.</p>
-                  <label className="grid min-w-0 gap-1 text-sm font-semibold">
+                  <label className="grid min-w-0 content-start gap-1 text-sm font-semibold">
                     Имя*
                     <input
                       aria-describedby={errors.publicName ? 'driver-public-name-error' : undefined}
                       aria-invalid={Boolean(errors.publicName)}
                       className={fieldClassName}
-                      onBlur={() => onBlur('publicName')}
+                      data-dialog-initial-focus
+                      onBlur={() => handleBlur('publicName')}
                       onChange={(event) => onChange({ ...draft, publicName: event.target.value }, 'publicName')}
                       required
                       value={draft.publicName}
                     />
                     <FieldError id="driver-public-name-error" message={errors.publicName} />
                   </label>
-                  <label className="grid min-w-0 gap-1 text-sm font-semibold">
+                  <label className="grid min-w-0 content-start gap-1 text-sm font-semibold">
                     Телефон*
                     <input
                       aria-describedby={errors.phone ? 'driver-phone-error driver-contact-help' : 'driver-contact-help'}
                       aria-invalid={Boolean(errors.phone)}
                       className={fieldClassName}
                       inputMode="tel"
-                      onBlur={() => onBlur('phone')}
+                      onBlur={() => handleBlur('phone')}
                       onChange={(event) => onChange({ ...draft, phone: event.target.value }, 'phone')}
                       placeholder="+39 333 123 4567"
                       required
@@ -226,13 +248,13 @@ export function DriverOfferDialog({
                     />
                     <FieldError id="driver-phone-error" message={errors.phone} />
                   </label>
-                  <label className="grid min-w-0 gap-1 text-sm font-semibold">
-                    Email
+                  <label className="grid min-w-0 content-start gap-1 text-sm font-semibold">
+                    <span>Email <span className="font-normal text-stone-500">(необязательно)</span></span>
                     <input
                       aria-describedby={errors.email ? 'driver-email-error driver-contact-help' : 'driver-contact-help'}
                       aria-invalid={Boolean(errors.email)}
                       className={fieldClassName}
-                      onBlur={() => onBlur('email')}
+                      onBlur={() => handleBlur('email')}
                       onChange={(event) => onChange({ ...draft, email: event.target.value }, 'email')}
                       type="email"
                       value={draft.email}
@@ -240,7 +262,7 @@ export function DriverOfferDialog({
                     <FieldError id="driver-email-error" message={errors.email} />
                   </label>
                   <p className="text-xs leading-5 text-stone-600 md:col-span-2" id="driver-contact-help">
-                    Телефон и email не будут показываться на странице. Их увидит только пассажир, с которым вы договоритесь о поездке.
+                    После подтверждения поездки пассажир увидит мой телефон и электронную почту, если я её указал, а я увижу его контакты. Я согласен на это.
                   </p>
                 </fieldset>
               )}
@@ -253,7 +275,8 @@ export function DriverOfferDialog({
                     aria-describedby={errors.originLabel ? 'offer-origin-error' : undefined}
                     aria-invalid={Boolean(errors.originLabel)}
                     className={fieldClassName}
-                    onBlur={() => onBlur('originLabel')}
+                    data-dialog-initial-focus={savedProfile ? true : undefined}
+                    onBlur={() => handleBlur('originLabel')}
                     onChange={(event) => onChange({ ...draft, originLabel: event.target.value }, 'originLabel')}
                     placeholder="Squillace"
                     required
@@ -268,7 +291,7 @@ export function DriverOfferDialog({
                     aria-describedby={errors.maxDetourKm ? 'offer-max-detour-error' : undefined}
                     aria-invalid={Boolean(errors.maxDetourKm)}
                     className={fieldClassName}
-                    onBlur={() => onBlur('maxDetourKm')}
+                    onBlur={() => handleBlur('maxDetourKm')}
                     onChange={(event) => onChange({ ...draft, maxDetourKm: event.target.value }, 'maxDetourKm')}
                     required
                     value={draft.maxDetourKm}
@@ -281,24 +304,17 @@ export function DriverOfferDialog({
                   <FieldError id="offer-max-detour-error" message={errors.maxDetourKm} />
                 </label>
 
-                <label className="grid min-w-0 gap-1 text-sm font-semibold">
-                  Свободных мест*
-                  <select
-                    aria-describedby={errors.seats ? 'offer-seats-error' : undefined}
-                    aria-invalid={Boolean(errors.seats)}
-                    className={fieldClassName}
-                    onBlur={() => onBlur('seats')}
-                    onChange={(event) => onChange({ ...draft, seats: event.target.value }, 'seats')}
-                    required
+                <div className="grid min-w-0 gap-1">
+                  <CountControl
+                    describedBy={errors.seats ? 'offer-seats-error' : undefined}
+                    invalid={Boolean(errors.seats)}
+                    label="Свободных мест*"
+                    onBlur={() => handleBlur('seats')}
+                    onChange={(value) => onChange({ ...draft, seats: value }, 'seats')}
                     value={draft.seats}
-                  >
-                    <option value="">Выберите</option>
-                    {seatOptions.map((seats) => (
-                      <option key={seats} value={seats}>{seats}</option>
-                    ))}
-                  </select>
+                  />
                   <FieldError id="offer-seats-error" message={errors.seats} />
-                </label>
+                </div>
 
                 {draft.offerType === 'trip' ? (
                   <>
@@ -306,9 +322,9 @@ export function DriverOfferDialog({
                       <ServiceSelectionField
                         error={errors.date ?? errors.selectedServiceId}
                         errorId="offer-service-error"
-                        label="К какой службе вы едете?*"
+                        label="Когда вы едете *"
                         name="driver-service"
-                        onBlur={(fieldName) => onBlur(fieldName)}
+                        onBlur={handleBlur}
                         onChange={(selection, fieldName) =>
                           onChange({ ...draft, ...selection }, fieldName)
                         }
@@ -322,7 +338,7 @@ export function DriverOfferDialog({
                         aria-describedby={errors.departureTime ? 'offer-time-error offer-time-help' : 'offer-time-help'}
                         aria-invalid={Boolean(errors.departureTime)}
                         className={fieldClassName}
-                        onBlur={() => onBlur('departureTime')}
+                        onBlur={() => handleBlur('departureTime')}
                         onInput={(event) => onChange({ ...draft, departureTime: event.currentTarget.value }, 'departureTime')}
                         required
                         type="time"
@@ -342,7 +358,7 @@ export function DriverOfferDialog({
                       className="grid min-w-0 gap-2 md:col-span-2"
                       onBlur={(event) => {
                         if (!event.currentTarget.contains(event.relatedTarget)) {
-                          onBlur('weekdays');
+                          handleBlur('weekdays');
                         }
                       }}
                       tabIndex={-1}
@@ -371,7 +387,7 @@ export function DriverOfferDialog({
                         aria-describedby={errors.departureTime ? 'offer-time-error' : undefined}
                         aria-invalid={Boolean(errors.departureTime)}
                         className={fieldClassName}
-                        onBlur={() => onBlur('departureTime')}
+                        onBlur={() => handleBlur('departureTime')}
                         onInput={(event) => onChange({ ...draft, departureTime: event.currentTarget.value }, 'departureTime')}
                         required
                         type="time"

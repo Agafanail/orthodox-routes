@@ -6,15 +6,18 @@ import { getChurchOfferCounts } from '@/lib/churchOfferCounts';
 import { parseLocalDriverProfile, parseLocalRoute, parseLocalTrip } from '@/lib/driverOfferState';
 import { driverOfferStorageKeys } from '@/lib/driverOfferStorage';
 import { readStoredArray } from '@/lib/storage';
-import type { Church, DriverPublicProfile, LocalDriverProfile, Route, Trip } from '@/lib/types';
+import { parseRideMatch } from '@/lib/rideMatchState';
+import { rideMatchStorageKey } from '@/lib/rideMatchStorage';
+import type { Church, DriverPublicProfile, LocalDriverProfile, RideMatch, Route, Trip } from '@/lib/types';
 
 type LocalOffers = {
   profile: LocalDriverProfile | null;
   routes: Route[];
   trips: Trip[];
+  rideMatches: RideMatch[];
 };
 
-const emptyLocalOffers: LocalOffers = { profile: null, routes: [], trips: [] };
+const emptyLocalOffers: LocalOffers = { profile: null, routes: [], trips: [], rideMatches: [] };
 
 function readLocalOffers(): LocalOffers {
   let profile: LocalDriverProfile | null = null;
@@ -34,6 +37,9 @@ function readLocalOffers(): LocalOffers {
     trips: readStoredArray<unknown>(window.localStorage, driverOfferStorageKeys.localTrips)
       .map(parseLocalTrip)
       .filter((trip): trip is Trip => trip !== null),
+    rideMatches: readStoredArray<unknown>(window.localStorage, rideMatchStorageKey)
+      .map(parseRideMatch)
+      .filter((match): match is RideMatch => match !== null),
   };
 }
 
@@ -77,6 +83,7 @@ export function ChurchList({
           localDriverProfile: localOffers.profile,
           localRoutes: localOffers.routes,
           localTrips: localOffers.trips,
+          rideMatches: localOffers.rideMatches,
           now,
         });
 

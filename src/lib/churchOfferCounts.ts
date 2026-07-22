@@ -4,7 +4,8 @@ import {
   toDriverPublicProfile,
 } from './driverOfferState';
 import { isOneTimeTripAvailable } from './tripVisibility';
-import type { DriverPublicProfile, LocalDriverProfile, Route, Trip } from './types';
+import { getEffectiveTrips } from './rideMatchState';
+import type { DriverPublicProfile, LocalDriverProfile, RideMatch, Route, Trip } from './types';
 
 type MergeChurchOffersInput = {
   churchId: string;
@@ -14,6 +15,7 @@ type MergeChurchOffersInput = {
   localDriverProfile: LocalDriverProfile | null;
   localRoutes: Route[];
   localTrips: Trip[];
+  rideMatches?: RideMatch[];
   now: Date;
 };
 
@@ -25,6 +27,7 @@ export function mergeChurchOffers({
   localDriverProfile,
   localRoutes,
   localTrips,
+  rideMatches = [],
   now,
 }: MergeChurchOffersInput) {
   const localDriverIdCollides = Boolean(
@@ -44,14 +47,16 @@ export function mergeChurchOffers({
           staticRoutes,
         )
       : [];
-  const visibleLocalTrips = eligibleLocalTrips.filter(
+  const effectiveStaticTrips = getEffectiveTrips(staticTrips, rideMatches, now);
+  const effectiveLocalTrips = getEffectiveTrips(eligibleLocalTrips, rideMatches, now);
+  const visibleLocalTrips = effectiveLocalTrips.filter(
     (trip) => trip.churchId === churchId && isOneTimeTripAvailable(trip, now),
   );
   const visibleLocalRoutes = eligibleLocalRoutes.filter(
     (route) => route.churchId === churchId && isRegularRouteAvailable(route),
   );
   const trips = [
-    ...staticTrips.filter((trip) => trip.churchId === churchId && isOneTimeTripAvailable(trip, now)),
+    ...effectiveStaticTrips.filter((trip) => trip.churchId === churchId && isOneTimeTripAvailable(trip, now)),
     ...visibleLocalTrips,
   ];
   const routes = [
@@ -74,7 +79,20 @@ export function mergeChurchOffers({
     visibleLocalRoutes,
     visibleLocalTrips,
     eligibleLocalRoutes,
-    eligibleLocalTrips,
+    eligibleLocalTrips: effectiveLocalTrips,
+    eligibleRawLocalTrips: eligibleLocalTrips,
+    allRoutes: [
+      ...staticRoutes.filter((route) => route.churchId === churchId),
+      ...eligibleLocalRoutes.filter((route) => route.churchId === churchId),
+    ],
+    allTrips: [
+      ...effectiveStaticTrips.filter((trip) => trip.churchId === churchId),
+      ...effectiveLocalTrips.filter((trip) => trip.churchId === churchId),
+    ],
+    allRawTrips: [
+      ...staticTrips.filter((trip) => trip.churchId === churchId),
+      ...eligibleLocalTrips.filter((trip) => trip.churchId === churchId),
+    ],
     localPublicDriver,
   };
 }

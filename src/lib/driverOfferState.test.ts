@@ -11,7 +11,6 @@ import {
   getMaxDetourCopy,
   isLocallyOwnedOffer,
   isRegularRouteAvailable,
-  isTargetedOfferAvailable,
   parseLocalDriverProfile,
   parseLocalRoute,
   parseLocalTrip,
@@ -319,10 +318,4 @@ describe('local offer cancellation and ownership', () => {
     expect(isLocallyOwnedOffer({ ...trip, driverId: 'driver-2' }, [trip], profile)).toBe(false);
   });
 
-  it('removes cancelled and full offers from targeted request availability', () => {
-    expect(isTargetedOfferAvailable(route.id, 'regularRoute', [route], [], now)).toBe(true);
-    expect(isTargetedOfferAvailable(route.id, 'regularRoute', [cancelLocalRoute(route)], [], now)).toBe(false);
-    expect(isTargetedOfferAvailable(trip.id, 'oneTimeTrip', [], [trip], now)).toBe(true);
-    expect(isTargetedOfferAvailable(trip.id, 'oneTimeTrip', [], [{ ...trip, seatsAvailable: 0 }], now)).toBe(false);
-  });
 });

@@ -1,21 +1,21 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActiveDriverResponses } from '@/components/church-transport-board/active-driver-responses';
 import { DriverOfferDialog } from '@/components/church-transport-board/driver-offer-dialog';
 import { DriverOffers } from '@/components/church-transport-board/driver-offers';
+import { DriverResponseDialog } from '@/components/church-transport-board/driver-response-dialog';
+import { MatchCancellationDialog } from '@/components/church-transport-board/match-cancellation-dialog';
 import { NotificationCenter } from '@/components/church-transport-board/notification-center';
 import { OfferCancellationDialog } from '@/components/church-transport-board/offer-cancellation-dialog';
 import { PageActions } from '@/components/church-transport-board/page-actions';
 import { PassengerRequestList } from '@/components/church-transport-board/passenger-request-list';
 import { RequestDialog } from '@/components/church-transport-board/request-dialog';
+import { RideMatchPanel } from '@/components/church-transport-board/ride-match-panel';
 import { TargetedRequestPanel } from '@/components/church-transport-board/targeted-request-panel';
-import type {
-  RequestDialogContext,
-  TargetedRequestDialogInput,
-} from '@/components/church-transport-board/types';
-import { formatDateTime } from '@/lib/dateFormat';
+import type { RequestDialogContext, TargetedRequestDialogInput } from '@/components/church-transport-board/types';
 import { mergeChurchOffers } from '@/lib/churchOfferCounts';
+import { formatDate, formatDateTime } from '@/lib/dateFormat';
 import {
   cancelLocalRoute,
   cancelLocalTrip,
@@ -25,32 +25,61 @@ import {
   createLocalTrip,
   createRegularRoutePrefill,
   isLocallyOwnedOffer,
-  isTargetedOfferAvailable,
   parseLocalDriverProfile,
   parseLocalRoute,
   parseLocalTrip,
-  validateDriverOfferField,
   validateDriverOfferDraft,
+  validateDriverOfferField,
   type DriverOfferDraft,
   type DriverOfferDraftErrors,
   type DriverOfferMode,
 } from '@/lib/driverOfferState';
 import { driverOfferStorageKeys } from '@/lib/driverOfferStorage';
-import { formatServiceSelection, getChurchServiceOptions, getFutureChurchServices } from '@/lib/serviceOptions';
+import { getDriverPrivateContact } from '@/lib/mockPrivateData';
+import { isDriverResponseActive } from '@/lib/passengerRequestState';
 import {
-  cancelDriverResponse,
-  createPendingDriverResponse,
-  isDriverResponseActive,
-  isPassengerRequestPublic,
-  markPassengerRequestResponded,
-  restorePassengerRequestAfterCancellation,
-} from '@/lib/passengerRequestState';
-import {
-  clearPassengerRequestDraftFieldError,
+  parsePassengerRequestDraft,
   validatePassengerRequestDraft,
   type PassengerRequestDraft,
   type PassengerRequestDraftErrors,
 } from '@/lib/passengerRequestValidation';
+import {
+  canDirectlyRepublish,
+  cancelDriverResponse,
+  cancelFutureMatchesForOffer,
+  cancelRideMatch,
+  confirmRideMatch,
+  createPrivateDriverResponse,
+  createPendingDriverResponse,
+  createTargetedRequestFromPassengerRequest,
+  declineDriverResponse,
+  declineTargetedRequest,
+  getCompatibleOwnedOffers,
+  getCompatiblePassengerRequests,
+  getCompletedActivitySummaries,
+  getFutureConfirmedMatchesForOffer,
+  getOfferAvailability,
+  getFutureRouteOccurrences,
+  getOverCapacityRequestWarning,
+  getPublicPassengerRequestItems,
+  isLocalDate,
+  markRemainingNeedHandled,
+  offerPartialTargetedRequest,
+  parseDriverResponse,
+  parseMockNotification,
+  parsePassengerRequest,
+  parseRideMatch,
+  parseTargetedPassengerRequest,
+  republishPassengerRequest,
+  routeIncludesDate,
+  validatePrivateDriverOfferDraft,
+  type CompatibleDriverOffer,
+  type PrivateDriverOfferDraft,
+  type RideWorkflowState,
+} from '@/lib/rideMatchState';
+import { rideMatchStorageKey } from '@/lib/rideMatchStorage';
+import { formatSeatCount } from '@/lib/russianCount';
+import { formatServiceSelection, getChurchServiceOptions, getFutureChurchServices } from '@/lib/serviceOptions';
 import { readStoredArray } from '@/lib/storage';
 import type {
   Church,
@@ -59,6 +88,7 @@ import type {
   LocalDriverProfile,
   MockNotification,
   PassengerRequest,
+  RideMatch,
   Route,
   TargetedPassengerRequest,
   Trip,
@@ -77,6 +107,7 @@ const storageKeys = {
   driverResponses: 'orthodox-routes:driver-responses',
   targetedRequests: 'orthodox-routes:targeted-requests',
   notifications: 'orthodox-routes:notifications',
+  rideMatches: rideMatchStorageKey,
   ...driverOfferStorageKeys,
 } as const;
 
@@ -93,43 +124,36 @@ const emptyDraft: PassengerRequestDraft = {
 };
 
 function getInitialDraft(): PassengerRequestDraft {
-  if (typeof window === 'undefined') {
-    return emptyDraft;
-  }
-
-  const savedDraft = window.localStorage.getItem(storageKeys.passengerDraft);
-
-  if (!savedDraft) {
-    return emptyDraft;
-  }
+  if (typeof window === 'undefined') return emptyDraft;
 
   try {
-    const parsed = JSON.parse(savedDraft) as Partial<PassengerRequestDraft>;
-    return { ...emptyDraft, ...parsed, consent: false };
+    const savedDraft = window.localStorage.getItem(storageKeys.passengerDraft);
+    if (!savedDraft) return emptyDraft;
+    const parsed = parsePassengerRequestDraft(JSON.parse(savedDraft) as unknown);
+    if (parsed) return parsed;
+    window.localStorage.removeItem(storageKeys.passengerDraft);
   } catch {
     window.localStorage.removeItem(storageKeys.passengerDraft);
-    return emptyDraft;
   }
+
+  return emptyDraft;
 }
 
-function usePersistentArray<T>(key: string, parseItem?: (value: unknown) => T | null) {
+function usePersistentArray<T>(key: string, parseItem: (value: unknown) => T | null) {
   const [items, setItems] = useState<T[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const hydrationTimer = window.setTimeout(() => {
-      const storedItems = readStoredArray<unknown>(window.localStorage, key);
-      setItems(parseItem ? storedItems.map(parseItem).filter((item): item is T => item !== null) : (storedItems as T[]));
+    const timer = window.setTimeout(() => {
+      const stored = readStoredArray<unknown>(window.localStorage, key);
+      setItems(stored.map(parseItem).filter((item): item is T => item !== null));
       setLoaded(true);
     }, 0);
-
-    return () => window.clearTimeout(hydrationTimer);
+    return () => window.clearTimeout(timer);
   }, [key, parseItem]);
 
   useEffect(() => {
-    if (loaded) {
-      window.localStorage.setItem(key, JSON.stringify(items));
-    }
+    if (loaded) window.localStorage.setItem(key, JSON.stringify(items));
   }, [items, key, loaded]);
 
   return [items, setItems] as const;
@@ -140,35 +164,24 @@ function usePersistentValue<T>(key: string, parseValue: (value: unknown) => T | 
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const hydrationTimer = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       try {
         const storedValue = window.localStorage.getItem(key);
-
         if (storedValue) {
-          const parsed: unknown = JSON.parse(storedValue);
-
-          const parsedValue = parseValue(parsed);
-
-          if (parsedValue) {
-            setValue(parsedValue);
-          } else {
-            window.localStorage.removeItem(key);
-          }
+          const parsed = parseValue(JSON.parse(storedValue) as unknown);
+          if (parsed) setValue(parsed);
+          else window.localStorage.removeItem(key);
         }
       } catch {
         window.localStorage.removeItem(key);
       }
-
       setLoaded(true);
     }, 0);
-
-    return () => window.clearTimeout(hydrationTimer);
+    return () => window.clearTimeout(timer);
   }, [key, parseValue]);
 
   useEffect(() => {
-    if (loaded && value) {
-      window.localStorage.setItem(key, JSON.stringify(value));
-    }
+    if (loaded && value) window.localStorage.setItem(key, JSON.stringify(value));
   }, [key, loaded, value]);
 
   return [value, setValue] as const;
@@ -182,6 +195,15 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
   const [dialogContext, setDialogContext] = useState<RequestDialogContext | null>(null);
   const [draft, setDraft] = useState<PassengerRequestDraft>(getInitialDraft);
   const [draftErrors, setDraftErrors] = useState<PassengerRequestDraftErrors>({});
+  const [requestSubmitAttempt, setRequestSubmitAttempt] = useState(0);
+  const [selectedReusableRequestId, setSelectedReusableRequestId] = useState('');
+  const [creatingDifferentRequest, setCreatingDifferentRequest] = useState(false);
+  const [responseRequest, setResponseRequest] = useState<PassengerRequest | null>(null);
+  const [pendingMatchCancellation, setPendingMatchCancellation] = useState<{
+    match: RideMatch;
+    participant: 'passenger' | 'driver';
+  } | null>(null);
+  const [flowMessage, setFlowMessage] = useState('');
   const [offerDialogOpen, setOfferDialogOpen] = useState(false);
   const [offerDraft, setOfferDraft] = useState<DriverOfferDraft>(() => createEmptyDriverOfferDraft());
   const [offerDraftErrors, setOfferDraftErrors] = useState<DriverOfferDraftErrors>({});
@@ -191,37 +213,35 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     { offerType: 'trip'; offer: Trip } | { offerType: 'route'; offer: Route } | null
   >(null);
   const [availabilityNow, setAvailabilityNow] = useState(() => new Date());
-  const [passengerRequests, setPassengerRequests] = usePersistentArray<PassengerRequest>(storageKeys.passengerRequests);
-  const [driverResponses, setDriverResponses] = usePersistentArray<DriverResponse>(storageKeys.driverResponses);
-  const [targetedRequests, setTargetedRequests] = usePersistentArray<TargetedPassengerRequest>(
-    storageKeys.targetedRequests,
-  );
-  const [notifications, setNotifications] = usePersistentArray<MockNotification>(storageKeys.notifications);
-  const [localDriverProfile, setLocalDriverProfile] = usePersistentValue<LocalDriverProfile>(
-    storageKeys.localDriverProfile,
-    parseLocalDriverProfile,
-  );
-  const [localTrips, setLocalTrips] = usePersistentArray<Trip>(storageKeys.localTrips, parseLocalTrip);
-  const [localRoutes, setLocalRoutes] = usePersistentArray<Route>(storageKeys.localRoutes, parseLocalRoute);
+  const confirmationLocks = useRef(new Set<string>());
+
+  const [passengerRequests, setPassengerRequests] = usePersistentArray(storageKeys.passengerRequests, parsePassengerRequest);
+  const [driverResponses, setDriverResponses] = usePersistentArray(storageKeys.driverResponses, parseDriverResponse);
+  const [targetedRequests, setTargetedRequests] = usePersistentArray(storageKeys.targetedRequests, parseTargetedPassengerRequest);
+  const [rideMatches, setRideMatches] = usePersistentArray(storageKeys.rideMatches, parseRideMatch);
+  const [notifications, setNotifications] = usePersistentArray(storageKeys.notifications, parseMockNotification);
+  const [localDriverProfile, setLocalDriverProfile] = usePersistentValue<LocalDriverProfile>(storageKeys.localDriverProfile, parseLocalDriverProfile);
+  const [localTrips, setLocalTrips] = usePersistentArray(storageKeys.localTrips, parseLocalTrip);
+  const [localRoutes, setLocalRoutes] = usePersistentArray(storageKeys.localRoutes, parseLocalRoute);
 
   useEffect(() => {
-    const visibilityTimer = window.setInterval(() => setAvailabilityNow(new Date()), 60_000);
-    return () => window.clearInterval(visibilityTimer);
+    const timer = window.setInterval(() => setAvailabilityNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const mergedOffers = useMemo(
-    () =>
-      mergeChurchOffers({
-        churchId: church.id,
-        staticDrivers: drivers,
-        staticRoutes: routes,
-        staticTrips: trips,
-        localDriverProfile,
-        localRoutes,
-        localTrips,
-        now: availabilityNow,
-      }),
-    [availabilityNow, church.id, drivers, localDriverProfile, localRoutes, localTrips, routes, trips],
+    () => mergeChurchOffers({
+      churchId: church.id,
+      staticDrivers: drivers,
+      staticRoutes: routes,
+      staticTrips: trips,
+      localDriverProfile,
+      localRoutes,
+      localTrips,
+      rideMatches,
+      now: availabilityNow,
+    }),
+    [availabilityNow, church.id, drivers, localDriverProfile, localRoutes, localTrips, rideMatches, routes, trips],
   );
   const {
     drivers: mergedDrivers,
@@ -230,41 +250,90 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     visibleLocalRoutes,
     visibleLocalTrips,
     eligibleLocalRoutes,
-    eligibleLocalTrips,
-    localPublicDriver,
+    eligibleRawLocalTrips,
+    allRoutes,
+    allRawTrips,
   } = mergedOffers;
-  const ownedTripIds = useMemo(
-    () =>
-      visibleLocalTrips.map((trip) => trip.id),
-    [visibleLocalTrips],
-  );
-  const ownedRouteIds = useMemo(
-    () =>
-      visibleLocalRoutes.map((route) => route.id),
-    [visibleLocalRoutes],
-  );
+  const ownedTripIds = useMemo(() => visibleLocalTrips.map((trip) => trip.id), [visibleLocalTrips]);
+  const ownedRouteIds = useMemo(() => visibleLocalRoutes.map((route) => route.id), [visibleLocalRoutes]);
   const futureChurchServices = useMemo(
     () => getFutureChurchServices(church.schedule?.services, availabilityNow),
     [availabilityNow, church.schedule?.services],
   );
-  const serviceOptions = useMemo(
-    () => getChurchServiceOptions(futureChurchServices),
-    [futureChurchServices],
+  const serviceOptions = useMemo(() => getChurchServiceOptions(futureChurchServices), [futureChurchServices]);
+  const driverNames = useMemo(
+    () => Object.fromEntries([
+      ...mergedDrivers.map((driver) => [driver.id, driver.publicName] as const),
+      ...(localDriverProfile
+        ? [[localDriverProfile.driverId, localDriverProfile.publicName] as const]
+        : []),
+    ]),
+    [localDriverProfile, mergedDrivers],
   );
+  const targetedRoute =
+    dialogContext?.mode === 'targeted' && dialogContext.offerType === 'regularRoute'
+      ? allRoutes.find((route) => route.id === dialogContext.offerId)
+      : undefined;
+  const regularOccurrences = targetedRoute
+    ? getFutureRouteOccurrences({
+        route: targetedRoute,
+        routes: allRoutes,
+        trips: allRawTrips,
+        rideMatches,
+        now: availabilityNow,
+      })
+    : [];
+  const targetedRideDate = dialogContext?.mode === 'targeted'
+    ? dialogContext.rideDate ?? draft.date
+    : '';
+  const compatiblePassengerRequests =
+    dialogContext?.mode === 'targeted' && isLocalDate(targetedRideDate)
+      ? getCompatiblePassengerRequests({
+          churchId: church.id,
+          offerId: dialogContext.offerId,
+          offerType: dialogContext.offerType,
+          rideDate: targetedRideDate,
+          serviceEventId: dialogContext.serviceEventId,
+          passengerRequests,
+          targetedRequests,
+        })
+      : [];
+  const effectiveReusableRequestId = compatiblePassengerRequests.some(
+    (request) => request.requestId === selectedReusableRequestId,
+  )
+    ? selectedReusableRequestId
+    : compatiblePassengerRequests.length === 1
+      ? compatiblePassengerRequests[0].requestId
+      : '';
 
-  function addNotification(message: string) {
+  function addNotification(message: string, audience?: MockNotification['audience']) {
     setNotifications((current) => [
-      { id: makeId('notification'), churchId: church.id, message, createdAt: new Date().toISOString() },
+      { id: makeId('notification'), churchId: church.id, message, createdAt: new Date().toISOString(), audience },
       ...current,
     ]);
+  }
+
+  function currentWorkflowState(): RideWorkflowState {
+    return { passengerRequests, driverResponses, targetedRequests, rideMatches };
+  }
+
+  function applyWorkflowState(state: RideWorkflowState) {
+    setPassengerRequests(state.passengerRequests);
+    setDriverResponses(state.driverResponses);
+    setTargetedRequests(state.targetedRequests);
+    setRideMatches(state.rideMatches);
   }
 
   function closeDialog() {
     setDialogContext(null);
     setDraftErrors({});
+    setRequestSubmitAttempt(0);
+    setSelectedReusableRequestId('');
+    setCreatingDifferentRequest(false);
   }
 
   function openDriverOfferDialog(nextDraft = createEmptyDriverOfferDraft()) {
+    setResponseRequest(null);
     setRegularRouteSuggestion(null);
     setOfferDraft(nextDraft);
     setOfferDraftErrors({});
@@ -291,26 +360,14 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
   }
 
   function validateOfferField(fieldName: keyof DriverOfferDraft) {
-    const message = validateDriverOfferField(
-      offerDraft,
-      fieldName,
-      !localDriverProfile,
-      new Date(),
-      church.schedule?.services,
-    );
-
+    const message = validateDriverOfferField(offerDraft, fieldName, !localDriverProfile, new Date(), church.schedule?.services);
     setOfferDraftErrors((current) => {
       const next = { ...current };
-      const errorField = fieldName === 'date' ? 'date' : fieldName;
       if (fieldName === 'date' || fieldName === 'selectedServiceId') {
         delete next.date;
         delete next.selectedServiceId;
-      }
-      if (message) {
-        next[errorField] = message;
-      } else {
-        delete next[errorField];
-      }
+      } else delete next[fieldName];
+      if (message) next[fieldName] = message;
       return next;
     });
   }
@@ -318,96 +375,160 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
   function changeOfferDraft(nextDraft: DriverOfferDraft, fieldName: keyof DriverOfferDraft) {
     setOfferDraft(nextDraft);
     setOfferDraftErrors((current) => {
-      const shouldRevalidate =
-        Boolean(current[fieldName]) ||
-        ((fieldName === 'date' || fieldName === 'selectedServiceId') && Boolean(current.date || current.selectedServiceId));
-
-      if (!shouldRevalidate) {
-        return current;
-      }
-
-      const message = validateDriverOfferField(
-        nextDraft,
-        fieldName,
-        !localDriverProfile,
-        new Date(),
-        church.schedule?.services,
-      );
-      const nextErrors = { ...current };
+      const shouldRevalidate = Boolean(current[fieldName]) || ((fieldName === 'date' || fieldName === 'selectedServiceId') && Boolean(current.date || current.selectedServiceId));
+      if (!shouldRevalidate) return current;
+      const message = validateDriverOfferField(nextDraft, fieldName, !localDriverProfile, new Date(), church.schedule?.services);
+      const next = { ...current };
       if (fieldName === 'date' || fieldName === 'selectedServiceId') {
-        delete nextErrors.date;
-        delete nextErrors.selectedServiceId;
-      } else {
-        delete nextErrors[fieldName];
-      }
-      if (message) {
-        nextErrors[fieldName === 'selectedServiceId' ? 'selectedServiceId' : fieldName] = message;
-      }
-      return nextErrors;
+        delete next.date;
+        delete next.selectedServiceId;
+      } else delete next[fieldName];
+      if (message) next[fieldName] = message;
+      return next;
     });
   }
 
   function openOpenRequestDialog() {
     setDraft((current) => ({ ...current, selectedServiceId: '', date: '', comment: '', consent: false }));
     setDraftErrors({});
+    setRequestSubmitAttempt(0);
     setDialogContext({ mode: 'open' });
   }
 
   function openTargetedRequestDialog(context: TargetedRequestDialogInput) {
-    setDraft((current) => ({ ...current, selectedServiceId: '', date: '', comment: '', consent: false }));
+    setDraft((current) => ({ ...current, selectedServiceId: '', date: context.rideDate ?? '', comment: '', consent: false }));
     setDraftErrors({});
+    setRequestSubmitAttempt(0);
+    setSelectedReusableRequestId('');
+    setCreatingDifferentRequest(false);
     setDialogContext({ mode: 'targeted', ...context });
   }
 
+  function getSourceForMatch(match: RideMatch) {
+    return passengerRequests.find((request) => request.id === match.passengerRequestId)
+      ?? targetedRequests.find((request) => request.id === match.targetedPassengerRequestId);
+  }
+
+  function openPrefilledRequest(source: PassengerRequest | TargetedPassengerRequest, count: number) {
+    const targetedSource = 'targetOfferId' in source;
+    const serviceDate = targetedSource ? source.rideDate : source.serviceDate;
+    const hasFutureService = Boolean(source.serviceEventId && futureChurchServices.some((service) => service.id === source.serviceEventId));
+    setDraft({
+      firstName: source.firstName,
+      phone: source.phonePrivate,
+      email: source.emailPrivate ?? '',
+      selectedServiceId: hasFutureService ? source.serviceEventId ?? '' : '',
+      date: hasFutureService ? '' : serviceDate ?? '',
+      passengerCount: String(count),
+      pickupArea: source.pickupZone.label,
+      comment: (targetedSource ? source.privateComment : source.safePublicComment) ?? '',
+      consent: false,
+    });
+    setDraftErrors({});
+    setRequestSubmitAttempt(0);
+    setDialogContext({ mode: 'open', sourcePassengerRequestId: source.id });
+  }
+
   function rememberPassengerDetails(phone: string, passengerCount: number) {
-    window.localStorage.setItem(
-      storageKeys.passengerDraft,
-      JSON.stringify({
-        firstName: draft.firstName.trim(),
-        phone,
-        email: draft.email.trim(),
-        passengerCount: String(passengerCount),
-        pickupArea: draft.pickupArea.trim(),
-      }),
-    );
+    window.localStorage.setItem(storageKeys.passengerDraft, JSON.stringify({
+      firstName: draft.firstName.trim(),
+      phone,
+      email: draft.email.trim(),
+      passengerCount: String(passengerCount),
+      pickupArea: draft.pickupArea.trim(),
+    }));
+  }
+
+  function getPassengerValidation(nextDraft: PassengerRequestDraft, now = new Date()) {
+    if (!dialogContext) return null;
+    const validation = validatePassengerRequestDraft(nextDraft, dialogContext.mode === 'open', now, church.schedule?.services);
+    const errors = { ...validation.errors };
+    let rideDate = nextDraft.date;
+
+    if (dialogContext.mode === 'targeted') {
+      rideDate = dialogContext.rideDate ?? nextDraft.date;
+      if (!isLocalDate(rideDate)) errors.date = 'Выберите дату поездки.';
+      else {
+        const availability = getOfferAvailability({
+          offerId: dialogContext.offerId,
+          offerType: dialogContext.offerType,
+          rideDate,
+          routes: allRoutes,
+          trips: allRawTrips,
+          rideMatches,
+          now,
+        });
+        if (availability.reason === 'wrongWeekday') errors.date = 'Водитель не ездит по этому маршруту в выбранный день.';
+        else if (availability.reason === 'past') errors.date = 'Выберите будущую дату поездки.';
+        else if (!availability.active) errors.date = 'В этой поездке уже недостаточно свободных мест.';
+      }
+    }
+
+    return { ...validation, errors, rideDate };
+  }
+
+  function validateRequestField(fieldName: keyof PassengerRequestDraft) {
+    const validation = getPassengerValidation(draft);
+    if (!validation) return;
+    setDraftErrors((current) => {
+      const next = { ...current };
+      if (fieldName === 'date' || fieldName === 'selectedServiceId') {
+        delete next.date;
+        delete next.selectedServiceId;
+        const message = validation.errors.date ?? validation.errors.selectedServiceId;
+        if (message) next[fieldName] = message;
+      } else {
+        delete next[fieldName];
+        if (validation.errors[fieldName]) next[fieldName] = validation.errors[fieldName];
+      }
+      return next;
+    });
+  }
+
+  function changeRequestDraft(nextDraft: PassengerRequestDraft, fieldName: keyof PassengerRequestDraft) {
+    setDraft(nextDraft);
+    setDraftErrors((current) => {
+      const serviceField = fieldName === 'date' || fieldName === 'selectedServiceId';
+      const shouldRevalidate = Boolean(current[fieldName]) || (serviceField && Boolean(current.date || current.selectedServiceId));
+      if (!shouldRevalidate) return current;
+      const validation = getPassengerValidation(nextDraft);
+      if (!validation) return current;
+      const next = { ...current };
+      if (serviceField) {
+        delete next.date;
+        delete next.selectedServiceId;
+        const message = validation.errors.date ?? validation.errors.selectedServiceId;
+        if (message) next[fieldName] = message;
+      } else {
+        delete next[fieldName];
+        if (validation.errors[fieldName]) next[fieldName] = validation.errors[fieldName];
+      }
+      return next;
+    });
   }
 
   function handleSubmitRequest() {
-    if (!dialogContext) {
-      return;
-    }
+    if (!dialogContext) return;
 
-    const { errors, normalizedPhone, passengerCount } = validatePassengerRequestDraft(
-      draft,
-      dialogContext.mode === 'open',
-      new Date(),
-      church.schedule?.services,
-    );
+    const now = new Date();
+    const validation = getPassengerValidation(draft, now);
+    if (!validation) return;
+    const { errors, rideDate } = validation;
 
     if (Object.keys(errors).length > 0) {
       setDraftErrors(errors);
+      setRequestSubmitAttempt((current) => current + 1);
       return;
     }
 
-    rememberPassengerDetails(normalizedPhone, passengerCount);
+    rememberPassengerDetails(validation.normalizedPhone, validation.passengerCount);
+    const timestamp = now.toISOString();
 
     if (dialogContext.mode === 'targeted') {
-      const now = new Date();
-      if (
-        !isTargetedOfferAvailable(
-          dialogContext.offerId,
-          dialogContext.offerType,
-          [...routes, ...eligibleLocalRoutes],
-          [...trips, ...eligibleLocalTrips],
-          now,
-        )
-      ) {
-        addNotification('Это предложение больше недоступно.');
-        closeDialog();
-        return;
-      }
-
-      const targetedRequest: TargetedPassengerRequest = {
+      const serviceEvent = dialogContext.offerType === 'oneTimeTrip'
+        ? dialogContext.serviceEvent
+        : `Дата поездки: ${formatDate(rideDate)}`;
+      const request: TargetedPassengerRequest = {
         id: makeId('targeted-request'),
         churchId: church.id,
         driverId: dialogContext.driverId,
@@ -415,243 +536,565 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
         targetOfferId: dialogContext.offerId,
         targetOfferType: dialogContext.offerType,
         offerContext: dialogContext.offerContext,
+        rideDate,
+        serviceEvent,
+        serviceEventId: dialogContext.serviceEventId,
         firstName: draft.firstName.trim(),
-        phonePrivate: normalizedPhone,
+        phonePrivate: validation.normalizedPhone,
         emailPrivate: draft.email.trim() || undefined,
-        passengerCount,
+        passengerCount: validation.passengerCount,
         pickupZone: { label: draft.pickupArea.trim() },
         privateComment: draft.comment.trim() || undefined,
         consentToShareContact: true,
         status: 'waitingForDriver',
         publicVisible: false,
-        createdAt: new Date().toISOString(),
+        createdAt: timestamp,
+        updatedAt: timestamp,
       };
-
-      setTargetedRequests((current) => [targetedRequest, ...current]);
-      addNotification(`Запрос отправлен водителю ${targetedRequest.driverName}.`);
-      addNotification('Водитель получит ваш запрос и сможет принять его.');
+      setTargetedRequests((current) => [request, ...current]);
+      addNotification(`Запрос отправлен водителю ${request.driverName}.`, 'passenger');
+      addNotification(`Новый запрос на ${request.passengerCount} пассажиров.`, 'driver');
     } else {
       const request: PassengerRequest = {
         id: makeId('passenger-request'),
         churchId: church.id,
         firstName: draft.firstName.trim(),
-        phonePrivate: normalizedPhone,
+        phonePrivate: validation.normalizedPhone,
         emailPrivate: draft.email.trim() || undefined,
         serviceEvent: formatServiceSelection(draft, church.schedule?.services ?? []),
         serviceEventId: draft.selectedServiceId || undefined,
         serviceDate: draft.selectedServiceId
           ? church.schedule?.services?.find((service) => service.id === draft.selectedServiceId)?.date
           : draft.date,
-        passengerCount,
+        passengerCount: validation.passengerCount,
         pickupZone: { label: draft.pickupArea.trim() },
         safePublicComment: draft.comment.trim() || undefined,
         consentToShareContact: true,
         status: 'open',
         publicVisible: true,
-        createdAt: new Date().toISOString(),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        sourcePassengerRequestId: dialogContext.sourcePassengerRequestId,
       };
-
       setPassengerRequests((current) => [request, ...current]);
-      addNotification(`Создан запрос: ${request.firstName} ищет место на ${request.serviceEvent}.`);
+      addNotification(`Создан запрос: ${request.firstName} ищет место на ${request.serviceEvent}.`, 'passenger');
 
-      if (mergedRoutes.length > 0 || mergedTrips.length > 0) {
-        addNotification('Найдены возможные водители для вашего запроса.');
-      }
+      const hasCompatibleOffer = [...allRawTrips, ...allRoutes].some((offer) => {
+        if (!request.serviceDate || offer.churchId !== church.id) return false;
+        const offerType = 'seatsTotal' in offer ? 'oneTimeTrip' : 'regularRoute';
+        const offerId = offer.id;
+        return getOfferAvailability({ offerId, offerType, rideDate: request.serviceDate, routes: allRoutes, trips: allRawTrips, rideMatches, now }).active;
+      });
+      if (hasCompatibleOffer) addNotification('Возможно, эта поездка вам подходит.', 'passenger');
     }
 
-    setDraft((current) => ({
-      ...emptyDraft,
-      firstName: current.firstName.trim(),
-      phone: normalizedPhone,
-      email: current.email.trim(),
-    }));
+    setDraft((current) => ({ ...emptyDraft, firstName: current.firstName.trim(), phone: validation.normalizedPhone, email: current.email.trim() }));
+    closeDialog();
+  }
+
+  function handleReuseTargetedRequest() {
+    if (dialogContext?.mode !== 'targeted' || !effectiveReusableRequestId) return;
+    const source = passengerRequests.find((request) => request.id === effectiveReusableRequestId);
+    const rideDate = dialogContext.rideDate ?? draft.date;
+    if (!source || !isLocalDate(rideDate)) return;
+
+    const stillCompatible = getCompatiblePassengerRequests({
+      churchId: church.id,
+      offerId: dialogContext.offerId,
+      offerType: dialogContext.offerType,
+      rideDate,
+      serviceEventId: dialogContext.serviceEventId,
+      passengerRequests,
+      targetedRequests,
+    }).some((request) => request.requestId === source.id);
+    const availability = getOfferAvailability({
+      offerId: dialogContext.offerId,
+      offerType: dialogContext.offerType,
+      rideDate,
+      routes: allRoutes,
+      trips: allRawTrips,
+      rideMatches,
+      now: new Date(),
+    });
+    if (!stillCompatible || !availability.active) {
+      setFlowMessage('Этот запрос уже отправлен или выбранная поездка больше недоступна.');
+      closeDialog();
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const request = createTargetedRequestFromPassengerRequest({
+      source,
+      id: makeId('targeted-request'),
+      driverId: dialogContext.driverId,
+      driverName: dialogContext.driverName,
+      offerId: dialogContext.offerId,
+      offerType: dialogContext.offerType,
+      offerContext: dialogContext.offerContext,
+      rideDate,
+      serviceEventId: dialogContext.serviceEventId,
+      createdAt: timestamp,
+    });
+    if (!request) return;
+
+    setTargetedRequests((current) => [request, ...current]);
+    addNotification(`Запрос отправлен водителю ${request.driverName}.`, 'passenger');
+    addNotification(`Новый запрос на ${request.passengerCount} пассажиров.`, 'driver');
     closeDialog();
   }
 
   function handleSubmitDriverOffer() {
     const now = new Date();
-    const { errors } = validateDriverOfferDraft(
-      offerDraft,
-      !localDriverProfile,
-      now,
-      church.schedule?.services,
-    );
-
+    const { errors } = validateDriverOfferDraft(offerDraft, !localDriverProfile, now, church.schedule?.services);
     if (Object.keys(errors).length > 0) {
       setOfferDraftErrors(errors);
       setOfferSubmitAttempt((current) => current + 1);
       return;
     }
 
-    const profile =
-      localDriverProfile ??
-      createLocalDriverProfile(offerDraft, makeId('local-owner'), makeId('local-driver'));
-
-    if (!localDriverProfile) {
-      setLocalDriverProfile(profile);
-    }
+    const profile = localDriverProfile ?? createLocalDriverProfile(offerDraft, makeId('local-owner'), makeId('local-driver'));
+    if (!localDriverProfile) setLocalDriverProfile(profile);
 
     if (offerDraft.offerType === 'trip') {
-      const trip = createLocalTrip(
-        offerDraft,
-        church.id,
-        profile.driverId,
-        makeId('local-trip'),
-        church.schedule?.services,
-      );
+      const trip = createLocalTrip(offerDraft, church.id, profile.driverId, makeId('local-trip'), church.schedule?.services);
       setLocalTrips((current) => [trip, ...current]);
-      addNotification(`Создана поездка: ${formatDateTime(trip.date, trip.departureTime)}, выезд из ${trip.originLabel}.`);
+      addNotification(`Создана поездка: ${formatDateTime(trip.date, trip.departureTime)}, выезд из ${trip.originLabel}.`, 'driver');
       setRegularRouteSuggestion(createRegularRoutePrefill(offerDraft));
+      if (passengerRequests.some((request) => request.churchId === church.id && request.status === 'open' && request.serviceDate === trip.date)) {
+        addNotification('Найдены возможные пассажиры для нового предложения.', 'driver');
+      }
     } else {
       const route = createLocalRoute(offerDraft, church.id, profile.driverId, makeId('local-route'));
       setLocalRoutes((current) => [route, ...current]);
-      addNotification(`Создана регулярная поездка: выезд из ${route.originLabel} в ${route.recurrence.typicalDepartureTime}.`);
+      addNotification(`Создана регулярная поездка: выезд из ${route.originLabel} в ${route.recurrence.typicalDepartureTime}.`, 'driver');
+      if (passengerRequests.some((request) => request.churchId === church.id && request.status === 'open' && Boolean(request.serviceDate && routeIncludesDate(route, request.serviceDate)))) {
+        addNotification('Найдены возможные пассажиры для нового предложения.', 'driver');
+      }
       setRegularRouteSuggestion(null);
       setOfferDraft(createEmptyDriverOfferDraft());
       closeDriverOfferDialog();
-    }
-
-    if (
-      passengerRequests.some(
-        (request) => request.churchId === church.id && isPassengerRequestPublic(request),
-      )
-    ) {
-      addNotification('Найдены возможные пассажиры для нового предложения.');
     }
 
     setAvailabilityNow(now);
   }
 
   function handleCancelTrip(trip: Trip) {
-    if (!isLocallyOwnedOffer(trip, localTrips, localDriverProfile)) {
-      return;
-    }
-    setPendingCancellation({ offerType: 'trip', offer: trip });
+    if (isLocallyOwnedOffer(trip, localTrips, localDriverProfile)) setPendingCancellation({ offerType: 'trip', offer: trip });
   }
 
   function handleCancelRoute(route: Route) {
-    if (!isLocallyOwnedOffer(route, localRoutes, localDriverProfile)) {
-      return;
-    }
-    setPendingCancellation({ offerType: 'route', offer: route });
+    if (isLocallyOwnedOffer(route, localRoutes, localDriverProfile)) setPendingCancellation({ offerType: 'route', offer: route });
   }
+
+  const affectedOfferMatches = pendingCancellation
+    ? getFutureConfirmedMatchesForOffer(
+        rideMatches,
+        pendingCancellation.offer.id,
+        pendingCancellation.offerType === 'trip' ? 'oneTimeTrip' : 'regularRoute',
+        allRoutes,
+        allRawTrips,
+        availabilityNow,
+      )
+    : [];
 
   function confirmOfferCancellation() {
-    if (!pendingCancellation) {
+    if (!pendingCancellation) return;
+    const now = new Date();
+    const timestamp = now.toISOString();
+    const offerType = pendingCancellation.offerType === 'trip' ? 'oneTimeTrip' : 'regularRoute';
+    const nextState = cancelFutureMatchesForOffer(currentWorkflowState(), pendingCancellation.offer.id, offerType, allRoutes, allRawTrips, now, timestamp);
+    applyWorkflowState(nextState);
+
+    if (pendingCancellation.offerType === 'trip') {
+      setLocalTrips((current) => current.map((item) => item.id === pendingCancellation.offer.id ? cancelLocalTrip(item) : item));
+      addNotification('Поездка отменена.', 'driver');
+    } else {
+      setLocalRoutes((current) => current.map((item) => item.id === pendingCancellation.offer.id ? cancelLocalRoute(item) : item));
+      addNotification('Регулярная поездка отменена.', 'driver');
+    }
+    if (nextState.rideMatches.filter((match) => match.cancelledAt === timestamp).length > 0) {
+      addNotification('Договорённость отменена водителем. Можно опубликовать запрос снова.', 'passenger');
+    }
+    setPendingCancellation(null);
+    setAvailabilityNow(now);
+  }
+
+  const compatibleResponseOffers = responseRequest
+    ? getCompatibleOwnedOffers({
+        request: responseRequest,
+        routes: eligibleLocalRoutes,
+        trips: eligibleRawLocalTrips,
+        rideMatches,
+        localDriverProfile,
+        now: availabilityNow,
+      }).filter((offer) => !driverResponses.some((response) => response.passengerRequestId === responseRequest.id && response.driverOfferId === offer.offerId && isDriverResponseActive(response)))
+    : [];
+
+  function handleSubmitResponse(offer: CompatibleDriverOffer, offeredPassengerCount: number) {
+    if (!responseRequest) return;
+    const now = new Date();
+    const currentOffer = getCompatibleOwnedOffers({
+      request: responseRequest,
+      routes: eligibleLocalRoutes,
+      trips: eligibleRawLocalTrips,
+      rideMatches,
+      localDriverProfile,
+      now,
+    }).find((item) => item.offerId === offer.offerId && item.offerType === offer.offerType);
+    if (!currentOffer) {
+      setFlowMessage('В этой поездке уже недостаточно свободных мест.');
+      setResponseRequest(null);
+      return;
+    }
+    const response = createPendingDriverResponse({ request: responseRequest, offer: currentOffer, offeredPassengerCount, id: makeId('driver-response'), createdAt: now.toISOString() });
+    if (!response) {
+      setFlowMessage('Не удалось отправить предложение. Проверьте количество мест.');
+      return;
+    }
+    setDriverResponses((current) => [response, ...current]);
+    addNotification(`Водитель предложил ${formatSeatCount(response.offeredPassengerCount)} для запроса ${responseRequest.firstName}.`, 'passenger');
+    setResponseRequest(null);
+  }
+
+  function handleSubmitPrivateResponse(privateDraft: PrivateDriverOfferDraft) {
+    if (!responseRequest) return;
+    const now = new Date();
+    const requireProfile = !localDriverProfile;
+    const validation = validatePrivateDriverOfferDraft({
+      draft: privateDraft,
+      request: responseRequest,
+      requireProfile,
+      now,
+    });
+    if (Object.keys(validation.errors).length > 0) return;
+
+    const profile: LocalDriverProfile = localDriverProfile ?? {
+      ownerId: makeId('local-owner'),
+      driverId: makeId('local-driver'),
+      publicName: privateDraft.publicName.trim(),
+      phonePrivate: validation.normalizedPhone,
+      emailPrivate: privateDraft.email.trim() || undefined,
+    };
+    if (
+      driverResponses.some(
+        (response) =>
+          response.passengerRequestId === responseRequest.id &&
+          response.driverId === profile.driverId &&
+          isDriverResponseActive(response),
+      )
+    ) {
+      setFlowMessage('Вы уже отправили предложение этому пассажиру.');
+      setResponseRequest(null);
       return;
     }
 
-    if (pendingCancellation.offerType === 'trip') {
-      setLocalTrips((current) =>
-        current.map((item) =>
-          item.id === pendingCancellation.offer.id ? cancelLocalTrip(item) : item,
-        ),
-      );
-      addNotification('Поездка отменена.');
-    } else {
-      setLocalRoutes((current) =>
-        current.map((item) =>
-          item.id === pendingCancellation.offer.id ? cancelLocalRoute(item) : item,
-        ),
-      );
-      addNotification('Регулярная поездка отменена.');
-    }
+    const response = createPrivateDriverResponse({
+      request: responseRequest,
+      draft: privateDraft,
+      driverId: profile.driverId,
+      id: makeId('driver-response'),
+      createdAt: now.toISOString(),
+      requireProfile,
+      now,
+    });
+    if (!response) return;
 
-    setPendingCancellation(null);
-    setAvailabilityNow(new Date());
+    if (!localDriverProfile) setLocalDriverProfile(profile);
+    setDriverResponses((current) => [response, ...current]);
+    addNotification(`Водитель предложил ${formatSeatCount(response.offeredPassengerCount)} для запроса ${responseRequest.firstName}.`, 'passenger');
+    setResponseRequest(null);
   }
 
-  function handleRespond(request: PassengerRequest) {
-    const response = createPendingDriverResponse(request.id, makeId('driver-response'), new Date().toISOString());
+  function commitConfirmation(source: 'targetedRequest' | 'driverResponse', sourceId: string, count: number) {
+    if (confirmationLocks.current.has(sourceId)) return;
+    confirmationLocks.current.add(sourceId);
+    const now = new Date();
+    const targeted = targetedRequests.find((request) => request.id === sourceId);
+    const response = driverResponses.find((item) => item.id === sourceId);
+    const driverId = targeted?.driverId ?? response?.driverId ?? '';
+    const result = confirmRideMatch({
+      source,
+      sourceId,
+      confirmedPassengerCount: count,
+      matchId: makeId('ride-match'),
+      timestamp: now.toISOString(),
+      driverName: targeted?.driverName ?? driverNames[driverId] ?? localDriverProfile?.publicName ?? 'Водитель',
+      driverContact: getDriverPrivateContact(driverId, localDriverProfile),
+      state: currentWorkflowState(),
+      routes: allRoutes,
+      trips: allRawTrips,
+      now,
+    });
 
-    setDriverResponses((current) => [response, ...current]);
-    setPassengerRequests((current) =>
-      current.map((item) => (item.id === request.id ? markPassengerRequestResponded(item) : item)),
-    );
-    addNotification(`Водитель откликнулся на запрос ${request.firstName}.`);
+    if (!result.ok) {
+      setFlowMessage(
+        result.reason === 'insufficientSeats'
+          ? 'В этой поездке уже недостаточно свободных мест.'
+          : result.reason === 'driverContactUnavailable'
+            ? 'Контакт водителя недоступен. Выберите другое предложение.'
+            : 'Эта договорённость уже обработана или больше недоступна.',
+      );
+      confirmationLocks.current.delete(sourceId);
+      return;
+    }
+
+    applyWorkflowState(result.state);
+    addNotification(`Поездка подтверждена для ${result.rideMatch.confirmedPassengerCount} пассажиров.`, 'passenger');
+    addNotification('Пассажир подтвердил поездку. Контакты доступны в договорённости.', 'driver');
+    setFlowMessage('Поездка подтверждена. Контакты открыты только участникам.');
+    setAvailabilityNow(now);
+  }
+
+  function resolveTargetedRequest(request: TargetedPassengerRequest) {
+    if (request.rideDate) return request;
+    if (request.targetOfferType !== 'oneTimeTrip') return request;
+    const trip = allRawTrips.find((item) => item.id === request.targetOfferId);
+    return trip ? { ...request, rideDate: trip.date, serviceEvent: request.serviceEvent || `Дата поездки: ${formatDate(trip.date)}` } : request;
+  }
+
+  function handleAcceptTargetedFull(request: TargetedPassengerRequest) {
+    const resolved = resolveTargetedRequest(request);
+    if (!resolved.rideDate) return;
+    if (confirmationLocks.current.has(resolved.id)) return;
+    confirmationLocks.current.add(resolved.id);
+    setTargetedRequests((current) => current.map((item) => item.id === resolved.id ? resolved : item));
+    const state = { ...currentWorkflowState(), targetedRequests: targetedRequests.map((item) => item.id === resolved.id ? resolved : item) };
+    const now = new Date();
+    const result = confirmRideMatch({
+      source: 'targetedRequest', sourceId: resolved.id, confirmedPassengerCount: resolved.passengerCount,
+      matchId: makeId('ride-match'), timestamp: now.toISOString(), driverName: resolved.driverName,
+      driverContact: getDriverPrivateContact(resolved.driverId, localDriverProfile), state,
+      routes: allRoutes, trips: allRawTrips, now,
+    });
+    if (!result.ok) {
+      setFlowMessage(result.reason === 'insufficientSeats' ? 'В этой поездке уже недостаточно свободных мест.' : 'Запрос больше нельзя подтвердить.');
+      confirmationLocks.current.delete(resolved.id);
+      return;
+    }
+    applyWorkflowState(result.state);
+    addNotification(`Водитель ${resolved.driverName} подтвердил поездку.`, 'passenger');
+    addNotification('Поездка подтверждена. Контакты участников открыты.', 'driver');
+    setAvailabilityNow(now);
+  }
+
+  function handleOfferPartial(request: TargetedPassengerRequest, count: number) {
+    const resolved = resolveTargetedRequest(request);
+    if (!resolved.rideDate) return;
+    const availability = getOfferAvailability({ offerId: resolved.targetOfferId, offerType: resolved.targetOfferType, rideDate: resolved.rideDate, routes: allRoutes, trips: allRawTrips, rideMatches, now: new Date() });
+    if (!availability.active || count > availability.availableSeats) {
+      setFlowMessage('В этой поездке уже недостаточно свободных мест.');
+      return;
+    }
+    const updated = offerPartialTargetedRequest(resolved, count, new Date().toISOString());
+    if (!updated) return;
+    setTargetedRequests((current) => current.map((item) => item.id === request.id ? updated : item));
+    addNotification(`${resolved.driverName} может подвезти ${count} из ${resolved.passengerCount} человек.`, 'passenger');
+  }
+
+  function handleDeclineTargeted(request: TargetedPassengerRequest) {
+    const timestamp = new Date().toISOString();
+    setTargetedRequests((current) => current.map((item) => item.id === request.id ? declineTargetedRequest(item, timestamp) : item));
+    addNotification('Адресный запрос отклонён.', request.status === 'waitingForDriver' ? 'passenger' : 'driver');
   }
 
   function handleCancelResponse(response: DriverResponse) {
-    if (!window.confirm('Отменить отклик? Пассажир снова сможет получить предложения от водителей.')) {
-      return;
-    }
+    const timestamp = new Date().toISOString();
+    setDriverResponses((current) => current.map((item) => item.id === response.id ? cancelDriverResponse(item, timestamp) : item));
+    addNotification('Предложение водителя отменено.', 'passenger');
+  }
 
-    const cancelledAt = new Date().toISOString();
+  function handleDeclineResponse(response: DriverResponse) {
+    const timestamp = new Date().toISOString();
+    setDriverResponses((current) => current.map((item) => item.id === response.id ? declineDriverResponse(item, timestamp) : item));
+    addNotification('Пассажир отклонил предложение водителя.', 'driver');
+  }
 
-    setDriverResponses((current) =>
-      current.map((item) => (item.id === response.id ? cancelDriverResponse(item, cancelledAt) : item)),
-    );
-    setPassengerRequests((current) =>
-      current.map((item) =>
-        item.id === response.passengerRequestId ? restorePassengerRequestAfterCancellation(item) : item,
-      ),
-    );
-    addNotification('Отклик отменен.');
+  function handleCancelMatch(match: RideMatch, participant: 'passenger' | 'driver') {
+    setPendingMatchCancellation({ match, participant });
+  }
+
+  function confirmMatchCancellation() {
+    if (!pendingMatchCancellation) return;
+    const now = new Date();
+    applyWorkflowState(cancelRideMatch(currentWorkflowState(), pendingMatchCancellation.match.id, now.toISOString()));
+    addNotification('Договорённость отменена. Запрос можно опубликовать снова.', 'passenger');
+    addNotification('Договорённость отменена, места снова доступны.', 'driver');
+    setPendingMatchCancellation(null);
+    setAvailabilityNow(now);
+  }
+
+  function republishFromMatch(match: RideMatch, count: number) {
+    const source = getSourceForMatch(match);
+    if (!source) return;
+    const timestamp = new Date().toISOString();
+    const request = republishPassengerRequest(source, count, makeId('passenger-request'), timestamp);
+    if (!request) return;
+    setPassengerRequests((current) => [request, ...current]);
+    setRideMatches((current) => current.map((item) => item.id === match.id ? markRemainingNeedHandled(item, timestamp) : item));
+    addNotification(`Создан новый запрос для ${count} пассажиров.`, 'passenger');
+  }
+
+  function handleNoMoreSeatsNeeded(match: RideMatch) {
+    const timestamp = new Date().toISOString();
+    setRideMatches((current) => current.map((item) => item.id === match.id ? markRemainingNeedHandled(item, timestamp) : item));
   }
 
   const churchRequests = passengerRequests.filter((request) => request.churchId === church.id);
-  const activeRequests = churchRequests.filter(isPassengerRequestPublic);
-  const activeResponses = driverResponses.filter(
-    (response) =>
-      isDriverResponseActive(response) && churchRequests.some((request) => request.id === response.passengerRequestId),
+  const publicRequestItems = getPublicPassengerRequestItems({
+    churchId: church.id,
+    passengerRequests,
+    rideMatches,
+  });
+  const activeResponses = driverResponses.filter((response) => isDriverResponseActive(response) && churchRequests.some((request) => request.id === response.passengerRequestId));
+  const churchTargetedRequests = targetedRequests
+    .filter((request) => request.churchId === church.id && (request.status === 'waitingForDriver' || request.status === 'pendingPassengerConfirmation'))
+    .map(resolveTargetedRequest)
+    .filter((request) => Boolean(request.rideDate));
+  const targetedAvailability = Object.fromEntries(churchTargetedRequests.map((request) => [
+    request.id,
+    request.rideDate ? getOfferAvailability({ offerId: request.targetOfferId, offerType: request.targetOfferType, rideDate: request.rideDate, routes: allRoutes, trips: allRawTrips, rideMatches, now: availabilityNow }).availableSeats : 0,
+  ]));
+  const churchMatches = rideMatches.filter((match) => match.churchId === church.id);
+  const directRepublishEnabled = Object.fromEntries(churchMatches.map((match) => {
+    const source = getSourceForMatch(match);
+    const alreadyRepublished = source ? passengerRequests.some((request) => request.sourcePassengerRequestId === source.id) : false;
+    return [match.id, Boolean(source && !alreadyRepublished && canDirectlyRepublish({
+      source,
+      match,
+      routes: allRoutes,
+      trips: allRawTrips,
+      services: church.schedule?.services,
+      now: availabilityNow,
+    }))];
+  }));
+  const alreadyRepublished = Object.fromEntries(churchMatches.map((match) => {
+    const source = getSourceForMatch(match);
+    return [match.id, Boolean(source && passengerRequests.some((request) => request.sourcePassengerRequestId === source.id))];
+  }));
+  const remainingActionsEnabled = Object.fromEntries(churchMatches.map((match) => {
+    const source = getSourceForMatch(match);
+    const alreadyRepublished = source ? passengerRequests.some((request) => request.sourcePassengerRequestId === source.id) : false;
+    return [match.id, !match.remainingNeedHandledAt && !alreadyRepublished];
+  }));
+  const completedSummaries = getCompletedActivitySummaries({
+    churchId: church.id,
+    passengerRequests,
+    rideMatches,
+    routes: allRoutes,
+    trips: allRawTrips,
+    driverNames,
+    now: availabilityNow,
+  });
+  const completedPassengerRequests = completedSummaries.filter(
+    (summary) => summary.section === 'passengerRequests',
   );
-  const churchTargetedRequests = targetedRequests.filter(
-    (request) =>
-      request.churchId === church.id &&
-      isTargetedOfferAvailable(
-        request.targetOfferId,
-        request.targetOfferType,
-        [...routes, ...eligibleLocalRoutes],
-        [...trips, ...eligibleLocalTrips],
-        availabilityNow,
-      ),
+  const completedOffers = completedSummaries.filter(
+    (summary) =>
+      summary.section === 'oneTimeTrips' || summary.section === 'regularRouteOccurrences',
   );
   const churchNotifications = notifications.filter((notification) => notification.churchId === church.id);
+  const dialogTargetedAvailability = dialogContext?.mode === 'targeted' && isLocalDate(targetedRideDate)
+    ? getOfferAvailability({
+        offerId: dialogContext.offerId,
+        offerType: dialogContext.offerType,
+        rideDate: targetedRideDate,
+        routes: allRoutes,
+        trips: allRawTrips,
+        rideMatches,
+        now: availabilityNow,
+      }).availableSeats
+    : undefined;
+  const selectedReusableRequest = compatiblePassengerRequests.find(
+    (request) => request.requestId === effectiveReusableRequestId,
+  );
+  const targetedRequestedCount =
+    selectedReusableRequest && !creatingDifferentRequest
+      ? selectedReusableRequest.remainingPassengerCount
+      : Number(draft.passengerCount);
+  const overCapacityWarning = getOverCapacityRequestWarning(
+    dialogTargetedAvailability,
+    targetedRequestedCount,
+  );
 
   return (
     <section className="mt-5 grid gap-5">
       <NotificationCenter notifications={churchNotifications} />
-
-      <PageActions
-        onCreateOffer={() => openDriverOfferDialog()}
-        onCreateRequest={openOpenRequestDialog}
-      />
-
-      <PassengerRequestList onRespond={handleRespond} requests={activeRequests} />
-
+      {flowMessage ? <div aria-live="polite" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-stone-800">{flowMessage}</div> : null}
+      <PageActions onCreateOffer={() => openDriverOfferDialog()} onCreateRequest={openOpenRequestDialog} />
       <ActiveDriverResponses
+        driverNames={driverNames}
+        onAcceptResponse={(response) => commitConfirmation('driverResponse', response.id, response.offeredPassengerCount)}
         onCancelResponse={handleCancelResponse}
+        onDeclineResponse={handleDeclineResponse}
         passengerRequests={churchRequests}
         responses={activeResponses}
       />
-
-      <TargetedRequestPanel requests={churchTargetedRequests} />
-
-      <DriverOffers
-        church={church}
-        drivers={mergedDrivers}
-        localDriverId={localPublicDriver?.id}
-        onCancelRoute={handleCancelRoute}
-        onCancelTrip={handleCancelTrip}
-        onRequestRide={openTargetedRequestDialog}
-        ownedRouteIds={ownedRouteIds}
-        ownedTripIds={ownedTripIds}
-        routes={mergedRoutes}
-        trips={mergedTrips}
+      <TargetedRequestPanel
+        availabilityByRequestId={targetedAvailability}
+        onAcceptFull={handleAcceptTargetedFull}
+        onAcceptPartial={(request) => request.offeredPassengerCount && commitConfirmation('targetedRequest', request.id, request.offeredPassengerCount)}
+        onDecline={handleDeclineTargeted}
+        onOfferPartial={handleOfferPartial}
+        requests={churchTargetedRequests}
       />
+      <RideMatchPanel
+        alreadyRepublished={alreadyRepublished}
+        directRepublishEnabled={directRepublishEnabled}
+        matches={churchMatches}
+        onCancelMatch={handleCancelMatch}
+        onEditCancelled={(match) => {
+          const source = getSourceForMatch(match);
+          if (source) openPrefilledRequest(source, match.originalPassengerCount);
+        }}
+        onEditRemaining={(match) => {
+          const source = getSourceForMatch(match);
+          if (source) openPrefilledRequest(source, match.originalPassengerCount - match.confirmedPassengerCount);
+        }}
+        onNoMoreSeatsNeeded={handleNoMoreSeatsNeeded}
+        onRepublishCancelled={(match) => republishFromMatch(match, match.originalPassengerCount)}
+        onRepublishRemaining={(match) => republishFromMatch(match, match.originalPassengerCount - match.confirmedPassengerCount)}
+        passengerRequests={passengerRequests}
+        remainingActionsEnabled={remainingActionsEnabled}
+        targetedRequests={targetedRequests}
+      />
+      <div className="grid items-start gap-5 lg:grid-cols-2">
+        <PassengerRequestList
+          completedSummaries={completedPassengerRequests}
+          onRespond={(requestId) => {
+            const request = churchRequests.find((item) => item.id === requestId);
+            if (request) setResponseRequest(request);
+          }}
+          requests={publicRequestItems}
+        />
+        <DriverOffers
+          church={church}
+          completedOffers={completedOffers}
+          drivers={mergedDrivers}
+          onCancelRoute={handleCancelRoute}
+          onCancelTrip={handleCancelTrip}
+          onRequestRide={openTargetedRequestDialog}
+          ownedRouteIds={ownedRouteIds}
+          ownedTripIds={ownedTripIds}
+          routes={mergedRoutes}
+          trips={mergedTrips}
+        />
+      </div>
 
+      {responseRequest ? (
+        <DriverResponseDialog
+          churchName={church.name}
+          offers={compatibleResponseOffers}
+          onCancel={() => setResponseRequest(null)}
+          onSubmit={handleSubmitResponse}
+          onSubmitPrivate={handleSubmitPrivateResponse}
+          request={responseRequest}
+          savedProfile={localDriverProfile ? { publicName: localDriverProfile.publicName } : null}
+        />
+      ) : null}
       {offerDialogOpen ? (
         <DriverOfferDialog
           draft={offerDraft}
           errors={offerDraftErrors}
-          savedProfile={
-            localDriverProfile
-              ? { publicName: localDriverProfile.publicName }
-              : null
-          }
-          services={futureChurchServices}
-          submitAttempt={offerSubmitAttempt}
-          successPrefill={regularRouteSuggestion}
           onAddRegular={() => {
             if (regularRouteSuggestion) {
               setOfferDraft(regularRouteSuggestion);
@@ -664,37 +1107,47 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
           onChange={changeOfferDraft}
           onModeChange={changeDriverOfferMode}
           onSubmit={handleSubmitDriverOffer}
+          savedProfile={localDriverProfile ? { publicName: localDriverProfile.publicName } : null}
+          services={futureChurchServices}
+          submitAttempt={offerSubmitAttempt}
+          successPrefill={regularRouteSuggestion}
         />
       ) : null}
-
       {pendingCancellation ? (
         <OfferCancellationDialog
+          affectedMatchCount={affectedOfferMatches.length}
           offerType={pendingCancellation.offerType}
           onCancel={() => setPendingCancellation(null)}
           onConfirm={confirmOfferCancellation}
         />
       ) : null}
-
+      {pendingMatchCancellation ? (
+        <MatchCancellationDialog
+          onCancel={() => setPendingMatchCancellation(null)}
+          onConfirm={confirmMatchCancellation}
+          participant={pendingMatchCancellation.participant}
+        />
+      ) : null}
       {dialogContext ? (
         <RequestDialog
+          compatibleRequests={compatiblePassengerRequests}
           context={dialogContext}
+          creatingDifferentRequest={creatingDifferentRequest}
           draft={draft}
           errors={draftErrors}
+          onCreateDifferentRequest={() => setCreatingDifferentRequest(true)}
+          onBlur={validateRequestField}
           onCancel={closeDialog}
-          onChange={(nextDraft, fieldName) => {
-            setDraft(nextDraft);
-            setDraftErrors((current) => {
-              if (fieldName === 'date' || fieldName === 'selectedServiceId') {
-                const nextErrors = { ...current };
-                delete nextErrors.date;
-                delete nextErrors.selectedServiceId;
-                return nextErrors;
-              }
-              return clearPassengerRequestDraftFieldError(current, fieldName);
-            });
-          }}
+          onChange={changeRequestDraft}
+          onReuseRequest={handleReuseTargetedRequest}
+          onSelectReusableRequest={setSelectedReusableRequestId}
           onSubmit={handleSubmitRequest}
+          overCapacityWarning={overCapacityWarning}
+          regularOccurrences={regularOccurrences}
+          selectedReusableRequestId={effectiveReusableRequestId}
           serviceOptions={serviceOptions}
+          submitAttempt={requestSubmitAttempt}
+          targetedAvailability={dialogTargetedAvailability}
         />
       ) : null}
     </section>

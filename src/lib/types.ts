@@ -90,7 +90,21 @@ export type PickupZone = {
   radiusMeters?: number;
 };
 
-export type PassengerRequestStatus = 'open' | 'waitingForDriver' | 'pendingContact' | 'cancelled';
+export type PublicDriverOfferType = 'regularRoute' | 'oneTimeTrip';
+export type DriverOfferType = PublicDriverOfferType | 'privateDriverOffer';
+
+export type PrivateDriverOffer = {
+  originLabel: string;
+  departureTime: string;
+  maxDetourKm?: number;
+};
+
+export type PassengerRequestStatus =
+  | 'open'
+  | 'matched'
+  | 'partiallyMatched'
+  | 'cancelled'
+  | 'expired';
 
 export type PassengerRequest = {
   id: string;
@@ -108,14 +122,28 @@ export type PassengerRequest = {
   status: PassengerRequestStatus;
   publicVisible: boolean;
   createdAt: string;
+  updatedAt?: string;
+  sourcePassengerRequestId?: string;
 };
 
 export type DriverResponse = {
   id: string;
+  driverId: string;
   passengerRequestId: string;
-  status: 'pendingContact' | 'cancelled';
+  driverOfferId: string;
+  driverOfferType: DriverOfferType;
+  rideDate: string;
+  offeredPassengerCount: number;
+  status:
+    | 'pendingPassengerConfirmation'
+    | 'accepted'
+    | 'declined'
+    | 'cancelled'
+    | 'expired';
   createdAt: string;
+  updatedAt: string;
   cancelledAt?: string;
+  privateOffer?: PrivateDriverOffer;
 };
 
 export type TargetedPassengerRequest = {
@@ -124,8 +152,11 @@ export type TargetedPassengerRequest = {
   driverId: string;
   driverName: string;
   targetOfferId: string;
-  targetOfferType: 'regularRoute' | 'oneTimeTrip';
+  targetOfferType: PublicDriverOfferType;
   offerContext: string;
+  rideDate?: string;
+  serviceEvent: string;
+  serviceEventId?: string;
   firstName: string;
   phonePrivate: string;
   emailPrivate?: string;
@@ -133,9 +164,18 @@ export type TargetedPassengerRequest = {
   pickupZone: PickupZone;
   privateComment?: string;
   consentToShareContact: boolean;
-  status: 'waitingForDriver';
+  offeredPassengerCount?: number;
+  status:
+    | 'waitingForDriver'
+    | 'pendingPassengerConfirmation'
+    | 'matched'
+    | 'declined'
+    | 'cancelled'
+    | 'expired';
   publicVisible: false;
   createdAt: string;
+  updatedAt: string;
+  sourcePassengerRequestId?: string;
 };
 
 export type MockNotification = {
@@ -143,4 +183,35 @@ export type MockNotification = {
   churchId: string;
   message: string;
   createdAt: string;
+  audience?: 'passenger' | 'driver';
+};
+
+export type PrivateContact = {
+  phone: string;
+  email?: string;
+};
+
+export type RideMatch = {
+  id: string;
+  churchId: string;
+  passengerRequestId: string;
+  targetedPassengerRequestId?: string;
+  driverResponseId?: string;
+  driverId: string;
+  driverOfferId: string;
+  driverOfferType: DriverOfferType;
+  rideDate: string;
+  originalPassengerCount: number;
+  confirmedPassengerCount: number;
+  status: 'confirmed' | 'cancelled' | 'completed';
+  passengerName: string;
+  driverName: string;
+  passengerContactPrivate: PrivateContact;
+  driverContactPrivate: PrivateContact;
+  confirmedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  cancelledAt?: string;
+  remainingNeedHandledAt?: string;
+  driverOfferDepartureTime?: string;
 };

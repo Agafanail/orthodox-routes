@@ -1,5 +1,5 @@
 export type RequestDialogContext =
-  | { mode: 'open' }
+  | { mode: 'open'; sourcePassengerRequestId?: string }
   | {
       mode: 'targeted';
       offerId: string;
@@ -7,6 +7,11 @@ export type RequestDialogContext =
       driverId: string;
       driverName: string;
       offerContext: string;
+      rideDate?: string;
+      serviceEvent: string;
+      serviceEventId?: string;
+      departureTime: string;
+      routeDaysOfWeek?: number[];
     };
 
 export type TargetedRequestDialogInput = Omit<Extract<RequestDialogContext, { mode: 'targeted' }>, 'mode'>;

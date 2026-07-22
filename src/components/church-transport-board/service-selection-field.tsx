@@ -23,12 +23,14 @@ export function ServiceSelectionField({
   const describedBy = error ? errorId : undefined;
   const fieldClassName =
     'block w-full min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-lg border border-stone-300 bg-white px-3 py-3 font-normal';
+  const groupLabelId = `${name}-choice-label`;
 
   return (
-    <div className="grid min-w-0 max-w-full gap-3">
+    <div aria-labelledby={groupLabelId} className="grid min-w-0 max-w-full gap-3" role="group">
+      <p className="text-sm font-semibold" id={groupLabelId}>{label}</p>
       {options.length > 0 ? (
         <label className="grid min-w-0 max-w-full gap-1 overflow-hidden text-sm font-semibold">
-          {label}
+          Служба
           <select
             aria-describedby={describedBy}
             aria-invalid={Boolean(error)}
@@ -41,7 +43,6 @@ export function ServiceSelectionField({
                 'selectedServiceId',
               )
             }
-            required
             value={selection.selectedServiceId}
           >
             <option value="">Выберите службу</option>
@@ -67,7 +68,6 @@ export function ServiceSelectionField({
               'date',
             )
           }
-          required
           type="date"
           value={selection.date}
         />
