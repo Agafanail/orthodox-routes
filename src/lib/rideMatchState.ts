@@ -576,7 +576,7 @@ export function getOfferAvailability({
     }
 
     const departure = getLocalDeparture(trip.date, trip.departureTime);
-    if (!departure || departure.getTime() < now.getTime()) {
+    if (!departure || departure.getTime() <= now.getTime()) {
       return { active: false, availableSeats: 0, totalSeats: trip.seatsTotal, reason: 'past' };
     }
 
@@ -602,7 +602,7 @@ export function getOfferAvailability({
   }
 
   const departure = getLocalDeparture(rideDate, route.recurrence.typicalDepartureTime);
-  if (!departure || departure.getTime() < now.getTime()) {
+  if (!departure || departure.getTime() <= now.getTime()) {
     return { active: false, availableSeats: 0, totalSeats: route.seats, reason: 'past' };
   }
 
@@ -640,7 +640,7 @@ export function getFutureRouteOccurrences({
 
     const date = toLocalDateValue(candidate);
     const departure = getLocalDeparture(date, route.recurrence.typicalDepartureTime);
-    if (!departure || departure.getTime() < now.getTime()) continue;
+    if (!departure || departure.getTime() <= now.getTime()) continue;
 
     const availability = getOfferAvailability({
       offerId: route.id,
@@ -931,7 +931,7 @@ export function validatePrivateDriverOfferDraft({
     errors.departureTime = 'Укажите время выезда.';
   } else if (
     !request.serviceDate ||
-    (getLocalDeparture(request.serviceDate, draft.departureTime)?.getTime() ?? 0) < now.getTime()
+    (getLocalDeparture(request.serviceDate, draft.departureTime)?.getTime() ?? 0) <= now.getTime()
   ) {
     errors.departureTime = 'Время выезда уже прошло.';
   }
@@ -1188,7 +1188,7 @@ export function confirmRideMatch(input: ConfirmRideMatchInput): ConfirmRideMatch
     const departure = driverOfferDepartureTime
       ? getLocalDeparture(rideDate, driverOfferDepartureTime)
       : null;
-    if (!departure || departure.getTime() < input.now.getTime()) {
+    if (!departure || departure.getTime() <= input.now.getTime()) {
       return { ok: false, reason: 'insufficientSeats' };
     }
   } else {
@@ -1302,20 +1302,21 @@ export function cancelFutureMatchesForOffer(
   state: RideWorkflowState,
   offerId: string,
   offerType: DriverOfferType,
+  offerChurchId: string,
   routes: Route[],
   trips: Trip[],
   now: Date,
   cancelledAt: string,
 ) {
-  return getFutureConfirmedMatchesForOffer(state.rideMatches, offerId, offerType, routes, trips, now)
+  return getFutureConfirmedMatchesForOffer(state.rideMatches, offerId, offerType, offerChurchId, routes, trips, now)
     .reduce((current, match) => cancelRideMatch(current, match.id, cancelledAt), state);
 }
 
 function getRideMatchDeparture(match: RideMatch, routes: Route[], trips: Trip[]) {
   const departureTime = match.driverOfferType === 'oneTimeTrip'
-    ? trips.find((trip) => trip.id === match.driverOfferId)?.departureTime
+    ? trips.find((trip) => trip.id === match.driverOfferId && trip.churchId === match.churchId)?.departureTime
     : match.driverOfferType === 'regularRoute'
-      ? routes.find((route) => route.id === match.driverOfferId)?.recurrence.typicalDepartureTime
+      ? routes.find((route) => route.id === match.driverOfferId && route.churchId === match.churchId)?.recurrence.typicalDepartureTime
       : match.driverOfferDepartureTime;
   return departureTime ? getLocalDeparture(match.rideDate, departureTime) : null;
 }
@@ -1324,6 +1325,7 @@ export function getFutureConfirmedMatchesForOffer(
   rideMatches: RideMatch[],
   offerId: string,
   offerType: DriverOfferType,
+  offerChurchId: string,
   routes: Route[],
   trips: Trip[],
   now: Date,
@@ -1332,9 +1334,10 @@ export function getFutureConfirmedMatchesForOffer(
     const departure = getRideMatchDeparture(match, routes, trips);
     return match.driverOfferId === offerId &&
       match.driverOfferType === offerType &&
+      match.churchId === offerChurchId &&
       match.status === 'confirmed' &&
       departure !== null &&
-      departure.getTime() >= now.getTime();
+      departure.getTime() > now.getTime();
   });
 }
 
@@ -1528,7 +1531,7 @@ export function getCompletedActivitySummaries({
     (match) =>
       match.churchId === churchId &&
       (match.status === 'confirmed' || match.status === 'completed') &&
-      (getRideMatchDeparture(match, routes, trips)?.getTime() ?? 0) >= now.getTime(),
+      (getRideMatchDeparture(match, routes, trips)?.getTime() ?? 0) > now.getTime(),
   );
   const activeRequestRoots = new Set(
     getPublicPassengerRequestItems({ churchId, passengerRequests, rideMatches }).map(

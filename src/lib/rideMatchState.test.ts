@@ -504,6 +504,44 @@ describe('private targeted driver offers', () => {
     expect(result.state.driverResponses[0].status).toBe('accepted');
     expect(result.state.targetedRequests[0].status).toBe('expired');
   });
+
+  it('closes private response creation and confirmation at the exact departure time', () => {
+    const response = createPrivateDriverResponse({
+      request: passengerRequest,
+      draft,
+      driverId: profile.driverId,
+      id: 'private-response-before-boundary',
+      createdAt: timestamp,
+      requireProfile: false,
+      now,
+    });
+    expect(response).not.toBeNull();
+    if (!response) return;
+
+    expect(createPrivateDriverResponse({
+      request: passengerRequest,
+      draft,
+      driverId: profile.driverId,
+      id: 'private-response-at-boundary',
+      createdAt: timestamp,
+      requireProfile: false,
+      now: new Date(2026, 6, 20, 8, 45),
+    })).toBeNull();
+
+    expect(confirmRideMatch({
+      source: 'driverResponse',
+      sourceId: response.id,
+      confirmedPassengerCount: response.offeredPassengerCount,
+      matchId: 'private-match-at-boundary',
+      timestamp,
+      driverName: profile.publicName,
+      driverContact,
+      state: emptyState({ passengerRequests: [passengerRequest], driverResponses: [response] }),
+      routes: [],
+      trips: [],
+      now: new Date(2026, 6, 20, 8, 45),
+    })).toEqual({ ok: false, reason: 'insufficientSeats' });
+  });
 });
 
 describe('regular-route occurrence selection and over-capacity requests', () => {
@@ -559,6 +597,82 @@ describe('regular-route occurrence selection and over-capacity requests', () => 
   });
 });
 
+describe('exact local departure boundary', () => {
+  it('closes one-time availability at departure but keeps the preceding millisecond available', () => {
+    const immediatelyBefore = getOfferAvailability({
+      offerId: trip.id,
+      offerType: 'oneTimeTrip',
+      rideDate: trip.date,
+      routes: [],
+      trips: [trip],
+      rideMatches: [],
+      now: new Date(2026, 6, 20, 8, 29, 59, 999),
+    });
+    const atDeparture = getOfferAvailability({
+      offerId: trip.id,
+      offerType: 'oneTimeTrip',
+      rideDate: trip.date,
+      routes: [],
+      trips: [trip],
+      rideMatches: [],
+      now: new Date(2026, 6, 20, 8, 30),
+    });
+
+    expect(immediatelyBefore).toMatchObject({ active: true, availableSeats: 4 });
+    expect(atDeparture).toMatchObject({ active: false, availableSeats: 0, reason: 'past' });
+  });
+
+  it('closes a regular-route occurrence and omits it from future choices at departure', () => {
+    const immediatelyBefore = getOfferAvailability({
+      offerId: route.id,
+      offerType: 'regularRoute',
+      rideDate: '2026-07-20',
+      routes: [route],
+      trips: [],
+      rideMatches: [],
+      now: new Date(2026, 6, 20, 7, 59, 59, 999),
+    });
+    const atDeparture = getOfferAvailability({
+      offerId: route.id,
+      offerType: 'regularRoute',
+      rideDate: '2026-07-20',
+      routes: [route],
+      trips: [],
+      rideMatches: [],
+      now: new Date(2026, 6, 20, 8, 0),
+    });
+    const occurrences = getFutureRouteOccurrences({
+      route,
+      routes: [route],
+      trips: [],
+      rideMatches: [],
+      now: new Date(2026, 6, 20, 8, 0),
+    });
+
+    expect(immediatelyBefore).toMatchObject({ active: true, availableSeats: 3 });
+    expect(atDeparture).toMatchObject({ active: false, availableSeats: 0, reason: 'past' });
+    expect(occurrences[0]?.date).toBe('2026-07-27');
+  });
+
+  it('prevents RideMatch confirmation at the exact departure time', () => {
+    const result = confirmRideMatch({
+      source: 'targetedRequest',
+      sourceId: targetedRequest.id,
+      confirmedPassengerCount: targetedRequest.passengerCount,
+      matchId: 'match-at-boundary',
+      timestamp,
+      driverName: targetedRequest.driverName,
+      driverContact,
+      state: emptyState({ targetedRequests: [targetedRequest] }),
+      routes: [],
+      trips: [trip],
+      now: new Date(2026, 6, 20, 8, 30),
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'insufficientSeats' });
+  });
+});
+
 describe('capacity and coherent confirmation', () => {
   it('revalidates seats and prevents oversubscription', () => {
     const response = makeResponse('response-1', 2);
@@ -606,6 +720,33 @@ describe('capacity and coherent confirmation', () => {
     expect(getOfferAvailability({ offerId: route.id, offerType: 'regularRoute', rideDate: '2026-07-27', routes: [route], trips: [], rideMatches: [match], now }).availableSeats).toBe(3);
   });
 
+  it('restores only the cancelled regular-route occurrence capacity', () => {
+    const firstOccurrence: RideMatch = {
+      ...republishMatch,
+      id: 'route-match-first',
+      passengerRequestId: 'route-request-first',
+      driverOfferId: route.id,
+      driverOfferType: 'regularRoute',
+      rideDate: '2026-07-20',
+      originalPassengerCount: 2,
+      confirmedPassengerCount: 2,
+    };
+    const secondOccurrence: RideMatch = {
+      ...firstOccurrence,
+      id: 'route-match-second',
+      passengerRequestId: 'route-request-second',
+      rideDate: '2026-07-27',
+      originalPassengerCount: 1,
+      confirmedPassengerCount: 1,
+    };
+    const state = emptyState({ rideMatches: [firstOccurrence, secondOccurrence] });
+    const cancelled = cancelRideMatch(state, firstOccurrence.id, timestamp);
+
+    expect(getOfferAvailability({ offerId: route.id, offerType: 'regularRoute', rideDate: firstOccurrence.rideDate, routes: [route], trips: [], rideMatches: state.rideMatches, now }).availableSeats).toBe(1);
+    expect(getOfferAvailability({ offerId: route.id, offerType: 'regularRoute', rideDate: firstOccurrence.rideDate, routes: [route], trips: [], rideMatches: cancelled.rideMatches, now }).availableSeats).toBe(3);
+    expect(getOfferAvailability({ offerId: route.id, offerType: 'regularRoute', rideDate: secondOccurrence.rideDate, routes: [route], trips: [], rideMatches: cancelled.rideMatches, now }).availableSeats).toBe(2);
+  });
+
   it('isolates capacity by church and offer type when stored IDs collide', () => {
     const collidingMatch: RideMatch = {
       id: 'colliding-match', churchId: 'another-church', passengerRequestId: 'request-other', driverId: 'driver-2',
@@ -621,18 +762,76 @@ describe('capacity and coherent confirmation', () => {
     const result = confirmTargeted(emptyState({ targetedRequests: [targetedRequest] }), 4);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const cancelled = cancelFutureMatchesForOffer(result.state, trip.id, 'oneTimeTrip', [route], [trip], now, timestamp);
+    const cancelled = cancelFutureMatchesForOffer(result.state, trip.id, 'oneTimeTrip', trip.churchId, [route], [trip], now, timestamp);
     expect(cancelled.rideMatches).toHaveLength(1);
     expect(cancelled.rideMatches[0].status).toBe('cancelled');
   });
 
-  it('does not cancel or count a match after its local departure time', () => {
+  it.each([
+    ['at', new Date(2026, 6, 20, 8, 30)],
+    ['after', new Date(2026, 6, 20, 9, 0)],
+  ])('does not cancel or count a one-time match %s its local departure time', (_label, currentTime) => {
     const result = confirmTargeted(emptyState({ targetedRequests: [targetedRequest] }), 4);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const afterDeparture = new Date(2026, 6, 20, 9, 0);
-    expect(getFutureConfirmedMatchesForOffer(result.state.rideMatches, trip.id, 'oneTimeTrip', [route], [trip], afterDeparture)).toEqual([]);
-    expect(cancelFutureMatchesForOffer(result.state, trip.id, 'oneTimeTrip', [route], [trip], afterDeparture, timestamp).rideMatches[0].status).toBe('confirmed');
+
+    expect(getFutureConfirmedMatchesForOffer(result.state.rideMatches, trip.id, 'oneTimeTrip', trip.churchId, [route], [trip], currentTime)).toEqual([]);
+    expect(cancelFutureMatchesForOffer(result.state, trip.id, 'oneTimeTrip', trip.churchId, [route], [trip], currentTime, timestamp).rideMatches[0].status).toBe('confirmed');
+  });
+
+  it('cancels only genuinely future matches for the selected regular route', () => {
+    const makeRegularMatch = (
+      id: string,
+      rideDate: string,
+      overrides: Partial<RideMatch> = {},
+    ): RideMatch => ({
+      ...republishMatch,
+      id,
+      passengerRequestId: `request-${id}`,
+      driverOfferId: route.id,
+      driverOfferType: 'regularRoute',
+      rideDate,
+      originalPassengerCount: 1,
+      confirmedPassengerCount: 1,
+      ...overrides,
+    });
+    const sameIdOtherChurchRoute = {
+      ...route,
+      churchId: 'church-2',
+      recurrence: { ...route.recurrence, typicalDepartureTime: '09:00' },
+    };
+    const otherRoute = { ...route, id: 'route-2' };
+    const collidingTrip = { ...trip, id: route.id, date: '2026-07-27' };
+    const matches = [
+      makeRegularMatch('past', '2026-07-13'),
+      makeRegularMatch('exact-boundary', '2026-07-20'),
+      makeRegularMatch('future-one', '2026-07-27'),
+      makeRegularMatch('future-two', '2026-08-03'),
+      makeRegularMatch('other-offer', '2026-07-27', { driverOfferId: otherRoute.id }),
+      makeRegularMatch('other-type', '2026-07-27', { driverOfferType: 'oneTimeTrip' }),
+      makeRegularMatch('same-id-other-church', '2026-07-27', { churchId: sameIdOtherChurchRoute.churchId }),
+    ];
+    const cancelled = cancelFutureMatchesForOffer(
+      emptyState({ rideMatches: matches }),
+      route.id,
+      'regularRoute',
+      route.churchId,
+      [sameIdOtherChurchRoute, route, otherRoute],
+      [collidingTrip],
+      new Date(2026, 6, 20, 8, 0),
+      timestamp,
+    );
+    const statuses = Object.fromEntries(cancelled.rideMatches.map((match) => [match.id, match.status]));
+
+    expect(statuses).toEqual({
+      past: 'confirmed',
+      'exact-boundary': 'confirmed',
+      'future-one': 'cancelled',
+      'future-two': 'cancelled',
+      'other-offer': 'confirmed',
+      'other-type': 'confirmed',
+      'same-id-other-church': 'confirmed',
+    });
   });
 });
 
@@ -969,6 +1168,68 @@ describe('privacy-safe matches, notifications, and summaries', () => {
     expect(new Set(completedOffers.map((summary) => summary.id)).size).toBe(completedOffers.length);
   });
 
+  it('returns the five most recent eligible summaries in deterministic order by default', () => {
+    const eligibleDates = [
+      '2026-07-20',
+      '2026-07-27',
+      '2026-08-03',
+      '2026-08-10',
+      '2026-08-17',
+      '2026-08-24',
+      '2026-08-31',
+    ];
+    const eligibleMatches = eligibleDates.map((rideDate, index): RideMatch => ({
+      ...republishMatch,
+      id: `eligible-${index}`,
+      passengerRequestId: `eligible-request-${index}`,
+      driverOfferId: route.id,
+      driverOfferType: 'regularRoute',
+      rideDate,
+      originalPassengerCount: 1,
+      confirmedPassengerCount: 1,
+      confirmedAt: `2026-07-19T${String(index + 1).padStart(2, '0')}:00:00.000Z`,
+    }));
+    const cancelledMatch: RideMatch = {
+      ...eligibleMatches[0],
+      id: 'cancelled-newest',
+      rideDate: '2026-09-07',
+      status: 'cancelled',
+      confirmedAt: '2026-07-19T23:00:00.000Z',
+    };
+    const departureExpiredMatch: RideMatch = {
+      ...eligibleMatches[0],
+      id: 'departure-expired-newest',
+      rideDate: '2026-07-13',
+      confirmedAt: '2026-07-19T22:00:00.000Z',
+    };
+    const input = {
+      churchId: 'church-1',
+      passengerRequests: [],
+      routes: [route],
+      trips: [],
+      driverNames: { 'driver-1': 'Сергей' },
+      now,
+    };
+    const first = getCompletedActivitySummaries({
+      ...input,
+      rideMatches: [cancelledMatch, departureExpiredMatch, ...eligibleMatches],
+    });
+    const second = getCompletedActivitySummaries({
+      ...input,
+      rideMatches: [...eligibleMatches].reverse().concat(departureExpiredMatch, cancelledMatch),
+    });
+    const expectedIds = [...eligibleMatches]
+      .reverse()
+      .slice(0, 5)
+      .map((match) => `route-occurrence-${route.id}:${match.rideDate}`);
+
+    expect(first).toHaveLength(5);
+    expect(first.map((summary) => summary.id)).toEqual(expectedIds);
+    expect(second).toEqual(first);
+    expect(first.map((summary) => summary.id)).not.toContain('cancelled-newest');
+    expect(first.map((summary) => summary.id)).not.toContain('departure-expired-newest');
+  });
+
   it('does not show cancelled matches as successful public activity', () => {
     const result = confirmTargeted(emptyState({ targetedRequests: [targetedRequest] }), 4);
     expect(result.ok).toBe(true);
@@ -981,13 +1242,16 @@ describe('privacy-safe matches, notifications, and summaries', () => {
     expect(summaries).toEqual([]);
   });
 
-  it('hides successful public activity after the local departure time', () => {
+  it.each([
+    ['at', new Date(2026, 6, 20, 8, 30)],
+    ['after', new Date(2026, 6, 20, 9, 0)],
+  ])('hides successful public activity %s the local departure time', (_label, currentTime) => {
     const result = confirmTargeted(emptyState({ targetedRequests: [targetedRequest] }), 4);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const summaries = getCompletedActivitySummaries({
       churchId: 'church-1', passengerRequests: [], rideMatches: result.state.rideMatches,
-      routes: [route], trips: [trip], driverNames: { 'driver-1': 'Сергей' }, now: new Date(2026, 6, 20, 9, 0),
+      routes: [route], trips: [trip], driverNames: { 'driver-1': 'Сергей' }, now: currentTime,
     });
     expect(summaries).toEqual([]);
   });

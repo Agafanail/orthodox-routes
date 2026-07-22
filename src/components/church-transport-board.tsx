@@ -730,6 +730,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
         rideMatches,
         pendingCancellation.offer.id,
         pendingCancellation.offerType === 'trip' ? 'oneTimeTrip' : 'regularRoute',
+        pendingCancellation.offer.churchId,
         allRoutes,
         allRawTrips,
         availabilityNow,
@@ -741,15 +742,23 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     const now = new Date();
     const timestamp = now.toISOString();
     const offerType = pendingCancellation.offerType === 'trip' ? 'oneTimeTrip' : 'regularRoute';
-    const nextState = cancelFutureMatchesForOffer(currentWorkflowState(), pendingCancellation.offer.id, offerType, allRoutes, allRawTrips, now, timestamp);
+    const nextState = cancelFutureMatchesForOffer(currentWorkflowState(), pendingCancellation.offer.id, offerType, pendingCancellation.offer.churchId, allRoutes, allRawTrips, now, timestamp);
     applyWorkflowState(nextState);
 
     if (pendingCancellation.offerType === 'trip') {
-      setLocalTrips((current) => current.map((item) => item.id === pendingCancellation.offer.id ? cancelLocalTrip(item) : item));
+      setLocalTrips((current) => current.map((item) =>
+        item.id === pendingCancellation.offer.id && item.churchId === pendingCancellation.offer.churchId
+          ? cancelLocalTrip(item)
+          : item,
+      ));
       addNotification('Поездка отменена.', 'driver');
       showActionFeedback('Поездка отменена');
     } else {
-      setLocalRoutes((current) => current.map((item) => item.id === pendingCancellation.offer.id ? cancelLocalRoute(item) : item));
+      setLocalRoutes((current) => current.map((item) =>
+        item.id === pendingCancellation.offer.id && item.churchId === pendingCancellation.offer.churchId
+          ? cancelLocalRoute(item)
+          : item,
+      ));
       addNotification('Регулярная поездка отменена.', 'driver');
       showActionFeedback('Регулярная поездка отменена');
     }

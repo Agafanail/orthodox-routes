@@ -22,8 +22,9 @@ describe('one-time trip availability', () => {
     expect(isOneTimeTripAvailable(baseTrip, new Date(2026, 6, 18, 12, 0))).toBe(true);
   });
 
-  it('shows a trip later today', () => {
-    expect(isOneTimeTripAvailable(baseTrip, new Date(2026, 6, 19, 7, 30))).toBe(true);
+  it('shows a trip immediately before departure and hides it at the exact departure time', () => {
+    expect(isOneTimeTripAvailable(baseTrip, new Date(2026, 6, 19, 8, 14, 59, 999))).toBe(true);
+    expect(isOneTimeTripAvailable(baseTrip, new Date(2026, 6, 19, 8, 15))).toBe(false);
   });
 
   it('hides a trip earlier today', () => {

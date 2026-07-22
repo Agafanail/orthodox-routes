@@ -38,5 +38,5 @@ export function isOneTimeTripAvailable(trip: TripVisibilityFields, now: Date) {
   }
 
   const departure = getLocalDeparture(trip);
-  return departure !== null && departure.getTime() >= now.getTime();
+  return departure !== null && departure.getTime() > now.getTime();
 }
