@@ -25,7 +25,7 @@ Roadmap follows the approved product sequence: validate the church transport boa
 - User-visible date formatting as `dd.mm.yyyy` and `dd.mm.yyyy в HH:mm`.
 - Church hero with a local Byzantine fallback image.
 - Public passenger comments limited to 300 characters with a privacy warning; no automated moderation.
-- Initial Vitest unit-test foundation for validation, date formatting, request visibility/state transitions, and safe localStorage parsing.
+- Vitest unit-test foundation for validation, date formatting, request visibility/state transitions, and safe localStorage parsing, plus P0 Church Transport Board component integration coverage for confirmation, contact disclosure, duplicate actions, and safe hydration. Pure unit tests use Node; the component integration file uses jsdom only.
 - Basic GitHub Actions CI for clean-install tests, lint, and production builds on main-branch pushes and pull requests.
 - First church transport board component-extraction refactor for the request dialog, passenger request card, and mock notification center.
 - Second church transport board presentational extraction for page actions, request and response panels, targeted requests, and driver offers.
@@ -38,7 +38,7 @@ The current prototype has no backend, authentication, real user isolation, push/
 
 ## Next priorities
 
-1. Expand automated coverage with component and end-to-end tests after the current pure transition helpers are stable.
+1. Expand automated coverage beyond the current P0 Transport Board component integration scenarios, including carefully scoped end-to-end tests after the current flows are stable.
 2. Introduce authentication and backend persistence only after the mock request and confirmation flows are stable.
 3. Move personal notifications and private match history into dedicated authenticated personal areas.
 4. Add web/PWA push and email delivery after notification ownership and backend events are defined.
