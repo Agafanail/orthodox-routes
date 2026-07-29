@@ -4,24 +4,26 @@
 
 - This repository contains Orthodox Routes, built with Next.js App Router, React, TypeScript, and Tailwind CSS. Consult `README.md` and `docs/CODEX_ROADMAP.md` for the current implementation status.
 - Read the relevant implementation and authoritative documentation before changing behavior. Do not restate product specifications in this file.
-- Use the documentation map below:
+- Use the documentation map and authority order below:
+  - `docs/ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md`: approved source of truth for the target first full multi-user version;
   - `README.md`: current implementation, local setup, and CI overview;
-  - `docs/PROJECT_SPEC_V0_1.md`: product behavior, scope, roles, and privacy rules;
-  - `docs/DATA_MODEL.md`: entities, fields, relationships, statuses, and persistence notes;
-  - `docs/UX_RULES.md`: user journeys, UI copy, forms, accessibility, and visibility rules;
-  - `docs/PROJECT_MAP.md`: architecture, product flows, and Mermaid diagrams;
-  - `docs/CODEX_ROADMAP.md`: implemented capabilities, priorities, and out-of-scope work.
+  - `docs/PROJECT_SPEC_V0_1.md`: legacy specification for the browser-only prototype and historical v0.1 decisions;
+  - `docs/DATA_MODEL.md`: current prototype entities, relationships, statuses, and persistence notes until the backend architecture phase updates them;
+  - `docs/UX_RULES.md`: current prototype journeys, copy, forms, accessibility, and visibility rules until the information-architecture phase updates them;
+  - `docs/PROJECT_MAP.md`: current prototype architecture, product flows, and Mermaid diagrams;
+  - `docs/CODEX_ROADMAP.md`: approved development sequence and current phase.
+- When documents conflict, use `docs/ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md` for target-product decisions. Use the actual code, tests, and `README.md` for current implementation facts. Legacy prototype documents must not override the approved product scope.
 - An explicit task prompt may override these repository defaults. When a requested change intentionally conflicts with current code or documentation, implement the approved change, report the conflict, and update the affected documentation. Otherwise, do not invent new product rules.
 
 ## 2. Product and UX principles
 
 - Orthodox Routes is church-centered transport coordination: a church transport board connecting passengers with drivers already travelling to a service. It is not an Orthodox taxi service or an Uber clone.
 - Prefer the simplest viable implementation and avoid unnecessary architecture or speculative code.
-- Do not introduce a backend, authentication, maps, paid services, new dependencies, or major architecture changes unless the task explicitly requires them.
+- Do not introduce a backend, authentication, maps, paid services, new dependencies, or major architecture changes unless the task explicitly requires them. Approval of the target product scope defines the destination; it does not authorize implementing multiple roadmap phases at once.
 - Keep work within the requested scope. Raise a concrete recommendation before making an unrequested product or architecture change.
 - Write user-facing text for ordinary parishioners. Describe actions and consequences, not implementation details.
 - Do not expose terms such as `local`, `mock`, `localStorage`, persisted state, ownership, internal status names, or public profile when users do not need those concepts. Follow `docs/UX_RULES.md` for detailed UX rules.
-- User-facing UI copy may be Russian in the current prototype. Source code, identifiers, technical documentation, code comments, commit messages, and pull-request descriptions must remain in English unless the task explicitly says otherwise.
+- User-facing UI copy may be Russian in the current prototype. Source code, identifiers, technical documentation, code comments, commit messages, and pull-request descriptions must remain in English unless the task explicitly says otherwise. Approved product-decision documents may remain in the language used for product approval.
 - Communicate Codex progress and final reports to the user in Russian.
 
 ## 3. Implementation discipline
