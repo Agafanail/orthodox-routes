@@ -1,6 +1,8 @@
-# Firestore data model v0.1
+# Current prototype data model v0.1
 
-This model describes the target product concept. The current runnable prototype is still mock-only and does not add Firebase.
+> **Status:** this is a historical Firestore-shaped model plus detailed notes about the current browser-only implementation. It is not an approved physical database schema, backend choice, API contract, or migration plan. The current runnable prototype remains mock-only and does not add Firebase.
+>
+> The approved future logical model, visibility levels, relationships, permissions, states, routes, and context transitions are defined in [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md), especially sections 42–49. Backend technology and the physical schema will be chosen in the backend architecture phase. If this v0.1 model conflicts with Product Scope or IA V2, it remains only a current-prototype or historical implementation reference.
 
 ## Status and visibility principle
 
@@ -243,7 +245,7 @@ Public passenger request cards must never expose phone, exact address, private c
 
 Current mock request creation does not require visible registration. Open and targeted requests are persisted separately in browser localStorage and can later become backend records and lightweight `PassengerProfile` data.
 
-For the current mock implementation, `pickupZone.label` is the only used pickup field. `centerLat`, `centerLng`, and `radiusMeters` are reserved for a future approximate circular pickup zone. Do not add maps yet.
+For the current mock implementation, `pickupZone.label` is the only used pickup field. The unused `centerLat`, `centerLng`, and `radiusMeters` fields are historical placeholders, not approval of the target data model. IA V2 defines a protected exact place and a separately derived public 1 km area; implementation waits for the appropriate roadmap phase.
 
 ## targetedPassengerRequests/{targetedPassengerRequestId}
 
@@ -453,7 +455,7 @@ type Notification = {
 
 A notification is a personal record inside the app; a delivery channel is the way that record reaches its recipient outside the app. Production notifications belong to a personal notification center and must never be shown to another user.
 
-Current MVP documentation covers `channel: 'inApp'` and localStorage-backed mock notification state only. Web push/PWA push and email are planned MVP delivery channels because users may not open the app often. Telegram is a possible later channel. None of these external delivery channels are implemented in the current mock.
+The current prototype covers `channel: 'inApp'` and localStorage-backed mock notification state only. IA V2 requires Web Push/PWA push and email for the approved target and excludes Telegram from the first public version. None of these external delivery channels are implemented in the current mock; the historical `telegram` enum value is not target approval.
 
 Notification text must not expose phone, exact address, private contact, or sensitive personal data. It may expose only safe summary data: first name, church, service/event, approximate area or hub, number of passengers, available seats, and short safe comment.
 
@@ -493,7 +495,7 @@ Locally created routes keep explicit `status: 'cancelled'` support. Cancellation
 
 Hydration parses local profile and offer records into explicit safe shapes. Malformed or outdated entries are ignored, unexpected fields are discarded, duplicate local IDs are suppressed, and IDs colliding with static drivers or offers are not merged into the public board.
 
-Browser localStorage is not an authorization boundary and can be manually modified. Authentication, server persistence, per-user ownership, and cancellation authorization must be enforced by future backend rules.
+Browser localStorage is not an authorization boundary and can be manually modified. Authentication, server persistence, per-user ownership, and cancellation authorization must be enforced by the backend architecture selected in a later phase.
 
 A mock one-time `Trip` is publicly available only while `status === 'open'`, `seatsAvailable > 0`, and the local value composed from `date` and `departureTime` has not passed. The same rule filters church and driver trip selectors and church-board offers. Passenger and driver service dropdowns use the church's structured future services rather than deriving schedule choices from transport offers. Regular-route visibility is unchanged.
 

@@ -1,13 +1,15 @@
 # Roadmap for Codex tasks
 
-Roadmap separates the implemented browser-only prototype from the approved first full multi-user version. The destination is defined by [ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md](ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md). Do not add future functionality silently or combine multiple phases into one task without explicit approval.
+Roadmap separates the implemented browser-only prototype from the approved first complete public multi-user version. Product purpose and version boundaries are defined by [ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md](ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md); target screens, navigation, journeys, permissions, states, visibility, routes, taxonomy, and content structure are defined by [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md). The phases below are an implementation sequence for that one complete approved version, not a series of reduced product releases. Do not add future functionality silently or combine multiple phases into one task without explicit approval.
 
 ## Authority and current phase
 
-- The Product Scope is the authority for target-product behavior and first-version boundaries.
+- The Product Scope is the authority for product purpose and first-version boundaries.
+- IA V2 is the authority for target-product screens, navigation, journeys, permissions, states, visibility, URL model, taxonomy, and content model.
 - The code, tests, and README describe what is implemented now.
-- `PROJECT_SPEC_V0_1.md`, `DATA_MODEL.md`, `UX_RULES.md`, and `PROJECT_MAP.md` remain prototype references until the corresponding roadmap phase updates them.
-- The active product phase is **information architecture**. New full-version feature implementation starts only after that phase is approved.
+- `PROJECT_SPEC_V0_1.md`, `DATA_MODEL.md`, `UX_RULES.md`, and `PROJECT_MAP.md` remain explicitly labelled prototype or legacy references and cannot override Product Scope or IA V2.
+- Information architecture is complete at the approved-document level. Empirical card sorting and tree testing remain future validation work recorded in IA V2, not invented research results.
+- The active product phase is **Initial Design System**. This roadmap status does not authorize UI implementation or any later phase inside a documentation-only task.
 - Maps are part of the required first full version, even though they are not part of the current mock.
 - Product-scope approval does not authorize implementing all phases in one change.
 
@@ -47,17 +49,16 @@ The current prototype has no backend, authentication, real user isolation, push/
 
 ## Development sequence
 
-### 1. Information architecture — current phase
+### 1. Information architecture — completed
 
-- Define the complete screen inventory and mobile/desktop navigation.
-- Document visitor, registered-user, and church-page-administrator states.
-- Define loading, empty, error, expired, cancelled, archived, and permission-denied states.
-- Reconcile future journeys with the approved Product Scope before implementation.
+- Approved in [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md).
+- Defines the complete screen inventory, mobile/desktop navigation, URL model, roles, permissions, visibility, content model, journeys, and states.
+- Records the future card-sorting and tree-testing protocol without claiming that user research has already occurred.
 
-### 2. Initial design system
+### 2. Initial design system — active phase
 
 - Establish the visual direction and reusable foundations.
-- Design key mobile and desktop samples: church directory/map, church page/transport board, trip and request cards, forms, notifications, personal area, navigation, and empty states.
+- Design key mobile and desktop samples: church directory/map, church page/transport board, trip and request cards, forms, My Trips, notifications, profile, navigation, and empty states.
 - Review each important screen manually.
 
 ### 3. Backend and integration architecture
@@ -65,7 +66,7 @@ The current prototype has no backend, authentication, real user isolation, push/
 Choose and document:
 
 - database, backend, hosting, deployment, backups, and monitoring;
-- passwordless email-link authentication and account recovery;
+- passwordless email-link authentication, SMS phone verification, and account recovery;
 - authorization boundaries and contact disclosure;
 - maps, geocoding, routing, quotas, and cost controls;
 - transactional email, Web Push, PWA installation, and offline form drafts;
@@ -75,7 +76,7 @@ Update the data model and project diagrams after these decisions are approved.
 
 ### 4. Core multi-user platform
 
-- Implement the backend and passwordless email-link authentication.
+- Implement the backend, passwordless email-link authentication, SMS phone verification, the 18+ declaration, and Terms acceptance.
 - Migrate the approved transport-board domain model from browser storage.
 - Enforce ownership and authorization server-side.
 - Keep contacts unavailable to anonymous users and unconfirmed counterparties.
@@ -84,31 +85,33 @@ Update the data model and project diagrams after these decisions are approved.
 ### 5. Maps and quality matching
 
 - Add the church directory map and address-based church creation.
-- Add exact driver departure points, up to three passenger meeting points, and driver routes.
+- Add protected exact driver departure points, up to three passenger meeting points, and driver routes, exposing only approved approximate public representations before mutual confirmation.
 - Implement route-aware matching with seat, church, service/date, one-hour time compatibility, detour, direction, and active-status rules.
 - Send suggestions only for quality matches; suggestions never confirm a ride automatically.
 
-### 6. Personal area, notifications, and PWA
+### 6. My Trips, notifications, profile, and PWA
 
-- Implement the personal dashboard, active items, agreements, history, contacts, settings, and church-page administration entry points.
+- Implement `My Trips` with its approved IA V2 sections and agreement history, the in-app notification history, and the lightweight profile with notification settings.
+- Preserve church-management entry points without treating church administration as part of personal trips.
 - Implement durable in-app notifications, transactional email, and Web Push.
-- Ask for push permission after the user's first successful action and provide the agreed iPhone PWA guidance.
+- Follow the IA V2 PWA guidance: provide iPhone installation guidance before Web Push; on Android, use the system installation prompt when supported and otherwise provide browser-specific guidance; keep installation and push permission separate; request push only after a useful user action; and continue important messages by email while push is unavailable.
 - Make the web application installable as a PWA.
 
 ### 7. Church pages, schedules, administration, and localization
 
-- Implement church creation with address deduplication, archival behavior, and up to three equal administrators.
+- Implement church creation with address deduplication, immediate publication without routine pre-approval, later protected intervention, archival behavior, and up to three equal administrators.
 - Implement recurring and one-time services, exceptions, cancellations, and date/time fallback.
 - Support English, Russian, Italian, Romanian, Ukrainian, and German.
 - Add prepared translations for system content and stored automatic translations for approved dynamic church content.
 
 ### 8. Privacy, terms, support, and operations
 
-- Draft the Terms of Use and Privacy Policy for the selected architecture, providers, data flows, and pilot countries.
+- Draft the Terms of Use and Privacy Policy for the selected architecture, providers, data flows, and public international scope.
 - Record acceptance of document versions and timestamps.
-- Implement account deletion and the agreed data-retention behavior.
+- Implement account deletion, complaints, personal blocking, and the agreed data-retention behavior.
+- Keep voluntary external project support separate from prohibited ride payments and commissions.
 - Add the support form, owner runbook, protected administrative operations, and audit logging.
-- Add minimal pilot analytics without advertising trackers.
+- Add minimal product analytics without advertising trackers.
 - Obtain appropriate legal review before broad public launch.
 
 ### 9. Full end-to-end coverage
@@ -127,35 +130,36 @@ Cover contextual registration, multi-user ride coordination, quality matching, n
 - Test real phones, major browsers, weak connections, long localized content, incorrect actions, privacy boundaries, accessibility, performance, email, push, and recovery.
 - Verify the manual support and emergency-administration procedure.
 
-### 12. Closed pilot
+### 12. Public launch
 
-Start only when the Product Scope readiness criteria are met and users no longer need to imagine missing core behavior. Use several churches in the intended pilot regions, measure real coordination outcomes, and keep a manual support fallback.
+Open to real users only when the Product Scope and IA V2 readiness criteria are met and users no longer need to imagine missing core behavior. Early measurement and support may be operationally focused, but access is not restricted to selected parishes or countries.
 
-## Required before a real multi-user pilot
+## Required before real users
 
 - Backend, authentication, server-side authorization, and cross-device persistence.
-- Maps, geocoding, routing, exact points, and quality matching.
+- Maps, geocoding, routing, protected exact data, approximate public areas/corridors, and quality matching.
 - Complete driver, passenger, confirmation, contact-disclosure, capacity, and cancellation flows.
-- Personal areas and real in-app, email, and Web Push notifications.
+- My Trips, profile, and real in-app, email, and Web Push notifications.
 - Installable PWA behavior.
 - Church-page creation, schedules, archival, and multiple equal administrators.
 - Six approved interface and notification languages.
 - Terms of Use, Privacy Policy, consent recording, deletion, support, and operational runbook.
+- Email verification, SMS phone verification, an 18+ declaration, complaints, personal blocking, and structured child/child-seat data.
 - Critical automated and E2E coverage plus manual device/browser verification.
 - Finished, accessible interface with understandable loading, empty, error, and weak-network states.
 
 ## Explicitly excluded from the first full version
 
-- SMS, Telegram bots, WhatsApp, and other messenger integrations.
+- SMS ride notifications, Telegram bots, WhatsApp, and other messenger integrations. SMS phone verification is required.
 - Built-in chat.
 - Ratings, reviews, payments, prices, commissions, and subscriptions.
 - Native iOS and Android applications.
-- Identity, age, driving-licence, insurance, vehicle, parish-membership, jurisdiction, or church-page verification.
+- Identity documents, documentary age checks, driving-licence, insurance, vehicle, parish-membership, jurisdiction, or routine church-page pre-verification. A user declaration of age 18+ is required.
 - Regular passenger requests.
 - User photos, vehicle photos, and galleries.
-- User-to-user blocking, complaint workflows, and a full moderation system.
+- A full moderation system beyond the approved complaint flow, simple personal blocking, and protected manual intervention.
 - Multiple church-administrator permission levels and a platform-owner dashboard.
 - Complex route optimization, calendar synchronization, social feeds, and diocesan analytics.
-- Full offline mode and special transport logic for children or vulnerable passengers.
+- Full offline mode and medical or vulnerability assessment. Structured child and child-seat fields are required.
 
 These exclusions do not prevent protected manual administrative intervention through the selected backend when required.

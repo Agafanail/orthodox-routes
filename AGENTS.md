@@ -5,14 +5,15 @@
 - This repository contains Orthodox Routes, built with Next.js App Router, React, TypeScript, and Tailwind CSS. Consult `README.md` and `docs/CODEX_ROADMAP.md` for the current implementation status.
 - Read the relevant implementation and authoritative documentation before changing behavior. Do not restate product specifications in this file.
 - Use the documentation map and authority order below:
-  - `docs/ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md`: approved source of truth for the target first full multi-user version;
+  - `docs/ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md`: approved source of truth for the product purpose and boundaries of the first complete public version;
+  - `docs/ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md`: approved source of truth for target-product screens, navigation, routes, roles, permissions, journeys, states, visibility, taxonomy, content structure, and transitions between public, personal, and church-administration contexts;
   - `README.md`: current implementation, local setup, and CI overview;
   - `docs/PROJECT_SPEC_V0_1.md`: legacy specification for the browser-only prototype and historical v0.1 decisions;
-  - `docs/DATA_MODEL.md`: current prototype entities, relationships, statuses, and persistence notes until the backend architecture phase updates them;
-  - `docs/UX_RULES.md`: current prototype journeys, copy, forms, accessibility, and visibility rules until the information-architecture phase updates them;
+  - `docs/DATA_MODEL.md`: current prototype entities, relationships, statuses, and persistence notes; it is not the approved target database schema;
+  - `docs/UX_RULES.md`: current prototype UX rules plus a concise cross-reference to approved target UX in IA V2;
   - `docs/PROJECT_MAP.md`: current prototype architecture, product flows, and Mermaid diagrams;
   - `docs/CODEX_ROADMAP.md`: approved development sequence and current phase.
-- When documents conflict, use `docs/ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md` for target-product decisions. Use the actual code, tests, and `README.md` for current implementation facts. Legacy prototype documents must not override the approved product scope.
+- When documents conflict, use Product Scope for approved product purpose and first-version boundaries and IA V2 for the approved target information architecture and product/interface behavior within its authority. A conflict between these two approved documents must be resolved explicitly before implementation; do not choose a rule independently. Use the actual code, tests, and `README.md` for current implementation facts. Legacy prototype documents must not override Product Scope or IA V2.
 - An explicit task prompt may override these repository defaults. When a requested change intentionally conflicts with current code or documentation, implement the approved change, report the conflict, and update the affected documentation. Otherwise, do not invent new product rules.
 
 ## 2. Product and UX principles

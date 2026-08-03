@@ -2,9 +2,9 @@
 
 > **Статус документа: историческая спецификация mock-прототипа.**
 >
-> Этот документ описывает текущую браузерную реализацию и решения этапа v0.1. Утверждённый состав первой полноценной многопользовательской версии находится в [ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md](ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md).
+> Этот документ описывает текущую браузерную реализацию и исторические решения этапа v0.1. Назначение и границы первой полноценной публичной версии находятся в [ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md](ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md), а утверждённые целевые экраны, навигация, пути, права, состояния и видимость — в [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md).
 >
-> При противоречии в целевых продуктовых решениях Product Scope имеет приоритет. При сопровождении существующего прототипа источниками фактического поведения остаются код, тесты, README и применимые разделы этого документа до их поэтапной миграции. Наличие старого правила здесь само по себе не является основанием переносить его в целевую версию.
+> Product Scope и IA V2 имеют приоритет в пределах своей установленной области. При сопровождении существующего прототипа источниками фактического поведения остаются код, тесты, README и применимые разделы этого документа. Наличие старого правила здесь само по себе не является основанием переносить его в целевую версию.
 
 ## Цель
 
@@ -285,16 +285,16 @@ Notification — персональная запись внутри прилож
 - личные mock-уведомления в localStorage;
 - временный блок «Мои уведомления» на странице храма только для разработки и тестирования.
 
-В production уведомления находятся в персональном notification center: header bell, user menu, profile area или dedicated notifications page. Они не принадлежат публичной странице храма и не показываются другому пользователю.
+Исторический план v0.1 помещал production-уведомления в персональный notification center вне публичной страницы храма. Утверждённое целевое размещение и группировку навигации теперь определяет IA V2; история уведомлений и их настройки разделены.
 
-Будущие MVP delivery channels:
+Исторический план v0.1 предполагал delivery channels:
 
 - web push / PWA push;
 - email.
 
-Позже возможен:
+В том же историческом плане позже рассматривался:
 
-- Telegram bot.
+- Telegram bot, который не входит в утверждённую первую публичную версию.
 
 В текущей реализации не добавляются real email, push, Telegram, Firebase Cloud Messaging или backend delivery.
 
@@ -319,14 +319,14 @@ Notification — персональная запись внутри прилож
 
 ## Уведомления v0.1
 
-- personal in-app notification center в production;
+- historical v0.1 personal in-app notification center concept;
 - localStorage mock notification state в текущем prototype;
 - временное отображение «Мои уведомления» на church page только для mock-тестирования;
 - future email;
 - future web push;
-- future Telegram bot;
+- historical future Telegram bot idea (superseded for the first public version by IA V2);
 - без real email/push/Telegram delivery в текущей реализации;
-- без SMS;
+- без SMS в текущем mock; целевая версия использует SMS только для проверки телефона;
 - без WhatsApp Business API.
 
 ## Ограничения v0.1

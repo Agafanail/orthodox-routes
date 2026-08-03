@@ -1,4 +1,21 @@
-# UX rules v0.1
+# Current prototype UX rules (v0.1)
+
+> **Status:** this document describes the implemented browser-only prototype unless a paragraph explicitly says **approved target**. It is useful for preserving current copy, forms, accessibility behavior, and mock flows, but it is not the authority for the future public product.
+>
+> The approved target UX, screen inventory, navigation, permissions, visibility, terminology, states, and journeys are defined by [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md), especially sections 5–20, 27–32, and 42–49. Product purpose and first-version boundaries remain in [ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md](ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md). When a current prototype rule differs from IA V2, preserve it only as an honest implementation fact; do not carry it into target design.
+
+## Approved target UX summary
+
+This summary prevents prototype details below from being mistaken for approved future behavior; IA V2 remains normative:
+
+- Public user locations are approximate 1 km areas, and public driver routes are protected approximate corridors. Exact meeting/departure places, the necessary exact route segment, phone, and email are available only to participants after mutual confirmation and only for the approved limited period.
+- A response is an **«Отклик»**. Pending, counteroffer, declined, withdrawn, expired, and stale are response states. A **«Договорённость»** begins only after both sides confirm the same conditions; its states are defined separately in IA V2 sections 13 and 48.4–48.5.
+- Registration is contextual: the visitor fills the useful action first, then verifies email through a one-time link, verifies the phone through SMS, declares age 18+, accepts the Terms, returns to review, and explicitly publishes or sends. There is no competing email-code login.
+- Passenger and driver transport data includes structured child and child-seat fields. Repeat travel with the same person sends a new response for one dated occurrence and creates a new agreement only after confirmation; it never reserves permanent capacity.
+- Complaints are available in object context; simple personal blocking is available after interaction. Account deletion is confirmed by an email link, closes active listings, cancels future agreements, revokes exact-data access, and applies the approved deletion/anonymization rules.
+- Signed-in mobile navigation groups **Храмы**, **Поездки**, and **Уведомления** in the bottom bar. Notification history is separate from **Настройки уведомлений**, which belongs to the profile. Project support is placed under **Проект** and is never presented as a ride payment.
+- The approved target is an installable PWA with separate installation and push-permission steps. Push is requested only after a useful action; email remains the fallback external channel. SMS is used only for phone verification, not ride notifications.
+- Approved target interface languages are `en`, `ru`, `it`, `ro`, `uk`, and `de`. Target user-facing terminology follows IA V2 section 45 and avoids taxi, booking, fare, public-profile, and implementation language.
 
 ## Core screen
 
@@ -102,7 +119,7 @@ Passenger profile should feel like a short request form, not heavy registration.
 
 The first request form data can later become lightweight PassengerProfile data. In the mock implementation it stays in client-side state and may be used to prefill the form on the next visit.
 
-Pickup area is currently a text label. The UI copy must tell passengers not to enter an exact home address. The future model may support an approximate circular pickup zone with label, optional center latitude, optional center longitude, and optional radius in meters.
+Pickup area is currently a text label. The current UI copy tells passengers not to enter an exact home address. The approved target replaces this mock field with the protected exact-place and derived approximate-area model in IA V2 sections 6, 10, 37, and 47.5; it is not an optional future variation.
 
 Phone input accepts spaces, dashes, and parentheses, but normalizes them away before validation. The normalized value must match `^\+[1-9]\d{7,14}$`. Show «Введите номер в международном формате, например +39 333 123 4567.» when invalid. Optional email must be validated when present.
 
@@ -136,7 +153,7 @@ If the selected offer occurrence still has at least one seat but fewer than the 
 18. Only browser-owned offers show cancellation. If future confirmed matches exist, the dialog warns that those agreements will also be cancelled and affected passengers notified.
 19. The app may notify the driver about compatible passenger requests using cautious date/church compatibility language, not map claims.
 
-Driver profile can be more complete because the driver takes responsibility for others.
+The current mock uses a reusable driver identity to avoid repeated contact entry. This is a prototype implementation detail, not approval for a heavier target driver profile; IA V2 section 47.2 defines the target account fields.
 
 The offer modal is mobile-first, closes by its close control, «Отмена», overlay click, or Escape, and locks body scrolling while open. Untouched fields show no errors. A field validates on blur; once its error is visible, it revalidates while edited without removing unrelated errors. Submit validates the whole form, preserves entered data, keeps the dialog open when invalid, and focuses the first invalid field. Driver phone and email are private fields and must not appear in public cards, offer objects, or notifications. A browser-local driver card is not linked to a server driver route, and its displayed origin is derived from that driver's active offers for the current church.
 
@@ -154,9 +171,9 @@ The open passenger form and one-time driver form use the same compact native ser
 
 ## Church flow
 
-1. Parish participation is optional.
-2. A parish may create or claim a church card.
-3. A parish may fill simple public info and update schedule.
+1. In the current prototype, parish participation is optional.
+2. The historical v0.1 concept allowed a parish to create or claim a church card; church administration is not implemented in the current code.
+3. Approved target behavior is different: any fully confirmed user can publish a page without routine pre-approval after duplicate checks, and protected intervention or transfer can happen later under IA V2 sections 21–22.
 4. Product value must not depend on parish activity; drivers and passengers can create transport activity themselves.
 
 ## UI priorities
@@ -178,7 +195,7 @@ The open passenger form and one-time driver form use the same compact native ser
 - Avoid church-political recommendations; show factual jurisdiction/language only.
 - Do not force language choice on first visit.
 - Provide a manual language switcher somewhere in the UI.
-- Supported MVP languages: `ru`, `it`, `en`, `ro`.
+- Current prototype language set: `ru`, `it`, `en`, `ro`. The approved target additionally requires `uk` and `de`.
 
 ## Matching and notifications UX
 
@@ -197,11 +214,11 @@ The open passenger form and one-time driver form use the same compact native ser
 - Where the driver form presents equivalent consent, use «После подтверждения поездки пассажир увидит мой телефон и электронную почту, если я её указал, а я увижу его контакты. Я согласен на это.»
 - Every active one-time and regular driver-offer card shows «Контакты откроются после подтверждения поездки.» exactly once and never includes contact details.
 - The confirmed-match cancellation dialog uses «Отменить договорённость?». Passenger cancellation explains that the driver can offer the seats again and that the old request can be republished; driver cancellation explains that the passenger will be notified and the seats become available to others.
-- Current MVP UX may use an in-app notification center and mock notification state.
+- The current prototype may use an in-app notification center and mock notification state.
 - A notification is a personal in-app record; a delivery channel is how the user is reached outside the app.
-- Production notifications belong to a personal notification center, such as a header bell, user menu, profile area, or dedicated page.
-- Web push/PWA push and email are future MVP delivery channels because users may not open the app frequently.
-- Telegram is a possible later channel, not a current delivery requirement.
+- The current prototype has no production notification placement. In the approved target, notification history is the personal **«Уведомления»** area in grouped navigation, while **«Настройки уведомлений»** belongs to the profile, as defined in IA V2 sections 7, 17, 20, and 42.
+- Web Push/PWA push and email are approved target delivery channels because users may not open the app frequently; neither is implemented in the current prototype.
+- The historical v0.1 concept mentioned Telegram as a possible later channel. IA V2 excludes Telegram from the approved first public version.
 - On the church page, show «Мои уведомления» only as temporary personal mock UI for development/testing, never as public church content.
 - Persist mock notifications in localStorage so they survive internal navigation and refresh in the same browser.
 - Notification examples: «Создан запрос: Мария ищет место на Литургию.», «Водитель откликнулся на запрос Марии.», «Отклик отменен.»

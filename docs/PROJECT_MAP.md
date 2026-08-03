@@ -1,6 +1,6 @@
 # Orthodox Routes — Product Map
 
-This document visualizes the current mock-only product. Orthodox Routes is a church transport board, not a taxi marketplace. The church page remains the central screen.
+This document visualizes only the current mock-only product. Orthodox Routes is a church transport board, not a taxi marketplace. The church page remains the central screen. The approved target sitemap, URL model, logical relationships, taxonomy, permissions, content model, state diagrams, and transitions are defined in [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md), sections 42–49; the diagrams below must not be read as target architecture.
 
 ## 1. Church transport board
 
