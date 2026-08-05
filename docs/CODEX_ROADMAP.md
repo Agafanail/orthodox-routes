@@ -9,7 +9,7 @@ Roadmap separates the implemented browser-only prototype from the approved first
 - The code, tests, and README describe what is implemented now.
 - `PROJECT_SPEC_V0_1.md`, `DATA_MODEL.md`, `UX_RULES.md`, and `PROJECT_MAP.md` remain explicitly labelled prototype or legacy references and cannot override Product Scope or IA V2.
 - Information architecture is complete at the approved-document level. Empirical card sorting and tree testing remain future validation work recorded in IA V2, not invented research results.
-- The active product phase is **Initial Design System**. This roadmap status does not authorize UI implementation or any later phase inside a documentation-only task.
+- **Initial Design System** is complete and approved. The active product phase is **Backend and integration architecture**. Phase status alone does not authorize implementation inside a documentation-only task.
 - Maps are part of the required first full version, even though they are not part of the current mock.
 - Product-scope approval does not authorize implementing all phases in one change.
 
@@ -55,13 +55,14 @@ The current prototype has no backend, authentication, real user isolation, push/
 - Defines the complete screen inventory, mobile/desktop navigation, URL model, roles, permissions, visibility, content model, journeys, and states.
 - Records the future card-sorting and tree-testing protocol without claiming that user research has already occurred.
 
-### 2. Initial design system — active phase
+### 2. Initial design system — completed
 
 - Establish the visual direction and reusable foundations.
 - Design key mobile and desktop samples: church directory/map, church page/transport board, trip and request cards, forms, My Trips, notifications, profile, navigation, and empty states.
 - Review each important screen manually.
+- Approved foundations and the isolated `/design-preview` review artifact are recorded in [ORTHODOX_ROUTES_DESIGN_SYSTEM_V1.md](ORTHODOX_ROUTES_DESIGN_SYSTEM_V1.md).
 
-### 3. Backend and integration architecture
+### 3. Backend and integration architecture — active phase
 
 Choose and document:
 
