@@ -1,6 +1,6 @@
 # Orthodox Routes — Product Map
 
-Sections 1–12 visualize only the current mock-only product. Orthodox Routes is a church transport board, not a taxi marketplace. The church page remains the central screen. The approved target sitemap, URL model, logical relationships, taxonomy, permissions, content model, state diagrams, and transitions are defined in [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md), sections 42–49. Section 13 is a clearly labelled draft target-production architecture map derived from [Backend and Integration Architecture V1](ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md) and [Target Data Model V1](ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md); it does not describe implemented behavior.
+Sections 1–12 visualize only the current mock-only product. Orthodox Routes is a church transport board, not a taxi marketplace. The church page remains the central screen. The approved target sitemap, URL model, logical relationships, taxonomy, permissions, content model, state diagrams, and transitions are defined in [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md), sections 42–49. Section 13 is a clearly labelled target-production architecture map derived from the approved [Backend and Integration Architecture V1](ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md) and [Target Data Model V1](ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md); it does not describe implemented behavior.
 
 ## 1. Church transport board
 
@@ -408,9 +408,9 @@ flowchart LR
 
 The mock has no backend, authentication, maps, route geometry, real delivery channels, payments, ratings, or multi-user isolation.
 
-## 13. Target production architecture — draft, not implemented
+## 13. Target production architecture — approved, not implemented
 
-This section visualizes the review-ready target selected in the draft architecture documents. It does not replace or reinterpret the current-prototype diagrams above. Across the diagrams:
+This section visualizes the approved target selected in the architecture documents. It does not replace or reinterpret the current-prototype diagrams above. Across the diagrams:
 
 - **Current mock** means the implemented single-browser `localStorage` prototype.
 - **Target production** means proposed Next.js, PostgreSQL/Supabase, and protected integrations.

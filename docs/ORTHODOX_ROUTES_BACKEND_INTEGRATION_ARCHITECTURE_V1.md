@@ -1,6 +1,6 @@
 # Orthodox Routes — Backend and Integration Architecture V1
 
-- **Status:** draft for final owner review
+- **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** target production architecture for the first complete public version
 - **Implementation state:** documentation only; none of the target services in this document are configured or implemented
@@ -492,6 +492,6 @@ Accessed 6 August 2026. Provider facts must be refreshed before implementation o
 - Backblaze B2: [storage pricing](https://www.backblaze.com/cloud-storage/pricing) and [transaction/egress pricing](https://www.backblaze.com/cloud-storage/transaction-pricing).
 - Apple: [Web Push for browsers and Home Screen web apps](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers).
 
-## 22. Review status
+## 22. Approval status
 
-This document remains a draft awaiting the owner's manual review. Backend and integration architecture remains the active roadmap phase. Approval of this document would select the architecture; it would not implement backend code, configure providers, create infrastructure, or authorize multiple later phases in one task.
+This document is approved as the selected Backend and Integration Architecture V1. The backend and integration architecture roadmap phase is complete; Core multi-user platform is the active next phase. This approval selects the architecture, but it does not implement backend code, configure providers, create infrastructure, or authorize multiple later phases in one task.

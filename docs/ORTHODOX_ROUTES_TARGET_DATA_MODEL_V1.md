@@ -1,6 +1,6 @@
 # Orthodox Routes — Target Data Model V1
 
-- **Status:** draft for final owner review
+- **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** canonical target logical model for the first complete public version
 - **Physical status:** architectural design only; not an executable migration, API contract, or deployed schema
@@ -549,6 +549,6 @@ Before executable migrations are written, owner/legal/security review must appro
 - backup encryption/key custody and deletion-ledger protection;
 - support-case and protected-operator authentication process.
 
-## 24. Review status
+## 24. Approval status
 
-This logical model remains a draft awaiting final owner review. It intentionally stops before executable SQL, migrations, seeds, provider configuration, or infrastructure. Approval would make it the canonical target model, but would not mark the backend architecture roadmap phase complete automatically or authorize implementation of later phases.
+This logical model is approved as the canonical target model for Backend and Integration Architecture V1. It intentionally stops before executable SQL, migrations, seeds, provider configuration, or infrastructure. Its approval completes the backend and integration architecture roadmap phase alongside the approved architecture document, but it does not authorize implementation of later phases.
