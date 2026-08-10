@@ -1,8 +1,8 @@
 # Current prototype data model v0.1
 
-> **Status:** this is a historical Firestore-shaped model plus detailed notes about the current browser-only implementation. It is not an approved physical database schema, backend choice, API contract, or migration plan. The current runnable prototype remains mock-only and does not add Firebase.
+> **Status:** this is a historical Firestore-shaped model plus detailed notes about the current browser-only implementation. It is not the canonical target model, an approved physical database schema, backend choice, API contract, or migration plan. The current runnable prototype remains mock-only and does not add Firebase.
 >
-> The approved future logical model, visibility levels, relationships, permissions, states, routes, and context transitions are defined in [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md), especially sections 42–49. Backend technology and the physical schema will be chosen in the backend architecture phase. If this v0.1 model conflicts with Product Scope or IA V2, it remains only a current-prototype or historical implementation reference.
+> The approved future product relationships, visibility levels, permissions, states, routes, and context transitions are defined in [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md), especially sections 42–49. The draft canonical production logical model is [ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md](ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md), and its selected technology and trust boundaries are in [ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md](ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md). Both remain pending final owner review and are not executable migrations. If this v0.1 model conflicts with Product Scope, IA V2, or the later approved target model, this document remains only a current-prototype or historical implementation reference.
 
 ## Status and visibility principle
 

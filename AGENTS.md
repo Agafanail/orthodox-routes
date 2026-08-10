@@ -7,13 +7,16 @@
 - Use the documentation map and authority order below:
   - `docs/ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md`: approved source of truth for the product purpose and boundaries of the first complete public version;
   - `docs/ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md`: approved source of truth for target-product screens, navigation, routes, roles, permissions, journeys, states, visibility, taxonomy, content structure, and transitions between public, personal, and church-administration contexts;
+  - `docs/ORTHODOX_ROUTES_DESIGN_SYSTEM_V1.md`: approved source of truth for the initial visual system within Product Scope and IA V2;
+  - `docs/ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md`: draft target backend, hosting, integration, security, operations, cost, and migration architecture pending final owner review;
+  - `docs/ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md`: draft canonical target logical data model for that architecture pending final owner review; it is not an executable migration;
   - `README.md`: current implementation, local setup, and CI overview;
   - `docs/PROJECT_SPEC_V0_1.md`: legacy specification for the browser-only prototype and historical v0.1 decisions;
   - `docs/DATA_MODEL.md`: current prototype entities, relationships, statuses, and persistence notes; it is not the approved target database schema;
   - `docs/UX_RULES.md`: current prototype UX rules plus a concise cross-reference to approved target UX in IA V2;
   - `docs/PROJECT_MAP.md`: current prototype architecture, product flows, and Mermaid diagrams;
   - `docs/CODEX_ROADMAP.md`: approved development sequence and current phase.
-- When documents conflict, use Product Scope for approved product purpose and first-version boundaries and IA V2 for the approved target information architecture and product/interface behavior within its authority. A conflict between these two approved documents must be resolved explicitly before implementation; do not choose a rule independently. Use the actual code, tests, and `README.md` for current implementation facts. Legacy prototype documents must not override Product Scope or IA V2.
+- When documents conflict, use Product Scope for approved product purpose and first-version boundaries and IA V2 for the approved target information architecture and product/interface behavior within its authority. The design system and draft backend/data documents operate only within those boundaries. A conflict between approved documents must be resolved explicitly before implementation; do not choose a rule independently. Use the actual code, tests, and `README.md` for current implementation facts. Legacy prototype documents must not override Product Scope or IA V2.
 - An explicit task prompt may override these repository defaults. When a requested change intentionally conflicts with current code or documentation, implement the approved change, report the conflict, and update the affected documentation. Otherwise, do not invent new product rules.
 
 ## 2. Product and UX principles
@@ -21,6 +24,7 @@
 - Orthodox Routes is church-centered transport coordination: a church transport board connecting passengers with drivers already travelling to a service. It is not an Orthodox taxi service or an Uber clone.
 - Prefer the simplest viable implementation and avoid unnecessary architecture or speculative code.
 - Do not introduce a backend, authentication, maps, paid services, new dependencies, or major architecture changes unless the task explicitly requires them. Approval of the target product scope defines the destination; it does not authorize implementing multiple roadmap phases at once.
+- Approval of a backend architecture or target data model selects a later implementation direction; it does not by itself authorize infrastructure creation, provider configuration, executable migrations, or implementation of later roadmap phases in the same task.
 - Keep work within the requested scope. Raise a concrete recommendation before making an unrequested product or architecture change.
 - Write user-facing text for ordinary parishioners. Describe actions and consequences, not implementation details.
 - Do not expose terms such as `local`, `mock`, `localStorage`, persisted state, ownership, internal status names, or public profile when users do not need those concepts. Follow `docs/UX_RULES.md` for detailed UX rules.

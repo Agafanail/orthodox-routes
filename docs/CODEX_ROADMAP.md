@@ -6,10 +6,11 @@ Roadmap separates the implemented browser-only prototype from the approved first
 
 - The Product Scope is the authority for product purpose and first-version boundaries.
 - IA V2 is the authority for target-product screens, navigation, journeys, permissions, states, visibility, URL model, taxonomy, and content model.
+- Draft [Backend and Integration Architecture V1](ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md) and [Target Data Model V1](ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md) record the proposed production architecture and canonical logical model within Product Scope and IA V2. They remain pending final owner review and are not implementation evidence.
 - The code, tests, and README describe what is implemented now.
 - `PROJECT_SPEC_V0_1.md`, `DATA_MODEL.md`, `UX_RULES.md`, and `PROJECT_MAP.md` remain explicitly labelled prototype or legacy references and cannot override Product Scope or IA V2.
 - Information architecture is complete at the approved-document level. Empirical card sorting and tree testing remain future validation work recorded in IA V2, not invented research results.
-- **Initial Design System** is complete and approved. The active product phase is **Backend and integration architecture**. Phase status alone does not authorize implementation inside a documentation-only task.
+- **Initial Design System** is complete and approved. The active product phase is **Backend and integration architecture**. Its two draft documents are review-ready but not approved, so the phase is not complete. Phase status or later approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
 - Maps are part of the required first full version, even though they are not part of the current mock.
 - Product-scope approval does not authorize implementing all phases in one change.
 
@@ -64,7 +65,7 @@ The current prototype has no backend, authentication, real user isolation, push/
 
 ### 3. Backend and integration architecture — active phase
 
-Choose and document:
+Review and explicitly approve the draft [Backend and Integration Architecture V1](ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md) and [Target Data Model V1](ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md), which select and document:
 
 - database, backend, hosting, deployment, backups, and monitoring;
 - passwordless email-link authentication, SMS phone verification, and account recovery;
@@ -73,7 +74,7 @@ Choose and document:
 - transactional email, Web Push, PWA installation, and offline form drafts;
 - automatic translation, localized-content storage, images, analytics, audit logs, retention, and deletion.
 
-Update the data model and project diagrams after these decisions are approved.
+The target data model and target project diagrams are included as drafts for review. Keep this phase active until the owner explicitly approves both documents and resolves their listed implementation gates; do not treat their presence as backend implementation.
 
 ### 4. Core multi-user platform
 

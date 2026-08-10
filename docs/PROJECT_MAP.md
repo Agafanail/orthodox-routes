@@ -1,6 +1,6 @@
 # Orthodox Routes — Product Map
 
-This document visualizes only the current mock-only product. Orthodox Routes is a church transport board, not a taxi marketplace. The church page remains the central screen. The approved target sitemap, URL model, logical relationships, taxonomy, permissions, content model, state diagrams, and transitions are defined in [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md), sections 42–49; the diagrams below must not be read as target architecture.
+Sections 1–12 visualize only the current mock-only product. Orthodox Routes is a church transport board, not a taxi marketplace. The church page remains the central screen. The approved target sitemap, URL model, logical relationships, taxonomy, permissions, content model, state diagrams, and transitions are defined in [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md), sections 42–49. Section 13 is a clearly labelled draft target-production architecture map derived from [Backend and Integration Architecture V1](ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md) and [Target Data Model V1](ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md); it does not describe implemented behavior.
 
 ## 1. Church transport board
 
@@ -407,3 +407,317 @@ flowchart LR
 ```
 
 The mock has no backend, authentication, maps, route geometry, real delivery channels, payments, ratings, or multi-user isolation.
+
+## 13. Target production architecture — draft, not implemented
+
+This section visualizes the review-ready target selected in the draft architecture documents. It does not replace or reinterpret the current-prototype diagrams above. Across the diagrams:
+
+- **Current mock** means the implemented single-browser `localStorage` prototype.
+- **Target production** means proposed Next.js, PostgreSQL/Supabase, and protected integrations.
+- **Public data** may cross the anonymous boundary only through deliberate safe projections.
+- **Participant/user-private data** crosses only authenticated protected operations.
+- **Operationally restricted data** remains behind separate owner/worker boundaries.
+- **External provider** means a processor outside the application-owned trust boundary.
+- A dashed edge is delivery, validation, or migration input rather than an authoritative state store.
+
+### 13.1 System context and providers
+
+```mermaid
+flowchart LR
+    subgraph CURRENT["Current mock trust boundary — implemented"]
+        CB["Browser UI"]
+        CLS["localStorage mock state<br/>not authorization"]
+        CB --> CLS
+    end
+
+    subgraph PUBLIC["Public trust boundary — target"]
+        VISITOR["Anonymous visitor"]
+        PUB["Public safe projections<br/>churches, schedules, active cards,<br/>approximate areas and corridors"]
+    end
+
+    subgraph TARGET["Application trust boundary — target production"]
+        BROWSER["Browser<br/>public or authenticated UI"]
+        NEXT["Next.js on Render Frankfurt<br/>server actions, route handlers, adapters"]
+        DB["Supabase PostgreSQL + PostGIS<br/>authoritative product state"]
+        PRIV["Protected participant and user data<br/>contacts, exact places, agreements"]
+        OPS["Operationally restricted data<br/>audit, complaints, deletion, outbox"]
+        STORAGE["Supabase Storage<br/>cleaned church images"]
+        NEXT --> DB
+        DB --> PUB
+        DB --> PRIV
+        DB --> OPS
+        NEXT --> STORAGE
+    end
+
+    subgraph EXTERNAL["External provider trust boundaries"]
+        RESEND["Resend email"]
+        BIRD["Bird SMS candidate"]
+        GOOGLE["Google Maps / Routes / Translation"]
+        PUSH["Browser push services"]
+        SENTRY["Sentry EU errors"]
+        B2["Backblaze B2 encrypted backups"]
+        UPTIME["Better Stack uptime"]
+    end
+
+    VISITOR --> PUB
+    PUB --> BROWSER
+    BROWSER --> NEXT
+    NEXT -. "minimum required payload" .-> RESEND
+    NEXT -. "verification only" .-> BIRD
+    NEXT -. "temporary validation" .-> GOOGLE
+    NEXT -. "generic safe payload" .-> PUSH
+    NEXT -. "scrubbed technical errors" .-> SENTRY
+    OPS -. "encrypted export" .-> B2
+    UPTIME -. "health checks" .-> NEXT
+```
+
+Privileged Supabase credentials and provider secrets remain server-side. Church administrators never receive participant data, and Codex is outside every production secret/data boundary.
+
+### 13.2 Deployment environments
+
+```mermaid
+flowchart TD
+    subgraph CURRENT["Current mock — implemented"]
+        LOCALMOCK["Local browser prototype<br/>mock and localStorage data"]
+    end
+
+    subgraph LOCAL["Local target environment"]
+        LAPP["Local Next.js"]
+        LDB["Temporary local Supabase/PostgreSQL"]
+        LDATA["Synthetic data only<br/>no production secrets"]
+        LAPP --> LDB --> LDATA
+    end
+
+    subgraph STAGING["Staging trust boundary"]
+        PREVIEW["Preview deployment"]
+        SDB["Dedicated Supabase project"]
+        SDATA["Synthetic accounts, contacts,<br/>rides and locations only"]
+        PREVIEW --> SDB --> SDATA
+    end
+
+    subgraph PROD["Production trust boundary"]
+        RENDER["Render Next.js<br/>Frankfurt"]
+        PDB["Separate Supabase project<br/>authoritative public + protected data"]
+        POPS["Protected migrations and operations<br/>explicit action only"]
+        RENDER --> PDB
+        POPS --> PDB
+    end
+
+    subgraph PROVIDERS["External provider environments"]
+        TESTP["Test accounts / subprojects"]
+        PRODP["Production accounts / keys / quotas"]
+    end
+
+    LAPP -.-> TESTP
+    PREVIEW -.-> TESTP
+    RENDER -.-> PRODP
+    GIT["Reviewed Git migrations"] --> LOCAL
+    GIT --> STAGING
+    GIT -. "manual protected release<br/>fresh backup first" .-> POPS
+```
+
+Production is never a development database. A push to `main` does not automatically run a production migration.
+
+### 13.3 Authentication and verification
+
+```mermaid
+flowchart TD
+    subgraph CURRENT["Current mock — implemented"]
+        FORM0["Browser form"] --> OWNER0["Browser-local identity assumption<br/>no real verification"]
+    end
+
+    subgraph PUBLIC["Public target boundary"]
+        FORM["Useful contextual action draft<br/>public-safe fields only"]
+    end
+
+    subgraph AUTH["Protected target authentication boundary"]
+        EMAIL["Supabase Auth<br/>verified email identity"]
+        CONFIRM["Intermediate confirmation page<br/>explicit user action"]
+        SESSION["Remembered authenticated session"]
+        PHONE["Application phone-verification adapter"]
+        ELIGIBLE["Eligibility check<br/>email + phone + 18+ + current Terms"]
+        REVIEW["Return to final review<br/>never auto-publish"]
+    end
+
+    subgraph EXTERNAL["External providers"]
+        RESEND["Resend auth email<br/>tracking disabled"]
+        BIRD["Bird or validated fallback<br/>SMS OTP only"]
+        TURN["Cloudflare Turnstile"]
+    end
+
+    FORM --> TURN
+    TURN -.-> EMAIL
+    EMAIL -.-> RESEND
+    RESEND -. "one-time link" .-> CONFIRM
+    CONFIRM --> SESSION
+    SESSION --> PHONE
+    PHONE -. "minimum phone delivery data" .-> BIRD
+    BIRD -. "safe result/reference" .-> PHONE
+    PHONE --> ELIGIBLE --> REVIEW
+```
+
+The phone is protected contact and participation verification, not a second Supabase login identity. Recovery and contact changes use separate protected, audited operations.
+
+### 13.4 Atomic confirmation and contact disclosure
+
+```mermaid
+flowchart TD
+    subgraph CURRENT["Current mock — implemented"]
+        CLICK0["Single-browser acceptance"] --> LS0["localStorage RideMatch and seat calculation"]
+    end
+
+    subgraph CLIENT["Authenticated participant boundary — target"]
+        CLICK["Final participant confirmation<br/>idempotency key"]
+        RESULT["Agreement result without unrelated private data"]
+        CONTACT["Separate protected contact request"]
+    end
+
+    subgraph DB["PostgreSQL transaction boundary — target"]
+        FN["Protected confirmation function"]
+        CHECK["Verify actor, response, church/date,<br/>conditions, eligibility, blocks"]
+        LOCK["Lock or atomic conditional update<br/>of occurrence capacity"]
+        AGREEMENT["Insert one confirmed agreement<br/>immutable conditions snapshot"]
+        CAPACITY["Constraint: confirmed seats<br/>do not exceed total seats"]
+        EVENTS["Insert notification, outbox and audit rows"]
+        DISCLOSE["Authorize participant disclosure<br/>until cancellation or max 30d after ride"]
+        FN --> CHECK --> LOCK --> AGREEMENT --> CAPACITY --> EVENTS --> DISCLOSE
+    end
+
+    subgraph RESTRICTED["Operationally restricted boundary"]
+        AUDIT["Safe audit metadata<br/>no full contacts or coordinates"]
+    end
+
+    CLICK --> FN
+    DISCLOSE --> RESULT
+    EVENTS --> AUDIT
+    RESULT --> CONTACT
+    CONTACT --> DISCLOSE
+    DISCLOSE --> PRIVATE["Counterparty contact + exact agreed place<br/>participants only; no church-admin access"]
+```
+
+All steps commit or roll back together. Duplicate retries return the original agreement. Cancellation closes access immediately; otherwise participant access expires no later than 30 days after the scheduled ride time. A previously viewed contact cannot be erased from a participant's saved device or memory.
+
+### 13.5 Notification outbox and delivery
+
+```mermaid
+flowchart LR
+    subgraph CURRENT["Current mock — implemented"]
+        MEVENT["Mock event"] --> MLS["localStorage notification"] --> MUI["Temporary browser panel"]
+    end
+
+    subgraph TX["Target business transaction boundary"]
+        EVENT["Authoritative product event"]
+        NOTE["Notification row<br/>safe structured parameters"]
+        OUTBOX["Durable outbox jobs"]
+        EVENT --> NOTE --> OUTBOX
+    end
+
+    subgraph PRIVATE["Account-private notification boundary"]
+        ACCOUNT["Authenticated account"]
+        PREF["One notification preference<br/>ride email + Web Push"]
+        SUBS["0..* valid device<br/>push subscriptions"]
+        EELIG["Email eligible<br/>enabled + usable verified email"]
+        PELIG["Web Push eligible<br/>enabled + valid subscription"]
+        ACCOUNT --> PREF
+        ACCOUNT --> SUBS
+        PREF --> EELIG
+        PREF --> PELIG
+        SUBS --> PELIG
+    end
+
+    subgraph WORKER["Protected worker trust boundary"]
+        CRON["Supabase Cron schedule"]
+        CLAIM["Next.js worker endpoint<br/>claim, idempotency, bounded retry"]
+        CRON --> CLAIM
+        OUTBOX --> CLAIM
+    end
+
+    subgraph EXTERNAL["External delivery providers"]
+        EMAIL["Resend email"]
+        PUSH["Standard Web Push services"]
+        WEBHOOK["Signed duplicate/out-of-order webhooks"]
+    end
+
+    CLAIM -. "eligible delivery" .-> EELIG
+    CLAIM -. "eligible delivery" .-> PELIG
+    EELIG -. "no private ride payload" .-> EMAIL
+    PELIG -. "generic type + notification ID + safe route" .-> PUSH
+    EMAIL -.-> WEBHOOK
+    PUSH -.-> WEBHOOK
+    WEBHOOK --> DELIVERY["Delivery state<br/>provider reference + safe error"]
+    NOTE --> UI["Authoritative in-app history"]
+    REALTIME["Supabase Realtime<br/>optional refresh only"] -.-> UI
+```
+
+Realtime is not a notification store. In-app history is always enabled. The server rejects preference or voluntary subscription changes that would leave an account with relevant active transport commitments and no effective external channel. Email and push failures do not remove the in-app record or roll back the ride event.
+
+### 13.6 Backup and restore
+
+```mermaid
+flowchart TD
+    subgraph CURRENT["Current mock — implemented"]
+        NOBACKUP["Browser-local records<br/>no production backup or restore"]
+    end
+
+    subgraph PROD["Production data trust boundary"]
+        DB["Supabase PostgreSQL<br/>public + protected + restricted rows"]
+        STORAGE["Supabase Storage<br/>cleaned church images"]
+        LEDGER["Separately protected deletion ledger"]
+    end
+
+    subgraph BACKUP["Backup process boundary"]
+        EXPORT["Daily logical database export"]
+        OBJECTS["Storage object export + manifest"]
+        ENCRYPT["Encrypt before upload<br/>checksums + migration version"]
+        DB --> EXPORT --> ENCRYPT
+        STORAGE --> OBJECTS --> ENCRYPT
+    end
+
+    subgraph EXTERNAL["External backup provider"]
+        B2["Backblaze B2 EU bucket<br/>daily 30d / monthly 12m / pre-migration 30d"]
+    end
+
+    ENCRYPT -.-> B2
+    B2 -. "isolated restore" .-> RESTORE["Restore rehearsal environment"]
+    RESTORE --> VERIFY["Integrity, schema, Storage and privacy checks"]
+    LEDGER --> REAPPLY["Reapply deletions"]
+    VERIFY --> REAPPLY --> OPEN["Owner-approved reopen only"]
+    HEART["Better Stack heartbeat"] -. "success/failure only" .-> ENCRYPT
+    NOBACKUP -. "not a backup source" .-> RESTORE
+```
+
+Database backups do not contain Storage objects. The initial target accepts up to approximately 24 hours of data loss and does not promise zero downtime.
+
+### 13.7 Migration from `localStorage`
+
+```mermaid
+flowchart LR
+    subgraph CURRENT["Current mock — implemented, untrusted for import"]
+        LS["localStorage offers, requests,<br/>responses, RideMatches, notifications"]
+        RULES["Reusable domain rules,<br/>validators, state machines and tests"]
+    end
+
+    subgraph STAGING["Target staging migration boundary"]
+        SEEDS["Canonical schema + synthetic seeds"]
+        AUTH["Authentication + eligibility"]
+        REQUESTS["Passenger requests"]
+        OFFERS["One-time offers, then series + occurrences"]
+        AGREEMENTS["Responses, atomic confirmation,<br/>capacity, disclosure, cancellation"]
+        TRIPS["My Trips + durable notifications"]
+        CUTOVER["Full backend cutover"]
+        SEEDS --> AUTH --> REQUESTS --> OFFERS --> AGREEMENTS --> TRIPS --> CUTOVER
+    end
+
+    subgraph PROD["Target production trust boundary"]
+        SERVER["Server-owned authoritative entities"]
+        PREFS["Browser-only harmless preferences<br/>and unsubmitted drafts"]
+    end
+
+    RULES -. "migrate behavior and tests" .-> SEEDS
+    LS -. "do not import browser records" .-> STOP["Discard mock identity, contacts,<br/>IDs, capacity and ownership"]
+    CUTOVER --> SERVER
+    CUTOVER --> PREFS
+    CLEANUP["One-time obsolete-key cleanup"] --> PREFS
+```
+
+Production never dual-writes the same entity to PostgreSQL and `localStorage`. Current mock records have no trustworthy cross-device identity or provenance.
