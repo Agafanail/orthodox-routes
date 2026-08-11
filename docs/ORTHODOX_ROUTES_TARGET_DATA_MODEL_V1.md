@@ -3,7 +3,7 @@
 - **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** canonical target logical model for the first complete public version
-- **Physical status:** architectural design only; not an executable migration, API contract, or deployed schema
+- **Physical status:** canonical logical design only; not a complete executable schema, API contract, or deployed domain model. Only its empty `app`, `private`, `api`, and `ops` foundation schemas have an implementation migration
 
 ## 1. Purpose and authority
 
@@ -16,7 +16,7 @@ Authority remains:
 3. Backend and Integration Architecture V1 for selected technologies and trust boundaries.
 4. This document for target logical entities, relationships, constraints, and database responsibilities.
 
-If an authoritative product rule conflicts with this model, implementation pauses and the documents are reconciled explicitly. This task does not create complete SQL migrations.
+If an authoritative product rule conflicts with this model, implementation pauses and the documents are reconciled explicitly. This document does not constitute complete SQL migrations.
 
 ## 2. Modelling principles
 
@@ -538,7 +538,7 @@ Synthetic staging seeds and migrated test scenarios prove behavior. Browser-gene
 
 ## 23. Pre-migration decisions
 
-Before executable migrations are written, owner/legal/security review must approve:
+Before executable target domain migrations are written, owner/legal/security review must approve:
 
 - technical upper bounds for passenger counts, seats, note lengths, and detour values;
 - protective delay and verification policy for email replacement while the previously verified phone remains available;
@@ -551,4 +551,4 @@ Before executable migrations are written, owner/legal/security review must appro
 
 ## 24. Approval status
 
-This logical model is approved as the canonical target model for Backend and Integration Architecture V1. It intentionally stops before executable SQL, migrations, seeds, provider configuration, or infrastructure. Its approval completes the backend and integration architecture roadmap phase alongside the approved architecture document, but it does not authorize implementation of later phases.
+This logical model is approved as the canonical target model for Backend and Integration Architecture V1. It intentionally stops before complete executable SQL, target domain migrations, seeds, provider configuration, or remote infrastructure. The implemented empty foundation schemas do not materialize this model. Its approval completes the backend and integration architecture roadmap phase alongside the approved architecture document, but it does not authorize implementation of later phases.

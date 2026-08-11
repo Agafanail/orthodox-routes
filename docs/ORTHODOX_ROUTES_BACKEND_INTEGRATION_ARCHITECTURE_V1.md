@@ -3,7 +3,7 @@
 - **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** target production architecture for the first complete public version
-- **Implementation state:** documentation only; none of the target services in this document are configured or implemented
+- **Implementation state:** the version-controlled local Supabase/PostgreSQL migration foundation is implemented; no remote service, application backend, authentication, provider integration, or target domain schema is configured
 
 ## 1. Purpose and authority
 
@@ -28,6 +28,8 @@ If Product Scope and IA V2 conflict, implementation pauses until the owner resol
 The runnable application is one browser-only Next.js mock prototype. Static mock data and namespaced `localStorage` demonstrate passenger requests, driver offers, responses, confirmations, capacity, cancellations, and notifications within one browser. There is no production backend, authentication, real cross-device user isolation, map integration, transactional email, SMS verification, Web Push, production storage, or administration backend.
 
 Current browser behavior is evidence for reusable domain rules and tests, not a production trust boundary or a source of production data.
+
+The repository now contains a local-only Supabase/PostgreSQL configuration and a versioned migration that creates the empty `app`, `private`, `api`, and `ops` foundation schemas. CI replays committed migrations from a clean local database. The application does not connect to this database, and no remote Supabase project or target domain table exists.
 
 ### 2.2 Selected target
 

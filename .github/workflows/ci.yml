@@ -44,3 +44,33 @@ jobs:
 
       - name: Build application
         run: npm run build
+
+  database-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: true
+      SUPABASE_TELEMETRY_DISABLED: 1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start local database
+        run: npm run db:start
+
+      - name: Rebuild database from migrations
+        run: npm run db:reset
+
+      - name: Stop local database
+        if: always()
+        run: npm run db:stop
