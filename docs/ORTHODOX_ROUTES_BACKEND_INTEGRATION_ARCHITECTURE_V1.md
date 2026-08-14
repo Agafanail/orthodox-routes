@@ -3,7 +3,7 @@
 - **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** target production architecture for the first complete public version
-- **Implementation state:** the version-controlled local Supabase/PostgreSQL migration foundation and local-only passwordless email identity/session slice are implemented; no remote service, application account/domain backend, production email, phone verification, participation eligibility, provider integration, or target domain schema is configured
+- **Implementation state:** the version-controlled local Supabase/PostgreSQL migration foundation, local-only passwordless email identity/session slice, and backend-only account/consent/eligibility foundation are implemented; no remote service, production email/SMS, real phone verification, production legal document, contextual registration, transport backend, provider integration, or remaining target domain schema is configured
 
 ## 1. Purpose and authority
 
@@ -29,7 +29,7 @@ The transport application remains a browser-only Next.js mock prototype. Static 
 
 Current browser behavior is evidence for reusable domain rules and tests, not a production trust boundary or a source of production data.
 
-The repository contains a local-only Supabase/PostgreSQL configuration and a versioned migration that creates the empty `app`, `private`, `api`, and `ops` foundation schemas. CI replays committed migrations from a clean local database. A separate local-only passwordless email Auth slice uses Supabase-managed `auth.users`, an explicit token-hash confirmation action, SSR cookies, verified `getClaims()` identity resolution, and current-session sign-out. It does not create `app.account`, grant participation eligibility, connect transport data to the identity, configure a remote Supabase project, or send external email.
+The repository contains a local-only Supabase/PostgreSQL configuration and versioned migrations that create the `app`, `private`, `api`, and `ops` foundation schemas plus the Account & Eligibility Foundation. CI replays committed migrations from a clean local database. The local-only passwordless email Auth slice uses Supabase-managed `auth.users`, an explicit token-hash confirmation action, SSR cookies, verified `getClaims()` identity resolution, and current-session sign-out. A separate narrow authenticated API explicitly materializes `app.account` only for the current verified identity, derives protected email, stores optional unverified E.164 phone data, records the 18+ declaration and version-specific Terms acceptance, and evaluates structured participation eligibility from authoritative data. No production legal document or phone-verification path is seeded, so an ordinary local active account remains ineligible. The implementation does not connect transport data to the identity, configure a remote Supabase project, or send external email/SMS.
 
 ### 2.2 Selected target
 

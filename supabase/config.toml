@@ -5,7 +5,7 @@ project_id = "orthodox-routes"
 [api]
 enabled = true
 port = 54321
-schemas = ["public"]
+schemas = ["api"]
 extra_search_path = ["public"]
 
 [db]

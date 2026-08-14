@@ -11,7 +11,6 @@ const excludedServices = [
   'realtime',
   'storage-api',
   'imgproxy',
-  'postgrest',
   'postgres-meta',
   'studio',
   'edge-runtime',

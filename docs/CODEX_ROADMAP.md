@@ -40,8 +40,9 @@ Roadmap separates the implemented browser-only prototype from the approved first
 - Public passenger comments limited to 300 characters with a privacy warning; no automated moderation.
 - Vitest unit-test foundation for validation, date formatting, request visibility/state transitions, and safe localStorage parsing, plus P0 Church Transport Board component integration coverage for confirmation, contact disclosure, duplicate actions, and safe hydration. Pure unit tests use Node; the component integration file uses jsdom only.
 - Basic GitHub Actions CI for clean-install tests, lint, and production builds on main-branch pushes and pull requests.
-- Version-controlled local Supabase/PostgreSQL configuration, empty foundation-schema migration, and isolated clean migration replay in CI. The application does not connect to this database.
-- Local-only passwordless email Auth with a custom token-hash confirmation page, explicit POST confirmation, cookie-backed SSR session, `getClaims()` server identity verification, reload persistence, and current-device sign-out. It uses Supabase-managed `auth.users` only and grants no transport eligibility.
+- Version-controlled local Supabase/PostgreSQL configuration, foundation and account/eligibility migrations, and isolated clean migration replay in CI.
+- Local-only passwordless email Auth with a custom token-hash confirmation page, explicit POST confirmation, cookie-backed SSR session, `getClaims()` server identity verification, reload persistence, and current-device sign-out.
+- Backend-only application accounts linked to verified `auth.users`, protected contacts, an 18+ declaration, versioned legal-document metadata/Terms acceptance, and one authoritative structured participation-eligibility check behind narrow authenticated RPCs. Account creation is explicit, `active` remains separate from eligibility, and ordinary clients cannot mark a phone verified.
 - First church transport board component-extraction refactor for the request dialog, passenger request card, and mock notification center.
 - Second church transport board presentational extraction for page actions, request and response panels, targeted requests, and driver offers.
 - Centralized one-time-trip visibility based on open status, available seats, and a local departure date and time that has not passed.
@@ -49,7 +50,7 @@ Roadmap separates the implemented browser-only prototype from the approved first
 - Human-language driver-offer UI with trip-specific origin, numeric maximum detour, 1–55 seat selection, blur/touched validation, human cancellation copy, and static-plus-browser-local church counters.
 - Role-labelled passenger/driver page actions, origin-to-church offers with numeric maximum detour, shared compact service/date selection, and an intentional no-schedule church scenario.
 
-The current prototype has no remote application backend, target application account/domain schema, real transport-data isolation, production email/push delivery, phone verification, participation eligibility, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features. The implemented authentication slice is local-only and proves verified email identity/session handling without connecting browser-local transport data to that identity. Transport flows remain browser-local and do not depend on the local database or Auth stack.
+The repository still has no remote application backend, transport-domain schema, real transport-data isolation, production email/push delivery, real phone verification, production Terms/Privacy text, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features. The implemented local account foundation can derive ineligibility and provides the future server/database re-check boundary, but a normal account cannot become participation-eligible through application code because SMS verification is not implemented and no production Terms version is seeded. Transport flows remain browser-local and do not depend on the local database, Auth, or account stack.
 
 ## Development sequence
 
@@ -82,9 +83,10 @@ The target data model and target project diagrams are approved architecture arti
 
 ### 4. Core multi-user platform — active
 
-- Establish version-controlled local Supabase/PostgreSQL configuration and clean migration replay — completed for the empty foundation schemas only.
-- Implement the local passwordless email identity/session foundation — completed locally only, without `app.account`, remote Supabase, production email, or participation eligibility.
-- Implement the remaining application backend, contextual account/profile creation, SMS phone verification, the 18+ declaration, Terms acceptance, and remote environment work in separately approved tasks.
+- Establish version-controlled local Supabase/PostgreSQL configuration and clean migration replay — completed locally.
+- Implement the local passwordless email identity/session foundation — completed locally only, without remote Supabase or production email.
+- Implement the backend-only Account & Eligibility Foundation — completed locally with explicit application-account materialization, protected contacts, an 18+ declaration, versioned legal-document/Terms acceptance, and authoritative eligibility evaluation; no SMS verification, production legal text, profile UI, or contextual registration is included.
+- Implement the remaining contextual registration/profile flow, real SMS phone verification, remote environment work, and later application backend slices in separately approved tasks.
 - Migrate the approved transport-board domain model from browser storage.
 - Enforce ownership and authorization server-side.
 - Keep contacts unavailable to anonymous users and unconfirmed counterparties.
@@ -115,7 +117,7 @@ The target data model and target project diagrams are approved architecture arti
 ### 8. Privacy, terms, support, and operations
 
 - Draft the Terms of Use and Privacy Policy for the selected architecture, providers, data flows, and public international scope.
-- Record acceptance of document versions and timestamps.
+- Publish approved production document versions and connect the existing versioned acceptance foundation to the final legal UI.
 - Implement account deletion, complaints, personal blocking, and the agreed data-retention behavior.
 - Keep voluntary external project support separate from prohibited ride payments and commissions.
 - Add the support form, owner runbook, protected administrative operations, and audit logging.

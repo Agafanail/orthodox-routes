@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:auth": "vitest run src/lib/auth src/lib/supabase/config.test.ts src/app/auth",
+    "test:account": "node scripts/verify-account-foundation.mjs",
     "db:start": "supabase db start",
     "db:reset": "supabase db reset --local",
     "db:stop": "supabase stop",

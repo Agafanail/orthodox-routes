@@ -3,7 +3,7 @@
 - **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** canonical target logical model for the first complete public version
-- **Physical status:** canonical logical design only; not a complete executable schema, API contract, or deployed domain model. Only its empty `app`, `private`, `api`, and `ops` foundation schemas have an application migration; local Supabase-managed `auth.users` now supports the isolated email identity/session slice without materializing `app.account` or another target domain entity
+- **Physical status:** canonical logical design with an implemented local Account & Eligibility Foundation, not a complete executable target domain schema, API contract, or deployed domain model. Versioned migrations now materialize `app.account`, `private.account_contact`, legal-document/acceptance metadata, and narrow account/eligibility RPCs on top of the `app`, `private`, `api`, and `ops` schemas; transport, provider, recovery, operational, and remaining target entities are not implemented
 
 ## 1. Purpose and authority
 
@@ -65,6 +65,8 @@ One row per Supabase Auth identity.
 
 Email verification is read from the managed auth identity through a protected eligibility function. The application row does not duplicate an authoritative editable role.
 
+In the implemented foundation, `active` means normal account standing and is intentionally distinct from participation eligibility. An active account can remain ineligible until its phone is verified, the 18+ declaration is recorded, and the current Terms version is accepted.
+
 ### 4.2 `private.account_contact`
 
 | Field | Key/rule |
@@ -80,6 +82,8 @@ Contacts are user-private and participant-visible only through an eligible agree
 ### 4.3 `app.legal_document_version` and `app.legal_acceptance`
 
 `legal_document_version` records document type, version, language set, effective time, and content hash. `legal_acceptance` has a composite unique key `(account_id, document_version_id, acceptance_type)`, acceptance time, and safe evidence metadata. Current Terms acceptance is checked by the eligibility function.
+
+The implemented current-version rule selects the published document of the requested type with the latest `effective_at` not later than the evaluation time. Effective times are unique per document type, future and draft versions do not apply, and no production legal document is inserted by the foundation migration.
 
 ### 4.4 `ops.phone_verification_attempt`
 
@@ -538,17 +542,17 @@ Synthetic staging seeds and migrated test scenarios prove behavior. Browser-gene
 
 ## 23. Pre-migration decisions
 
-Before executable target domain migrations are written, owner/legal/security review must approve:
+Before the remaining executable target domain migrations are written, owner/legal/security review must approve:
 
 - technical upper bounds for passenger counts, seats, note lengths, and detour values;
 - protective delay and verification policy for email replacement while the previously verified phone remains available;
 - remaining retention-policy values within the approved 30-day maximum, including the short cancelled-data cleanup period and dispute-scoped legal holds;
 - Google Maps Content versus application-owned/user-confirmed data boundary;
 - phone verification provider coverage and fallback;
-- exposed schema/function list and complete RLS matrix;
+- the remaining exposed schema/function list and complete RLS matrix beyond the implemented account/eligibility boundary;
 - backup encryption/key custody and deletion-ledger protection;
 - support-case and protected-operator authentication process.
 
 ## 24. Approval status
 
-This logical model is approved as the canonical target model for Backend and Integration Architecture V1. It intentionally stops before complete executable SQL, target domain migrations, seeds, provider configuration, or remote infrastructure. The implemented empty foundation schemas and local Supabase-managed Auth identity do not materialize `app.account` or the target domain model. Its approval completes the backend and integration architecture roadmap phase alongside the approved architecture document, but it does not authorize implementation of later phases.
+This logical model is approved as the canonical target model for Backend and Integration Architecture V1. It intentionally stops before a complete executable target schema, remaining domain migrations, production legal-document seeds, provider configuration, or remote infrastructure. The local application now materializes only the approved account/contact/legal-acceptance/eligibility foundation alongside Supabase-managed Auth; this is not implementation of the transport domain or later target entities. The model's approval completes the backend and integration architecture roadmap phase alongside the approved architecture document, but it does not authorize implementation of later phases.

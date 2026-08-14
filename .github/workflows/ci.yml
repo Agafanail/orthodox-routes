@@ -101,6 +101,12 @@ jobs:
       - name: Run focused Auth tests
         run: npm run test:auth
 
+      - name: Verify local passwordless Auth integration
+        run: npm run auth:verify
+
+      - name: Verify account and eligibility foundation
+        run: npm run test:account
+
       - name: Stop local Auth
         if: always()
         run: npm run auth:stop
