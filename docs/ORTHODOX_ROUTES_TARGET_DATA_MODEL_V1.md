@@ -73,11 +73,13 @@ In the implemented foundation, `active` means normal account standing and is int
 | --- | --- |
 | `account_id` | PK/FK to `app.account` |
 | `email_normalized` | Required; unique while account is active; synchronized through protected identity-change operation |
-| `phone_e164` | Nullable until supplied; unique while verified/active |
+| `phone_e164` | Nullable until supplied; may repeat while unverified; unique once verified while the binding remains valid |
 | `phone_verified_at` | Nullable |
 | `email_changed_at`, `phone_changed_at` | Nullable audit helpers |
 
 Contacts are user-private and participant-visible only through an eligible agreement disclosure function. General account queries never join this table.
+
+Entering a phone does not reserve it. The implemented partial unique index applies only when `phone_verified_at` is set, so incomplete accounts may temporarily hold the same E.164 value while a second verified binding is rejected. The current foundation has no phone-change, deletion, or binding-release workflow; until a later protected operation explicitly invalidates a verified binding, it remains reserved across account lifecycle states.
 
 ### 4.3 `app.legal_document_version` and `app.legal_acceptance`
 

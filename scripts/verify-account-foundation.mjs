@@ -223,12 +223,16 @@ try {
 
   const accountB = await rpc(clientB, 'create_account', {
     p_display_name: 'Марія-Анна',
-    p_phone_e164: '+390000000002',
+    p_phone_e164: '+390000000001',
     p_preferred_language: 'uk',
   });
   assert.equal(accountB.display_name, 'Марія-Анна');
   assert.equal(accountB.email, identities[1].email);
   assert.notEqual(accountB.email, accountA.email);
+  assert.equal(accountA.phone, '+390000000001');
+  assert.equal(accountB.phone, accountA.phone);
+  assert.equal(accountA.phone_verified_at, null);
+  assert.equal(accountB.phone_verified_at, null);
 
   const privateSchemaRead = await fetch(`${url}/rest/v1/account_contact?select=*`, {
     headers: {
@@ -332,11 +336,14 @@ try {
     container,
     `begin;
      update private.account_contact
-     set phone_e164 = '+390000000001', phone_verified_at = now()
+     set phone_verified_at = now()
      where account_id = '${identities[1].id}';
      rollback;`,
     { expectFailure: true },
   );
+  const duplicatePhoneEligibility = await rpc(clientB, 'current_eligibility');
+  assertReason(duplicatePhoneEligibility, 'phone_not_verified');
+  assert.equal((await rpc(clientB, 'current_account')).status, 'active');
   eligibilityA = await rpc(clientA, 'current_eligibility');
   assert.equal(eligibilityA.eligible, true);
   assert.deepEqual(eligibilityA.reasons, []);
@@ -411,6 +418,7 @@ try {
       '- Auth identities do not auto-materialize application accounts',
       '- account RPCs derive ownership from verified authentication context',
       '- display name, language, contact, and phone-verification boundaries hold',
+      '- duplicate unverified phones are allowed while duplicate verified bindings are rejected',
       '- adult declaration and current Terms acceptance are durable prerequisites',
       '- active account state remains separate from participation eligibility',
       '- restricted, deleting, deleted, and unverified-email states are ineligible',
