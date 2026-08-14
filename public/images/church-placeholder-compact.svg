@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Фотография храма не загружена">
+  <title>Фотография храма не загружена</title>
+  <desc>Упрощённая версия для размеров меньше 56 px (DS V2 параграф 9.3). Без окон барабана и без подножия креста: на малом размере они сливаются в серую полосу. Перекладины утолщены.</desc>
+
+  <rect width="240" height="200" fill="var(--ph-bg, #E6EBEF)"/>
+  <rect x="64" y="132" width="112" height="68" fill="var(--ph-drum, #CFD9E1)"/>
+  <path d="M64 132 C64 114 68 102 78 88 C92 68 109 56 120 48 C131 56 148 68 162 88 C172 102 176 114 176 132 Z"
+        fill="var(--ph-dome, #AEBCC9)"/>
+  <circle cx="120" cy="49" r="3.6" fill="var(--ph-dome, #AEBCC9)"/>
+  <g fill="var(--ph-dome, #AEBCC9)">
+    <rect x="117.9" y="14" width="4.2" height="34"/>
+    <rect x="113.5" y="19.4" width="13" height="3.2"/>
+    <rect x="107.5" y="26.4" width="25" height="4.2"/>
+  </g>
+</svg>

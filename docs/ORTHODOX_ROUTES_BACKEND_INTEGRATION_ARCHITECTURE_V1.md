@@ -13,7 +13,7 @@ Authority order:
 
 1. [Product Scope V1](ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md) controls product purpose and first-version boundaries.
 2. [Information Architecture V2](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md) controls target screens, routes, roles, permissions, journeys, states, visibility, taxonomy, content, and transitions.
-3. [Initial Design System V1](ORTHODOX_ROUTES_DESIGN_SYSTEM_V1.md) controls the approved initial visual system.
+3. [Design System V2](ORTHODOX_ROUTES_DESIGN_SYSTEM_V2.md) controls the canonical approved visual system and supersedes archived V1; production UI adoption is separate.
 4. This document controls the selected target backend and integration architecture within those boundaries.
 5. [Target Data Model V1](ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md) is the canonical target logical model for this architecture.
 6. Code, tests, and `README.md` describe what is implemented now.

@@ -6,11 +6,12 @@ Roadmap separates the implemented browser-only prototype from the approved first
 
 - The Product Scope is the authority for product purpose and first-version boundaries.
 - IA V2 is the authority for target-product screens, navigation, journeys, permissions, states, visibility, URL model, taxonomy, and content model.
+- Canonical approved [Design System V2](ORTHODOX_ROUTES_DESIGN_SYSTEM_V2.md) controls the visual system within Product Scope and IA V2 and supersedes archived V1. Its approval is distinct from production UI adoption.
 - Approved [Backend and Integration Architecture V1](ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md) and [Target Data Model V1](ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md) record the selected production architecture and canonical logical model within Product Scope and IA V2. They are not implementation evidence.
 - The code, tests, and README describe what is implemented now.
 - `PROJECT_SPEC_V0_1.md`, `DATA_MODEL.md`, `UX_RULES.md`, and `PROJECT_MAP.md` remain explicitly labelled prototype or legacy references and cannot override Product Scope or IA V2.
-- Information architecture is complete at the approved-document level. Empirical card sorting and tree testing remain future validation work recorded in IA V2, not invented research results.
-- **Initial Design System** and **Backend and integration architecture** are complete and approved. The active phase is **Core multi-user platform**. Phase approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
+- Information architecture is complete at the approved-document level. Empirical card sorting and tree testing remain future validation work recorded in IA V2, not invented research results; they do not block Design System V2 approval.
+- **Design System V2** is canonical and approved, and **Backend and integration architecture** is complete and approved. The active phase is **Core multi-user platform**. The isolated `/design-preview` refresh to ten V2 control screens is complete; production adoption remains separate Phase 10 work. Phase approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
 - Maps are part of the required first full version, even though they are not part of the current mock.
 - Product-scope approval does not authorize implementing all phases in one change.
 
@@ -57,12 +58,13 @@ The current prototype has no functional application backend, authentication, rea
 - Defines the complete screen inventory, mobile/desktop navigation, URL model, roles, permissions, visibility, content model, journeys, and states.
 - Records the future card-sorting and tree-testing protocol without claiming that user research has already occurred.
 
-### 2. Initial design system — completed
+### 2. Canonical design system — approved
 
 - Establish the visual direction and reusable foundations.
 - Design key mobile and desktop samples: church directory/map, church page/transport board, trip and request cards, forms, My Trips, notifications, profile, navigation, and empty states.
 - Review each important screen manually.
-- Approved foundations and the isolated `/design-preview` review artifact are recorded in [ORTHODOX_ROUTES_DESIGN_SYSTEM_V1.md](ORTHODOX_ROUTES_DESIGN_SYSTEM_V1.md).
+- Canonical approved foundations and the stored V2 visual reference are recorded in [ORTHODOX_ROUTES_DESIGN_SYSTEM_V2.md](ORTHODOX_ROUTES_DESIGN_SYSTEM_V2.md). V2 supersedes [archived V1](archive/ORTHODOX_ROUTES_DESIGN_SYSTEM_V1.md).
+- `/design-preview` remains the isolated reference artifact and contains ten V2 control screens. Production UI migration is separate and is not complete.
 
 ### 3. Backend and integration architecture — completed
 

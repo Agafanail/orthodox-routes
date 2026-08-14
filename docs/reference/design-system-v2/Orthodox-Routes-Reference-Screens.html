@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orthodox Routes — эталонные экраны</title>
+<style>
+:root{
+  --canvas:#FCFCFA; --surface:#FFFFFF; --subtle:#F4F7F3;
+  --text:#172019; --text2:#58625B; --text3:#687169;
+  --primary:#2E6A57; --primary-pale:#ECF4F0;
+  --border:#E3E8E3; --control:#7D8A80; --control-text:#2F3431;
+  --focus:#1F6FB2;
+  --planned-bg:#EDF2F5; --planned:#3F5F73;
+  --pending-bg:#FBF2DF; --pending:#79551D;
+  --r-status:8px; --r-ctl:12px; --r-card:16px; --r-sheet:28px;
+  --page-bg:#EEF1ED;
+  --font:'Onest',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--font); background:var(--page-bg); color:var(--text);
+  -webkit-font-smoothing:antialiased; line-height:1.45;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:48px 24px 96px}
+
+/* ---------- документ-обёртка ---------- */
+.doc-head{max-width:760px;margin:0 0 56px}
+.doc-head .eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);font-weight:600;margin:0 0 12px}
+.doc-head h1{font-size:38px;line-height:1.15;margin:0 0 16px;font-weight:600;letter-spacing:-.01em}
+.doc-head p{font-size:16px;color:var(--text2);margin:0 0 12px}
+.doc-head .warn{font-size:14px;color:var(--text3);border-left:2px solid var(--border);padding-left:16px;margin-top:24px}
+
+section.block{margin:0 0 88px}
+.block-head{margin:0 0 24px;max-width:760px}
+.block-head .num{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);font-weight:600;margin:0 0 8px}
+.block-head h2{font-size:26px;font-weight:600;margin:0 0 12px;letter-spacing:-.01em}
+.block-head ul{margin:0;padding-left:18px;font-size:14px;color:var(--text2)}
+.block-head li{margin:0 0 5px}
+.block-head li b{color:var(--text);font-weight:600}
+
+.pair{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.stack .pane:last-child{margin-bottom:0}
+.pane{flex:0 0 auto}
+.pane-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--text3);margin:0 0 10px}
+.pane-label.after{color:var(--primary)}
+section.block.m{display:flex;gap:48px;align-items:flex-start;flex-wrap:wrap}
+section.block.m .block-head{flex:1 1 320px;margin:0}
+section.block.m .pair{order:-1;flex:0 0 auto}
+section.block.m .note{flex:1 1 100%}
+.stack{display:block}
+.stack .pane{width:100%;margin-bottom:28px}
+
+/* устройство */
+.device{width:390px;height:800px;overflow:hidden;border-radius:26px;border:1px solid #D6DBD6;background:var(--canvas);box-shadow:0 12px 32px rgba(23,32,25,.10);position:relative}
+.device .scroll{height:100%;overflow-y:auto;scrollbar-width:thin}
+.device .scroll::-webkit-scrollbar{width:5px}
+.device .scroll::-webkit-scrollbar-thumb{background:#CFD4CF;border-radius:999px}
+.shot-m{width:390px;border-radius:26px;border:1px solid #D6DBD6;display:block;box-shadow:0 12px 32px rgba(23,32,25,.10)}
+.shot-d{width:100%;border-radius:14px;border:1px solid #D6DBD6;display:block;box-shadow:0 12px 32px rgba(23,32,25,.08)}
+
+/* desktop-макет со скейлом */
+.dscale{position:relative;width:100%;overflow:hidden;border-radius:14px;border:1px solid #D6DBD6;box-shadow:0 12px 32px rgba(23,32,25,.08);background:var(--canvas)}
+.dinner{width:1440px;transform-origin:top left}
+
+/* ---------- ОБЩИЕ КОМПОНЕНТЫ МАКЕТА ---------- */
+.mock{font-family:var(--font);color:var(--text);background:var(--canvas);font-size:16px;line-height:1.45}
+.mock button{font:inherit;color:inherit;cursor:default}
+.mock h1,.mock h2,.mock h3,.mock p,.mock ul{margin:0}
+.mock .t-page{font-size:30px;font-weight:600;letter-spacing:-.01em;line-height:1.16}
+.mock .t-page-d{font-size:36px;font-weight:600;letter-spacing:-.015em;line-height:1.14}
+.mock .t-sec{font-size:20px;font-weight:600;letter-spacing:-.005em}
+.mock .t-sec-d{font-size:22px;font-weight:600;letter-spacing:-.005em}
+.mock .t-card{font-size:17px;font-weight:600;letter-spacing:-.003em;line-height:1.3}
+.mock .t-data{font-size:15px;color:var(--text)}
+.mock .t-data b{font-weight:500}
+.mock .t-sub{font-size:14px;color:var(--text2)}
+.mock .t-sub3{font-size:14px;color:var(--text3)}
+.mock .t-micro{font-size:12px;color:var(--text2);font-weight:500}
+
+/* кнопки: три уровня */
+.mock .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 20px;border-radius:var(--r-ctl);font-size:16px;font-weight:500;border:1px solid transparent;background:none}
+.mock .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.mock .btn-secondary{background:var(--surface);color:var(--control-text);border-color:var(--control)}
+.mock .btn-quiet{background:none;color:var(--control-text);border-color:transparent;padding:0 12px}
+.mock .btn-sm{position:relative;min-height:38px;font-size:15px;padding:0 16px}
+.mock .btn-sm::after{content:"";position:absolute;inset:-3px 0}
+.mock .btn-full{display:flex;width:100%}
+
+/* поля и чипы */
+.mock .field{display:flex;align-items:center;gap:10px;height:46px;padding:0 14px;border:1px solid var(--control);border-radius:var(--r-ctl);background:var(--surface);color:var(--text3);font-size:16px}
+.mock .selector{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border:1px solid var(--control);border-radius:var(--r-ctl);background:var(--surface);font-size:15px;color:var(--control-text)}
+.mock .chip{display:inline-flex;align-items:center;height:36px;padding:0 16px;border-radius:999px;border:1px solid var(--control);background:var(--surface);font-size:14px;color:var(--control-text)}
+.mock .chip.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:500}
+.mock .seg{display:inline-flex;padding:3px;background:var(--subtle);border-radius:999px}
+.mock .seg span{display:inline-flex;align-items:center;height:34px;padding:0 18px;border-radius:999px;font-size:14px;color:var(--text2)}
+.mock .seg span.on{background:var(--surface);color:var(--text);font-weight:500;box-shadow:0 1px 2px rgba(23,32,25,.10)}
+
+/* метки: три разные формы */
+.mock .badge{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:8px;font-size:12px;font-weight:500}
+.mock .badge-ok{background:var(--primary-pale);color:var(--primary)}
+.mock .badge-plan{background:var(--planned-bg);color:var(--planned)}
+.mock .badge-wait{background:var(--pending-bg);color:var(--pending)}
+.mock .tag{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:999px;background:var(--subtle);color:var(--text2);font-size:12px;font-weight:500}
+.mock .when{font-size:14px;color:var(--text3)}
+
+/* карточки */
+.mock .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:16px}
+.mock .card.sel{background:var(--primary-pale);border-color:var(--primary)}
+.mock .divider{height:1px;background:var(--border)}
+
+/* иконочные кнопки */
+.mock .icb{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:999px;border:1px solid var(--control);background:var(--surface);color:var(--control-text)}
+.mock .icb svg{width:20px;height:20px}
+.mock svg{stroke-width:1.6}
+
+/* мобильная нижняя навигация */
+.mock .tabbar{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--border);background:var(--surface);padding:8px 0 14px}
+.mock .tabbar a{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--text2);text-decoration:none}
+.mock .tabbar a svg{width:24px;height:24px}
+.mock .tabbar a.on{color:var(--primary);font-weight:500}
+
+/* карта */
+.mock .map{background:#EEF3EB;position:relative;overflow:hidden}
+.mock .map .lbl{position:absolute;font-size:13px;color:#7C857B;font-weight:500;letter-spacing:.01em}
+.mock .pin{position:absolute;width:22px;height:30px;transform:translate(-50%,-100%)}
+.mock .pin.big{width:28px;height:38px}
+
+/* desktop-шапка */
+.mock .dhead{display:flex;align-items:center;gap:32px;height:64px;padding:0 32px;border-bottom:1px solid var(--border);background:var(--surface)}
+.mock .dhead .brand{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600}
+.mock .dhead .brand .mk{width:32px;height:32px;border-radius:9px;background:var(--primary-pale);display:flex;align-items:center;justify-content:center;color:var(--primary)}
+.mock .dhead nav{display:flex;gap:28px;margin:0 auto}
+.mock .dhead nav a{font-size:15px;color:var(--text2);text-decoration:none;padding:21px 0;border-bottom:2px solid transparent}
+.mock .dhead nav a.on{color:var(--primary);font-weight:500;border-color:var(--primary)}
+.mock .dhead .right{display:flex;align-items:center;gap:10px}
+.mock .dhead .right .icb{width:38px;height:38px}
+.mock .dhead .right .icb svg{width:18px;height:18px}
+.mock .lang{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 12px;border-radius:var(--r-ctl);border:1px solid var(--control);font-size:14px;color:var(--control-text)}
+
+/* плавающие элементы над картой */
+.mock .pill{border-radius:999px}
+.mock .float{box-shadow:0 4px 16px rgba(23,32,25,.16)}
+.mock .sheet{background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:0 -3px 16px rgba(23,32,25,.07)}
+.mock .addrRow{display:flex;align-items:center;gap:12px;width:100%;padding:12px 0;background:none;border:0;border-bottom:1px solid var(--border);text-align:left}
+.mock .addrRow .hint{font-size:13px;color:var(--text3)}
+
+/* заглушка вместо фотографии */
+.mock .ph{position:relative;overflow:hidden;background:var(--a)}
+.mock .ph svg{display:block;width:100%;height:100%}
+.mock .ph .phlbl{position:absolute;left:14px;bottom:12px;font-size:12px;font-weight:500;color:#8A968C}
+.mock .hero{position:relative;overflow:hidden}
+.mock .hero img{display:block;width:100%;height:100%;object-fit:cover}
+.mock .heroctl{position:absolute;left:16px;right:16px;top:12px;display:flex;justify-content:space-between}
+.mock .thumb{width:64px;height:64px;flex:0 0 64px;border-radius:var(--r-ctl);object-fit:cover;display:block}
+
+.vgrid{display:flex;gap:20px;flex-wrap:wrap}
+.vcol{flex:1 1 260px;min-width:250px}
+.vcol h4{margin:0 0 4px;font-size:15px;font-weight:600}
+.vcol .vnote{font-size:13px;color:var(--text3);margin:0 0 12px;min-height:52px}
+.vcol .pick{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--primary);background:var(--primary-pale);border-radius:999px;padding:3px 9px;margin-bottom:6px}
+
+/* сноска-подпись под макетом */
+.note{font-size:13px;color:var(--text3);margin:12px 0 0;max-width:760px}
+.note b{color:var(--text2);font-weight:600}
+
+.legend{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:24px 28px;margin:0 0 64px;max-width:900px}
+.legend h3{margin:0 0 14px;font-size:17px;font-weight:600}
+.legend table{border-collapse:collapse;width:100%;font-size:14px}
+.legend td{padding:7px 0;vertical-align:top;border-bottom:1px solid var(--border)}
+.legend tr:last-child td{border-bottom:none}
+.legend td:first-child{width:210px;color:var(--text3);padding-right:24px}
+.legend td:last-child{color:var(--text2)}
+
+@media (max-width:900px){
+  .pair{gap:20px}
+  .doc-head h1{font-size:30px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="doc-head">
+  <p class="eyebrow">Orthodox Routes · визуальная проверка правок</p>
+  <h1>Orthodox Routes · эталонные экраны</h1>
+  <p>Сохранённый визуальный эталон канонической Design System V2. Учтены утверждённые поправки: карта вернулась в верх каталога вместе с плавающим поиском и фильтрами, лист со списком получил скругление сверху, карта на странице храма убрана и открывается нажатием на адрес, миниатюры из карточек убраны, заглушка утверждена в финальном виде.</p>
+
+  <p class="warn">Это эталонный макет, а не production UI или production-код. Данные условные. Onest — утверждённый шрифт V2; сохранённый HTML намеренно не загружает шрифты или другие ресурсы из внешней сети.</p>
+</div>
+
+<div class="legend">
+  <h3>Что изменено во всех экранах сразу</h3>
+  <table>
+    <tr><td>Зелёный</td><td>Только primary-кнопка, активный пункт навигации, выбранный объект и статус «Подтверждено». Убран из иконок заголовков, чипов времени, кнопок в карточках, «Назад» и «Изменить».</td></tr>
+    <tr><td>Три уровня действий</td><td>Primary (заливка) → Secondary (белая, нейтральная граница 3,61:1) → Quiet (только текст). Раньше все второстепенные действия были зелёными.</td></tr>
+    <tr><td>Значения вместо диапазонов</td><td>Радиусы: 8 (статусы) / 12 (контролы) / 16 (карточки) / 28 (мобильный лист) / 999 (только таблетки). Отступы 4·8·12·16·24·32·48. Семь кеглей вместо семнадцати.</td></tr>
+    <tr><td>Интерактивная цель</td><td>Минимум 44 × 44 px. Компактный визуальный контейнер 36–40 px сохраняет невидимую интерактивную область не меньше 44 × 44 px.</td></tr>
+    <tr><td>Решающие данные — 15 px</td><td>Дата, время, число мест, место встречи подняты с 12–13 px и получили основной цвет текста. Текста мельче 12 px не осталось.</td></tr>
+    <tr><td>Изображения</td><td>В шапке страницы храма — фотография, а при её отсутствии заглушка (утверждённая, см. конец документа). В карточках списков изображений нет.</td></tr>
+    <tr><td>Карта</td><td>В каталоге — вверху экрана, поиск и фильтры плавают над ней. На странице храма отдельной карты нет: она открывается нажатием на адрес, вместе с маршрутом.</td></tr>
+    <tr><td>Формы меток</td><td>Статус — плашка 8 px; тип объекта — нейтральная таблетка; относительное время — обычный текст, не плашка.</td></tr>
+    <tr><td>Границы контролов</td><td>Везде <span style="white-space:nowrap">#7D8A80</span> (3,61:1) вместо декоративных 1,24–1,51:1.</td></tr>
+    <tr><td>Иконки</td><td>Убраны из заголовков секций и из кнопок с однозначными подписями.</td></tr>
+  </table>
+</div>
+
+<!-- ================== 1. МОБИЛЬНЫЙ КАТАЛОГ ================== -->
+<section class="block m">
+  <div class="block-head">
+    <p class="num">Экран 1 · мобильный</p>
+    <h2>Каталог храмов</h2>
+    <ul>
+      <li><b>Карта осталась вверху, но стала полосой контекста</b> — 300 px вместо 460 px. Она по-прежнему первое, что видит человек, и по-прежнему отвечает на вопрос «где это всё», но список получил 4 карточки вместо полутора. Разворачивается на весь экран одной кнопкой.</li>
+      <li><b>Счётчики поездок на всех карточках</b>, а не только на выбранной. Раньше данные, по которым выбирают, появлялись после выбора.</li>
+      <li><b>Убраны миниатюры</b> — одинаковая иллюстрация в каждой строке — и три иконки метаданных на карточку.</li>
+      <li><b>«Рядом со мной» — действие, а не фильтр.</b> Раньше выглядело одинаково с «Италия ⌄», хотя это объекты разной природы.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <div class="pane">
+      <div class="device"><div class="scroll mock" style="display:flex;flex-direction:column;min-height:100%">
+        <div style="position:relative;flex:0 0 auto">
+          <div class="map" style="height:300px">
+            <svg viewBox="0 0 390 300" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%">
+              <path d="M-10 230 Q110 150 210 190 T400 120" stroke="#fff" stroke-width="9" fill="none"/>
+              <path d="M80 -10 Q130 140 96 310" stroke="#fff" stroke-width="8" fill="none"/>
+              <path d="M270 -10 Q246 140 306 310" stroke="#fff" stroke-width="7" fill="none"/>
+              <path d="M350 -10 L350 310" stroke="#DCECF2" stroke-width="80" fill="none"/>
+            </svg>
+            <span class="lbl" style="left:120px;top:196px">Catanzaro</span>
+            <span class="lbl" style="left:236px;top:252px">Catanzaro Lido</span>
+            <span class="lbl" style="left:40px;top:262px">Mater Domini</span>
+            <svg class="pin big" style="left:170px;top:204px" viewBox="0 0 28 38"><path d="M14 37C14 37 26 23.5 26 14A12 12 0 1 0 2 14c0 9.5 12 23 12 23Z" fill="#2E6A57"/><circle cx="14" cy="14" r="4.4" fill="#fff"/></svg>
+            <svg class="pin" style="left:96px;top:154px" viewBox="0 0 22 30"><path d="M11 29C11 29 20 18.5 20 11A9 9 0 1 0 2 11c0 7.5 9 18 9 18Z" fill="#fff" stroke="#858B87"/><circle cx="11" cy="11" r="3.2" fill="#687169"/></svg>
+            <svg class="pin" style="left:262px;top:186px" viewBox="0 0 22 30"><path d="M11 29C11 29 20 18.5 20 11A9 9 0 1 0 2 11c0 7.5 9 18 9 18Z" fill="#fff" stroke="#858B87"/><circle cx="11" cy="11" r="3.2" fill="#687169"/></svg>
+            <svg class="pin" style="left:154px;top:274px" viewBox="0 0 22 30"><path d="M11 29C11 29 20 18.5 20 11A9 9 0 1 0 2 11c0 7.5 9 18 9 18Z" fill="#fff" stroke="#858B87"/><circle cx="11" cy="11" r="3.2" fill="#687169"/></svg>
+          </div>
+          <div style="position:absolute;left:16px;right:16px;top:14px">
+            <div style="display:flex;gap:10px">
+              <div class="field pill float" style="flex:1;border-color:transparent;background:var(--surface)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:19px;height:19px"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                Найти храм
+              </div>
+              <button class="icb float" style="width:46px;height:46px;border-color:transparent" aria-label="Фильтры">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h11M19 7h1M4 17h6M14 17h6"/><circle cx="17" cy="7" r="2"/><circle cx="12" cy="17" r="2"/></svg>
+              </button>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <span class="selector pill float" style="border-color:transparent">Италия <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:15px;height:15px"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="selector pill float" style="border-color:transparent">Catanzaro <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:15px;height:15px"><path d="m6 9 6 6 6-6"/></svg></span>
+              <button class="btn btn-quiet btn-sm pill float" style="background:var(--surface);gap:6px;padding:0 14px;min-height:40px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:17px;height:17px"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+              </button>
+            </div>
+          </div>
+          <button class="icb float" style="position:absolute;right:16px;bottom:44px;border-color:transparent" aria-label="Открыть карту на весь экран">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5"/></svg>
+          </button>
+        </div>
+
+        <div class="sheet" style="margin-top:-28px;position:relative;z-index:2;flex:1;padding:22px 16px 24px">
+          <h1 class="t-page">Храмы</h1>
+          <p class="t-sub" style="margin-top:4px">24 храма · Италия, Catanzaro</p>
+
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+            <div class="card sel">
+              <p class="t-card">Покров Пресвятой Богородицы</p>
+              <p class="t-sub" style="margin-top:4px">Catanzaro, Италия</p>
+              <p class="t-data" style="margin-top:8px">Ближайшая служба: <b>вс, 9:00</b></p>
+              <p class="t-sub" style="margin-top:4px"><span style="color:var(--text);font-weight:500">3 предложения</span> · 2 просьбы</p>
+            </div>
+            <div class="card">
+              <p class="t-card">Свято-Никольский храм</p>
+              <p class="t-sub" style="margin-top:4px">Vibo Valentia, Италия</p>
+              <p class="t-data" style="margin-top:8px">Ближайшая служба: <b>вс, 10:30</b></p>
+              <p class="t-sub" style="margin-top:4px"><span style="color:var(--text);font-weight:500">2 предложения</span> · 1 просьба</p>
+            </div>
+            <div class="card">
+              <p class="t-card">Храм Рождества Христова</p>
+              <p class="t-sub" style="margin-top:4px">Reggio Calabria, Италия</p>
+              <p class="t-data" style="margin-top:8px">Ближайшая служба: <b>чт, 18:00</b></p>
+              <p class="t-sub" style="margin-top:4px">Поездок пока никто не предлагал</p>
+            </div>
+            <div class="card">
+              <p class="t-card">Успенский храм</p>
+              <p class="t-sub" style="margin-top:4px">Lamezia Terme, Италия</p>
+              <p class="t-data" style="margin-top:8px">Ближайшая служба: <b>сб, 17:00</b></p>
+              <p class="t-sub" style="margin-top:4px"><span style="color:var(--text);font-weight:500">1 предложение</span> · 3 просьбы</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabbar" style="position:sticky;bottom:0">
+          <a href="#" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>Храмы</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 15h16M5.5 15l1.6-5a2 2 0 0 1 1.9-1.4h6a2 2 0 0 1 1.9 1.4l1.6 5"/><path d="M4 15v3h3v-3M17 15v3h3v-3"/></svg>Поездки</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>Уведомления</a>
+        </div>
+      </div></div>
+    </div>
+  </div>
+  <p class="note"><b>Проверьте:</b> сколько храмов видно без прокрутки и можно ли выбрать между ними, не открывая ни одного. Раньше — полторы карточки и счётчики только у первой.</p>
+</section>
+
+<!-- ================== 2. МОБИЛЬНАЯ СТРАНИЦА ХРАМА ================== -->
+<section class="block m">
+  <div class="block-head">
+    <p class="num">Экран 2 · мобильный</p>
+    <h2>Страница храма, верх</h2>
+    <ul>
+      <li><b>Шапка с изображением сохранена.</b> При наличии снимка это фотография на 260 px. При её отсутствии — заглушка на 168 px: плоская геометрия, два тона из палитры продукта, без золота, без орнамента и без попытки выглядеть фотографией. Меньшая высота — часть сообщения: заглушка не претендует на место снимка.</li>
+      <li><b>Заглушка различается по храмам:</b> оттенок выбирается детерминированно по идентификатору, поэтому список перестаёт выглядеть как одна картинка, размноженная пять раз.</li>
+      <li><b>Устранено дублирование службы:</b> ближайшая служба — в шапке как решение «идти или нет», список ниже назван «Другие службы» и начинается со следующей.</li>
+      <li><b>Primary во всю ширину</b>, «Могу подвезти» — нейтральной вторичной кнопкой. Раньше две одинаково зелёные кнопки 50/50 конкурировали.</li>
+      <li><b>Плитки дат без рамок</b> — снят один уровень вложенности контейнеров (было три).</li>
+      <li><b>Уточнены обязательные элементы IA §9:</b> отдельной карты на странице нет; адрес открывает «Карту и маршрут». Дата обновления расписания и предупреждение о возможных изменениях сохранены.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <div class="pane">
+      <div class="device"><div class="scroll mock" style="display:flex;flex-direction:column;min-height:100%">
+        <div class="hero" style="flex:0 0 auto">
+          <div class="ph" style="height:168px;border-radius:0;--a:#E6EBEF;--b:#CFD9E1;--c:#AEBCC9"><svg viewBox="0 0 240 200" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Фотография храма не загружена"><rect width="240" height="200" fill="var(--a)"/><rect x="64" y="132" width="112" height="68" fill="var(--b)"/><path d="M64 132 C64 114 68 102 78 88 C92 68 109 56 120 48 C131 56 148 68 162 88 C172 102 176 114 176 132 Z" fill="var(--c)"/><circle cx="120" cy="49" r="3.6" fill="var(--c)"/><g fill="var(--c)"><rect x="118.35" y="14" width="3.3" height="34"/><rect x="114.25" y="19.1" width="11.5" height="2.6"/><rect x="109" y="25.9" width="22" height="3.3"/><path d="M112.8 37 L127.2 41.4 L127.2 44.3 L112.8 39.9 Z"/></g><g fill="var(--a)"><path d="M71 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M93 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M115 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M137 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M159 200v-45a5 5 0 0 1 10 0v45Z"/></g></svg></div>
+          <div class="heroctl">
+            <button class="icb" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 5l-7 7 7 7"/></svg></button>
+            <div style="display:flex;gap:8px">
+              <button class="icb" aria-label="Поделиться"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="17" cy="6" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="17" cy="18" r="2.5"/><path d="m8.3 10.8 6.4-3.5M8.3 13.2l6.4 3.5"/></svg></button>
+              <button class="icb" aria-label="Сохранить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4h12v16l-6-4-6 4Z"/></svg></button>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:20px 16px 24px;flex:1">
+          <h1 class="t-page">Покров Пресвятой Богородицы</h1>
+          <button class="addrRow" style="margin-top:14px;border-top:1px solid var(--border)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:20px;height:20px;flex:0 0 20px;color:var(--text2)"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>
+            <span style="flex:1">
+              <span style="display:block;font-size:16px;color:var(--text)">Catanzaro, Италия</span>
+              <span style="display:block" class="t-sub3">Via XX Settembre, 45, 88100 Catanzaro CZ</span>
+              <span style="display:block" class="hint">Карта и маршрут</span>
+            </span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px;height:18px;flex:0 0 18px;color:var(--text3)"><path d="m9 5 7 7-7 7"/></svg>
+          </button>
+
+          <div style="height:20px"></div>
+
+          <p class="t-micro">Ближайшая служба</p>
+          <p class="t-card" style="font-size:19px;margin-top:6px">Литургия · воскресенье, 9 августа, 9:00</p>
+          <p class="when" style="margin-top:4px">через 2 дня</p>
+
+          <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px">
+            <button class="btn btn-primary btn-full">Нужна поездка</button>
+            <button class="btn btn-secondary btn-full">Могу подвезти</button>
+          </div>
+
+          <h2 class="t-sec" style="margin-top:32px">Другие службы</h2>
+          <div style="margin-top:12px;display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;gap:14px;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--border)">
+              <div style="width:40px;flex:0 0 40px"><span style="font-size:17px;font-weight:600">15</span> <span class="t-micro">авг</span></div>
+              <div style="flex:1">
+                <p class="t-data"><b>Всенощное бдение</b></p>
+                <p class="t-sub" style="margin-top:2px">пятница, 18:00 · через 8 дней</p>
+              </div>
+            </div>
+            <div style="display:flex;gap:14px;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--border)">
+              <div style="width:40px;flex:0 0 40px"><span style="font-size:17px;font-weight:600">17</span> <span class="t-micro">авг</span></div>
+              <div style="flex:1">
+                <p class="t-data"><b>Литургия</b></p>
+                <p class="t-sub" style="margin-top:2px">воскресенье, 9:00 · через 10 дней</p>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-quiet btn-sm" style="padding-left:0;margin-top:8px">Всё расписание</button>
+
+          <p class="t-sub3" style="font-size:13px;margin-top:20px">Расписание обновлено 2 августа. Перед поездкой уточните время у храма.</p>
+        </div>
+
+        <div class="tabbar" style="position:sticky;bottom:0">
+          <a href="#" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>Храмы</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 15h16M5.5 15l1.6-5a2 2 0 0 1 1.9-1.4h6a2 2 0 0 1 1.9 1.4l1.6 5"/><path d="M4 15v3h3v-3M17 15v3h3v-3"/></svg>Поездки</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>Уведомления</a>
+        </div>
+      </div></div>
+    </div>
+  </div>
+  <p class="note"><b>Проверьте:</b> одна ли теперь очевидная главная кнопка и не ищете ли вы глазами, что здесь важнее. Раньше первый экран на 36 % занимала нарисованная иллюстрация, одинаковая для всех храмов.</p>
+</section>
+
+<!-- ================== 3. МОБИЛЬНАЯ ДОСКА ПОЕЗДОК ================== -->
+<section class="block m">
+  <div class="block-head">
+    <p class="num">Экран 3 · мобильный</p>
+    <h2>Транспортная доска (продолжение страницы храма)</h2>
+    <ul>
+      <li><b>Убран круглый аватар.</b> Он дублировал метку типа в 8 px правее и занимал 58 px ширины на экране в 390 px. За карточкой стоит объявление, а не человек.</li>
+      <li><b>Переставлен приоритет:</b> решение принимается по связке «когда · сколько мест», а не по названию посёлка. Раньше самым крупным было «Из Catanzaro Lido», а дата и места набраны 13 px серым.</li>
+      <li><b>Действие — нейтральная вторичная кнопка</b> у правого края, а не пятый зелёный вариант кнопки.</li>
+      <li><b>Метка типа поднята с 11 px до 12 px</b> — 11 px запрещено самой же дизайн-системой.</li>
+      <li><b>«Уже договорились» выключено по левому краю</b> — раньше это был единственный центрированный текст в продукте.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <div class="pane">
+      <div class="device"><div class="scroll mock" style="display:flex;flex-direction:column;min-height:100%">
+        <div style="padding:24px 16px 24px;flex:1">
+          <h2 class="t-sec">Другие службы</h2>
+          <div style="margin-top:12px;display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;gap:14px;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--border)">
+              <div style="width:40px;flex:0 0 40px"><span style="font-size:17px;font-weight:600">15</span> <span class="t-micro">авг</span></div>
+              <div style="flex:1"><p class="t-data"><b>Всенощное бдение</b></p><p class="t-sub" style="margin-top:2px">пятница, 18:00 · через 8 дней</p></div>
+            </div>
+          </div>
+
+          <h2 class="t-sec" style="margin-top:36px">Поездки</h2>
+          <p class="t-sub" style="margin-top:4px">На литургию 10 августа</p>
+
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <span class="chip on">Все</span>
+            <span class="chip">Есть места</span>
+            <span class="chip">Ищут место</span>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
+            <div class="card">
+              <span class="tag">Есть места</span>
+              <p class="t-card" style="font-size:17px;margin-top:10px">вс, 10 авг · 08:00 · 3 места</p>
+              <p class="t-sub" style="margin-top:4px">Из Catanzaro Lido · с детьми · обратно</p>
+              <div style="display:flex;justify-content:flex-end;margin-top:14px">
+                <button class="btn btn-secondary btn-sm">Попросить подвезти</button>
+              </div>
+            </div>
+            <div class="card">
+              <span class="tag">Ищут место</span>
+              <p class="t-card" style="font-size:17px;margin-top:10px">вс, 10 авг · утро · 2 человека</p>
+              <p class="t-sub" style="margin-top:4px">Из Matera · нужна поездка обратно</p>
+              <div style="display:flex;justify-content:flex-end;margin-top:14px">
+                <button class="btn btn-secondary btn-sm">Предложить подвезти</button>
+              </div>
+            </div>
+            <div class="card">
+              <span class="tag">Есть места</span>
+              <p class="t-card" style="font-size:17px;margin-top:10px">вс, 10 авг · 07:40 · 1 место</p>
+              <p class="t-sub" style="margin-top:4px">Из Siano · только туда</p>
+              <div style="display:flex;justify-content:flex-end;margin-top:14px">
+                <button class="btn btn-secondary btn-sm">Попросить подвезти</button>
+              </div>
+            </div>
+          </div>
+
+          <p class="t-sub" style="margin-top:20px">Уже договорились: 8 впереди · 27 за 30 дней</p>
+        </div>
+
+        <div class="tabbar" style="position:sticky;bottom:0">
+          <a href="#" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>Храмы</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 15h16M5.5 15l1.6-5a2 2 0 0 1 1.9-1.4h6a2 2 0 0 1 1.9 1.4l1.6 5"/><path d="M4 15v3h3v-3M17 15v3h3v-3"/></svg>Поездки</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>Уведомления</a>
+        </div>
+      </div></div>
+    </div>
+  </div>
+  <p class="note"><b>Проверьте:</b> можно ли теперь выбрать поездку, читая только первую строку каждой карточки. И обратите внимание, что в трёх карточках помещается столько же информации, сколько раньше в двух.</p>
+</section>
+
+<!-- ================== 4. ФОРМА ================== -->
+<section class="block m">
+  <div class="block-head">
+    <p class="num">Экран 4 · мобильный</p>
+    <h2>Новая просьба, шаг 2</h2>
+    <ul>
+      <li><b>Одна кнопка «Добавить место»</b> вместо двух одинаковых пустых слотов, которые занимали ~100 px и ничего не сообщали.</li>
+      <li><b>Прогресс без полутонового сегмента</b> — раньше визуально было 2,5 шага, а программно «выполнено два из шести».</li>
+      <li><b>«Назад» — тихая кнопка</b>, «Далее» — доминирует. Раньше возврат назад был визуально равен продвижению вперёд.</li>
+      <li><b>Плашка приватности стала нейтральной.</b> Зелёный здесь не означал «безопасно» — он просто добавлял седьмое зелёное пятно.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <div class="pane">
+      <div class="device"><div class="scroll mock" style="display:flex;flex-direction:column;min-height:100%">
+        <div style="display:flex;align-items:center;gap:8px;padding:12px 16px">
+          <button class="icb" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <p style="flex:1;text-align:center;font-size:17px;font-weight:600">Новая просьба</p>
+          <span style="width:44px"></span>
+        </div>
+
+        <div style="padding:8px 16px 24px;flex:1">
+          <p class="t-sub"><span style="color:var(--text);font-weight:600">Шаг 2</span> из 6</p>
+          <div style="display:flex;gap:6px;margin-top:10px">
+            <i style="flex:1;height:3px;border-radius:999px;background:var(--primary)"></i>
+            <i style="flex:1;height:3px;border-radius:999px;background:var(--primary)"></i>
+            <i style="flex:1;height:3px;border-radius:999px;background:var(--border)"></i>
+            <i style="flex:1;height:3px;border-radius:999px;background:var(--border)"></i>
+            <i style="flex:1;height:3px;border-radius:999px;background:var(--border)"></i>
+            <i style="flex:1;height:3px;border-radius:999px;background:var(--border)"></i>
+          </div>
+
+          <h1 class="t-page" style="margin-top:24px">Где вас забрать?</h1>
+
+          <div class="map" style="height:180px;border-radius:var(--r-card);margin-top:20px">
+            <svg viewBox="0 0 360 180" style="position:absolute;inset:0;width:100%;height:100%"><path d="M-10 120 Q110 60 210 100 T380 50" stroke="#fff" stroke-width="7" fill="none"/><path d="M70 -10 Q110 80 84 190" stroke="#fff" stroke-width="6" fill="none"/><path d="M330 -10 L330 190" stroke="#DCECF2" stroke-width="46" fill="none"/><circle cx="196" cy="104" r="58" fill="#2E6A57" fill-opacity=".10" stroke="#2E6A57" stroke-opacity=".35"/></svg>
+            <span class="lbl" style="left:14px;top:14px">Catanzaro</span>
+            <svg class="pin big" style="left:196px;top:114px" viewBox="0 0 28 38"><path d="M14 37C14 37 26 23.5 26 14A12 12 0 1 0 2 14c0 9.5 12 23 12 23Z" fill="#2E6A57"/><circle cx="14" cy="14" r="4.4" fill="#fff"/></svg>
+          </div>
+
+          <div class="card" style="margin-top:16px;display:flex;align-items:center;gap:12px">
+            <div style="flex:1">
+              <p class="t-micro">Основное место встречи</p>
+              <p class="t-card" style="margin-top:4px">Catanzaro Lido</p>
+            </div>
+            <button class="btn btn-quiet btn-sm">Изменить</button>
+          </div>
+
+          <p class="t-sub" style="margin-top:16px">Можно добавить ещё 2 места — так вас найдут больше водителей.</p>
+          <button class="btn btn-full btn-sm" style="margin-top:8px;border:1px dashed var(--control);color:var(--control-text);gap:8px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px;height:18px"><path d="M12 5v14M5 12h14"/></svg>
+            Добавить место
+          </button>
+
+          <div style="display:flex;gap:10px;margin-top:20px;background:var(--subtle);border-radius:var(--r-ctl);padding:14px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:19px;height:19px;flex:0 0 19px;color:var(--text3);margin-top:1px"><path d="M12 3l7 3v5.5c0 4-3 7.5-7 8.5-4-1-7-4.5-7-8.5V6Z"/><path d="m9.2 12 2 2 3.6-3.8"/></svg>
+            <p class="t-sub" style="flex:1">Публично будет видна примерная область радиусом 1 км. Точный адрес увидит только тот, с кем вы договоритесь.</p>
+          </div>
+        </div>
+
+        <div style="position:sticky;bottom:0;display:flex;gap:12px;padding:12px 16px 16px;border-top:1px solid var(--border);background:var(--surface)">
+          <button class="btn btn-quiet" style="flex:0 0 auto">Назад</button>
+          <button class="btn btn-primary" style="flex:1">Далее</button>
+        </div>
+      </div></div>
+    </div>
+  </div>
+  <p class="note"><b>Отдельно:</b> шесть шагов плюс письмо со ссылкой плюс SMS — это длинная воронка для действия «мне нужно доехать до храма». Здесь она сохранена, потому что это продуктовое решение, а не оформление. Проверить его стоит отдельно.</p>
+</section>
+
+<!-- ================== 5. DESKTOP КАТАЛОГ ================== -->
+<section class="block">
+  <div class="block-head">
+    <p class="num">Экран 5 · desktop</p>
+    <h2>Каталог храмов</h2>
+    <ul>
+      <li><b>Контролы той же формы, что на мобильном.</b> Раньше поиск имел радиус 26 px на мобильном и 13 px на desktop, фильтры — 22 px и 13 px. Один компонент — два разных решения.</li>
+      <li><b>Callout убран.</b> Его содержимое дословно повторяло уже подсвеченную карточку слева, а сам он висел не привязанным к маркеру. Синхронной подсветки достаточно.</li>
+      <li><b>Подписи карты вошли в типографическую шкалу.</b> Раньше «Catanzaro Lido» на карте был крупнее названий храмов в списке.</li>
+      <li><b>Один размер заголовка страницы</b> на всех desktop-экранах (было 26 / 34 / 38 px на трёх экранах).</li>
+    </ul>
+  </div>
+  <div class="stack">
+    <div class="pane">
+      <div class="dscale" data-h="820"><div class="dinner mock" style="height:820px;display:flex;flex-direction:column">
+        <div class="dhead">
+          <div class="brand"><span class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px;height:18px"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg></span>Orthodox Routes</div>
+          <nav><a href="#" class="on">Храмы</a><a href="#">Мои поездки</a><a href="#">Поддержать</a></nav>
+          <div class="right">
+            <span class="lang">RU <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px;height:14px"><path d="m6 9 6 6 6-6"/></svg></span>
+            <button class="icb" aria-label="Уведомления"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></button>
+            <button class="icb" aria-label="Профиль"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="9" r="3.2"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/></svg></button>
+          </div>
+        </div>
+
+        <div style="flex:1;display:flex;min-height:0">
+          <div style="width:420px;flex:0 0 420px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--canvas)">
+            <div style="padding:24px 24px 16px">
+              <div style="display:flex;gap:8px">
+                <div class="field pill" style="flex:1">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:19px;height:19px"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Найти храм
+                </div>
+                <button class="icb" style="width:46px;height:46px" aria-label="Фильтры"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h11M19 7h1M4 17h6M14 17h6"/><circle cx="17" cy="7" r="2"/><circle cx="12" cy="17" r="2"/></svg></button>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+                <span class="selector pill">Италия <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:15px;height:15px"><path d="m6 9 6 6 6-6"/></svg></span>
+                <span class="selector pill">Catanzaro <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:15px;height:15px"><path d="m6 9 6 6 6-6"/></svg></span>
+                <button class="btn btn-quiet btn-sm" style="gap:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:17px;height:17px"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Рядом со мной</button>
+              </div>
+              <h1 class="t-page-d" style="margin-top:28px">Храмы</h1>
+              <p class="t-sub" style="margin-top:4px">Найдено 24 храма</p>
+            </div>
+            <div style="flex:1;overflow-y:auto;padding:0 24px 24px;display:flex;flex-direction:column;gap:8px">
+              <div class="card sel">
+                <p class="t-card">Покров Пресвятой Богородицы</p>
+                <p class="t-sub" style="margin-top:4px">Catanzaro, Италия</p>
+                <p class="t-data" style="margin-top:8px">Ближайшая служба: <b>вс, 9:00</b></p>
+                <p class="t-sub" style="margin-top:4px"><span style="color:var(--text);font-weight:500">3 предложения</span> · 2 просьбы</p>
+              </div>
+              <div class="card">
+                <p class="t-card">Свято-Никольский храм</p>
+                <p class="t-sub" style="margin-top:4px">Vibo Valentia, Италия</p>
+                <p class="t-data" style="margin-top:8px">Ближайшая служба: <b>вс, 10:30</b></p>
+                <p class="t-sub" style="margin-top:4px"><span style="color:var(--text);font-weight:500">2 предложения</span> · 1 просьба</p>
+              </div>
+              <div class="card">
+                <p class="t-card">Храм Рождества Христова</p>
+                <p class="t-sub" style="margin-top:4px">Reggio Calabria, Италия</p>
+                <p class="t-data" style="margin-top:8px">Ближайшая служба: <b>чт, 18:00</b></p>
+                <p class="t-sub" style="margin-top:4px">Поездок пока никто не предлагал</p>
+              </div>
+              <div class="card">
+                <p class="t-card">Успенский храм</p>
+                <p class="t-sub" style="margin-top:4px">Lamezia Terme, Италия</p>
+                <p class="t-data" style="margin-top:8px">Ближайшая служба: <b>сб, 17:00</b></p>
+                <p class="t-sub" style="margin-top:4px"><span style="color:var(--text);font-weight:500">1 предложение</span> · 3 просьбы</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="map" style="flex:1">
+            <svg viewBox="0 0 1020 756" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%">
+              <path d="M-20 620 Q260 400 520 470 T1060 300" stroke="#fff" stroke-width="10" fill="none"/>
+              <path d="M180 -20 Q300 300 250 780" stroke="#fff" stroke-width="9" fill="none"/>
+              <path d="M700 -20 Q640 340 760 780" stroke="#fff" stroke-width="8" fill="none"/>
+              <path d="M880 -20 L880 780" stroke="#DCECF2" stroke-width="230" fill="none"/>
+            </svg>
+            <span class="lbl" style="left:300px;top:330px">Catanzaro</span>
+            <span class="lbl" style="left:180px;top:470px">Mater Domini</span>
+            <span class="lbl" style="left:640px;top:560px">Catanzaro Lido</span>
+            <span class="lbl" style="left:520px;top:130px">Siano</span>
+            <svg class="pin big" style="left:420px;top:352px" viewBox="0 0 28 38"><path d="M14 37C14 37 26 23.5 26 14A12 12 0 1 0 2 14c0 9.5 12 23 12 23Z" fill="#2E6A57"/><circle cx="14" cy="14" r="4.4" fill="#fff"/></svg>
+            <svg class="pin" style="left:230px;top:240px" viewBox="0 0 22 30"><path d="M11 29C11 29 20 18.5 20 11A9 9 0 1 0 2 11c0 7.5 9 18 9 18Z" fill="#fff" stroke="#858B87"/><circle cx="11" cy="11" r="3.2" fill="#687169"/></svg>
+            <svg class="pin" style="left:600px;top:430px" viewBox="0 0 22 30"><path d="M11 29C11 29 20 18.5 20 11A9 9 0 1 0 2 11c0 7.5 9 18 9 18Z" fill="#fff" stroke="#858B87"/><circle cx="11" cy="11" r="3.2" fill="#687169"/></svg>
+            <svg class="pin" style="left:390px;top:590px" viewBox="0 0 22 30"><path d="M11 29C11 29 20 18.5 20 11A9 9 0 1 0 2 11c0 7.5 9 18 9 18Z" fill="#fff" stroke="#858B87"/><circle cx="11" cy="11" r="3.2" fill="#687169"/></svg>
+            <div style="position:absolute;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px">
+              <button class="icb" style="border-radius:var(--r-ctl)" aria-label="Приблизить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></button>
+              <button class="icb" style="border-radius:var(--r-ctl)" aria-label="Отдалить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14"/></svg></button>
+              <button class="icb" style="border-radius:var(--r-ctl)" aria-label="Моё местоположение"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================== 6. DESKTOP СТРАНИЦА ХРАМА ================== -->
+<section class="block">
+  <div class="block-head">
+    <p class="num">Экран 6 · desktop</p>
+    <h2>Страница храма и транспортная доска</h2>
+    <ul>
+      <li><b>Действия перенесены в закреплённый сайдбар</b>, как требует IA §29.2. Это одновременно решает две проблемы: пустая правая колонка и уезжающая при прокрутке главная кнопка.</li>
+      <li><b>Доска в две колонки</b> — предписана текущей IA §9.2. Раньше карточка была 840 px шириной при 250 px содержимого: около 70 % площади — пустота внутри границы.</li>
+      <li><b>Разделение по колонкам заменило метки типа.</b> Каждая UI-роль сохраняет стабильную формулировку: колонки и фильтры используют «Есть места / Ищут место», а действия — свои утверждённые глагольные формы.</li>
+      <li><b>Введена мера чтения</b> (720 px), и шапка с изображением теперь выровнена с текстом — раньше между левым краем изображения и левым краем заголовка было 22 px расхождения.</li>
+      <li><b>С карты храма убран круг примерной области</b> — приём приватности должен работать только там, где место действительно скрыто.</li>
+    </ul>
+  </div>
+  <div class="stack">
+    <div class="pane">
+      <div class="dscale" data-h="1000"><div class="dinner mock" style="height:1000px;display:flex;flex-direction:column">
+        <div class="dhead">
+          <div class="brand"><span class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px;height:18px"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg></span>Orthodox Routes</div>
+          <nav><a href="#" class="on">Храмы</a><a href="#">Мои поездки</a><a href="#">Поддержать</a></nav>
+          <div class="right">
+            <span class="lang">RU <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px;height:14px"><path d="m6 9 6 6 6-6"/></svg></span>
+            <button class="icb" aria-label="Уведомления"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></button>
+            <button class="icb" aria-label="Профиль"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="9" r="3.2"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/></svg></button>
+          </div>
+        </div>
+
+        <div style="flex:1;overflow:hidden;padding:24px 0 0">
+          <div style="max-width:1120px;margin:0 auto;display:grid;grid-template-columns:720px 320px;gap:48px;padding:0 24px">
+            <div>
+              <button class="btn btn-quiet btn-sm" style="padding-left:0;gap:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:17px;height:17px"><path d="M15 5l-7 7 7 7"/></svg>Все храмы</button>
+
+              <div class="ph" style="margin-top:12px;height:200px;border-radius:var(--r-card);--a:#E6EBEF;--b:#CFD9E1;--c:#AEBCC9"><svg viewBox="0 0 240 200" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Фотография храма не загружена"><rect width="240" height="200" fill="var(--a)"/><rect x="64" y="132" width="112" height="68" fill="var(--b)"/><path d="M64 132 C64 114 68 102 78 88 C92 68 109 56 120 48 C131 56 148 68 162 88 C172 102 176 114 176 132 Z" fill="var(--c)"/><circle cx="120" cy="49" r="3.6" fill="var(--c)"/><g fill="var(--c)"><rect x="118.35" y="14" width="3.3" height="34"/><rect x="114.25" y="19.1" width="11.5" height="2.6"/><rect x="109" y="25.9" width="22" height="3.3"/><path d="M112.8 37 L127.2 41.4 L127.2 44.3 L112.8 39.9 Z"/></g><g fill="var(--a)"><path d="M71 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M93 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M115 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M137 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M159 200v-45a5 5 0 0 1 10 0v45Z"/></g></svg></div>
+
+              <h1 class="t-page-d" style="margin-top:20px">Покров Пресвятой Богородицы</h1>
+              <button class="addrRow" style="margin-top:16px;border-top:1px solid var(--border);max-width:520px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:20px;height:20px;flex:0 0 20px;color:var(--text2)"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>
+                <span style="flex:1">
+                  <span style="display:block;font-size:16px;color:var(--text)">Catanzaro, Италия</span>
+                  <span style="display:block" class="t-sub3">Via XX Settembre, 45, 88100 Catanzaro CZ</span>
+                  <span style="display:block" class="hint">Карта и маршрут</span>
+                </span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px;height:18px;flex:0 0 18px;color:var(--text3)"><path d="m9 5 7 7-7 7"/></svg>
+              </button>
+
+              <div style="height:24px"></div>
+
+              <p class="t-micro">Ближайшая служба</p>
+              <p class="t-sec-d" style="margin-top:6px">Литургия · воскресенье, 9 августа, 9:00</p>
+              <p class="when" style="margin-top:4px">через 2 дня</p>
+
+              <h2 class="t-sec-d" style="margin-top:36px">Другие службы</h2>
+              <div style="margin-top:12px">
+                <div style="display:flex;gap:16px;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--border)">
+                  <div style="width:56px;flex:0 0 56px"><span style="font-size:17px;font-weight:600">15</span> <span class="t-micro">авг</span></div>
+                  <div style="flex:1"><p class="t-data"><b>Всенощное бдение</b></p><p class="t-sub" style="margin-top:2px">пятница, 18:00 · через 8 дней</p></div>
+                </div>
+                <div style="display:flex;gap:16px;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--border)">
+                  <div style="width:56px;flex:0 0 56px"><span style="font-size:17px;font-weight:600">17</span> <span class="t-micro">авг</span></div>
+                  <div style="flex:1"><p class="t-data"><b>Литургия</b></p><p class="t-sub" style="margin-top:2px">воскресенье, 9:00 · через 10 дней</p></div>
+                </div>
+              </div>
+
+              <h2 class="t-sec-d" style="margin-top:40px">Поездки на литургию 10 августа</h2>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px">
+                <div>
+                  <p class="t-micro" style="margin-bottom:10px">Есть места · 3</p>
+                  <div style="display:flex;flex-direction:column;gap:10px">
+                    <div class="card">
+                      <p class="t-card">вс, 10 авг · 08:00 · 3 места</p>
+                      <p class="t-sub" style="margin-top:4px">Из Catanzaro Lido · с детьми · обратно</p>
+                      <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-secondary btn-sm">Попросить подвезти</button></div>
+                    </div>
+                    <div class="card">
+                      <p class="t-card">вс, 10 авг · 07:40 · 1 место</p>
+                      <p class="t-sub" style="margin-top:4px">Из Siano · только туда</p>
+                      <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-secondary btn-sm">Попросить подвезти</button></div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p class="t-micro" style="margin-bottom:10px">Ищут место · 2</p>
+                  <div style="display:flex;flex-direction:column;gap:10px">
+                    <div class="card">
+                      <p class="t-card">вс, 10 авг · утро · 2 человека</p>
+                      <p class="t-sub" style="margin-top:4px">Из Matera · нужна поездка обратно</p>
+                      <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-secondary btn-sm">Предложить подвезти</button></div>
+                    </div>
+                    <div class="card">
+                      <p class="t-card">вс, 10 авг · 08:15 · 1 человек</p>
+                      <p class="t-sub" style="margin-top:4px">Из Catanzaro, центр · только туда</p>
+                      <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-secondary btn-sm">Предложить подвезти</button></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside>
+              <div class="card" style="padding:20px">
+                <button class="btn btn-primary btn-full">Нужна поездка</button>
+                <button class="btn btn-secondary btn-full" style="margin-top:10px">Могу подвезти</button>
+                <p class="t-sub" style="margin-top:14px">Уже договорились: 8 впереди · 27 за 30 дней</p>
+              </div>
+
+              <div style="margin-top:20px;padding:16px 18px;border:1px solid var(--border);border-radius:var(--r-card)">
+                <p class="t-sub3" style="font-size:13px">Расписание обновлено 2 августа. Перед поездкой уточните время у храма.</p>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-start;margin-top:8px">
+                <button class="btn btn-quiet btn-sm" style="padding-left:0">Сообщить об ошибке</button>
+                <button class="btn btn-quiet btn-sm" style="padding-left:0">Поддержать проект</button>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+  <p class="note"><b>Проверьте:</b> заполнена ли теперь правая треть страницы и работает ли ширина карточек. И обратите внимание, что метка «Есть места» на карточке больше не нужна — её роль взял заголовок колонки.</p>
+</section>
+
+<!-- ================== 7. DESKTOP МОИ ПОЕЗДКИ ================== -->
+<section class="block">
+  <div class="block-head">
+    <p class="num">Экран 7 · desktop</p>
+    <h2>Мои поездки</h2>
+    <ul>
+      <li><b>Состояния приведены в порядок.</b> Во вкладку «Требуют ответа» попадают только объекты, ждущие решения; будущая поездка не получает статус «Завершено», а вопрос «Поездка состоялась?» появляется только после её времени. Здесь открыта вкладка «Предстоящие».</li>
+      <li><b>Роль и требуемое действие вынесены в строку списка</b>, как требует IA §16: сразу видно, нужно ли что-то сделать самому или ожидается ответ другой стороны.</li>
+      <li><b>Убран повтор названия храма</b> в каждой строке: две трети текста строки не различали строки между собой.</li>
+      <li><b>Деталь перестроена:</b> место и время встречи — крупным блоком сверху, остальное — компактно и с выключкой влево. Раньше это была таблица с разрывом «Ваша роль ⟶ Пассажир» на 660 px.</li>
+      <li><b>Убраны:</b> градиент на выбранной строке (нигде больше не встречался), дублирование имени водителя, строка «Поездка обратно — Обратно».</li>
+    </ul>
+  </div>
+  <div class="stack">
+    <div class="pane">
+      <div class="dscale" data-h="880"><div class="dinner mock" style="height:880px;display:flex;flex-direction:column">
+        <div class="dhead">
+          <div class="brand"><span class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px;height:18px"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg></span>Orthodox Routes</div>
+          <nav><a href="#">Храмы</a><a href="#" class="on">Мои поездки</a><a href="#">Поддержать</a></nav>
+          <div class="right">
+            <span class="lang">RU <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px;height:14px"><path d="m6 9 6 6 6-6"/></svg></span>
+            <button class="icb" aria-label="Уведомления"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></button>
+            <button class="icb" aria-label="Профиль"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="9" r="3.2"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/></svg></button>
+          </div>
+        </div>
+
+        <div style="flex:1;overflow:hidden;padding:32px 0 0">
+          <div style="max-width:1200px;margin:0 auto;padding:0 24px">
+            <h1 class="t-page-d">Мои поездки</h1>
+            <div style="display:flex;gap:8px;margin-top:20px">
+              <span class="chip" style="gap:8px">Требуют ответа <b style="background:var(--pending-bg);color:var(--pending);border-radius:999px;padding:1px 7px;font-size:12px">1</b></span>
+              <span class="chip on">Предстоящие</span>
+              <span class="chip">Объявления</span>
+              <span class="chip">История</span>
+            </div>
+
+            <div style="display:grid;grid-template-columns:440px 1fr;gap:32px;margin-top:24px">
+              <div>
+                <div class="card sel" style="padding:14px 16px;display:flex;gap:16px;align-items:center">
+                  <div style="width:44px;flex:0 0 44px;text-align:center"><div style="font-size:19px;font-weight:600;line-height:1.1">10</div><div class="t-micro">авг</div></div>
+                  <div style="flex:1">
+                    <p class="t-card">Литургия · 9:00</p>
+                    <p class="t-sub" style="margin-top:3px">Вы пассажир · действий не требуется</p>
+                  </div>
+                  <span class="badge badge-ok">Подтверждено</span>
+                </div>
+                <div class="card" style="padding:14px 16px;display:flex;gap:16px;align-items:center;margin-top:8px">
+                  <div style="width:44px;flex:0 0 44px;text-align:center"><div style="font-size:19px;font-weight:600;line-height:1.1">15</div><div class="t-micro">авг</div></div>
+                  <div style="flex:1">
+                    <p class="t-card">Всенощное бдение · 18:00</p>
+                    <p class="t-sub" style="margin-top:3px">Вы водитель · действий не требуется</p>
+                  </div>
+                  <span class="badge badge-plan">Предстоит</span>
+                </div>
+                <div class="card" style="padding:14px 16px;display:flex;gap:16px;align-items:center;margin-top:8px">
+                  <div style="width:44px;flex:0 0 44px;text-align:center"><div style="font-size:19px;font-weight:600;line-height:1.1">24</div><div class="t-micro">авг</div></div>
+                  <div style="flex:1">
+                    <p class="t-card">Литургия · 9:00</p>
+                    <p class="t-sub" style="margin-top:3px">Вы пассажир · ожидается ответ водителя</p>
+                  </div>
+                  <span class="badge badge-wait">Ожидает подтверждения изменений</span>
+                </div>
+              </div>
+
+              <div class="card" style="padding:28px">
+                <div style="display:flex;align-items:flex-start;gap:16px">
+                  <div style="flex:1">
+                    <p class="t-sec-d">Литургия · воскресенье, 10 августа, 9:00</p>
+                    <p class="t-sub" style="margin-top:6px">Покров Пресвятой Богородицы · Via XX Settembre, 45, Catanzaro</p>
+                  </div>
+                  <span class="badge badge-ok">Подтверждено</span>
+                </div>
+
+                <div style="background:var(--subtle);border-radius:var(--r-card);padding:20px 22px;margin-top:24px">
+                  <p class="t-micro">Где и когда встречаетесь</p>
+                  <p style="font-size:20px;font-weight:600;margin-top:6px;letter-spacing:-.005em">Catanzaro Lido, у входа в библиотеку</p>
+                  <p class="t-data" style="margin-top:6px;color:var(--text2)">08:00 · за час до начала службы</p>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;margin-top:24px">
+                  <div><p class="t-micro">Ваша роль</p><p class="t-data" style="margin-top:4px"><b>Пассажир</b></p></div>
+                  <div><p class="t-micro">Едут</p><p class="t-data" style="margin-top:4px"><b>2 человека</b></p></div>
+                  <div><p class="t-micro">Обратная поездка</p><p class="t-data" style="margin-top:4px"><b>Нужна</b></p></div>
+                </div>
+
+                <div class="divider" style="margin:24px 0"></div>
+
+                <div style="display:flex;align-items:center;gap:16px">
+                  <div style="flex:1">
+                    <p class="t-card">Алексей · водитель</p>
+                    <p class="t-sub" style="margin-top:3px">+39 000 000 00 00 · alexey@example.invalid</p>
+                    <p class="t-sub3" style="font-size:13px;margin-top:6px">Контакты открыты, потому что поездка подтверждена</p>
+                  </div>
+                  <button class="icb" aria-label="Позвонить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4h3l1.5 4-2 1.5a11 11 0 0 0 6 6L16 13.5 20 15v3a2 2 0 0 1-2.2 2A16 16 0 0 1 4 6.2 2 2 0 0 1 6 4Z"/></svg></button>
+                  <button class="icb" aria-label="Написать"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg></button>
+                </div>
+
+                <div class="divider" style="margin:24px 0"></div>
+
+                <div style="display:flex;gap:8px">
+                  <button class="btn btn-secondary btn-sm">Изменить условия</button>
+                  <button class="btn btn-quiet btn-sm">Отменить поездку</button>
+                  <button class="btn btn-quiet btn-sm" style="margin-left:auto;color:var(--text3)">Пожаловаться</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+  <p class="note"><b>Проверьте:</b> за сколько вы находите, где и во сколько встреча. Раньше это была вторая строка перечня, визуально равная «Ваша роль».</p>
+</section>
+
+<!-- ================== 8. ЗАГЛУШКА ================== -->
+<section class="block">
+  <div class="block-head">
+    <p class="num">Утверждено · заглушка</p>
+    <h2>Изображение, когда фотографии нет</h2>
+    <ul>
+      <li><b>Крупный кадрированный купол с крестом.</b> Плоско, три тона из палитры, без золота и без орнамента. Купол и барабан совпадают по краям и разделены только тоном.</li>
+      <li><b>Всегда прижата к нижнему краю</b> контейнера — при любом соотношении сторон. Не растягивается: чем шире контейнер, тем больше спокойного поля по бокам.</li>
+      <li><b>Оттенок детерминирован по идентификатору храма</b> — три набора тонов, чтобы в списке не повторялась одна картинка.</li>
+      <li><b>Ниже 56 px</b> — упрощённая версия без окон и без подножия креста.</li>
+    </ul>
+  </div>
+  <div class="vgrid mock">
+    <div class="vcol" style="flex:1 1 340px"><div class="ph" style="height:200px;border-radius:var(--r-card);--a:#E6EBEF;--b:#CFD9E1;--c:#AEBCC9"><svg viewBox="0 0 240 200" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Фотография храма не загружена"><rect width="240" height="200" fill="var(--a)"/><rect x="64" y="132" width="112" height="68" fill="var(--b)"/><path d="M64 132 C64 114 68 102 78 88 C92 68 109 56 120 48 C131 56 148 68 162 88 C172 102 176 114 176 132 Z" fill="var(--c)"/><circle cx="120" cy="49" r="3.6" fill="var(--c)"/><g fill="var(--c)"><rect x="118.35" y="14" width="3.3" height="34"/><rect x="114.25" y="19.1" width="11.5" height="2.6"/><rect x="109" y="25.9" width="22" height="3.3"/><path d="M112.8 37 L127.2 41.4 L127.2 44.3 L112.8 39.9 Z"/></g><g fill="var(--a)"><path d="M71 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M93 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M115 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M137 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M159 200v-45a5 5 0 0 1 10 0v45Z"/></g></svg></div><p class="vnote" style="min-height:0;margin-top:10px">Шапка страницы храма</p></div>
+    <div class="vcol" style="flex:0 0 auto"><div class="ph" style="width:112px;height:112px;border-radius:12px;--a:#E6EBEF;--b:#CFD9E1;--c:#AEBCC9"><svg viewBox="0 0 240 200" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Фотография храма не загружена"><rect width="240" height="200" fill="var(--a)"/><rect x="64" y="132" width="112" height="68" fill="var(--b)"/><path d="M64 132 C64 114 68 102 78 88 C92 68 109 56 120 48 C131 56 148 68 162 88 C172 102 176 114 176 132 Z" fill="var(--c)"/><circle cx="120" cy="49" r="3.6" fill="var(--c)"/><g fill="var(--c)"><rect x="118.35" y="14" width="3.3" height="34"/><rect x="114.25" y="19.1" width="11.5" height="2.6"/><rect x="109" y="25.9" width="22" height="3.3"/><path d="M112.8 37 L127.2 41.4 L127.2 44.3 L112.8 39.9 Z"/></g><g fill="var(--a)"><path d="M71 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M93 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M115 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M137 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M159 200v-45a5 5 0 0 1 10 0v45Z"/></g></svg></div><p class="vnote" style="min-height:0;margin-top:10px">112</p></div>
+    <div class="vcol" style="flex:0 0 auto"><div class="ph" style="width:64px;height:64px;border-radius:var(--r-ctl);--a:#E6EBEF;--b:#CFD9E1;--c:#AEBCC9"><svg viewBox="0 0 240 200" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Фотография храма не загружена"><rect width="240" height="200" fill="var(--a)"/><rect x="64" y="132" width="112" height="68" fill="var(--b)"/><path d="M64 132 C64 114 68 102 78 88 C92 68 109 56 120 48 C131 56 148 68 162 88 C172 102 176 114 176 132 Z" fill="var(--c)"/><circle cx="120" cy="49" r="3.6" fill="var(--c)"/><g fill="var(--c)"><rect x="118.35" y="14" width="3.3" height="34"/><rect x="114.25" y="19.1" width="11.5" height="2.6"/><rect x="109" y="25.9" width="22" height="3.3"/><path d="M112.8 37 L127.2 41.4 L127.2 44.3 L112.8 39.9 Z"/></g><g fill="var(--a)"><path d="M71 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M93 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M115 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M137 200v-45a5 5 0 0 1 10 0v45Z"/><path d="M159 200v-45a5 5 0 0 1 10 0v45Z"/></g></svg></div><p class="vnote" style="min-height:0;margin-top:10px">64</p></div>
+  </div>
+</section>
+
+<div class="doc-head" style="margin:0;border-top:1px solid var(--border);padding-top:40px">
+  <h1 style="font-size:24px">Чего здесь намеренно нет</h1>
+  <p>Не менялись: оттенок зелёного, почти белый холст, отсутствие церковного декора, состав пары «Нужна поездка / Могу подвезти», три пункта нижней навигации, маркер-капля на карте, текстовые статусы, состав сущностей, правила приватности и модель ролей. Каноническая IA V2 включает утверждённые поправки к компоновке и терминологии. Не менялась длина воронки создания просьбы — это продуктовое решение, которое стоит проверять отдельно.</p>
+  <p class="warn">Миниатюры из карточек убраны по вашему решению. Если доля храмов с настоящими фотографиями со временем окажется высокой, к этому стоит вернуться — но тогда с миниатюрой справа, чтобы левый край текста оставался единым.</p>
+</div>
+
+</div>
+
+<script>
+function fit(){
+  document.querySelectorAll('.dscale').forEach(function(box){
+    var inner=box.querySelector('.dinner');
+    var s=box.clientWidth/1440;
+    inner.style.transform='scale('+s+')';
+    box.style.height=(parseFloat(box.dataset.h)*s)+'px';
+  });
+}
+window.addEventListener('resize',fit);
+window.addEventListener('load',fit);
+fit();
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@
 - Use the documentation map and authority order below:
   - `docs/ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md`: approved source of truth for the product purpose and boundaries of the first complete public version;
   - `docs/ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md`: approved source of truth for target-product screens, navigation, routes, roles, permissions, journeys, states, visibility, taxonomy, content structure, and transitions between public, personal, and church-administration contexts;
-  - `docs/ORTHODOX_ROUTES_DESIGN_SYSTEM_V1.md`: approved source of truth for the initial visual system within Product Scope and IA V2;
+  - `docs/ORTHODOX_ROUTES_DESIGN_SYSTEM_V2.md`: canonical approved design system within Product Scope and IA V2; it supersedes V1, while production UI adoption is tracked separately;
   - `docs/ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md`: approved target backend, hosting, integration, security, operations, cost, and migration architecture;
   - `docs/ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md`: approved canonical target logical data model for that architecture; it is not an executable migration;
   - `README.md`: current implementation, local setup, and CI overview;
@@ -15,6 +15,7 @@
   - `docs/DATA_MODEL.md`: current prototype entities, relationships, statuses, and persistence notes; it is not the approved target database schema;
   - `docs/UX_RULES.md`: current prototype UX rules plus a concise cross-reference to approved target UX in IA V2;
   - `docs/PROJECT_MAP.md`: current prototype architecture, product flows, and Mermaid diagrams;
+  - `docs/archive/ORTHODOX_ROUTES_DESIGN_SYSTEM_V1.md`: archived initial visual system superseded by Design System V2;
   - `docs/CODEX_ROADMAP.md`: approved development sequence and current phase.
 - When documents conflict, use Product Scope for approved product purpose and first-version boundaries and IA V2 for the approved target information architecture and product/interface behavior within its authority. The design system and approved backend/data documents operate only within those boundaries. A conflict between approved documents must be resolved explicitly before implementation; do not choose a rule independently. Use the actual code, tests, and `README.md` for current implementation facts. Legacy prototype documents must not override Product Scope or IA V2.
 - An explicit task prompt may override these repository defaults. When a requested change intentionally conflicts with current code or documentation, implement the approved change, report the conflict, and update the affected documentation. Otherwise, do not invent new product rules.

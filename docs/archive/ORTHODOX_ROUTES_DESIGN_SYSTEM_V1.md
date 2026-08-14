@@ -1,6 +1,6 @@
 # Orthodox Routes — Initial Design System V1
 
-**Status:** approved and implemented; the Initial Design System phase is complete
+**Status:** archived; superseded by [Design System V2](../ORTHODOX_ROUTES_DESIGN_SYSTEM_V2.md)
 
 **Preview:** `/design-preview`
 
@@ -10,8 +10,8 @@
 
 This document records visual-system decisions for the first complete public version of Orthodox Routes. It does not redefine the product, its permissions, data visibility, states, or journeys.
 
-- [Product Scope V1](ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md) remains authoritative for product purpose and first-version boundaries.
-- [Information Architecture V2](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md) remains authoritative for screens, navigation, terminology, roles, permissions, states, visibility, and journeys.
+- [Product Scope V1](../ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md) remains authoritative for product purpose and first-version boundaries.
+- [Information Architecture V2](../ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md) remains authoritative for screens, navigation, terminology, roles, permissions, states, visibility, and journeys.
 - The six approved visual references establish visual direction only.
 - The direct `/design-preview` route is an isolated review artifact. It is not the redesigned application, a functional map, authentication, or transport workflow.
 

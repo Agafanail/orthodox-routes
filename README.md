@@ -6,7 +6,7 @@ PWA-сервис, который помогает пассажиру без ма
 
 - Next.js App Router, React, TypeScript и Tailwind CSS;
 - ESLint;
-- утверждённая [Initial Design System V1](docs/ORTHODOX_ROUTES_DESIGN_SYSTEM_V1.md) и изолированный маршрут `/design-preview` с шестью контрольными экранами;
+- каноническая утверждённая [Design System V2](docs/ORTHODOX_ROUTES_DESIGN_SYSTEM_V2.md), сохранённый [V2 visual reference](docs/reference/design-system-v2/Orthodox-Routes-Reference-Screens.html) и изолированный маршрут `/design-preview` с десятью V2 control screens;
 - публичные страницы храмов и водителей без регистрации;
 - mock-данные храмов, водителей, регулярных маршрутов и разовых поездок;
 - открытый запрос пассажира через короткую модальную форму;
@@ -29,7 +29,7 @@ The runnable application still has no functional backend, authentication, or rea
 
 Текущая реализация остаётся браузерным mock-прототипом. Назначение и границы первой полноценной публичной версии закреплены в [Product Scope](docs/ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md), а утверждённые целевые экраны, навигация, роли, права, состояния, видимость и пользовательские пути — в [Information Architecture V2](docs/ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md). Эти документы описывают целевой продукт и не означают, что перечисленные функции уже реализованы.
 
-Информационная архитектура завершена на уровне утверждённого документа; фактические card sorting и tree testing ещё предстоят. Initial Design System V1 утверждена и завершена. Утверждённые [Backend and Integration Architecture V1](docs/ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md) и [Target Data Model V1](docs/ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md) фиксируют выбранную целевую архитектуру и модель данных; этап Backend and integration architecture завершён, а активный этап — Core multi-user platform. The local database/migration foundation is implemented, but no functional application backend, authentication, remote Supabase project, target domain schema, or external integration is configured. Изолированный `/design-preview` служит только для проверки утверждённого визуального направления и не означает, что production-приложение уже визуально переработано.
+Информационная архитектура завершена на уровне утверждённого документа; фактические card sorting и tree testing ещё предстоят как эмпирическая проверка IA V2 и не блокируют утверждение Design System V2. [Design System V2](docs/ORTHODOX_ROUTES_DESIGN_SYSTEM_V2.md) является канонической утверждённой дизайн-системой и заменяет архивную V1. Утверждённые [Backend and Integration Architecture V1](docs/ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md) и [Target Data Model V1](docs/ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md) фиксируют выбранную целевую архитектуру и модель данных; этап Backend and integration architecture завершён, а активный этап — Core multi-user platform. The local database/migration foundation is implemented, but no functional application backend, authentication, remote Supabase project, target domain schema, or external integration is configured. Изолированный `/design-preview` содержит десять V2 control screens и остаётся reference artifact. Перенос production UI выполняется отдельно; production-приложение ещё не переведено на V2.
 
 До допуска реальных пользователей в полную публичную версию должны войти:
 
