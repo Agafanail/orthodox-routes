@@ -42,6 +42,12 @@
 - Do not add dependencies, edit package files, or change generated files unless the task requires it.
 - Do not perform unrelated refactoring or cleanup.
 
+### Backend Autopilot
+
+- Apply `.agents/skills/backend-autopilot/SKILL.md` to explicitly approved implementation work involving the backend architecture, databases and migrations, authentication, authorization, server-side security, backend integrations or infrastructure, and related CI. Do not activate it as authority for product discovery, UX decisions, general frontend work, or unrelated maintenance.
+- Product Scope, IA, approved architecture and data documents, privacy and security rules, the roadmap boundary, and the explicit task scope remain authoritative. The Skill does not authorize product-rule changes, later roadmap phases, weaker privacy or security, or production access.
+- While active, the Skill's specific autonomy rules override generic repository defaults only where those defaults would cause unnecessary pauses before ordinary technical decisions or before commit, push, and CI recovery already authorized by the explicit task.
+
 ## 4. Verification
 
 - Run checks appropriate to the change. Executable code, UI, configuration, dependency, and workflow changes normally require:

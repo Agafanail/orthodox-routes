@@ -1,0 +1,4 @@
+interface:
+  display_name: "Backend Autopilot"
+  short_description: "Autonomous backend delivery within approved scope"
+  default_prompt: "Use $backend-autopilot to implement this approved backend task through verification and authorized CI recovery."
