@@ -1,9 +1,12 @@
-# Safe, local-only configuration for the database foundation.
-# No remote project is linked and non-database Supabase services remain disabled.
+# Safe, local-only configuration for the database foundation and email Auth slice.
+# No remote project is linked. The auth:start wrapper excludes every unrelated service.
 project_id = "orthodox-routes"
 
 [api]
-enabled = false
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public"]
 
 [db]
 port = 54322
@@ -29,13 +32,39 @@ enabled = false
 enabled = false
 
 [local_smtp]
-enabled = false
+enabled = true
 
 [storage]
 enabled = false
 
 [auth]
-enabled = false
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://127.0.0.1:3000/auth", "http://localhost:3000/auth"]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = true
+max_frequency = "1m"
+otp_length = 6
+otp_expiry = 900
+
+[auth.email.template.confirmation]
+subject = "Confirm your Orthodox Routes sign-in"
+content_path = "./supabase/templates/auth-link.html"
+
+[auth.email.template.magic_link]
+subject = "Your Orthodox Routes sign-in link"
+content_path = "./supabase/templates/auth-link.html"
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
 
 [edge_runtime]
 enabled = false

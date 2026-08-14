@@ -1,0 +1,250 @@
+.authRoot {
+  --auth-canvas: #fcfcfa;
+  --auth-surface: #ffffff;
+  --auth-surface-subtle: #f4f7f3;
+  --auth-text: #172019;
+  --auth-text-secondary: #58625b;
+  --auth-text-subtle: #687169;
+  --auth-primary: #2e6a57;
+  --auth-primary-pressed: #255747;
+  --auth-border: #e3e8e3;
+  --auth-border-control: #7d8a80;
+  --auth-control-text: #2f3431;
+  --auth-focus: #1f6fb2;
+  --auth-error: #a33a32;
+  --auth-error-surface: #faeeee;
+  min-height: 100vh;
+  background: var(--auth-canvas);
+  color: var(--auth-text);
+  font-family: var(--font-onest), "Onest", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.authRoot *,
+.authRoot *::before,
+.authRoot *::after {
+  box-sizing: border-box;
+}
+
+.authRoot :where(a, button, input):focus-visible {
+  outline: 3px solid var(--auth-focus);
+  outline-offset: 2px;
+}
+
+.shell {
+  width: min(760px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.brand,
+.quietLink {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--auth-control-text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.brand {
+  color: var(--auth-text);
+  font-weight: 600;
+}
+
+.panel {
+  margin-top: 48px;
+  border: 1px solid var(--auth-border);
+  border-radius: 16px;
+  background: var(--auth-surface);
+  padding: 32px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--auth-text-subtle);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.16;
+}
+
+.title:focus {
+  outline: none;
+}
+
+.lead,
+.secondaryText {
+  margin: 16px 0 0;
+  color: var(--auth-text-secondary);
+}
+
+.notice,
+.error {
+  margin: 24px 0 0;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.notice {
+  background: var(--auth-surface-subtle);
+  color: var(--auth-text);
+}
+
+.error {
+  background: var(--auth-error-surface);
+  color: var(--auth-error);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field label {
+  font-weight: 500;
+}
+
+.field input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--auth-border-control);
+  border-radius: 12px;
+  background: var(--auth-surface);
+  color: var(--auth-text);
+  font: inherit;
+  padding: 0 12px;
+}
+
+.fieldHint {
+  margin: -8px 0 0;
+  color: var(--auth-text-subtle);
+  font-size: 14px;
+}
+
+.primaryButton,
+.secondaryButton,
+.primaryLink {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 500;
+  padding: 0 16px;
+}
+
+.primaryButton {
+  border: 1px solid var(--auth-primary);
+  background: var(--auth-primary);
+  color: var(--auth-surface);
+}
+
+.primaryLink {
+  width: fit-content;
+  margin-top: 24px;
+  border: 1px solid var(--auth-primary);
+  background: var(--auth-primary);
+  color: var(--auth-surface);
+  text-decoration: none;
+}
+
+.primaryButton:not(:disabled):hover,
+.primaryButton:not(:disabled):active,
+.primaryLink:hover,
+.primaryLink:active {
+  background: var(--auth-primary-pressed);
+}
+
+.secondaryButton {
+  border: 1px solid var(--auth-border-control);
+  background: var(--auth-surface);
+  color: var(--auth-control-text);
+}
+
+.standaloneAction {
+  margin-top: 24px;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.identity {
+  margin: 24px 0 0;
+  border-radius: 12px;
+  background: var(--auth-surface-subtle);
+  padding: 16px;
+}
+
+.identity div {
+  display: grid;
+  gap: 4px;
+}
+
+.identity dt {
+  color: var(--auth-text-subtle);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.identity dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+
+@media (max-width: 640px) {
+  .shell {
+    padding: 16px;
+  }
+
+  .panel {
+    margin-top: 32px;
+    padding: 24px 16px;
+  }
+
+  .title {
+    font-size: 30px;
+    letter-spacing: -0.01em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .authRoot *,
+  .authRoot *::before,
+  .authRoot *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

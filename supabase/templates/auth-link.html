@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru">
+  <body style="background: #fcfcfa; color: #172019; font-family: Arial, sans-serif; margin: 0; padding: 32px 16px;">
+    <main style="background: #ffffff; border: 1px solid #e3e8e3; border-radius: 16px; margin: 0 auto; max-width: 560px; padding: 24px;">
+      <h1 style="font-size: 24px; line-height: 1.2; margin: 0;">Вход в Orthodox Routes</h1>
+      <p style="font-size: 16px; line-height: 1.45; margin: 16px 0 0;">
+        Откройте страницу подтверждения. Ссылка ещё не выполнит вход: на следующем экране нужно будет нажать «Войти».
+      </p>
+      <p style="margin: 24px 0 0;">
+        <a
+          href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email"
+          style="background: #2e6a57; border-radius: 12px; color: #ffffff; display: inline-block; font-size: 16px; font-weight: 600; padding: 12px 20px; text-decoration: none;"
+        >Открыть подтверждение входа</a>
+      </p>
+      <p style="color: #58625b; font-size: 14px; line-height: 1.45; margin: 24px 0 0;">
+        Ссылка действует 15 минут и используется один раз. Если вы не запрашивали вход, просто проигнорируйте это письмо.
+      </p>
+    </main>
+  </body>
+</html>

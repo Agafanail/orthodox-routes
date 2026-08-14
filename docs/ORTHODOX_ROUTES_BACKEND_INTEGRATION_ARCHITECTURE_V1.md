@@ -3,7 +3,7 @@
 - **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** target production architecture for the first complete public version
-- **Implementation state:** the version-controlled local Supabase/PostgreSQL migration foundation is implemented; no remote service, application backend, authentication, provider integration, or target domain schema is configured
+- **Implementation state:** the version-controlled local Supabase/PostgreSQL migration foundation and local-only passwordless email identity/session slice are implemented; no remote service, application account/domain backend, production email, phone verification, participation eligibility, provider integration, or target domain schema is configured
 
 ## 1. Purpose and authority
 
@@ -25,11 +25,11 @@ If Product Scope and IA V2 conflict, implementation pauses until the owner resol
 
 ### 2.1 Current implementation
 
-The runnable application is one browser-only Next.js mock prototype. Static mock data and namespaced `localStorage` demonstrate passenger requests, driver offers, responses, confirmations, capacity, cancellations, and notifications within one browser. There is no production backend, authentication, real cross-device user isolation, map integration, transactional email, SMS verification, Web Push, production storage, or administration backend.
+The transport application remains a browser-only Next.js mock prototype. Static mock data and namespaced `localStorage` demonstrate passenger requests, driver offers, responses, confirmations, capacity, cancellations, and notifications within one browser. There is no production backend, real transport-data isolation, map integration, transactional email, SMS verification, Web Push, production storage, or administration backend.
 
 Current browser behavior is evidence for reusable domain rules and tests, not a production trust boundary or a source of production data.
 
-The repository now contains a local-only Supabase/PostgreSQL configuration and a versioned migration that creates the empty `app`, `private`, `api`, and `ops` foundation schemas. CI replays committed migrations from a clean local database. The application does not connect to this database, and no remote Supabase project or target domain table exists.
+The repository contains a local-only Supabase/PostgreSQL configuration and a versioned migration that creates the empty `app`, `private`, `api`, and `ops` foundation schemas. CI replays committed migrations from a clean local database. A separate local-only passwordless email Auth slice uses Supabase-managed `auth.users`, an explicit token-hash confirmation action, SSR cookies, verified `getClaims()` identity resolution, and current-session sign-out. It does not create `app.account`, grant participation eligibility, connect transport data to the identity, configure a remote Supabase project, or send external email.
 
 ### 2.2 Selected target
 

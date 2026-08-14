@@ -41,6 +41,7 @@ Roadmap separates the implemented browser-only prototype from the approved first
 - Vitest unit-test foundation for validation, date formatting, request visibility/state transitions, and safe localStorage parsing, plus P0 Church Transport Board component integration coverage for confirmation, contact disclosure, duplicate actions, and safe hydration. Pure unit tests use Node; the component integration file uses jsdom only.
 - Basic GitHub Actions CI for clean-install tests, lint, and production builds on main-branch pushes and pull requests.
 - Version-controlled local Supabase/PostgreSQL configuration, empty foundation-schema migration, and isolated clean migration replay in CI. The application does not connect to this database.
+- Local-only passwordless email Auth with a custom token-hash confirmation page, explicit POST confirmation, cookie-backed SSR session, `getClaims()` server identity verification, reload persistence, and current-device sign-out. It uses Supabase-managed `auth.users` only and grants no transport eligibility.
 - First church transport board component-extraction refactor for the request dialog, passenger request card, and mock notification center.
 - Second church transport board presentational extraction for page actions, request and response panels, targeted requests, and driver offers.
 - Centralized one-time-trip visibility based on open status, available seats, and a local departure date and time that has not passed.
@@ -48,7 +49,7 @@ Roadmap separates the implemented browser-only prototype from the approved first
 - Human-language driver-offer UI with trip-specific origin, numeric maximum detour, 1–55 seat selection, blur/touched validation, human cancellation copy, and static-plus-browser-local church counters.
 - Role-labelled passenger/driver page actions, origin-to-church offers with numeric maximum detour, shared compact service/date selection, and an intentional no-schedule church scenario.
 
-The current prototype has no functional application backend, authentication, real user isolation, push/email delivery, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features. Its transport flows remain browser-local and do not depend on the implemented local database/migration foundation.
+The current prototype has no remote application backend, target application account/domain schema, real transport-data isolation, production email/push delivery, phone verification, participation eligibility, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features. The implemented authentication slice is local-only and proves verified email identity/session handling without connecting browser-local transport data to that identity. Transport flows remain browser-local and do not depend on the local database or Auth stack.
 
 ## Development sequence
 
@@ -82,7 +83,8 @@ The target data model and target project diagrams are approved architecture arti
 ### 4. Core multi-user platform — active
 
 - Establish version-controlled local Supabase/PostgreSQL configuration and clean migration replay — completed for the empty foundation schemas only.
-- Implement the backend, passwordless email-link authentication, SMS phone verification, the 18+ declaration, and Terms acceptance.
+- Implement the local passwordless email identity/session foundation — completed locally only, without `app.account`, remote Supabase, production email, or participation eligibility.
+- Implement the remaining application backend, contextual account/profile creation, SMS phone verification, the 18+ declaration, Terms acceptance, and remote environment work in separately approved tasks.
 - Migrate the approved transport-board domain model from browser storage.
 - Enforce ownership and authorization server-side.
 - Keep contacts unavailable to anonymous users and unconfirmed counterparties.

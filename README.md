@@ -21,15 +21,16 @@ PWA-сервис, который помогает пассажиру без ма
 - две связанные области «Ищут место» и «Предлагают поездки» и один общий безопасный блок «Уже договорились» под обеими колонками, объединяющий до пяти будущих завершённых пассажирских запросов, разовых поездок и дат регулярных маршрутов;
 - компактная временная обратная связь после успешных действий с автоматическим переходом и краткой подсветкой созданной или обновлённой карточки;
 - namespaced localStorage-персистентность запросов, ответов, адресных запросов, `RideMatch` и mock-уведомлений;
-- a version-controlled local Supabase/PostgreSQL foundation for database migrations, isolated from the runnable application.
+- a version-controlled local Supabase/PostgreSQL foundation for database migrations;
+- a local-only passwordless email Auth slice with an explicit confirmation action, cookie-backed SSR sessions, server-verified identity, and current-device sign-out.
 
-The runnable application still has no functional backend, authentication, or real user isolation. The local database foundation is not an application runtime dependency. The transport board continues to use namespaced `localStorage` only to exercise the complete mock flow in one browser; it is not an authorization boundary or production storage.
+Local Auth identifies a verified email through Supabase-managed `auth.users`, but it does not create the Orthodox Routes application account or make the user eligible for transport actions. There is no remote Supabase project, production email provider, phone verification, Terms acceptance, 18+ declaration, contextual registration, target domain schema, transport backend, or real transport-data isolation. The transport board continues to use namespaced `localStorage` only to exercise the complete mock flow in one browser; it is not an authorization boundary or production storage.
 
 ## Утверждённое направление продукта
 
 Текущая реализация остаётся браузерным mock-прототипом. Назначение и границы первой полноценной публичной версии закреплены в [Product Scope](docs/ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md), а утверждённые целевые экраны, навигация, роли, права, состояния, видимость и пользовательские пути — в [Information Architecture V2](docs/ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md). Эти документы описывают целевой продукт и не означают, что перечисленные функции уже реализованы.
 
-Информационная архитектура завершена на уровне утверждённого документа; фактические card sorting и tree testing ещё предстоят как эмпирическая проверка IA V2 и не блокируют утверждение Design System V2. [Design System V2](docs/ORTHODOX_ROUTES_DESIGN_SYSTEM_V2.md) является канонической утверждённой дизайн-системой и заменяет архивную V1. Утверждённые [Backend and Integration Architecture V1](docs/ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md) и [Target Data Model V1](docs/ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md) фиксируют выбранную целевую архитектуру и модель данных; этап Backend and integration architecture завершён, а активный этап — Core multi-user platform. The local database/migration foundation is implemented, but no functional application backend, authentication, remote Supabase project, target domain schema, or external integration is configured. Изолированный `/design-preview` содержит десять V2 control screens и остаётся reference artifact. Перенос production UI выполняется отдельно; production-приложение ещё не переведено на V2.
+Информационная архитектура завершена на уровне утверждённого документа; фактические card sorting и tree testing ещё предстоят как эмпирическая проверка IA V2 и не блокируют утверждение Design System V2. [Design System V2](docs/ORTHODOX_ROUTES_DESIGN_SYSTEM_V2.md) является канонической утверждённой дизайн-системой и заменяет архивную V1. Утверждённые [Backend and Integration Architecture V1](docs/ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md) и [Target Data Model V1](docs/ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md) фиксируют выбранную целевую архитектуру и модель данных; этап Backend and integration architecture завершён, а активный этап — Core multi-user platform. The local database/migration foundation and local-only verified-email session slice are implemented. No remote Supabase project, target application account/domain schema, production email provider, phone verification, participation eligibility, transport backend, or external integration is configured. Изолированный `/design-preview` содержит десять V2 control screens и остаётся reference artifact. Перенос production UI выполняется отдельно; production-приложение ещё не переведено на V2.
 
 До допуска реальных пользователей в полную публичную версию должны войти:
 
@@ -77,8 +78,32 @@ npm run db:stop
 
 `db:start` starts only the local PostgreSQL database. `db:reset` destroys and recreates that local database, then applies every committed migration in `supabase/migrations` from a clean state. `db:stop` stops the local stack while preserving its Docker volume. No command links to or changes a remote Supabase project.
 
+## Local email Auth
+
+Local passwordless email Auth uses only PostgreSQL, the Kong API/Auth gateway, Supabase Auth (GoTrue), and the bundled Mailpit email catcher. PostgREST, Storage, Realtime, Studio, Analytics, Edge Functions, image processing, metadata, pooling, and other unrelated services are excluded by the project wrapper.
+
+```bash
+npm run auth:start
+npm run dev
+```
+
+`auth:start` starts the required local services and updates the ignored `.env.local` file with only the local public URL and public publishable/anonymous key. It never writes a service-role or secret key. Open the application at `http://localhost:3000/auth` and captured email at `http://127.0.0.1:54324`. Use synthetic email addresses only.
+
+The captured email opens `/auth/confirm` with a token hash. Loading, previewing, or refreshing that GET page does not verify the token or create a session. Only the visible `Войти` form action calls `verifyOtp`. Successful verification stores the SSR session in cookies; the server resolves identity with `getClaims()`. Sign-out uses current-session scope and removes the browser's Auth cookies.
+
+Optional local verification and status commands:
+
+```bash
+npm run auth:verify
+npm run auth:stop
+```
+
+`auth:verify` uses a synthetic address and Mailpit's documented local integration endpoint. It verifies captured custom-link structure, explicit token verification, cookie-backed server identity across a new request client, and current-session sign-out without printing token or cookie values.
+
+The `/auth` route displays a safe unavailable state when the public local Auth variables are absent. Ordinary public routes, tests, lint, and production builds do not require the Auth stack, `.env.local`, production secrets, or a remote Supabase project.
+
 ## GitHub Actions CI
 
-GitHub Actions runs on pushes to `main` and pull requests targeting `main`. The frontend job preserves the clean-install tests, lint, and production build. A separate database-foundation job starts the local database and runs `db:reset`, proving that all committed migrations replay from a clean database without remote projects or secrets.
+GitHub Actions runs on pushes to `main` and pull requests targeting `main`. The frontend job preserves the clean-install tests, lint, and production build. A separate database-foundation job starts the local database and runs `db:reset`, proving that all committed migrations replay from a clean database without remote projects or secrets. A separate local-auth job starts the committed local Auth configuration, runs the focused Auth tests, and always stops the stack; it requires no Supabase account, access token, remote project, SMTP credentials, or repository secrets.
 
 Перед коммитом по-прежнему необходимо локально запускать тесты, lint и production build.

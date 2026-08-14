@@ -3,7 +3,7 @@
 - **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** canonical target logical model for the first complete public version
-- **Physical status:** canonical logical design only; not a complete executable schema, API contract, or deployed domain model. Only its empty `app`, `private`, `api`, and `ops` foundation schemas have an implementation migration
+- **Physical status:** canonical logical design only; not a complete executable schema, API contract, or deployed domain model. Only its empty `app`, `private`, `api`, and `ops` foundation schemas have an application migration; local Supabase-managed `auth.users` now supports the isolated email identity/session slice without materializing `app.account` or another target domain entity
 
 ## 1. Purpose and authority
 
@@ -551,4 +551,4 @@ Before executable target domain migrations are written, owner/legal/security rev
 
 ## 24. Approval status
 
-This logical model is approved as the canonical target model for Backend and Integration Architecture V1. It intentionally stops before complete executable SQL, target domain migrations, seeds, provider configuration, or remote infrastructure. The implemented empty foundation schemas do not materialize this model. Its approval completes the backend and integration architecture roadmap phase alongside the approved architecture document, but it does not authorize implementation of later phases.
+This logical model is approved as the canonical target model for Backend and Integration Architecture V1. It intentionally stops before complete executable SQL, target domain migrations, seeds, provider configuration, or remote infrastructure. The implemented empty foundation schemas and local Supabase-managed Auth identity do not materialize `app.account` or the target domain model. Its approval completes the backend and integration architecture roadmap phase alongside the approved architecture document, but it does not authorize implementation of later phases.

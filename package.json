@@ -8,11 +8,17 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:auth": "vitest run src/lib/auth src/lib/supabase/config.test.ts src/app/auth",
     "db:start": "supabase db start",
     "db:reset": "supabase db reset --local",
-    "db:stop": "supabase stop"
+    "db:stop": "supabase stop",
+    "auth:start": "node scripts/local-auth.mjs",
+    "auth:verify": "node scripts/verify-local-auth.mjs",
+    "auth:stop": "supabase stop"
   },
   "dependencies": {
+    "@supabase/ssr": "0.10.0",
+    "@supabase/supabase-js": "2.105.0",
     "next": "16.2.11",
     "react": "19.2.7",
     "react-dom": "19.2.7"
