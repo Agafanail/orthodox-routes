@@ -77,6 +77,29 @@ Do not stop at the first test, lint, build, migration, or ordinary CI failure. D
 
 Use browser verification when the approved backend task changes user-visible behavior or a browser-mediated flow. Require human manual testing only when human interaction or perception remains necessary after available automated and browser checks.
 
+## Run campaign mode when explicitly authorized
+
+Use campaign mode only when the explicit task authorizes one continuous backend campaign across multiple ordered milestones or implementation slices, including the required Git and CI loop. Campaign mode changes execution continuity, not product authority or scope.
+
+At campaign start:
+
+1. Define the approved campaign boundary, ordered slices, completion criteria, explicit exclusions, and applicable escalation gates from the repository evidence and task.
+2. Inspect which slices are already complete on the actual starting commit so completed work is verified rather than recreated.
+3. Keep a current campaign plan, but treat milestones, commits, pushes, and green CI runs as internal checkpoints rather than stopping points.
+
+For each checkpoint:
+
+1. Complete a coherent safe slice, focused tests, broader verification, security/privacy review, documentation updates, and full diff inspection.
+2. Commit and push the approved scope when the task grants that authority, then wait for every required CI job and cleanup step.
+3. Fix task-related CI failures autonomously and repeat until that checkpoint is green.
+4. Re-read the branch, HEAD, working tree, and affected implementation boundary after CI, record the checkpoint in the campaign plan, and immediately continue with the next unfinished slice.
+
+Do not pause merely to report a milestone, request confirmation for the next already approved slice, or ask whether to continue after a commit, push, or green CI run. Preserve coherent checkpoint commits so completed work remains reviewable and recoverable during a long campaign.
+
+If an external provider or owner-controlled environment will eventually be required, finish all safe provider-independent contracts, adapters, local fakes or sandboxes, migrations, tests, documentation, and other independent campaign work first. Do not describe a local fake or direct database mutation as real provider verification. Escalate only when the specific external action is the next genuine dependency.
+
+Campaign mode ends only when the entire approved campaign passes its final implementation, migration, security/privacy, documentation, Git, and CI audit, or when an ordinary escalation gate is genuinely reached after independent work is exhausted. It never authorizes later roadmap phases, production access, weakened safeguards, or unresolved product decisions.
+
 ## Perform security and privacy review
 
 For every backend task affecting identity, authorization, database access, private data, contacts, locations, eligibility, integrations, or external effects, explicitly review all applicable items:
