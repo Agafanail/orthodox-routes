@@ -43,6 +43,7 @@ Roadmap separates the implemented browser-only prototype from the approved first
 - Version-controlled local Supabase/PostgreSQL configuration, foundation and account/eligibility migrations, and isolated clean migration replay in CI.
 - Local-only passwordless email Auth with a custom token-hash confirmation page, explicit POST confirmation, cookie-backed SSR session, `getClaims()` server identity verification, reload persistence, and current-device sign-out.
 - Backend-only application accounts linked to verified `auth.users`, protected contacts, an 18+ declaration, versioned legal-document metadata/Terms acceptance, and one authoritative structured participation-eligibility check behind narrow authenticated RPCs. Account creation is explicit, `active` remains separate from eligibility, and ordinary clients cannot mark a phone verified.
+- Provider-independent application-owned phone verification with versioned policy, idempotent attempts, transient restricted delivery material, expiry and attempt limits, race-safe uniqueness, authoritative eligibility transition, and an ungranted worker lease contract. No external SMS provider or production fake is configured.
 - First church transport board component-extraction refactor for the request dialog, passenger request card, and mock notification center.
 - Second church transport board presentational extraction for page actions, request and response panels, targeted requests, and driver offers.
 - Centralized one-time-trip visibility based on open status, available seats, and a local departure date and time that has not passed.
@@ -50,7 +51,7 @@ Roadmap separates the implemented browser-only prototype from the approved first
 - Human-language driver-offer UI with trip-specific origin, numeric maximum detour, 1–55 seat selection, blur/touched validation, human cancellation copy, and static-plus-browser-local church counters.
 - Role-labelled passenger/driver page actions, origin-to-church offers with numeric maximum detour, shared compact service/date selection, and an intentional no-schedule church scenario.
 
-The repository still has no remote application backend, transport-domain schema, real transport-data isolation, production email/push delivery, real phone verification, production Terms/Privacy text, Firebase, Google Maps, Telegram, payments, SMS, WhatsApp API, or admin features. The implemented local account foundation can derive ineligibility and provides the future server/database re-check boundary, but a normal account cannot become participation-eligible through application code because SMS verification is not implemented and no production Terms version is seeded. Transport flows remain browser-local and do not depend on the local database, Auth, or account stack.
+The repository still has no remote application backend, transport-domain schema, real transport-data isolation, production email/push/SMS delivery, production Terms/Privacy text, Firebase, Google Maps, Telegram, payments, WhatsApp API, or admin features. The implemented local account and phone foundations provide the authoritative verification and eligibility boundary, but a normal account cannot receive an SMS or become participation-eligible through the current UI because no provider is configured and no production Terms version is seeded. Transport flows remain browser-local and do not depend on the local database, Auth, or account stack.
 
 ## Development sequence
 
@@ -85,8 +86,9 @@ The target data model and target project diagrams are approved architecture arti
 
 - Establish version-controlled local Supabase/PostgreSQL configuration and clean migration replay — completed locally.
 - Implement the local passwordless email identity/session foundation — completed locally only, without remote Supabase or production email.
-- Implement the backend-only Account & Eligibility Foundation — completed locally with explicit application-account materialization, protected contacts, an 18+ declaration, versioned legal-document/Terms acceptance, and authoritative eligibility evaluation; no SMS verification, production legal text, profile UI, or contextual registration is included.
-- Implement the remaining contextual registration/profile flow, real SMS phone verification, remote environment work, and later application backend slices in separately approved tasks.
+- Implement the backend-only Account & Eligibility Foundation — completed locally with explicit application-account materialization, protected contacts, an 18+ declaration, versioned legal-document/Terms acceptance, and authoritative eligibility evaluation; no external SMS delivery, production legal text, profile UI, or contextual registration is included.
+- Implement the provider-independent Phone Verification Foundation — in progress in the active Backend Campaign; external SMS delivery remains behind the adapter and owner-controlled provider boundary.
+- Implement the remaining contextual registration/profile flow, external SMS adapter/environment work, and later Core application backend slices in the active Backend Campaign.
 - Migrate the approved transport-board domain model from browser storage.
 - Enforce ownership and authorization server-side.
 - Keep contacts unavailable to anonymous users and unconfirmed counterparties.

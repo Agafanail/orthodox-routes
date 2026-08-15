@@ -3,7 +3,7 @@
 - **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** canonical target logical model for the first complete public version
-- **Physical status:** canonical logical design with an implemented local Account & Eligibility Foundation, not a complete executable target domain schema, API contract, or deployed domain model. Versioned migrations now materialize `app.account`, `private.account_contact`, legal-document/acceptance metadata, and narrow account/eligibility RPCs on top of the `app`, `private`, `api`, and `ops` schemas; transport, provider, recovery, operational, and remaining target entities are not implemented
+- **Physical status:** canonical logical design with implemented local Account & Eligibility and provider-independent Phone Verification foundations, not a complete executable target domain schema, API contract, or deployed domain model. Versioned migrations now materialize `app.account`, `private.account_contact`, legal-document/acceptance metadata, narrow account/eligibility RPCs, and the protected phone-attempt/delivery boundary on top of the `app`, `private`, `api`, and `ops` schemas; transport, external provider, recovery, and remaining target entities are not implemented
 
 ## 1. Purpose and authority
 
@@ -89,7 +89,9 @@ The implemented current-version rule selects the published document of the reque
 
 ### 4.4 `ops.phone_verification_attempt`
 
-Stores account or incomplete-registration reference, normalized phone hash plus protected lookup where required, provider code, provider reference, safe delivery state, attempt number, requested/expired/verified timestamps, and rate-limit bucket references. It never stores a recoverable OTP after verification and never makes the SMS provider an authentication identity.
+The implemented account-bound foundation stores normalized phone, client idempotency key, safe provider adapter/reference, delivery/verification state, failed-code count, and requested/sent/expired/verified times. Versioned `ops.security_policy` values use the IA-recommended initial 10-minute expiry, five code attempts, and 60-second resend delay plus a bounded 60-second worker lease pending production operational review. A separate restricted delivery row holds the six-digit code only until the worker records delivery outcome; terminal attempts clear the salted digest as well. An abandoned delivery lease can be reclaimed with the same attempt identifier, while a completion after code expiry fails and clears the remaining code material. No application role can lease or complete delivery, and the authenticated API never returns OTP or provider diagnostics.
+
+The provider-independent API queues only for the current active account with verified email, verifies only a delivered unexpired code, rejects cross-account attempts, and atomically binds the phone through the existing partial unique index. Concurrent attempts to verify the same unbound phone result in exactly one binding. External SMS delivery, incomplete-registration references, phone change/recovery, wider abuse buckets, and provider coverage remain later work behind the same boundary; the provider is never an authentication identity.
 
 ### 4.5 `private.recovery_case`
 

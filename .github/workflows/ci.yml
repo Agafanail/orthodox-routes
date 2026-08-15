@@ -107,6 +107,9 @@ jobs:
       - name: Verify account and eligibility foundation
         run: npm run test:account
 
+      - name: Verify phone verification foundation
+        run: npm run test:phone
+
       - name: Stop local Auth
         if: always()
         run: npm run auth:stop

@@ -37,8 +37,8 @@ Explicitly excluded:
 
 | Checkpoint | Scope | Status | Evidence |
 | --- | --- | --- | --- |
-| A | Campaign protocol and durable implementation plan | In progress | Initial protocol commit `e36f15b`; CI `31879226949` green; durable plan follow-up pending |
-| B | Phone verification foundation | Pending | Provider-independent migration work follows A |
+| A | Campaign protocol and durable implementation plan | Complete | Commits `e36f15b`, `6364797`; CI `31879226949` and rerun `31879539830` green |
+| B | Phone verification foundation | In progress | Provider-independent migration, adapter boundary, and database tests under verification |
 | C | Contextual registration and account completion | Pending | Depends on B and protected draft design |
 | D | Server-owned multi-user transport domain | Pending | Stops before Maps/quality matching |
 | E | Ownership, confirmation, agreements, capacity, cancellation, disclosure | Pending | Database concurrency and privacy tests required |
@@ -46,7 +46,7 @@ Explicitly excluded:
 | G | Remote/staging readiness | Pending | Complete independent configuration before any owner-action gate |
 | H | Fresh final Core Platform audit | Pending | Full authority, migrations, security/privacy, browser/E2E, documentation, Git and CI audit |
 
-**Current continuation:** finish Checkpoint A follow-up, then continue Checkpoint B without owner review.
+**Current continuation:** finish Checkpoint B verification and publication, then continue Checkpoint C without owner review.
 
 For every completed checkpoint, replace its status with `Complete` and record commit SHA plus final green CI run. Update **Current continuation** to the next unfinished scope. Do not record synthetic research, pending CI as green, or external verification that did not occur.
 
