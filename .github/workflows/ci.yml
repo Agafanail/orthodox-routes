@@ -110,6 +110,9 @@ jobs:
       - name: Verify phone verification foundation
         run: npm run test:phone
 
+      - name: Verify contextual registration drafts
+        run: npm run test:drafts
+
       - name: Stop local Auth
         if: always()
         run: npm run auth:stop

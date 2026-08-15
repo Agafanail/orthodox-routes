@@ -3,7 +3,7 @@
 - **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** canonical target logical model for the first complete public version
-- **Physical status:** canonical logical design with implemented local Account & Eligibility and provider-independent Phone Verification foundations, not a complete executable target domain schema, API contract, or deployed domain model. Versioned migrations now materialize `app.account`, `private.account_contact`, legal-document/acceptance metadata, narrow account/eligibility RPCs, and the protected phone-attempt/delivery boundary on top of the `app`, `private`, `api`, and `ops` schemas; transport, external provider, recovery, and remaining target entities are not implemented
+- **Physical status:** canonical logical design with implemented local Account & Eligibility and provider-independent Phone Verification foundations plus the protected contextual-registration draft database boundary, not a complete executable target domain schema, API contract, or deployed domain model. Versioned migrations now materialize `app.account`, `private.account_contact`, legal-document/acceptance metadata, narrow account/eligibility RPCs, the protected phone-attempt/delivery boundary, and protected incomplete-action drafts with server-only rate buckets on top of the `app`, `private`, `api`, and `ops` schemas; transport, external provider, recovery, and remaining target entities are not implemented
 
 ## 1. Purpose and authority
 
@@ -93,7 +93,13 @@ The implemented account-bound foundation stores normalized phone, client idempot
 
 The provider-independent API queues only for the current active account with verified email, verifies only a delivered unexpired code, rejects cross-account attempts, and atomically binds the phone through the existing partial unique index. Concurrent attempts to verify the same unbound phone result in exactly one binding. External SMS delivery, incomplete-registration references, phone change/recovery, wider abuse buckets, and provider coverage remain later work behind the same boundary; the provider is never an authentication identity.
 
-### 4.5 `private.recovery_case`
+### 4.5 Implemented contextual-registration draft boundary
+
+The implemented `private.contextual_draft` stores a versioned, size-bounded action-only JSON payload under opaque internal and public identifiers. It rejects nested account, contact, password, token, and secret fields. The raw resume capability and intended email are never stored: only SHA-256 capability material and a per-draft salted normalized-email digest are retained. Server-only create and email-attach functions consume privacy-preserving rate-bucket keys; application actors have no direct table or draft-creation grant.
+
+After passwordless Auth verifies the matching email, an authenticated actor may claim the draft. Claim is idempotent for that owner, cannot publish or complete the action, and exposes the payload only through an owner-scoped function. Expiry, cancellation, and internal atomic completion clear the payload, capability digest, and remaining email material. Application orchestration, the final-review/account-completion UI, and transport-domain publication operations remain later work in the active campaign.
+
+### 4.6 `private.recovery_case`
 
 Stores only an allowed recovery type such as verified-phone replacement with available email or verified-email replacement with the previously verified phone, account, old/new contact references in protected form, state, prepare/execute identifiers, protective-delay deadline where applicable, verification result, session-revocation result, timestamps, and audit link. States are `prepared`, `contact_verification`, `delay`, `ready`, `executed`, `rejected`, `expired`, `cancelled`.
 

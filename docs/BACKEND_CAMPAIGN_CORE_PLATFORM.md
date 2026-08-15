@@ -38,15 +38,15 @@ Explicitly excluded:
 | Checkpoint | Scope | Status | Evidence |
 | --- | --- | --- | --- |
 | A | Campaign protocol and durable implementation plan | Complete | Commits `e36f15b`, `6364797`; CI `31879226949` and rerun `31879539830` green |
-| B | Phone verification foundation | In progress | Provider-independent migration, adapter boundary, and database tests under verification |
-| C | Contextual registration and account completion | Pending | Depends on B and protected draft design |
+| B | Phone verification foundation | Complete | Commit `1391288`; CI `31880347230` green, including clean replay and phone boundary tests |
+| C | Contextual registration and account completion | In progress | Protected draft database boundary implemented locally; application orchestration and explicit final-review/account-completion flow remain |
 | D | Server-owned multi-user transport domain | Pending | Stops before Maps/quality matching |
 | E | Ownership, confirmation, agreements, capacity, cancellation, disclosure | Pending | Database concurrency and privacy tests required |
 | F | Core application integration and browser-state cutover | Pending | Real multi-user flows; no visual-redesign expansion |
 | G | Remote/staging readiness | Pending | Complete independent configuration before any owner-action gate |
 | H | Fresh final Core Platform audit | Pending | Full authority, migrations, security/privacy, browser/E2E, documentation, Git and CI audit |
 
-**Current continuation:** finish Checkpoint B verification and publication, then continue Checkpoint C without owner review.
+**Current continuation:** publish the protected-draft database sub-checkpoint, then implement Checkpoint C application orchestration and contextual account-completion flow before continuing Checkpoint D without owner review.
 
 For every completed checkpoint, replace its status with `Complete` and record commit SHA plus final green CI run. Update **Current continuation** to the next unfinished scope. Do not record synthetic research, pending CI as green, or external verification that did not occur.
 

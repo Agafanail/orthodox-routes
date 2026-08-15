@@ -3,7 +3,7 @@
 - **Status:** approved
 - **Date:** 6 August 2026
 - **Scope:** target production architecture for the first complete public version
-- **Implementation state:** the version-controlled local Supabase/PostgreSQL migration foundation, local-only passwordless email identity/session slice, and backend-only account/consent/eligibility foundation are implemented; no remote service, production email/SMS, real phone verification, production legal document, contextual registration, transport backend, provider integration, or remaining target domain schema is configured
+- **Implementation state:** the version-controlled local Supabase/PostgreSQL migration foundation, local-only passwordless email identity/session slice, backend-only account/consent/eligibility and provider-independent phone-verification foundations, and protected contextual-registration draft database boundary are implemented; application orchestration for contextual registration remains in progress, and no remote service, production email/SMS, production legal document, transport backend, provider integration, or remaining target domain schema is configured
 
 ## 1. Purpose and authority
 

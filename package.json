@@ -11,6 +11,7 @@
     "test:auth": "vitest run src/lib/auth src/lib/supabase/config.test.ts src/app/auth",
     "test:account": "node scripts/verify-account-foundation.mjs",
     "test:phone": "node scripts/verify-phone-verification.mjs",
+    "test:drafts": "node scripts/verify-contextual-registration.mjs",
     "db:start": "supabase db start",
     "db:reset": "supabase db reset --local",
     "db:stop": "supabase stop",
