@@ -771,9 +771,10 @@
 
 .typeTag + .cardTitle { margin-top: var(--or-space-2); }
 
+/* Action on the left content edge, so the card reads type → data → details → action. */
 .cardAction {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   margin-top: var(--or-space-3);
 }
 
@@ -1303,6 +1304,472 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   clip-path: inset(50%);
+}
+
+/* ---------- Map action: switching the board group to its spatial representation ---------- */
+
+/*
+ * One treatment in both placements: map-tinted surface, primary used only as border and icon accent.
+ * It is deliberately stronger than a quiet control and deliberately weaker than a filled primary —
+ * the board stays the primary representation. Radius stays radius-control; the pill form belongs to
+ * filters and round icon buttons.
+ */
+.mobileMapAction,
+.groupMapAction::before {
+  border: 1px solid var(--or-primary);
+  border-radius: var(--or-radius-control);
+  background: var(--or-map-surface);
+}
+
+.mobileMapAction svg,
+.groupMapAction svg {
+  color: var(--or-primary);
+}
+
+.mobileMapAction,
+.groupMapAction {
+  color: var(--or-text);
+  cursor: pointer;
+}
+
+/*
+ * The label carries its own type: the base `.previewRoot button { font: inherit }` rule outranks a
+ * single class on the button itself, so weight and size are set on a child.
+ */
+.mapActionLabel {
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-semibold);
+}
+
+.groupMapAction .mapActionLabel {
+  font-size: var(--or-size-secondary);
+}
+
+.boardHost {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* Reserves room so the map action never covers a card, the agreement counts or the bottom nav. */
+.boardReserve {
+  padding-bottom: calc(var(--or-target-min) + var(--or-space-8));
+}
+
+.mobileMapAction {
+  position: absolute;
+  bottom: var(--or-space-4);
+  left: 50%;
+  display: inline-flex;
+  min-height: var(--or-target-min);
+  align-items: center;
+  gap: var(--or-space-2);
+  box-shadow: var(--or-shadow-float);
+  padding: 0 var(--or-space-4);
+  transform: translateX(-50%);
+}
+
+.groupHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--or-space-3);
+}
+
+.groupHeading > div {
+  min-width: 0;
+}
+
+/* Compact visual box inside a full 44 px target. */
+.groupMapAction {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  min-height: var(--or-target-min);
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--or-space-2);
+  border: 0;
+  background: transparent;
+  padding: 0 var(--or-space-3);
+}
+
+.groupMapAction::before {
+  position: absolute;
+  z-index: -1;
+  inset-block: calc((var(--or-target-min) - var(--or-height-selector)) / 2);
+  inset-inline: 0;
+  content: '';
+}
+
+/* ---------- Full-screen ride map ---------- */
+
+.mapScreen {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  background: var(--or-map-surface);
+}
+
+.mapHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--or-space-3);
+  border-bottom: 1px solid var(--or-border);
+  background: var(--or-surface);
+  padding: var(--or-space-3) var(--or-space-4);
+}
+
+.mapHeader > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.mapHeader strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: var(--or-size-card);
+  font-weight: var(--or-weight-semibold);
+}
+
+.mapHeader small {
+  display: block;
+  color: var(--or-text-subtle);
+  font-size: var(--or-size-secondary);
+}
+
+.mapFilters {
+  border-bottom: 1px solid var(--or-border);
+  background: var(--or-surface);
+  padding: var(--or-space-1) var(--or-space-4) var(--or-space-3);
+}
+
+.mapFilters > div {
+  margin-top: 0;
+}
+
+.mapFilters button[disabled] {
+  color: var(--or-text-subtle);
+  cursor: default;
+}
+
+.noticeLine {
+  margin: 0;
+  border-bottom: 1px solid var(--or-border);
+  background: var(--or-surface);
+  color: var(--or-text-secondary);
+  padding: 0 var(--or-space-4) var(--or-space-3);
+  font-size: var(--or-size-secondary);
+}
+
+.mapCanvas {
+  position: relative;
+  min-height: 470px;
+  flex: 1;
+  overflow: hidden;
+  background: var(--or-map-surface);
+}
+
+.bleedLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * The field is a square whose smaller side matches the canvas, so a `meet` viewBox maps 1:1 onto it
+ * and percentage-positioned hit targets stay aligned with the shapes. Mobile canvases are taller
+ * than wide, so the square follows width; desktop follows height.
+ */
+.mapField {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}
+
+.desktopMapScreen .mapField {
+  width: auto;
+  height: 100%;
+}
+
+.mapField > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.mapRoad,
+.mapRoadMinor {
+  fill: none;
+  stroke: var(--or-surface);
+  stroke-linecap: round;
+  stroke-width: 3.4;
+}
+
+.mapRoadMinor {
+  stroke-width: 2.2;
+}
+
+.mapWater {
+  fill: none;
+  stroke: var(--or-map-water);
+  stroke-width: 11;
+}
+
+/* Passenger request: dashed circle, deliberately without any centre marker. */
+.areaShape {
+  fill: var(--or-map-radius-bg);
+  stroke: var(--or-map-radius-border);
+  stroke-dasharray: 3 2.4;
+  stroke-width: 0.9;
+}
+
+.areaShape[data-selected='true'] {
+  fill: var(--or-primary-pale);
+  stroke: var(--or-primary);
+  stroke-dasharray: none;
+  stroke-width: 1.4;
+}
+
+/*
+ * Driver offer: tapered corridor — narrow at the public church, wide at the private origin.
+ * The outline uses non-scaling-stroke so its weight stays in screen pixels instead of growing with
+ * the larger desktop field; selection is carried by fill and colour rather than by a heavy border.
+ */
+.corridorShape {
+  fill: var(--or-map-radius-bg);
+  stroke: var(--or-map-radius-border);
+  stroke-dasharray: 5 4;
+  stroke-linejoin: round;
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.corridorShape[data-selected='true'] {
+  fill: var(--or-primary-pale);
+  stroke: var(--or-primary);
+  stroke-dasharray: none;
+  stroke-width: 2;
+}
+
+.churchMarker {
+  fill: var(--or-primary);
+  stroke: var(--or-surface);
+  stroke-width: 1;
+}
+
+.churchMarkerCore {
+  fill: var(--or-surface);
+}
+
+/* User location: a ring, deliberately unlike the drop marker used for places. */
+.userDot {
+  fill: var(--or-focus);
+  stroke: var(--or-surface);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.userRing {
+  fill: none;
+  stroke: var(--or-focus);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.fieldTarget {
+  display: contents;
+}
+
+.mapHit {
+  position: absolute;
+  width: var(--or-target-min);
+  height: var(--or-target-min);
+  border: 0;
+  border-radius: var(--or-radius-pill);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  transform: translate(-50%, -50%);
+}
+
+.objectPill {
+  position: absolute;
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border: 1px solid var(--or-primary);
+  border-radius: var(--or-radius-pill);
+  background: var(--or-surface);
+  color: var(--or-text);
+  padding: 0 var(--or-space-2);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-semibold);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.fieldLabel {
+  position: absolute;
+  border-radius: var(--or-radius-status);
+  background: var(--or-map-label-bg);
+  color: var(--or-text-secondary);
+  padding: var(--or-space-1) var(--or-space-2);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-medium);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* One overlay column keeps the action and the key clear of the detail sheet and panel. */
+.mapOverlay {
+  position: absolute;
+  top: var(--or-space-3);
+  left: var(--or-space-4);
+  display: flex;
+  max-width: calc(100% - var(--or-space-8));
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--or-space-2);
+}
+
+.desktopMapScreen .mapOverlay {
+  top: var(--or-space-6);
+  left: var(--or-space-6);
+}
+
+.locateButton {
+  display: inline-flex;
+  min-height: var(--or-target-min);
+  align-items: center;
+  gap: var(--or-space-2);
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-pill);
+  background: var(--or-surface);
+  box-shadow: var(--or-shadow-float);
+  color: var(--or-control-text);
+  cursor: pointer;
+  padding: 0 var(--or-space-4);
+  font-size: var(--or-size-secondary);
+  font-weight: var(--or-weight-medium);
+}
+
+.locateButton[aria-pressed='true'] {
+  border-color: var(--or-primary);
+  background: var(--or-primary-pale);
+  color: var(--or-primary);
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--or-space-2);
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-control);
+  background: var(--or-map-label-bg);
+  padding: var(--or-space-3);
+}
+
+.legend > span {
+  display: flex;
+  align-items: center;
+  gap: var(--or-space-2);
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-medium);
+}
+
+.legendArea,
+.legendCorridor {
+  flex: 0 0 auto;
+  border: 1px dashed var(--or-map-radius-border);
+  background: var(--or-map-radius-bg);
+}
+
+.legendArea {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--or-radius-pill);
+}
+
+.legendCorridor {
+  width: 24px;
+  height: 14px;
+  border-radius: var(--or-radius-pill);
+  clip-path: polygon(0 0, 100% 38%, 100% 62%, 0 100%);
+}
+
+.detailSheet {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: var(--or-radius-sheet) var(--or-radius-sheet) 0 0;
+  background: var(--or-surface);
+  box-shadow: var(--or-shadow-float);
+  padding: var(--or-space-4);
+}
+
+.detailPanel {
+  position: absolute;
+  top: var(--or-space-6);
+  right: var(--or-space-6);
+  width: 380px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-card);
+  background: var(--or-surface);
+  box-shadow: var(--or-shadow-float);
+  padding: var(--or-space-4);
+}
+
+.detailHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--or-space-3);
+  margin-bottom: var(--or-space-3);
+}
+
+.detailHead > span {
+  color: var(--or-text-subtle);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-semibold);
+  text-transform: uppercase;
+}
+
+.privacyLine {
+  margin: var(--or-space-3) 0 0;
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface-subtle);
+  color: var(--or-text-secondary);
+  padding: var(--or-space-3);
+  font-size: var(--or-size-secondary);
+}
+
+.desktopMapScreen .mapHeader {
+  gap: var(--or-space-4);
+  padding: var(--or-space-3) var(--or-space-8);
+}
+
+.desktopMapScreen .mapFilters {
+  padding: var(--or-space-1) var(--or-space-8) var(--or-space-3);
+}
+
+.desktopMapScreen .noticeLine {
+  padding-inline: var(--or-space-8);
+}
+
+.desktopMapScreen .mapCanvas {
+  min-height: 620px;
 }
 
 @media (min-width: 1024px) {

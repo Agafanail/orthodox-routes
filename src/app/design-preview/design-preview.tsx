@@ -8,9 +8,11 @@ type ScreenId =
   | 'mobile-directory'
   | 'mobile-church-header'
   | 'mobile-board'
+  | 'mobile-ride-map'
   | 'mobile-passenger-form'
   | 'desktop-directory'
   | 'desktop-church-board'
+  | 'desktop-ride-map'
   | 'desktop-trips'
   | 'responsive-full-church'
   | 'responsive-catalog'
@@ -20,16 +22,18 @@ const screens: ReadonlyArray<{ id: ScreenId; label: string; kind: 'mobile' | 'de
   { id: 'mobile-directory', label: 'Мобильный каталог', kind: 'mobile' },
   { id: 'mobile-church-header', label: 'Мобильная шапка храма', kind: 'mobile' },
   { id: 'mobile-board', label: 'Мобильная транспортная доска', kind: 'mobile' },
+  { id: 'mobile-ride-map', label: 'Мобильная карта поездок', kind: 'mobile' },
   { id: 'mobile-passenger-form', label: 'Мобильная форма просьбы', kind: 'mobile' },
   { id: 'desktop-directory', label: 'Каталог на компьютере', kind: 'desktop' },
   { id: 'desktop-church-board', label: 'Храм и доска на компьютере', kind: 'desktop' },
+  { id: 'desktop-ride-map', label: 'Карта поездок на компьютере', kind: 'desktop' },
   { id: 'desktop-trips', label: 'Мои поездки на компьютере', kind: 'desktop' },
   { id: 'responsive-full-church', label: 'Полная страница храма', kind: 'responsive' },
   { id: 'responsive-catalog', label: 'Каталог из 12 храмов', kind: 'responsive' },
   { id: 'responsive-empty-church', label: 'Пустая страница храма', kind: 'responsive' },
 ];
 
-type IconName = 'back' | 'bell' | 'car' | 'chevron-down' | 'expand' | 'filter' | 'mail' | 'map' | 'phone' | 'pin' | 'profile' | 'save' | 'search' | 'share';
+type IconName = 'back' | 'bell' | 'car' | 'chevron-down' | 'close' | 'expand' | 'filter' | 'mail' | 'map' | 'phone' | 'pin' | 'profile' | 'route' | 'save' | 'search' | 'share';
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -37,6 +41,7 @@ function Icon({ name }: { name: IconName }) {
     bell: <><path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15Z" /><path d="M10 19a2 2 0 0 0 4 0" /></>,
     car: <><path d="M4 15h16M5.5 15l1.6-5a2 2 0 0 1 1.9-1.4h6a2 2 0 0 1 1.9 1.4l1.6 5" /><path d="M4 15v3h3v-3M17 15v3h3v-3" /></>,
     'chevron-down': <path d="m7 9.5 5 5 5-5" />,
+    close: <path d="m6 6 12 12M18 6 6 18" />,
     expand: <path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5" />,
     filter: <><path d="M4 7h11M19 7h1M4 17h6M14 17h6" /><circle cx="17" cy="7" r="2" /><circle cx="12" cy="17" r="2" /></>,
     mail: <><rect x="3" y="5.5" width="18" height="13" rx="2.5" /><path d="m3.5 7 8.5 6 8.5-6" /></>,
@@ -44,6 +49,7 @@ function Icon({ name }: { name: IconName }) {
     phone: <path d="M6.4 4h2.8l1.4 4-2 1.5a11 11 0 0 0 5.9 5.9l1.5-2 4 1.4v2.8a2.4 2.4 0 0 1-2.6 2.4A14.4 14.4 0 0 1 4 6.6 2.4 2.4 0 0 1 6.4 4Z" />,
     pin: <><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z" /><circle cx="12" cy="10" r="2.4" /></>,
     profile: <><circle cx="12" cy="9" r="3.2" /><path d="M5.5 19a6.5 6.5 0 0 1 13 0" /></>,
+    route: <><path d="m3 6.5 6-2.5 6 2.5 6-2.5v13l-6 2.5-6-2.5-6 2.5Z" /><path d="M9 4v13M15 6.5v13" /></>,
     save: <path d="M6 4h12v16l-6-4-6 4Z" />,
     search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></>,
     share: <><circle cx="17" cy="6" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="17" cy="18" r="2.5" /><path d="m8.3 10.8 6.4-3.5M8.3 13.2l6.4 3.5" /></>,
@@ -51,8 +57,8 @@ function Icon({ name }: { name: IconName }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.icon} data-icon={name}>{paths[name]}</svg>;
 }
 
-function IconButton({ label, icon, className = '' }: { label: string; icon: IconName; className?: string }) {
-  return <button type="button" className={`${styles.iconButton} ${className}`} aria-label={label} data-icon-only><Icon name={icon} /></button>;
+function IconButton({ label, icon, className = '', onClick }: { label: string; icon: IconName; className?: string; onClick?: () => void }) {
+  return <button type="button" className={`${styles.iconButton} ${className}`} aria-label={label} data-icon-only onClick={onClick}><Icon name={icon} /></button>;
 }
 
 function MobileNavigation({ active = 'Храмы' }: { active?: 'Храмы' | 'Поездки' | 'Уведомления' }) {
@@ -178,21 +184,384 @@ function Services() {
   );
 }
 
-const rides = [
-  { type: 'Есть места', title: 'вс, 10 авг · 08:00 · 3 места', detail: 'Из Catanzaro Lido · с детьми · обратно', action: 'Попросить подвезти' },
-  { type: 'Ищут место', title: 'вс, 10 авг · утро · 2 человека', detail: 'Из Matera · нужна поездка обратно', action: 'Предложить подвезти' },
-  { type: 'Есть места', title: 'вс, 10 авг · 07:40 · 1 место', detail: 'Из Siano · только туда', action: 'Попросить подвезти' },
-  { type: 'Ищут место', title: 'вс, 10 авг · 08:15 · 1 человек', detail: 'Из Catanzaro, центр · только туда', action: 'Предложить подвезти' },
-] as const;
+type Ride = {
+  id: string;
+  type: 'Есть места' | 'Ищут место';
+  title: string;
+  detail: string;
+  action: string;
+};
 
-function RideCard({ ride, showType = true }: { ride: (typeof rides)[number]; showType?: boolean }) {
+/** One service/date group. The ride map never mixes rides from other services or dates. */
+const rides = [
+  { id: 'offer-lido', type: 'Есть места', title: 'вс, 10 авг · 08:00 · 3 места', detail: 'Из Catanzaro Lido · с детьми · обратно', action: 'Попросить подвезти' },
+  { id: 'request-matera', type: 'Ищут место', title: 'вс, 10 авг · утро · 2 человека', detail: 'Из Matera · нужна поездка обратно', action: 'Предложить подвезти' },
+  { id: 'offer-siano', type: 'Есть места', title: 'вс, 10 авг · 07:40 · 1 место', detail: 'Из Siano · только туда', action: 'Попросить подвезти' },
+  { id: 'request-centro', type: 'Ищут место', title: 'вс, 10 авг · 08:15 · 1 человек', detail: 'Из Catanzaro, центр · только туда', action: 'Предложить подвезти' },
+] as const satisfies ReadonlyArray<Ride>;
+
+function RideCard({ ride, showType = true, actionVariant = 'secondary', distance }: {
+  ride: Ride;
+  showType?: boolean;
+  /** Primary only where the user has already selected this one ride and no other primary competes. */
+  actionVariant?: 'secondary' | 'primary';
+  /** Rounded distance to the public area or corridor; shown only where a location is available. */
+  distance?: string;
+}) {
   return (
     <article className={styles.card} data-ride-type={ride.type}>
       {showType && <span className={styles.typeTag}>{ride.type}</span>}
       <h3 className={styles.cardTitle}>{ride.title}</h3>
       <p className={styles.secondary}>{ride.detail}</p>
-      <div className={styles.cardAction}><button type="button" className={styles.secondaryButton}>{ride.action}</button></div>
+      {distance && <p className={styles.data} data-ride-distance>{distance}</p>}
+      <div className={styles.cardAction}>
+        <button type="button" className={actionVariant === 'primary' ? styles.primaryButton : styles.secondaryButton} data-variant={actionVariant}>{ride.action}</button>
+      </div>
     </article>
+  );
+}
+
+type Filter = 'Все' | 'Есть места' | 'Ищут место';
+
+const filters: ReadonlyArray<Filter> = ['Все', 'Есть места', 'Ищут место'];
+
+const groupTitle = 'Литургия · 10 августа';
+
+function matchesFilter(ride: Ride, filter: Filter) {
+  return filter === 'Все' || ride.type === filter;
+}
+
+function BoardFilters({ value, onChange, label }: { value: Filter; onChange: (filter: Filter) => void; label: string }) {
+  return (
+    <div className={styles.chips} role="group" aria-label={label} data-ride-filters>
+      {filters.map((filter) => (
+        <button key={filter} type="button" className={filter === value ? styles.selectedChip : undefined} aria-pressed={filter === value} onClick={() => onChange(filter)}>{filter}</button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Map entry. Mobile keeps it outside the card flow near the bottom of the board; desktop attaches it
+ * to the service/date group heading. Both use the same map-action treatment and stay out of the
+ * filter group. Neither is a Primary CTA — the board remains the primary representation.
+ */
+function MobileMapAction({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button type="button" className={styles.mobileMapAction} data-map-entry="mobile" onClick={onOpen}>
+      <Icon name="route" /><span className={styles.mapActionLabel}>Поездки на карте</span>
+    </button>
+  );
+}
+
+function GroupMapAction({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button type="button" className={styles.groupMapAction} data-map-entry="group" onClick={onOpen}>
+      <Icon name="route" /><span className={styles.mapActionLabel}>На карте</span>
+    </button>
+  );
+}
+
+function GroupHeading({ id, title, subtitle, onOpenMap }: { id: string; title: string; subtitle?: string; onOpenMap?: () => void }) {
+  return (
+    <div className={styles.groupHeading}>
+      <div>
+        <h2 id={id} className={styles.sectionTitle}>{title}</h2>
+        {subtitle && <p className={styles.secondary}>{subtitle}</p>}
+      </div>
+      {onOpenMap && <GroupMapAction onOpen={onOpenMap} />}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- ride map */
+
+type Point = readonly [number, number];
+
+/**
+ * Map objects live in a 0–100 square field. A passenger request is one or more approximate public
+ * areas; a driver offer is an approximate direction corridor. Neither carries exact private data.
+ */
+type MapObject = {
+  id: string;
+  rideId: string;
+  kind: 'area' | 'corridor';
+  x: number;
+  y: number;
+  origin?: Point;
+  tip?: Point;
+  place?: { index: number; total: number };
+};
+
+const church = { x: 52, y: 44 };
+const userLocation = { x: 50, y: 84 };
+const areaRadius = 7;
+
+/**
+ * The same field renders about 60% larger on desktop, so identical unit sizes read far heavier
+ * there. Markers and corridors carry their own desktop values, keeping the intended order:
+ * selected ride → other rides → church → user location → base map.
+ */
+const fieldScale = {
+  mobile: { church: 1, userRing: 4.2, userDot: 2, corridorWide: 7, corridorNarrow: 1.5 },
+  desktop: { church: 0.72, userRing: 2.8, userDot: 1.3, corridorWide: 4.2, corridorNarrow: 1.2 },
+} as const;
+
+/**
+ * A corridor is a ribbon tapering towards the church: narrow where the destination is public, wide
+ * where the departure point must stay imprecise. Both edges bow the same way, so it reads as an
+ * approximate direction rather than a street-by-street route.
+ */
+function corridorPath(origin: Point, tip: Point, wide: number, narrow: number) {
+  const [ox, oy] = origin;
+  const [tx, ty] = tip;
+  const length = Math.hypot(tx - ox, ty - oy) || 1;
+  const perpendicularX = -(ty - oy) / length;
+  const perpendicularY = (tx - ox) / length;
+  const bow = 3.4;
+  const at = (x: number, y: number, offset: number): Point => [x + perpendicularX * offset, y + perpendicularY * offset];
+  const format = ([x, y]: Point) => `${x.toFixed(2)} ${y.toFixed(2)}`;
+  const control = (a: Point, b: Point) => at((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, -bow);
+
+  const tipLeft = at(tx, ty, -narrow);
+  const originLeft = at(ox, oy, -wide);
+  const originRight = at(ox, oy, wide);
+  const tipRight = at(tx, ty, narrow);
+
+  return `M ${format(tipLeft)} Q ${format(control(tipLeft, originLeft))} ${format(originLeft)}`
+    + ` L ${format(originRight)} Q ${format(control(originRight, tipRight))} ${format(tipRight)} Z`;
+}
+
+const mapObjects: ReadonlyArray<MapObject> = [
+  { id: 'offer-lido-corridor', rideId: 'offer-lido', kind: 'corridor', x: 27, y: 66, origin: [12, 78], tip: [46, 50] },
+  { id: 'offer-siano-corridor', rideId: 'offer-siano', kind: 'corridor', x: 74, y: 27, origin: [90, 16], tip: [58, 40] },
+  { id: 'request-matera-area-1', rideId: 'request-matera', kind: 'area', x: 26, y: 42, place: { index: 1, total: 2 } },
+  { id: 'request-matera-area-2', rideId: 'request-matera', kind: 'area', x: 40, y: 70, place: { index: 2, total: 2 } },
+  { id: 'request-centro-area', rideId: 'request-centro', kind: 'area', x: 74, y: 60 },
+];
+
+/** Rounded values against the public area or corridor only, never against hidden exact geometry. */
+const approximateDistances: Record<string, string> = {
+  'offer-lido': '≈6 км от вас',
+  'offer-siano': '≈23 км от вас',
+  'request-matera': '≈31 км от вас',
+  'request-centro': '≈3 км от вас',
+};
+
+const cityLabels = [
+  { id: 'catanzaro', label: 'Catanzaro', x: 62, y: 30 },
+  { id: 'lido', label: 'Catanzaro Lido', x: 18, y: 88 },
+  { id: 'siano', label: 'Siano', x: 76, y: 9 },
+  { id: 'church', label: 'Храм', x: 52, y: 55 },
+] as const;
+
+function objectLabel(ride: Ride, object: MapObject) {
+  if (object.kind === 'corridor') return `${ride.type} · ${ride.title} · примерное направление`;
+  if (object.place) return `${ride.type} · ${ride.title} · примерная область, место ${object.place.index} из ${object.place.total}`;
+  return `${ride.type} · ${ride.title} · примерная область`;
+}
+
+function privacyLine(ride: Ride, areaCount: number) {
+  if (ride.type === 'Есть места') {
+    return 'Показано примерное направление к храму. Точка отправления, точный маршрут и остановки не публикуются.';
+  }
+  if (areaCount > 1) {
+    return `Показаны ${areaCount} примерные области радиусом 1 км — это возможные места встречи одной просьбы. Точное место видит только тот, с кем пассажир договорится.`;
+  }
+  return 'Показана примерная область радиусом 1 км. Точное место находится внутри неё и видно только тому, с кем пассажир договорится.';
+}
+
+/** Roads and water are context texture only; they bleed across the whole canvas. */
+function MapBackdrop() {
+  return (
+    <svg className={styles.bleedLayer} viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <path className={styles.mapWater} d="M -5 92 L 105 88" />
+      <path className={styles.mapRoad} d="M -5 58 Q 30 46 56 54 T 105 44" />
+      <path className={styles.mapRoadMinor} d="M 30 -5 Q 36 40 28 105" />
+      <path className={styles.mapRoadMinor} d="M 78 -5 Q 70 44 84 105" />
+    </svg>
+  );
+}
+
+function MapShapes({ objects, selectedRideId, located, desktop }: {
+  objects: ReadonlyArray<MapObject>;
+  selectedRideId: string | null;
+  located: boolean;
+  desktop: boolean;
+}) {
+  const scale = fieldScale[desktop ? 'desktop' : 'mobile'];
+  // The marker scales about its own point, so it stays planted on the same location.
+  const churchAnchor = `translate(${church.x} ${church.y + 7}) scale(${scale.church}) translate(${-church.x} ${-(church.y + 7)})`;
+
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      {objects.filter((object) => object.kind === 'corridor').map((object) => (
+        <path
+          key={object.id}
+          className={styles.corridorShape}
+          d={corridorPath(object.origin!, object.tip!, scale.corridorWide, scale.corridorNarrow)}
+          data-map-shape="corridor"
+          data-selected={object.rideId === selectedRideId || undefined}
+        />
+      ))}
+      {objects.filter((object) => object.kind === 'area').map((object) => (
+        <circle key={object.id} className={styles.areaShape} cx={object.x} cy={object.y} r={areaRadius} data-map-shape="area" data-selected={object.rideId === selectedRideId || undefined} />
+      ))}
+      <g transform={churchAnchor} data-map-shape="church">
+        <path className={styles.churchMarker} d={`M ${church.x} ${church.y + 7} c -3.2 -4.2 -5 -6.2 -5 -8.6 a 5 5 0 1 1 10 0 c 0 2.4 -1.8 4.4 -5 8.6 Z`} />
+        <circle className={styles.churchMarkerCore} cx={church.x} cy={church.y - 1.6} r={1.9} />
+      </g>
+      {located && (
+        <g data-map-shape="user">
+          <circle className={styles.userRing} cx={userLocation.x} cy={userLocation.y} r={scale.userRing} />
+          <circle className={styles.userDot} cx={userLocation.x} cy={userLocation.y} r={scale.userDot} />
+        </g>
+      )}
+    </svg>
+  );
+}
+
+/** Hit targets share the field coordinate system, so they stay aligned with the shapes. */
+function MapTargets({ objects, selectedRideId, onSelect }: {
+  objects: ReadonlyArray<MapObject>;
+  selectedRideId: string | null;
+  onSelect: (rideId: string) => void;
+}) {
+  return (
+    <>
+      {cityLabels.map((label) => (
+        <span key={label.id} className={styles.fieldLabel} style={{ left: `${label.x}%`, top: `${label.y}%` }}>{label.label}</span>
+      ))}
+      {objects.map((object) => {
+        const ride = rides.find((candidate) => candidate.id === object.rideId);
+        if (!ride) return null;
+        const selected = ride.id === selectedRideId;
+        const pillOffset = object.kind === 'area' ? areaRadius + 5 : 8;
+        return (
+          <span key={object.id} className={styles.fieldTarget}>
+            <button
+              type="button"
+              className={styles.mapHit}
+              style={{ left: `${object.x}%`, top: `${object.y}%` }}
+              aria-label={objectLabel(ride, object)}
+              aria-pressed={selected}
+              data-map-object={object.kind}
+              onClick={() => onSelect(ride.id)}
+            />
+            {selected && (
+              <span className={styles.objectPill} style={{ left: `${object.x}%`, top: `${object.y - pillOffset}%` }}>{ride.type}</span>
+            )}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function RideMap({ desktop, filter, onFilterChange, onBack }: {
+  desktop: boolean;
+  filter: Filter;
+  onFilterChange: (filter: Filter) => void;
+  onBack: () => void;
+}) {
+  const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
+  const [located, setLocated] = useState(false);
+
+  const visibleRides = rides.filter((ride) => matchesFilter(ride, filter));
+  const visibleObjects = mapObjects.filter((object) => visibleRides.some((ride) => ride.id === object.rideId));
+  const selectedRide = visibleRides.find((ride) => ride.id === selectedRideId) ?? null;
+  const selectedAreaCount = selectedRide
+    ? mapObjects.filter((object) => object.rideId === selectedRide.id && object.kind === 'area').length
+    : 0;
+  const emptyFilters = filters.filter((candidate) => candidate !== 'Все' && !rides.some((ride) => ride.type === candidate));
+
+  return (
+    <div
+      className={`${styles.mapScreen} ${desktop ? styles.desktopMapScreen : ''}`}
+      data-ride-map
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && selectedRideId) setSelectedRideId(null);
+      }}
+    >
+      <header className={styles.mapHeader}>
+        <IconButton label="Назад к доске поездок" icon="back" onClick={onBack} />
+        <div>
+          <strong>{groupTitle}</strong>
+          <small>Поездки этой службы · примерные области и направления</small>
+        </div>
+      </header>
+
+      <div className={styles.mapFilters}>
+        <div className={styles.chips} role="group" aria-label="Тип объявления" data-ride-filters>
+          {filters.map((candidate) => (
+            <button
+              key={candidate}
+              type="button"
+              className={candidate === filter ? styles.selectedChip : undefined}
+              aria-pressed={candidate === filter}
+              disabled={emptyFilters.includes(candidate)}
+              onClick={() => { onFilterChange(candidate); setSelectedRideId(null); }}
+            >
+              {candidate}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {emptyFilters.length > 0 && (
+        <p className={styles.noticeLine} data-empty-filter-reason>
+          {emptyFilters.includes('Ищут место')
+            ? 'Просьб пассажиров на эту службу пока нет — фильтр недоступен.'
+            : 'Предложений водителей на эту службу пока нет — фильтр недоступен.'}
+        </p>
+      )}
+
+      {located && (
+        <p className={styles.noticeLine} data-location-note>
+          Расстояния примерные: они считаются до публичной области или направления, а не до точного места.
+        </p>
+      )}
+
+      <div className={styles.mapCanvas}>
+        <MapBackdrop />
+
+        <div className={styles.mapField}>
+          <MapShapes objects={visibleObjects} selectedRideId={selectedRideId} located={located} desktop={desktop} />
+          <MapTargets objects={visibleObjects} selectedRideId={selectedRideId} onSelect={setSelectedRideId} />
+        </div>
+
+        <div className={styles.mapOverlay}>
+          <button type="button" className={styles.locateButton} aria-pressed={located} onClick={() => setLocated((current) => !current)}>
+            <Icon name="map" />Показать, где я
+          </button>
+          <div className={styles.legend} role="note" aria-label="Условные обозначения">
+            <span><span className={styles.legendArea} aria-hidden="true" />Круг — примерная область пассажира</span>
+            <span><span className={styles.legendCorridor} aria-hidden="true" />Полоса — примерное направление водителя</span>
+          </div>
+        </div>
+
+        {selectedRide && (
+          <section
+            className={desktop ? styles.detailPanel : styles.detailSheet}
+            role="region"
+            aria-label={`Карточка поездки: ${selectedRide.title}`}
+            data-ride-detail
+          >
+            <div className={styles.detailHead}>
+              <span>{selectedRide.type === 'Есть места' ? 'Предложение водителя' : 'Просьба пассажира'}</span>
+              <IconButton label="Закрыть карточку и вернуться к карте" icon="close" onClick={() => setSelectedRideId(null)} />
+            </div>
+            <RideCard
+              ride={selectedRide}
+              showType={false}
+              actionVariant="primary"
+              distance={located ? approximateDistances[selectedRide.id] : undefined}
+            />
+            <p className={styles.privacyLine}>{privacyLine(selectedRide, selectedAreaCount)}</p>
+          </section>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -234,16 +603,28 @@ function MobileChurchHeader() {
   );
 }
 
-function MobileBoard() {
+function MobileBoard({ filter, onFilterChange, onOpenMap }: { filter: Filter; onFilterChange: (filter: Filter) => void; onOpenMap: () => void }) {
+  const visible = rides.filter((ride) => matchesFilter(ride, filter));
   return (
     <MobileFrame label="Мобильная транспортная доска">
-      <main className={styles.mobileContent}>
-        <h1 className={styles.pageTitle}>Поездки</h1><p className={styles.secondary}>На литургию 10 августа</p>
-        <div className={styles.chips} aria-label="Тип объявления"><button type="button" className={styles.selectedChip}>Все</button><button type="button">Есть места</button><button type="button">Ищут место</button></div>
-        <div className={styles.cardList}>{rides.slice(0, 3).map((ride) => <RideCard key={ride.title} ride={ride} />)}</div>
-        <p className={styles.agreementCount}>Уже договорились: 8 впереди · 27 за 30 дней</p>
-      </main>
-      <MobileNavigation />
+      <div className={styles.boardHost}>
+        <main className={`${styles.mobileContent} ${styles.boardReserve}`}>
+          <h1 className={styles.pageTitle}>Поездки</h1><p className={styles.secondary}>На литургию 10 августа</p>
+          <BoardFilters value={filter} onChange={onFilterChange} label="Тип объявления" />
+          <div className={styles.cardList}>{visible.map((ride) => <RideCard key={ride.id} ride={ride} />)}</div>
+          <p className={styles.agreementCount}>Уже договорились: 8 впереди · 27 за 30 дней</p>
+        </main>
+        <MobileMapAction onOpen={onOpenMap} />
+      </div>
+      <MobileNavigation active="Поездки" />
+    </MobileFrame>
+  );
+}
+
+function MobileRideMap({ filter, onFilterChange, onBack }: { filter: Filter; onFilterChange: (filter: Filter) => void; onBack: () => void }) {
+  return (
+    <MobileFrame label="Мобильная карта поездок">
+      <RideMap desktop={false} filter={filter} onFilterChange={onFilterChange} onBack={onBack} />
     </MobileFrame>
   );
 }
@@ -282,25 +663,33 @@ function DesktopDirectory() {
   );
 }
 
-function DesktopRideColumns() {
+function DesktopRideColumns({ onOpenMap }: { onOpenMap: () => void }) {
   return (
     <section className={styles.desktopBoard} aria-labelledby="desktop-board-title">
-      <h2 id="desktop-board-title" className={styles.sectionTitle}>Поездки на литургию 10 августа</h2>
+      <GroupHeading id="desktop-board-title" title="Поездки на литургию 10 августа" onOpenMap={onOpenMap} />
       <div className={styles.rideColumns}>
-        <section aria-labelledby="offers-column"><h3 id="offers-column" className={styles.micro}>Есть места · 2</h3>{rides.filter((ride) => ride.type === 'Есть места').map((ride) => <RideCard key={ride.title} ride={ride} showType={false} />)}</section>
-        <section aria-labelledby="requests-column"><h3 id="requests-column" className={styles.micro}>Ищут место · 2</h3>{rides.filter((ride) => ride.type === 'Ищут место').map((ride) => <RideCard key={ride.title} ride={ride} showType={false} />)}</section>
+        <section aria-labelledby="offers-column"><h3 id="offers-column" className={styles.micro}>Есть места · 2</h3>{rides.filter((ride) => ride.type === 'Есть места').map((ride) => <RideCard key={ride.id} ride={ride} showType={false} />)}</section>
+        <section aria-labelledby="requests-column"><h3 id="requests-column" className={styles.micro}>Ищут место · 2</h3>{rides.filter((ride) => ride.type === 'Ищут место').map((ride) => <RideCard key={ride.id} ride={ride} showType={false} />)}</section>
       </div>
     </section>
   );
 }
 
-function DesktopChurchBoard() {
+function DesktopChurchBoard({ onOpenMap }: { onOpenMap: () => void }) {
   return (
     <DesktopFrame label="Страница храма и транспортная доска на компьютере">
       <main className={styles.churchDesktopGrid}>
-        <div><button type="button" className={styles.quietButton}>← Все храмы</button><ChurchPlaceholder churchId="pokrov-catanzaro" className={styles.desktopPlaceholder} /><h1 className={styles.pageTitle}>Покров Пресвятой Богородицы</h1><AddressRow /><div className={styles.nextService}><span>Ближайшая служба</span><strong>Литургия · воскресенье, 9 августа, 9:00</strong><em>через 2 дня</em></div><Services /><DesktopRideColumns /></div>
+        <div><button type="button" className={styles.quietButton}>← Все храмы</button><ChurchPlaceholder churchId="pokrov-catanzaro" className={styles.desktopPlaceholder} /><h1 className={styles.pageTitle}>Покров Пресвятой Богородицы</h1><AddressRow /><div className={styles.nextService}><span>Ближайшая служба</span><strong>Литургия · воскресенье, 9 августа, 9:00</strong><em>через 2 дня</em></div><Services /><DesktopRideColumns onOpenMap={onOpenMap} /></div>
         <aside className={styles.stickyActions}><div className={styles.card}><ChurchActions /><p className={styles.secondary}>Уже договорились: 8 впереди · 27 за 30 дней</p></div><p className={styles.scheduleNote}>Расписание обновлено 2 августа. Перед поездкой уточните время у храма.</p><button type="button" className={styles.quietButton}>Сообщить об ошибке</button><button type="button" className={styles.quietButton}>Поддержать проект</button></aside>
       </main>
+    </DesktopFrame>
+  );
+}
+
+function DesktopRideMap({ filter, onFilterChange, onBack }: { filter: Filter; onFilterChange: (filter: Filter) => void; onBack: () => void }) {
+  return (
+    <DesktopFrame label="Карта поездок на компьютере">
+      <RideMap desktop filter={filter} onFilterChange={onFilterChange} onBack={onBack} />
     </DesktopFrame>
   );
 }
@@ -383,22 +772,22 @@ function FullChurchInformation() {
   );
 }
 
-function FullTransportBoard() {
+function FullTransportBoard({ filter, onFilterChange, onOpenMap }: { filter: Filter; onFilterChange: (filter: Filter) => void; onOpenMap: () => void }) {
+  const visible = rides.filter((ride) => matchesFilter(ride, filter));
   return (
     <section className={`${styles.stressSection} ${styles.stressBoard}`} aria-labelledby="full-transport-board" data-stress-transport-board>
-      <h2 id="full-transport-board" className={styles.sectionTitle}>Поездки на литургию 10 августа</h2>
-      <p className={styles.secondary}>Предложения водителей и просьбы пассажиров этого храма</p>
-      <div className={styles.chips} aria-label="Тип объявления на полной странице"><button type="button" className={styles.selectedChip}>Все</button><button type="button">Есть места</button><button type="button">Ищут место</button></div>
+      <GroupHeading id="full-transport-board" title="Поездки на литургию 10 августа" subtitle="Предложения водителей и просьбы пассажиров этого храма" onOpenMap={onOpenMap} />
+      <BoardFilters value={filter} onChange={onFilterChange} label="Тип объявления на полной странице" />
       <div className={styles.rideColumns}>
-        <section aria-labelledby="full-offers-column"><h3 id="full-offers-column" className={styles.micro}>Есть места · 2</h3>{rides.filter((ride) => ride.type === 'Есть места').map((ride) => <RideCard key={ride.title} ride={ride} />)}</section>
-        <section aria-labelledby="full-requests-column"><h3 id="full-requests-column" className={styles.micro}>Ищут место · 2</h3>{rides.filter((ride) => ride.type === 'Ищут место').map((ride) => <RideCard key={ride.title} ride={ride} />)}</section>
+        <section aria-labelledby="full-offers-column"><h3 id="full-offers-column" className={styles.micro}>Есть места · {visible.filter((ride) => ride.type === 'Есть места').length}</h3>{visible.filter((ride) => ride.type === 'Есть места').map((ride) => <RideCard key={ride.id} ride={ride} />)}</section>
+        <section aria-labelledby="full-requests-column"><h3 id="full-requests-column" className={styles.micro}>Ищут место · {visible.filter((ride) => ride.type === 'Ищут место').length}</h3>{visible.filter((ride) => ride.type === 'Ищут место').map((ride) => <RideCard key={ride.id} ride={ride} />)}</section>
       </div>
       <p className={styles.agreementCount}>Уже договорились: 8 впереди · 27 за последние 30 дней</p>
     </section>
   );
 }
 
-function FullDensityChurchPage() {
+function FullDensityChurchPage({ filter, onFilterChange, onOpenMap }: { filter: Filter; onFilterChange: (filter: Filter) => void; onOpenMap: () => void }) {
   return (
     <ResponsiveFrame label="Адаптивная полная страница храма">
       <main className={styles.stressChurchPage} data-stress-screen="full-density-church">
@@ -418,7 +807,7 @@ function FullDensityChurchPage() {
         <div className={styles.stressDetails}>
           <FullSchedule />
           <FullChurchInformation />
-          <FullTransportBoard />
+          <FullTransportBoard filter={filter} onFilterChange={onFilterChange} onOpenMap={onOpenMap} />
         </div>
       </main>
     </ResponsiveFrame>
@@ -481,6 +870,7 @@ function EmptyChurchPage() {
             <h2 id="empty-information-title" className={styles.sectionTitle}>Сведений о храме пока мало</h2>
             <p>Основной адрес уже доступен. Описание, контакты и языки богослужений появятся после обновления страницы.</p>
           </section>
+          {/* No active rides in this group, so there is no map-entry action at all. */}
           <section className={`${styles.stressSection} ${styles.emptyState}`} aria-labelledby="empty-transport-title" data-empty-transport>
             <h2 id="empty-transport-title" className={styles.sectionTitle}>Поездок пока нет</h2>
             <p>Здесь появятся предложения водителей и просьбы пассажиров, которые собираются в этот храм.</p>
@@ -492,36 +882,41 @@ function EmptyChurchPage() {
   );
 }
 
-const components: Record<ScreenId, React.ComponentType> = {
-  'mobile-directory': MobileDirectory,
-  'mobile-church-header': MobileChurchHeader,
-  'mobile-board': MobileBoard,
-  'mobile-passenger-form': MobilePassengerForm,
-  'desktop-directory': DesktopDirectory,
-  'desktop-church-board': DesktopChurchBoard,
-  'desktop-trips': DesktopTrips,
-  'responsive-full-church': FullDensityChurchPage,
-  'responsive-catalog': ResponsiveCatalog,
-  'responsive-empty-church': EmptyChurchPage,
-};
-
 export function DesignPreview() {
   const [activeScreen, setActiveScreen] = useState<ScreenId>('mobile-directory');
-  const ActiveScreen = components[activeScreen];
+  /** Shared so entering the map from a board carries the filter, and returning preserves it. */
+  const [filter, setFilter] = useState<Filter>('Все');
   const selected = screens.find((screen) => screen.id === activeScreen)!;
+
+  function screen() {
+    switch (activeScreen) {
+      case 'mobile-directory': return <MobileDirectory />;
+      case 'mobile-church-header': return <MobileChurchHeader />;
+      case 'mobile-board': return <MobileBoard filter={filter} onFilterChange={setFilter} onOpenMap={() => setActiveScreen('mobile-ride-map')} />;
+      case 'mobile-ride-map': return <MobileRideMap filter={filter} onFilterChange={setFilter} onBack={() => setActiveScreen('mobile-board')} />;
+      case 'mobile-passenger-form': return <MobilePassengerForm />;
+      case 'desktop-directory': return <DesktopDirectory />;
+      case 'desktop-church-board': return <DesktopChurchBoard onOpenMap={() => setActiveScreen('desktop-ride-map')} />;
+      case 'desktop-ride-map': return <DesktopRideMap filter={filter} onFilterChange={setFilter} onBack={() => setActiveScreen('desktop-church-board')} />;
+      case 'desktop-trips': return <DesktopTrips />;
+      case 'responsive-full-church': return <FullDensityChurchPage filter={filter} onFilterChange={setFilter} onOpenMap={() => setActiveScreen('desktop-ride-map')} />;
+      case 'responsive-catalog': return <ResponsiveCatalog />;
+      case 'responsive-empty-church': return <EmptyChurchPage />;
+    }
+  }
 
   return (
     <main className={styles.previewRoot}>
       <header className={styles.previewHeader}>
         <p>Reference artifact · Design System V2</p>
         <h1>Контрольные экраны Orthodox Routes</h1>
-        <p>10 контрольных экранов Design System V2. Производственный интерфейс не изменён.</p>
+        <p>12 контрольных экранов Design System V2. Производственный интерфейс не изменён.</p>
       </header>
       <nav className={styles.screenSelector} aria-label="Выбор контрольного экрана">
-        {screens.map((screen) => <button type="button" key={screen.id} onClick={() => setActiveScreen(screen.id)} aria-pressed={activeScreen === screen.id}>{screen.label}</button>)}
+        {screens.map((item) => <button type="button" key={item.id} onClick={() => setActiveScreen(item.id)} aria-pressed={activeScreen === item.id}>{item.label}</button>)}
       </nav>
       <section className={styles.previewStage} data-screen-id={activeScreen} data-screen-kind={selected.kind} aria-live="polite">
-        <ActiveScreen />
+        {screen()}
       </section>
     </main>
   );

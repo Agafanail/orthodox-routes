@@ -11,9 +11,11 @@ const selectors = [
   'Мобильный каталог',
   'Мобильная шапка храма',
   'Мобильная транспортная доска',
+  'Мобильная карта поездок',
   'Мобильная форма просьбы',
   'Каталог на компьютере',
   'Храм и доска на компьютере',
+  'Карта поездок на компьютере',
   'Мои поездки на компьютере',
   'Полная страница храма',
   'Каталог из 12 храмов',
@@ -36,7 +38,7 @@ describe('Design System V2 preview route', () => {
     expect(layout).toContain(`./fonts/${fontFiles[0]}`);
   });
 
-  it('exposes exactly ten V2 control screens and prevents indexing', () => {
+  it('exposes exactly twelve V2 control screens and prevents indexing', () => {
     const { container } = render(<DesignPreviewPage />);
 
     expect(screen.getByRole('heading', { name: 'Контрольные экраны Orthodox Routes' })).not.toBeNull();
@@ -102,7 +104,7 @@ describe('Design System V2 preview route', () => {
     expect(within(board).getAllByText('Есть места').length).toBeGreaterThan(0);
     expect(within(board).getAllByText('Ищут место').length).toBeGreaterThan(0);
     expect(within(board).getAllByRole('button', { name: 'Попросить подвезти' }).length).toBeGreaterThan(0);
-    expect(within(board).getByRole('button', { name: 'Предложить подвезти' })).not.toBeNull();
+    expect(within(board).getAllByRole('button', { name: 'Предложить подвезти' }).length).toBeGreaterThan(0);
 
     select('Мобильная шапка храма');
     expect(screen.getByRole('button', { name: 'Нужна поездка' }).getAttribute('data-variant')).toBe('primary');
@@ -212,7 +214,7 @@ describe('Design System V2 preview route', () => {
     expect(css).toContain('height: 300px');
   });
 
-  it('gives every icon-only control an accessible name on all ten screens', () => {
+  it('gives every icon-only control an accessible name on all twelve screens', () => {
     const { container } = render(<DesignPreviewPage />);
     for (const label of selectors) {
       select(label);
@@ -230,6 +232,163 @@ describe('Design System V2 preview route', () => {
         expect(screen.queryByText(prohibited, { exact: true })).toBeNull();
       }
     }
+  });
+
+  it('offers map entry in the approved board places, outside the filter group and below primary', () => {
+    const { container } = render(<DesignPreviewPage />);
+
+    select('Мобильная транспортная доска');
+    const board = screen.getByRole('region', { name: 'Мобильная транспортная доска' });
+    const mobileEntry = within(board).getByRole('button', { name: 'Поездки на карте' });
+    expect(mobileEntry.getAttribute('data-map-entry')).toBe('mobile');
+    // outside the card flow, and the content reserves room so it covers nothing
+    expect(mobileEntry.closest('[data-ride-type]')).toBeNull();
+    expect(board.querySelector('main')?.className).toContain('boardReserve');
+
+    select('Храм и доска на компьютере');
+    const groupTitle = screen.getByRole('heading', { name: 'Поездки на литургию 10 августа' });
+    const groupHeading = groupTitle.closest('div')?.parentElement;
+    expect(within(groupHeading as HTMLElement).getByRole('button', { name: 'На карте' })).not.toBeNull();
+
+    // never inside the filter group, never a primary CTA
+    for (const label of selectors) {
+      select(label);
+      for (const group of container.querySelectorAll('[data-ride-filters]')) {
+        expect(group.querySelector('[data-map-entry]')).toBeNull();
+      }
+      for (const entry of container.querySelectorAll('[data-map-entry]')) {
+        expect(entry.getAttribute('data-variant')).toBeNull();
+      }
+    }
+  });
+
+  it('gives no map entry to a group without active rides', () => {
+    const { container } = render(<DesignPreviewPage />);
+    select('Пустая страница храма');
+
+    const page = container.querySelector('[data-stress-screen="empty-church"]');
+    expect(page?.querySelector('[data-map-entry]')).toBeNull();
+    expect(page?.querySelector('[data-ride-type]')).toBeNull();
+  });
+
+  it('keeps board card actions secondary and on the left content edge', () => {
+    const { container } = render(<DesignPreviewPage />);
+    select('Мобильная транспортная доска');
+
+    for (const card of container.querySelectorAll('[data-ride-type]')) {
+      const action = card.querySelector('[data-variant]');
+      expect(action?.getAttribute('data-variant')).toBe('secondary');
+      // action is the last block, after type, title and details
+      expect(card.lastElementChild?.contains(action as Node)).toBe(true);
+    }
+
+    const css = readFileSync(resolve(process.cwd(), 'src/app/design-preview/design-preview.module.css'), 'utf8');
+    expect(/\.cardAction \{[^}]*justify-content: flex-start/.test(css)).toBe(true);
+  });
+
+  it('carries the board filter into the ride map and back again', () => {
+    render(<DesignPreviewPage />);
+    select('Мобильная транспортная доска');
+    const board = () => screen.getByRole('region', { name: 'Мобильная транспортная доска' });
+
+    fireEvent.click(within(board()).getByRole('button', { name: 'Есть места' }));
+    fireEvent.click(within(board()).getByRole('button', { name: 'Поездки на карте' }));
+
+    const map = screen.getByRole('region', { name: 'Мобильная карта поездок' });
+    expect(within(map).getByRole('button', { name: 'Есть места' }).getAttribute('aria-pressed')).toBe('true');
+    expect(map.querySelectorAll('[data-map-object="corridor"]')).toHaveLength(2);
+    expect(map.querySelectorAll('[data-map-object="area"]')).toHaveLength(0);
+
+    fireEvent.click(within(map).getByRole('button', { name: 'Назад к доске поездок' }));
+    expect(within(board()).getByRole('button', { name: 'Есть места' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('shows only approximate passenger areas and driver corridors for one service group', () => {
+    const { container } = render(<DesignPreviewPage />);
+    select('Мобильная карта поездок');
+    const map = screen.getByRole('region', { name: 'Мобильная карта поездок' });
+
+    expect(map.querySelectorAll('[data-map-object="area"]')).toHaveLength(3);
+    expect(map.querySelectorAll('[data-map-object="corridor"]')).toHaveLength(2);
+    expect(map.textContent).toContain('Литургия · 10 августа');
+    // the public area circle carries no centre marker that could imply the exact place
+    const shapes = map.querySelector('svg[preserveAspectRatio="xMidYMid meet"]') as SVGElement;
+    expect(shapes.querySelectorAll('[data-map-shape="area"]')).toHaveLength(3);
+    expect(shapes.querySelectorAll('[data-map-shape="corridor"]')).toHaveLength(2);
+    expect(container.textContent).not.toContain('Via XX Settembre, 45, 88100');
+  });
+
+  it('opens one shared request card from either public area of the same request', () => {
+    render(<DesignPreviewPage />);
+    select('Мобильная карта поездок');
+    const map = screen.getByRole('region', { name: 'Мобильная карта поездок' });
+    const places = within(map).getAllByRole('button', { name: /примерная область, место/ });
+
+    expect(places).toHaveLength(2);
+    fireEvent.click(places[0]);
+    const detail = map.querySelector('[data-ride-detail]') as HTMLElement;
+    expect(detail.textContent).toContain('примерные области радиусом 1 км');
+    const first = detail.textContent;
+    expect(map.querySelectorAll('[data-map-shape="area"][data-selected="true"]')).toHaveLength(2);
+
+    fireEvent.click(within(map).getByRole('button', { name: /Закрыть карточку/ }));
+    expect(map.querySelector('[data-ride-detail]')).toBeNull();
+
+    fireEvent.click(places[1]);
+    expect(map.querySelector('[data-ride-detail]')?.textContent).toBe(first);
+  });
+
+  it('promotes the selected map ride to exactly one primary action', () => {
+    render(<DesignPreviewPage />);
+
+    for (const [label, objectName, action] of [
+      ['Мобильная карта поездок', /примерное направление/, 'Попросить подвезти'],
+      ['Карта поездок на компьютере', /примерная область/, 'Предложить подвезти'],
+    ] as const) {
+      select(label);
+      const map = screen.getByRole('region', { name: label });
+      fireEvent.click(within(map).getAllByRole('button', { name: objectName })[0]);
+
+      const detail = map.querySelector('[data-ride-detail]') as HTMLElement;
+      expect(within(detail).getByRole('button', { name: action }).getAttribute('data-variant')).toBe('primary');
+      expect(detail.querySelectorAll('[data-variant="primary"]')).toHaveLength(1);
+      // supporting controls stay below primary
+      expect(within(map).getByRole('button', { name: 'Показать, где я' }).getAttribute('data-variant')).toBeNull();
+      expect(within(map).getByRole('button', { name: 'Назад к доске поездок' }).getAttribute('data-variant')).toBeNull();
+    }
+  });
+
+  it('reveals user location and its approximate distance only after the explicit action', () => {
+    render(<DesignPreviewPage />);
+    select('Мобильная карта поездок');
+    const map = screen.getByRole('region', { name: 'Мобильная карта поездок' });
+
+    expect(map.querySelector('[data-map-shape="user"]')).toBeNull();
+    expect(map.querySelector('[data-location-note]')).toBeNull();
+
+    fireEvent.click(within(map).getAllByRole('button', { name: /примерное направление/ })[0]);
+    expect(map.querySelector('[data-ride-distance]')).toBeNull();
+
+    fireEvent.click(within(map).getByRole('button', { name: 'Показать, где я' }));
+    expect(map.querySelector('[data-map-shape="user"]')).not.toBeNull();
+    expect(map.querySelector('[data-ride-distance]')?.textContent).toMatch(/^≈\d+ км от вас$/);
+    expect(map.querySelector('[data-location-note]')?.textContent)
+      .toContain('до публичной области или направления, а не до точного места');
+  });
+
+  it('scales map markers down on desktop while keeping the accepted mobile field', () => {
+    const { container } = render(<DesignPreviewPage />);
+    const shapes = (label: string) => {
+      select(label);
+      return container.querySelector('svg[preserveAspectRatio="xMidYMid meet"]') as SVGElement;
+    };
+    const churchScale = (svg: SVGElement) =>
+      Number(svg.querySelector('[data-map-shape="church"]')?.getAttribute('transform')?.match(/scale\(([\d.]+)\)/)?.[1]);
+
+    expect(churchScale(shapes('Мобильная карта поездок'))).toBe(1);
+    const desktop = churchScale(shapes('Карта поездок на компьютере'));
+    expect(desktop).toBeGreaterThanOrEqual(0.7);
+    expect(desktop).toBeLessThanOrEqual(0.75);
   });
 
   it('uses approved placeholder geometry and deterministic palette variation by church id', () => {
