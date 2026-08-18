@@ -772,11 +772,15 @@ function FullChurchInformation() {
   );
 }
 
-function FullTransportBoard({ filter, onFilterChange, onOpenMap }: { filter: Filter; onFilterChange: (filter: Filter) => void; onOpenMap: () => void }) {
+/**
+ * Density stress screen. It carries no map entry: the canonical entry points are the mobile
+ * transport board and the desktop church board, and this screen exists to test layout density.
+ */
+function FullTransportBoard({ filter, onFilterChange }: { filter: Filter; onFilterChange: (filter: Filter) => void }) {
   const visible = rides.filter((ride) => matchesFilter(ride, filter));
   return (
     <section className={`${styles.stressSection} ${styles.stressBoard}`} aria-labelledby="full-transport-board" data-stress-transport-board>
-      <GroupHeading id="full-transport-board" title="Поездки на литургию 10 августа" subtitle="Предложения водителей и просьбы пассажиров этого храма" onOpenMap={onOpenMap} />
+      <GroupHeading id="full-transport-board" title="Поездки на литургию 10 августа" subtitle="Предложения водителей и просьбы пассажиров этого храма" />
       <BoardFilters value={filter} onChange={onFilterChange} label="Тип объявления на полной странице" />
       <div className={styles.rideColumns}>
         <section aria-labelledby="full-offers-column"><h3 id="full-offers-column" className={styles.micro}>Есть места · {visible.filter((ride) => ride.type === 'Есть места').length}</h3>{visible.filter((ride) => ride.type === 'Есть места').map((ride) => <RideCard key={ride.id} ride={ride} />)}</section>
@@ -787,7 +791,9 @@ function FullTransportBoard({ filter, onFilterChange, onOpenMap }: { filter: Fil
   );
 }
 
-function FullDensityChurchPage({ filter, onFilterChange, onOpenMap }: { filter: Filter; onFilterChange: (filter: Filter) => void; onOpenMap: () => void }) {
+function FullDensityChurchPage() {
+  /** Independent stress screen: its filter belongs to this screen and to no board/map flow. */
+  const [filter, setFilter] = useState<Filter>('Все');
   return (
     <ResponsiveFrame label="Адаптивная полная страница храма">
       <main className={styles.stressChurchPage} data-stress-screen="full-density-church">
@@ -807,7 +813,7 @@ function FullDensityChurchPage({ filter, onFilterChange, onOpenMap }: { filter: 
         <div className={styles.stressDetails}>
           <FullSchedule />
           <FullChurchInformation />
-          <FullTransportBoard filter={filter} onFilterChange={onFilterChange} onOpenMap={onOpenMap} />
+          <FullTransportBoard filter={filter} onFilterChange={setFilter} />
         </div>
       </main>
     </ResponsiveFrame>
@@ -884,22 +890,27 @@ function EmptyChurchPage() {
 
 export function DesignPreview() {
   const [activeScreen, setActiveScreen] = useState<ScreenId>('mobile-directory');
-  /** Shared so entering the map from a board carries the filter, and returning preserves it. */
-  const [filter, setFilter] = useState<Filter>('Все');
+  /**
+   * One filter per board/map flow, never one filter for the whole preview: entering the map from its
+   * own board carries the filter and returning preserves it, while an unrelated control screen never
+   * inherits a filter set in the other flow.
+   */
+  const [mobileFilter, setMobileFilter] = useState<Filter>('Все');
+  const [desktopFilter, setDesktopFilter] = useState<Filter>('Все');
   const selected = screens.find((screen) => screen.id === activeScreen)!;
 
   function screen() {
     switch (activeScreen) {
       case 'mobile-directory': return <MobileDirectory />;
       case 'mobile-church-header': return <MobileChurchHeader />;
-      case 'mobile-board': return <MobileBoard filter={filter} onFilterChange={setFilter} onOpenMap={() => setActiveScreen('mobile-ride-map')} />;
-      case 'mobile-ride-map': return <MobileRideMap filter={filter} onFilterChange={setFilter} onBack={() => setActiveScreen('mobile-board')} />;
+      case 'mobile-board': return <MobileBoard filter={mobileFilter} onFilterChange={setMobileFilter} onOpenMap={() => setActiveScreen('mobile-ride-map')} />;
+      case 'mobile-ride-map': return <MobileRideMap filter={mobileFilter} onFilterChange={setMobileFilter} onBack={() => setActiveScreen('mobile-board')} />;
       case 'mobile-passenger-form': return <MobilePassengerForm />;
       case 'desktop-directory': return <DesktopDirectory />;
       case 'desktop-church-board': return <DesktopChurchBoard onOpenMap={() => setActiveScreen('desktop-ride-map')} />;
-      case 'desktop-ride-map': return <DesktopRideMap filter={filter} onFilterChange={setFilter} onBack={() => setActiveScreen('desktop-church-board')} />;
+      case 'desktop-ride-map': return <DesktopRideMap filter={desktopFilter} onFilterChange={setDesktopFilter} onBack={() => setActiveScreen('desktop-church-board')} />;
       case 'desktop-trips': return <DesktopTrips />;
-      case 'responsive-full-church': return <FullDensityChurchPage filter={filter} onFilterChange={setFilter} onOpenMap={() => setActiveScreen('desktop-ride-map')} />;
+      case 'responsive-full-church': return <FullDensityChurchPage />;
       case 'responsive-catalog': return <ResponsiveCatalog />;
       case 'responsive-empty-church': return <EmptyChurchPage />;
     }

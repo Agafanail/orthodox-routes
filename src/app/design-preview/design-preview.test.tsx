@@ -250,6 +250,13 @@ describe('Design System V2 preview route', () => {
     const groupHeading = groupTitle.closest('div')?.parentElement;
     expect(within(groupHeading as HTMLElement).getByRole('button', { name: 'На карте' })).not.toBeNull();
 
+    // exactly two canonical entry points: the mobile board and the desktop church board
+    const withEntry = selectors.filter((label) => {
+      select(label);
+      return container.querySelectorAll('[data-map-entry]').length > 0;
+    });
+    expect(withEntry).toEqual(['Мобильная транспортная доска', 'Храм и доска на компьютере']);
+
     // never inside the filter group, never a primary CTA
     for (const label of selectors) {
       select(label);
@@ -301,6 +308,41 @@ describe('Design System V2 preview route', () => {
 
     fireEvent.click(within(map).getByRole('button', { name: 'Назад к доске поездок' }));
     expect(within(board()).getByRole('button', { name: 'Есть места' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('keeps the density stress screen free of map entry and of the board flows', () => {
+    const { container } = render(<DesignPreviewPage />);
+
+    // a filter chosen in the mobile flow must not leak into an unrelated screen
+    select('Мобильная транспортная доска');
+    fireEvent.click(within(screen.getByRole('region', { name: 'Мобильная транспортная доска' })).getByRole('button', { name: 'Есть места' }));
+
+    select('Полная страница храма');
+    const page = container.querySelector('[data-stress-screen="full-density-church"]') as HTMLElement;
+    expect(page.querySelector('[data-map-entry]')).toBeNull();
+    const filters = page.querySelector('[data-ride-filters]') as HTMLElement;
+    expect(within(filters).getByRole('button', { name: 'Все' }).getAttribute('aria-pressed')).toBe('true');
+    expect(page.querySelectorAll('[data-ride-type]')).toHaveLength(4);
+  });
+
+  it('isolates the mobile and desktop filter flows from each other', () => {
+    render(<DesignPreviewPage />);
+
+    select('Мобильная транспортная доска');
+    fireEvent.click(within(screen.getByRole('region', { name: 'Мобильная транспортная доска' })).getByRole('button', { name: 'Есть места' }));
+
+    // the desktop map is a different flow and starts from its own default
+    select('Карта поездок на компьютере');
+    const desktopMap = () => screen.getByRole('region', { name: 'Карта поездок на компьютере' });
+    expect(within(desktopMap()).getByRole('button', { name: 'Все' }).getAttribute('aria-pressed')).toBe('true');
+
+    // changing it back does not disturb the mobile flow
+    fireEvent.click(within(desktopMap()).getByRole('button', { name: 'Ищут место' }));
+    select('Мобильная карта поездок');
+    expect(within(screen.getByRole('region', { name: 'Мобильная карта поездок' })).getByRole('button', { name: 'Есть места' }).getAttribute('aria-pressed')).toBe('true');
+
+    select('Карта поездок на компьютере');
+    expect(within(desktopMap()).getByRole('button', { name: 'Ищут место' }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('shows only approximate passenger areas and driver corridors for one service group', () => {
