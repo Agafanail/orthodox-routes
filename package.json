@@ -45,8 +45,9 @@
     "vitest": "4.1.10"
   },
   "overrides": {
+    "nanoid": "3.3.18",
+    "postcss": "8.5.26",
     "next": {
-      "postcss": "8.5.18",
       "sharp": "0.35.0"
     }
   }
