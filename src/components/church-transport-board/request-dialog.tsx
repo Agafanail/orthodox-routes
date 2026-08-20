@@ -30,6 +30,7 @@ export function RequestDialog({
   onChange,
   onBlur,
   onSubmit,
+  submitting = false,
   submitAttempt,
   targetedAvailability,
   compatibleRequests,
@@ -49,6 +50,7 @@ export function RequestDialog({
   onChange: (draft: PassengerRequestDraft, fieldName: keyof PassengerRequestDraft) => void;
   onBlur: (fieldName: keyof PassengerRequestDraft) => void;
   onSubmit: () => void;
+  submitting?: boolean;
   submitAttempt: number;
   targetedAvailability?: number;
   compatibleRequests: CompatiblePassengerRequestSummary[];
@@ -380,10 +382,10 @@ export function RequestDialog({
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row">
             <button
               className="w-full rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:bg-stone-300 sm:w-auto"
-              disabled={targeted && targetedAvailability === 0}
+              disabled={submitting || (targeted && targetedAvailability === 0)}
               type="submit"
             >
-              {targeted ? 'Попросить подвезти' : 'Создать запрос'}
+              {submitting ? 'Сохраняем…' : targeted ? 'Попросить подвезти' : 'Создать запрос'}
             </button>
             <button
               className="w-full rounded-lg border border-stone-300 px-5 py-3 font-semibold sm:w-auto"

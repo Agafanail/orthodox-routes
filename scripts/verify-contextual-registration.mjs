@@ -90,6 +90,7 @@ const password = `Local-draft-${suffix}-Aa1!`;
 const identities = [
   { email: `draft-a-${suffix}@example.test` },
   { email: `draft-b-${suffix}@example.test` },
+  { email: `draft-no-account-${suffix}@example.test` },
 ];
 const admin = createClient(url, serviceRoleKey, {
   auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
@@ -111,6 +112,7 @@ try {
   const clients = identities.map(() => userClient(url, publicKey));
   for (let index = 0; index < clients.length; index += 1) {
     await signIn(clients[index], identities[index].email, password);
+    if (index === 2) continue;
     await rpc(clients[index], 'create_account', {
       p_display_name: `Draft Test ${index + 1}`,
       p_phone_e164: `+39000000020${index + 1}`,
@@ -118,7 +120,55 @@ try {
     });
   }
 
-  const anonymousCreate = await fetch(`${url}/rest/v1/rpc/create_contextual_draft`, {
+  const noAccountToken = capability();
+  const noAccountDraft = await rpc(admin, 'create_contextual_registration', {
+    p_action_type: 'passenger_request',
+    p_payload: { churchId: 'church-no-account', passengerCount: 1 },
+    p_payload_version: 1,
+    p_client_key: randomUUID(),
+    p_display_name: 'Unmaterialized Passenger',
+    p_phone_e164: '+390000000298',
+    p_preferred_language: 'en',
+    p_resume_token: noAccountToken,
+    p_rate_key: capability(),
+  });
+  await rpc(admin, 'attach_contextual_draft_email', {
+    p_email: identities[2].email,
+    p_resume_token: noAccountToken,
+    p_rate_key: capability(),
+  });
+  const noAccountClaim = await rpc(clients[2], 'claim_contextual_draft', {
+    p_resume_token: noAccountToken,
+  });
+  assert.equal(noAccountClaim.status, 'claimed');
+  assert.equal(noAccountClaim.eligibility.account_exists, false);
+  assert.equal(noAccountClaim.registration_profile.phone, '+390000000298');
+  await expectRpcFailure(clients[1], 'materialize_contextual_account', {
+    p_display_name: 'Wrong Actor',
+    p_draft_id: noAccountDraft.draft_id,
+    p_phone_e164: '+390000000297',
+    p_preferred_language: 'en',
+  });
+  const materializedAccount = await rpc(clients[2], 'materialize_contextual_account', {
+    p_display_name: 'Unmaterialized Passenger',
+    p_draft_id: noAccountDraft.draft_id,
+    p_phone_e164: '+390000000298',
+    p_preferred_language: 'en',
+  });
+  assert.equal(materializedAccount.display_name, 'Unmaterialized Passenger');
+  assert.equal(materializedAccount.phone, '+390000000298');
+  const materializedDraft = await rpc(clients[2], 'current_contextual_draft', {
+    p_draft_id: noAccountDraft.draft_id,
+  });
+  assert.equal(materializedDraft.eligibility.account_exists, true);
+  assert.equal(materializedDraft.registration_profile, null);
+  assert.equal(
+    runSql(container, `select count(*) from private.contextual_draft where public_id = '${noAccountDraft.draft_id}' and auth_user_id = '${identities[2].id}' and account_id = '${identities[2].id}';`),
+    '1',
+  );
+  await rpc(clients[2], 'cancel_contextual_draft', { p_draft_id: noAccountDraft.draft_id });
+
+  const anonymousCreate = await fetch(`${url}/rest/v1/rpc/create_contextual_registration`, {
     method: 'POST',
     headers: { apikey: publicKey, 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -131,7 +181,7 @@ try {
     }),
   });
   assert.ok([401, 403, 404].includes(anonymousCreate.status));
-  await expectRpcFailure(clients[0], 'create_contextual_draft', {
+  await expectRpcFailure(clients[0], 'create_contextual_registration', {
     p_action_type: 'passenger_request',
     p_payload: { churchId: 'church-1' },
     p_payload_version: 1,
@@ -148,11 +198,14 @@ try {
     seatsRequired: 2,
     notes: 'Near the west entrance',
   };
-  const created = await rpc(admin, 'create_contextual_draft', {
+  const created = await rpc(admin, 'create_contextual_registration', {
     p_action_type: 'passenger_request',
     p_payload: payload,
     p_payload_version: 1,
     p_client_key: clientKey,
+    p_display_name: '  Draft Passenger  ',
+    p_phone_e164: '+390000000299',
+    p_preferred_language: 'en',
     p_resume_token: draftToken,
     p_rate_key: capability(),
   });
@@ -163,21 +216,27 @@ try {
   assert.equal(created.resume_token, undefined);
 
   assert.deepEqual(
-    await rpc(admin, 'create_contextual_draft', {
+    await rpc(admin, 'create_contextual_registration', {
       p_action_type: 'passenger_request',
       p_payload: payload,
       p_payload_version: 1,
       p_client_key: clientKey,
+      p_display_name: 'Draft Passenger',
+      p_phone_e164: '+390000000299',
+      p_preferred_language: 'en',
       p_resume_token: draftToken,
       p_rate_key: capability(),
     }),
     created,
   );
-  await expectRpcFailure(admin, 'create_contextual_draft', {
+  await expectRpcFailure(admin, 'create_contextual_registration', {
     p_action_type: 'passenger_request',
     p_payload: { ...payload, seatsRequired: 3 },
     p_payload_version: 1,
     p_client_key: clientKey,
+    p_display_name: 'Different Passenger',
+    p_phone_e164: '+390000000299',
+    p_preferred_language: 'en',
     p_resume_token: draftToken,
     p_rate_key: capability(),
   });
@@ -185,7 +244,7 @@ try {
   const throttledRateKey = capability();
   runSql(container, 'update ops.security_policy set contextual_draft_create_limit = 2 where singleton;');
   for (let request = 0; request < 2; request += 1) {
-    assert.equal((await rpc(admin, 'create_contextual_draft', {
+    assert.equal((await rpc(admin, 'create_contextual_registration', {
       p_action_type: 'passenger_request',
       p_payload: { churchId: 'church-rate-test', request },
       p_payload_version: 1,
@@ -194,7 +253,7 @@ try {
       p_rate_key: throttledRateKey,
     })).status, 'open');
   }
-  assert.equal((await rpc(admin, 'create_contextual_draft', {
+  assert.equal((await rpc(admin, 'create_contextual_registration', {
     p_action_type: 'passenger_request',
     p_payload: { churchId: 'church-rate-test', request: 3 },
     p_payload_version: 1,
@@ -207,19 +266,25 @@ try {
   const concurrentKey = randomUUID();
   const concurrentToken = capability();
   const concurrentResults = await Promise.all([
-    rpc(admin, 'create_contextual_draft', {
+    rpc(admin, 'create_contextual_registration', {
       p_action_type: 'driver_offer',
       p_payload: { churchId: 'church-1', seatsAvailable: 3 },
       p_payload_version: 1,
       p_client_key: concurrentKey,
+      p_display_name: 'Concurrent Driver',
+      p_phone_e164: '+390000000296',
+      p_preferred_language: 'en',
       p_resume_token: concurrentToken,
       p_rate_key: capability(),
     }),
-    rpc(admin, 'create_contextual_draft', {
+    rpc(admin, 'create_contextual_registration', {
       p_action_type: 'driver_offer',
       p_payload: { churchId: 'church-1', seatsAvailable: 3 },
       p_payload_version: 1,
       p_client_key: concurrentKey,
+      p_display_name: 'Concurrent Driver',
+      p_phone_e164: '+390000000296',
+      p_preferred_language: 'en',
       p_resume_token: concurrentToken,
       p_rate_key: capability(),
     }),
@@ -231,7 +296,7 @@ try {
     { nested: { phoneNumber: '+390000000299' } },
     { entries: [{ resumeToken: capability() }] },
   ]) {
-    await expectRpcFailure(admin, 'create_contextual_draft', {
+    await expectRpcFailure(admin, 'create_contextual_registration', {
       p_action_type: 'passenger_request',
       p_payload: forbiddenPayload,
       p_payload_version: 1,
@@ -240,7 +305,7 @@ try {
       p_rate_key: capability(),
     });
   }
-  await expectRpcFailure(admin, 'create_contextual_draft', {
+  await expectRpcFailure(admin, 'create_contextual_registration', {
     p_action_type: 'passenger_request',
     p_payload: { notes: 'x'.repeat(17000) },
     p_payload_version: 1,
@@ -248,7 +313,7 @@ try {
     p_resume_token: capability(),
     p_rate_key: capability(),
   });
-  await expectRpcFailure(admin, 'create_contextual_draft', {
+  await expectRpcFailure(admin, 'create_contextual_registration', {
     p_action_type: 'passenger_request',
     p_payload: payload,
     p_payload_version: 1,
@@ -277,9 +342,16 @@ try {
   assert.equal(claimed.status, 'claimed');
   assert.equal(claimed.action_type, 'passenger_request');
   assert.deepEqual(claimed.payload, payload);
+  assert.equal(claimed.registration_profile, null);
   assert.equal(claimed.eligibility.account_exists, true);
   assert.equal(claimed.eligibility.eligible, false);
   assert.deepEqual(await rpc(clients[0], 'claim_contextual_draft', { p_resume_token: draftToken }), claimed);
+  await expectRpcFailure(clients[0], 'clear_contextual_registration_profile', {
+    p_draft_id: created.draft_id,
+  });
+  assert.equal((await rpc(clients[0], 'current_contextual_draft', {
+    p_draft_id: created.draft_id,
+  })).registration_profile, null);
   assert.equal(
     runSql(container, `select count(*) from private.contextual_draft where public_id = '${created.draft_id}' and state = 'claimed' and result_id is null;`),
     '1',
@@ -295,7 +367,7 @@ try {
   );
 
   const expiringToken = capability();
-  const expiring = await rpc(admin, 'create_contextual_draft', {
+  const expiring = await rpc(admin, 'create_contextual_registration', {
     p_action_type: 'ride_response',
     p_payload: { offerId: randomUUID(), seatsRequested: 1 },
     p_payload_version: 1,
@@ -315,7 +387,7 @@ try {
   );
 
   const completableToken = capability();
-  const completable = await rpc(admin, 'create_contextual_draft', {
+  const completable = await rpc(admin, 'create_contextual_registration', {
     p_action_type: 'church_create',
     p_payload: { name: 'Synthetic Parish', city: 'Rome' },
     p_payload_version: 1,
@@ -344,19 +416,27 @@ try {
     `select json_build_object(
        'forced_rls', (select relforcerowsecurity from pg_class where oid = 'private.contextual_draft'::regclass),
        'table_grants', (select count(*) from information_schema.role_table_grants where table_schema = 'private' and table_name = 'contextual_draft' and grantee in ('anon', 'authenticated', 'service_role')),
+       'profile_table_grants', (select count(*) from information_schema.role_table_grants where table_schema = 'private' and table_name = 'contextual_registration_profile' and grantee in ('anon', 'authenticated', 'service_role')),
        'rate_table_grants', (select count(*) from information_schema.role_table_grants where table_schema = 'ops' and table_name = 'contextual_draft_rate_limit' and grantee in ('anon', 'authenticated', 'service_role')),
-       'anonymous_writes', (select count(*) from information_schema.routine_privileges where specific_schema = 'api' and routine_name in ('create_contextual_draft', 'attach_contextual_draft_email') and grantee in ('anon', 'authenticated')),
-       'service_writes', (select count(*) from information_schema.routine_privileges where specific_schema = 'api' and routine_name in ('create_contextual_draft', 'attach_contextual_draft_email') and grantee = 'service_role'),
+       'anonymous_writes', (select count(*) from information_schema.routine_privileges where specific_schema = 'api' and routine_name in ('create_contextual_draft', 'create_contextual_registration', 'attach_contextual_draft_email') and grantee in ('anon', 'authenticated')),
+       'service_writes', (select count(*) from information_schema.routine_privileges where specific_schema = 'api' and routine_name in ('create_contextual_registration', 'attach_contextual_draft_email') and grantee = 'service_role'),
+       'legacy_create_grants', (select count(*) from information_schema.routine_privileges where specific_schema = 'api' and routine_name = 'create_contextual_draft' and grantee = 'service_role'),
        'completion_grants', (select count(*) from information_schema.routine_privileges where specific_schema = 'app' and routine_name = 'complete_contextual_draft' and grantee in ('anon', 'authenticated', 'service_role')),
-       'unsafe_definers', (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.proname like '%contextual_draft%' and p.prosecdef and not p.proconfig @> array['search_path=""'])
+       'materialize_grants', (select count(*) from information_schema.routine_privileges where specific_schema = 'api' and routine_name = 'materialize_contextual_account' and grantee = 'authenticated'),
+       'obsolete_helper_grants', (select count(*) from information_schema.routine_privileges where specific_schema = 'api' and routine_name in ('clear_contextual_registration_profile', 'link_contextual_draft_account') and grantee in ('anon', 'authenticated', 'service_role')),
+       'unsafe_definers', (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.proname like '%contextual%' and p.prosecdef and not p.proconfig @> array['search_path=""'])
      );`,
   ));
   assert.equal(databaseBoundary.forced_rls, true);
   assert.equal(databaseBoundary.table_grants, 0);
+  assert.equal(databaseBoundary.profile_table_grants, 0);
   assert.equal(databaseBoundary.rate_table_grants, 0);
   assert.equal(databaseBoundary.anonymous_writes, 0);
   assert.equal(databaseBoundary.service_writes, 2);
+  assert.equal(databaseBoundary.legacy_create_grants, 0);
   assert.equal(databaseBoundary.completion_grants, 0);
+  assert.equal(databaseBoundary.materialize_grants, 1);
+  assert.equal(databaseBoundary.obsolete_helper_grants, 0);
   assert.equal(databaseBoundary.unsafe_definers, 0);
 
   console.log('Contextual registration draft verification passed.');

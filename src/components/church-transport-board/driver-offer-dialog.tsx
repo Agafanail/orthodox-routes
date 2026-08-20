@@ -51,6 +51,7 @@ export function DriverOfferDialog({
   onChange,
   onModeChange,
   onSubmit,
+  submitting = false,
 }: {
   draft: DriverOfferDraft;
   errors: DriverOfferDraftErrors;
@@ -62,6 +63,7 @@ export function DriverOfferDialog({
   onChange: (draft: DriverOfferDraft, fieldName: keyof DriverOfferDraft) => void;
   onModeChange: (mode: DriverOfferMode) => void;
   onSubmit: () => void;
+  submitting?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -377,8 +379,8 @@ export function DriverOfferDialog({
               </label>
 
               <div className="flex min-w-0 flex-col gap-3 sm:flex-row">
-                <button className="w-full rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white sm:w-auto" type="submit">
-                  {draft.offerType === 'trip' ? 'Создать поездку' : 'Создать регулярную поездку'}
+                <button className="w-full rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white disabled:opacity-60 sm:w-auto" disabled={submitting} type="submit">
+                  {submitting ? 'Сохраняем…' : draft.offerType === 'trip' ? 'Создать поездку' : 'Создать регулярную поездку'}
                 </button>
                 <button
                   className="w-full rounded-lg border border-stone-300 px-5 py-3 font-semibold sm:w-auto"

@@ -39,14 +39,14 @@ Explicitly excluded:
 | --- | --- | --- | --- |
 | A | Campaign protocol and durable implementation plan | Complete | Commits `e36f15b`, `6364797`; CI `31879226949` and rerun `31879539830` green |
 | B | Phone verification foundation | Complete | Commit `1391288`; CI `31880347230` green, including clean replay and phone boundary tests |
-| C | Contextual registration and account completion | In progress | Protected draft database boundary implemented locally; application orchestration and explicit final-review/account-completion flow remain |
+| C | Contextual registration and account completion | In progress | Draft boundary commit `66722e0`, CI `31881253603` green; application orchestration, pre-account Auth ownership, account linking, privacy-safe magic-link callback, and explicit final review implemented locally; final publication joins D/F and provider/legal gates remain |
 | D | Server-owned multi-user transport domain | Pending | Stops before Maps/quality matching |
 | E | Ownership, confirmation, agreements, capacity, cancellation, disclosure | Pending | Database concurrency and privacy tests required |
 | F | Core application integration and browser-state cutover | Pending | Real multi-user flows; no visual-redesign expansion |
 | G | Remote/staging readiness | Pending | Complete independent configuration before any owner-action gate |
 | H | Fresh final Core Platform audit | Pending | Full authority, migrations, security/privacy, browser/E2E, documentation, Git and CI audit |
 
-**Current continuation:** publish the protected-draft database sub-checkpoint, then implement Checkpoint C application orchestration and contextual account-completion flow before continuing Checkpoint D without owner review.
+**Current continuation:** publish the Checkpoint C application slice, then continue Checkpoint D server-owned transport without owner review. Keep C open until the D/F publication path proves the full contextual return-and-send journey.
 
 For every completed checkpoint, replace its status with `Complete` and record commit SHA plus final green CI run. Update **Current continuation** to the next unfinished scope. Do not record synthetic research, pending CI as green, or external verification that did not occur.
 

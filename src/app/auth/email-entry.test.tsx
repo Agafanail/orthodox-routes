@@ -16,6 +16,7 @@ function renderEntry(
   render(
     <EmailEntry
       configured
+      contextual={false}
       initialError={null}
       requestAction={requestAction}
       signedOut={false}

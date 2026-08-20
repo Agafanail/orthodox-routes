@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { resolveVerifiedAuthIdentity } from '@/lib/auth/flow';
-import { getPublicSupabaseConfig } from '@/lib/supabase/config';
+import {
+  getApplicationOrigin,
+  getContextualRegistrationConfig,
+  getPublicSupabaseConfig,
+  getServerSupabaseConfig,
+} from '@/lib/supabase/config';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { requestEmailLinkAction, signOutAction } from './actions';
 import { EmailEntry } from './email-entry';
@@ -19,6 +24,7 @@ type AuthPageProps = {
 };
 
 const errors: Record<string, string> = {
+  'draft-unavailable': 'Не удалось продолжить начатое действие. Заполните форму ещё раз.',
   'sign-out-failed': 'Не удалось выйти. Обновите страницу и попробуйте ещё раз.',
 };
 
@@ -26,7 +32,12 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
   const params = await searchParams;
   const status = typeof params.status === 'string' ? params.status : null;
   const error = typeof params.error === 'string' ? errors[params.error] : null;
-  const configured = getPublicSupabaseConfig() !== null;
+  const contextual = params.context === '1';
+  const configured = getPublicSupabaseConfig() !== null
+    && getApplicationOrigin() !== null
+    && (!contextual || (
+      getServerSupabaseConfig() !== null && getContextualRegistrationConfig() !== null
+    ));
   const supabase = await createServerSupabaseClient();
   const identity = await resolveVerifiedAuthIdentity(supabase?.auth ?? null);
 
@@ -69,6 +80,7 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
         ) : (
           <EmailEntry
             configured={configured}
+            contextual={contextual}
             initialError={error}
             requestAction={requestEmailLinkAction}
             signedOut={status === 'signed-out'}

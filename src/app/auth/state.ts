@@ -1,4 +1,4 @@
 export type EmailLinkActionState =
   | { status: 'idle' }
   | { email: string; status: 'sent' }
-  | { status: 'invalid-email' | 'rate-limited' | 'send-failed' | 'unavailable' };
+  | { status: 'draft-unavailable' | 'invalid-email' | 'rate-limited' | 'send-failed' | 'unavailable' };

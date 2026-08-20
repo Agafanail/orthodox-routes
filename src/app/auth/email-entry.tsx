@@ -11,6 +11,7 @@ type RequestEmailLinkAction = (
 
 type EmailEntryProps = {
   configured: boolean;
+  contextual: boolean;
   initialError: string | null;
   requestAction: RequestEmailLinkAction;
   signedOut: boolean;
@@ -19,12 +20,14 @@ type EmailEntryProps = {
 const initialState: EmailLinkActionState = { status: 'idle' };
 
 const errors: Partial<Record<EmailLinkActionState['status'], string>> = {
+  'draft-unavailable': 'Не удалось продолжить начатое действие. Заполните форму ещё раз.',
   'invalid-email': 'Введите email в формате name@example.org.',
   unavailable: 'Вход сейчас недоступен. Попробуйте позже.',
 };
 
 export function EmailEntry({
   configured,
+  contextual,
   initialError,
   requestAction,
   signedOut,
@@ -91,10 +94,12 @@ export function EmailEntry({
 
   return (
     <>
-      <p className={styles.eyebrow}>Без пароля</p>
-      <h1 className={styles.title}>Войти</h1>
+      <p className={styles.eyebrow}>{contextual ? 'Продолжить действие' : 'Без пароля'}</p>
+      <h1 className={styles.title}>{contextual ? 'Сначала подтвердите email' : 'Войти'}</h1>
       <p className={styles.lead}>
-        Укажите email. Мы отправим одноразовую ссылку, а вход вы подтвердите отдельной кнопкой.
+        {contextual
+          ? 'Мы сохранили введённые данные. Укажите email, чтобы вернуться к проверке перед отправкой.'
+          : 'Укажите email. Мы отправим одноразовую ссылку, а вход вы подтвердите отдельной кнопкой.'}
       </p>
 
       {signedOut ? (
@@ -114,6 +119,7 @@ export function EmailEntry({
       ) : null}
 
       <form action={formAction} className={styles.form}>
+        {contextual ? <input name="context" type="hidden" value="contextual" /> : null}
         <div className={styles.field}>
           <label htmlFor="email">Email</label>
           <input

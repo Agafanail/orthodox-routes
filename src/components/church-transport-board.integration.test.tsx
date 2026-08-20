@@ -3,6 +3,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+const contextualAction = vi.hoisted(() => vi.fn());
+vi.mock('@/app/contextual-registration/actions', () => ({
+  beginContextualRegistrationAction: contextualAction,
+}));
 import { ChurchTransportBoard } from './church-transport-board';
 import { driverOfferStorageKeys } from '../lib/driverOfferStorage';
 import type {
@@ -154,8 +158,8 @@ function restoreProperty(target: object, key: PropertyKey, descriptor: PropertyD
   else Reflect.deleteProperty(target, key);
 }
 
-function renderBoard() {
-  return render(<ChurchTransportBoard church={church} drivers={drivers} routes={[]} trips={[trip]} />);
+function renderBoard(participationBackendAvailable = false) {
+  return render(<ChurchTransportBoard church={church} drivers={drivers} participationBackendAvailable={participationBackendAvailable} routes={[]} trips={[trip]} />);
 }
 
 async function hydrateBoard() {
@@ -186,6 +190,7 @@ beforeEach(() => {
   vi.setSystemTime(now);
   window.localStorage.clear();
   window.localStorage.setItem(driverOfferStorageKeys.localDriverProfile, JSON.stringify(driverProfile));
+  contextualAction.mockReset();
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     value: vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
@@ -205,6 +210,45 @@ afterEach(() => {
 });
 
 describe('ChurchTransportBoard P0 integration', () => {
+  it('stores a configured passenger action contextually without publishing browser-owned transport state', async () => {
+    contextualAction.mockResolvedValue({
+      draftId: '9b11b924-53fa-4b86-8194-d960f8f9db89',
+      status: 'email-sent',
+    });
+    renderBoard(true);
+    await hydrateBoard();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Попросить подвезти' })[0]);
+    fireEvent.change(screen.getByRole('textbox', { name: /Имя/ }), { target: { value: 'Passenger Integration' } });
+    fireEvent.change(screen.getByRole('textbox', { name: /Телефон/ }), { target: { value: passengerPhone } });
+    fireEvent.change(screen.getByRole('textbox', { name: /Email/ }), { target: { value: passengerEmail } });
+    fireEvent.input(screen.getByLabelText('Другая дата'), { target: { value: '2030-01-03' } });
+    fireEvent.change(screen.getByRole('textbox', { name: /Район посадки/ }), { target: { value: 'Integration pickup' } });
+    fireEvent.click(screen.getByRole('checkbox'));
+
+    await act(async () => {
+      fireEvent.submit(screen.getByRole('button', { name: 'Создать запрос' }).closest('form')!);
+      await Promise.resolve();
+    });
+
+    expect(contextualAction).toHaveBeenCalledOnce();
+    const submitted = contextualAction.mock.calls[0][0] as FormData;
+    expect(submitted.get('action_type')).toBe('passenger_request');
+    expect(String(submitted.get('client_key'))).toMatch(/^[0-9a-f-]{36}$/);
+    expect(submitted.get('display_name')).toBe('Passenger Integration');
+    expect(submitted.get('email')).toBe(passengerEmail);
+    expect(submitted.get('phone')).toBe(passengerPhone);
+    expect(submitted.get('preferred_language')).toBe('ru');
+    expect(JSON.parse(String(submitted.get('payload')))).toEqual(expect.objectContaining({
+      churchId,
+      passengerCount: 1,
+      pickupDescription: 'Integration pickup',
+      serviceDate: '2030-01-03',
+    }));
+    expect(JSON.parse(window.localStorage.getItem(storageKeys.passengerRequests) ?? '[]')).toEqual([]);
+    expect(screen.getByText('Проверьте email, чтобы продолжить. Запрос ещё не опубликован.')).not.toBeNull();
+  });
+
   it('lets the driver finish a full targeted request exactly once and reveals contacts only in the agreement', async () => {
     writeStored(storageKeys.targetedRequests, [targetedRequest()]);
     renderBoard();

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionFeedback, type ActionFeedbackMessage } from '@/components/church-transport-board/action-feedback';
+import { beginContextualRegistrationAction } from '@/app/contextual-registration/actions';
 import { ActiveDriverResponses } from '@/components/church-transport-board/active-driver-responses';
 import { getBoardCardId } from '@/components/church-transport-board/board-card';
 import { CompletedActivity } from '@/components/church-transport-board/completed-activity';
@@ -99,6 +100,7 @@ import type {
 type ChurchTransportBoardProps = {
   church: Church;
   drivers: DriverPublicProfile[];
+  participationBackendAvailable?: boolean;
   routes: Route[];
   trips: Trip[];
 };
@@ -193,7 +195,13 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchTransportBoardProps) {
+export function ChurchTransportBoard({
+  church,
+  drivers,
+  participationBackendAvailable = false,
+  routes,
+  trips,
+}: ChurchTransportBoardProps) {
   const [dialogContext, setDialogContext] = useState<RequestDialogContext | null>(null);
   const [draft, setDraft] = useState<PassengerRequestDraft>(getInitialDraft);
   const [draftErrors, setDraftErrors] = useState<PassengerRequestDraftErrors>({});
@@ -211,6 +219,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
   const [offerDraft, setOfferDraft] = useState<DriverOfferDraft>(() => createEmptyDriverOfferDraft());
   const [offerDraftErrors, setOfferDraftErrors] = useState<DriverOfferDraftErrors>({});
   const [offerSubmitAttempt, setOfferSubmitAttempt] = useState(0);
+  const [contextualSubmissionPending, setContextualSubmissionPending] = useState(false);
   const [pendingCancellation, setPendingCancellation] = useState<
     { offerType: 'trip'; offer: Trip } | { offerType: 'route'; offer: Route } | null
   >(null);
@@ -543,7 +552,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     });
   }
 
-  function handleSubmitRequest() {
+  async function handleSubmitRequest() {
     if (!dialogContext) return;
 
     const now = new Date();
@@ -554,6 +563,57 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     if (Object.keys(errors).length > 0) {
       setDraftErrors(errors);
       setRequestSubmitAttempt((current) => current + 1);
+      return;
+    }
+
+    if (participationBackendAvailable) {
+      if (contextualSubmissionPending) return;
+      setContextualSubmissionPending(true);
+      try {
+        const contextualForm = new FormData();
+        contextualForm.set('action_type', 'passenger_request');
+        contextualForm.set('client_key', crypto.randomUUID());
+        contextualForm.set('display_name', draft.firstName);
+        contextualForm.set('email', draft.email.trim());
+        contextualForm.set('phone', validation.normalizedPhone);
+        contextualForm.set('preferred_language', 'ru');
+        contextualForm.set('payload', JSON.stringify({
+          churchId: church.id,
+          churchName: church.name,
+          driverOfferId: dialogContext.mode === 'targeted' ? dialogContext.offerId : undefined,
+          passengerCount: validation.passengerCount,
+          pickupDescription: draft.pickupArea.trim(),
+          publicNote: draft.comment.trim() || undefined,
+          serviceDate: rideDate,
+          serviceId: draft.selectedServiceId
+            || (dialogContext.mode === 'targeted' ? dialogContext.serviceEventId : undefined),
+          serviceName: formatServiceSelection(draft, church.schedule?.services ?? []),
+        }));
+        const result = await beginContextualRegistrationAction(contextualForm);
+        if (result.status === 'ready') {
+          window.location.assign('/auth?context=1');
+          return;
+        }
+        if (result.status === 'email-sent') {
+          setDraft((current) => ({
+            ...emptyDraft,
+            email: current.email.trim(),
+            firstName: current.firstName.trim(),
+            phone: validation.normalizedPhone,
+          }));
+          closeDialog();
+          showActionFeedback('Проверьте email, чтобы продолжить. Запрос ещё не опубликован.');
+          return;
+        }
+        showActionFeedback(
+          result.status === 'rate-limited'
+            ? 'Слишком много попыток. Подождите и попробуйте ещё раз.'
+            : 'Не удалось безопасно сохранить запрос. Попробуйте ещё раз.',
+          'error',
+        );
+      } finally {
+        setContextualSubmissionPending(false);
+      }
       return;
     }
 
@@ -682,12 +742,63 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
     closeDialog();
   }
 
-  function handleSubmitDriverOffer() {
+  async function handleSubmitDriverOffer() {
     const now = new Date();
     const { errors } = validateDriverOfferDraft(offerDraft, !localDriverProfile, now, church.schedule?.services);
     if (Object.keys(errors).length > 0) {
       setOfferDraftErrors(errors);
       setOfferSubmitAttempt((current) => current + 1);
+      return;
+    }
+
+    if (participationBackendAvailable) {
+      if (contextualSubmissionPending) return;
+      const profileName = localDriverProfile?.publicName ?? offerDraft.publicName;
+      const profilePhone = localDriverProfile?.phonePrivate ?? offerDraft.phone;
+      const profileEmail = localDriverProfile?.emailPrivate ?? offerDraft.email;
+      setContextualSubmissionPending(true);
+      try {
+        const contextualForm = new FormData();
+        contextualForm.set('action_type', 'driver_offer');
+        contextualForm.set('client_key', crypto.randomUUID());
+        contextualForm.set('display_name', profileName);
+        contextualForm.set('email', profileEmail?.trim() || '');
+        contextualForm.set('phone', profilePhone);
+        contextualForm.set('preferred_language', 'ru');
+        contextualForm.set('payload', JSON.stringify({
+          churchId: church.id,
+          churchName: church.name,
+          date: offerDraft.date || undefined,
+          departureDescription: offerDraft.originLabel.trim(),
+          departureTime: offerDraft.departureTime || undefined,
+          maxDetourKm: Number(offerDraft.maxDetourKm),
+          offerMode: offerDraft.offerType,
+          returnRequired: offerDraft.returnTrip,
+          seatsAvailable: Number(offerDraft.seats),
+          serviceId: offerDraft.selectedServiceId || undefined,
+          serviceName: formatServiceSelection(offerDraft, church.schedule?.services ?? []),
+          weekdays: offerDraft.weekdays,
+        }));
+        const result = await beginContextualRegistrationAction(contextualForm);
+        if (result.status === 'ready') {
+          window.location.assign('/auth?context=1');
+          return;
+        }
+        if (result.status === 'email-sent') {
+          setOfferDraft(createEmptyDriverOfferDraft());
+          closeDriverOfferDialog();
+          showActionFeedback('Проверьте email, чтобы продолжить. Поездка ещё не опубликована.');
+          return;
+        }
+        showActionFeedback(
+          result.status === 'rate-limited'
+            ? 'Слишком много попыток. Подождите и попробуйте ещё раз.'
+            : 'Не удалось безопасно сохранить поездку. Попробуйте ещё раз.',
+          'error',
+        );
+      } finally {
+        setContextualSubmissionPending(false);
+      }
       return;
     }
 
@@ -1161,6 +1272,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
           savedProfile={localDriverProfile ? { publicName: localDriverProfile.publicName } : null}
           services={futureChurchServices}
           submitAttempt={offerSubmitAttempt}
+          submitting={contextualSubmissionPending}
         />
       ) : null}
       {pendingCancellation ? (
@@ -1197,6 +1309,7 @@ export function ChurchTransportBoard({ church, drivers, routes, trips }: ChurchT
           selectedReusableRequestId={effectiveReusableRequestId}
           serviceOptions={serviceOptions}
           submitAttempt={requestSubmitAttempt}
+          submitting={contextualSubmissionPending}
           targetedAvailability={dialogTargetedAvailability}
         />
       ) : null}

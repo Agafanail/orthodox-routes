@@ -10,6 +10,12 @@ import {
   getChurchTrips,
   mockChurches,
 } from '@/lib/mockData';
+import {
+  getApplicationOrigin,
+  getContextualRegistrationConfig,
+  getPublicSupabaseConfig,
+  getServerSupabaseConfig,
+} from '@/lib/supabase/config';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -32,6 +38,10 @@ export default async function ChurchPage({ params }: PageProps) {
   const drivers = getChurchDrivers(church.id);
   const routes = getChurchRoutes(church.id);
   const trips = getChurchTrips(church.id, now);
+  const participationBackendAvailable = getApplicationOrigin() !== null
+    && getContextualRegistrationConfig() !== null
+    && getPublicSupabaseConfig() !== null
+    && getServerSupabaseConfig() !== null;
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -86,7 +96,13 @@ export default async function ChurchPage({ params }: PageProps) {
         {church.schedule?.exceptions ? <p className="mt-2 text-sm text-stone-600">{church.schedule.exceptions}</p> : null}
       </section>
 
-      <ChurchTransportBoard church={church} drivers={drivers} routes={routes} trips={trips} />
+      <ChurchTransportBoard
+        church={church}
+        drivers={drivers}
+        participationBackendAvailable={participationBackendAvailable}
+        routes={routes}
+        trips={trips}
+      />
     </main>
   );
 }

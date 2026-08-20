@@ -66,7 +66,7 @@ async function readLatestEmail(mailpitUrl, email) {
 }
 
 function extractConfirmationLink(html) {
-  const href = /href=["']([^"']*\/auth\/confirm\?[^"']+)["']/i.exec(html)?.[1];
+  const href = /href=["']([^"']*\/auth\/confirm#[^"']+)["']/i.exec(html)?.[1];
   if (!href) fail('The captured email does not contain the application confirmation link.');
   return href.replaceAll('&amp;', '&');
 }
@@ -79,14 +79,20 @@ const requestClient = createClient(url, key, {
 
 const requestResult = await requestClient.auth.signInWithOtp({
   email,
-  options: { shouldCreateUser: true },
+  options: {
+    emailRedirectTo: 'http://localhost:3000/auth/confirm#flow=login',
+    shouldCreateUser: true,
+  },
 });
 if (requestResult.error) fail('The local passwordless email request failed.');
 if (requestResult.data.session) fail('Requesting a link unexpectedly created a session.');
 
 const repeatedRequestResult = await requestClient.auth.signInWithOtp({
   email,
-  options: { shouldCreateUser: true },
+  options: {
+    emailRedirectTo: 'http://localhost:3000/auth/confirm#flow=login',
+    shouldCreateUser: true,
+  },
 });
 if (
   repeatedRequestResult.error?.status !== 429 ||
@@ -101,11 +107,20 @@ const link = new URL(extractConfirmationLink(emailHtml));
 if (link.origin !== 'http://localhost:3000' || link.pathname !== '/auth/confirm') {
   fail('The email link does not target the Orthodox Routes confirmation page.');
 }
-if (link.searchParams.get('type') !== 'email' || link.searchParams.has('next')) {
+if (link.search) {
   fail('The confirmation link has unsafe or unexpected parameters.');
 }
 
-const tokenHash = link.searchParams.get('token_hash');
+const confirmationParameters = new URLSearchParams(link.hash.slice(1));
+if (
+  confirmationParameters.get('flow') !== 'login'
+  || confirmationParameters.get('type') !== 'email'
+  || confirmationParameters.has('next')
+) {
+  fail('The confirmation link fragment has unsafe or unexpected parameters.');
+}
+
+const tokenHash = confirmationParameters.get('token_hash');
 if (!tokenHash) fail('The confirmation link is missing its one-time token hash.');
 
 const cookies = new Map();

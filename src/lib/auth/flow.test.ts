@@ -41,7 +41,22 @@ describe('passwordless email request', () => {
     ).resolves.toEqual({ email: 'parishioner@example.org', status: 'sent' });
     expect(client.signInWithOtp).toHaveBeenCalledWith({
       email: 'parishioner@example.org',
-      options: { shouldCreateUser: true },
+      options: { emailRedirectTo: undefined, shouldCreateUser: true },
+    });
+  });
+
+  it('passes only the server-built contextual confirmation destination to Auth', async () => {
+    const client = createAuthClient();
+    const destination = 'https://routes.example.org/auth/confirm#flow=contextual&draft=sealed';
+
+    await requestEmailSignInLink(
+      client as unknown as AuthFlowClient,
+      'parishioner@example.org',
+      destination,
+    );
+    expect(client.signInWithOtp).toHaveBeenCalledWith({
+      email: 'parishioner@example.org',
+      options: { emailRedirectTo: destination, shouldCreateUser: true },
     });
   });
 

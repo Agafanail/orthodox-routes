@@ -67,13 +67,15 @@ function updateLocalEnv(apiUrl, publicKey) {
       (line) =>
         line &&
         !line.startsWith('NEXT_PUBLIC_SUPABASE_URL=') &&
-        !line.startsWith('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY='),
+        !line.startsWith('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=') &&
+        !line.startsWith('ORTHODOX_ROUTES_APP_URL='),
     );
 
   const next = [
     ...preserved,
     `NEXT_PUBLIC_SUPABASE_URL=${apiUrl}`,
     `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${publicKey}`,
+    'ORTHODOX_ROUTES_APP_URL=http://localhost:3000',
     '',
   ].join('\n');
 

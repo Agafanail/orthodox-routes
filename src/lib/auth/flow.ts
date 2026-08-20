@@ -42,6 +42,7 @@ export function isValidEmailTokenHash(value: unknown): value is string {
 export async function requestEmailSignInLink(
   client: AuthFlowClient | null,
   rawEmail: unknown,
+  emailRedirectTo?: string,
 ): Promise<RequestLinkResult> {
   const email = parseEmail(rawEmail);
   if (!email) return { status: 'invalid-email' };
@@ -50,7 +51,10 @@ export async function requestEmailSignInLink(
   try {
     const { error } = await client.signInWithOtp({
       email,
-      options: { shouldCreateUser: true },
+      options: {
+        emailRedirectTo,
+        shouldCreateUser: true,
+      },
     });
     if (isEmailSendRateLimitError(error)) return { status: 'rate-limited' };
     return error ? { status: 'send-failed' } : { email, status: 'sent' };
