@@ -43,14 +43,15 @@ Run these checks before declaring staging usable:
 
 1. locally run `npm ci`, `npm test`, `npm run lint`, `npm run build`, `npm run db:reset`, `npm run test:core-upgrade`, and all focused backend verification scripts;
 2. confirm the remote migration job applied the same migration filenames and recorded its immutable commit SHA;
-3. load an unconfigured deployment and confirm only the isolated demo board is available;
-4. load the configured staging deployment and confirm a missing church cannot fall back to demo data;
-5. complete passwordless email sign-in through the explicit confirmation button and verify SSR session persistence and local sign-out;
-6. with synthetic eligible passenger and driver accounts, publish from separate browser contexts, exchange a response, confirm exactly one agreement, and verify capacity in both contexts;
-7. verify an unrelated signed-in account receives no participant responses, agreements, contacts, or exact meeting place;
-8. confirm contacts and exact meeting place are absent from initial HTML and appear only after the participant's explicit disclosure action;
-9. cancel the agreement and verify disclosure is immediately unavailable, capacity returns exactly once, and full passenger need requires explicit restoration;
-10. inspect application, Auth, database, and provider logs to confirm they contain no OTP, resume capability, contact, exact-place, cookie, service key, or full protected payload.
+3. require `GET /api/readiness` to return HTTP 200 with only `{ "scope": "core-application", "status": "ready" }`; HTTP 503 means required server/public configuration is incomplete or the committed safe Core RPC boundary is unavailable;
+4. load an unconfigured deployment and confirm only the isolated demo board is available;
+5. load the configured staging deployment and confirm a missing church cannot fall back to demo data;
+6. complete passwordless email sign-in through the explicit confirmation button and verify SSR session persistence and local sign-out;
+7. with synthetic eligible passenger and driver accounts, publish from separate browser contexts, exchange a response, confirm exactly one agreement, and verify capacity in both contexts;
+8. verify an unrelated signed-in account receives no participant responses, agreements, contacts, or exact meeting place;
+9. confirm contacts and exact meeting place are absent from initial HTML and appear only after the participant's explicit disclosure action;
+10. cancel the agreement and verify disclosure is immediately unavailable, capacity returns exactly once, and full passenger need requires explicit restoration;
+11. inspect application, Auth, database, and provider logs to confirm they contain no OTP, resume capability, contact, exact-place, cookie, service key, or full protected payload.
 
 ## Promotion gate
 
