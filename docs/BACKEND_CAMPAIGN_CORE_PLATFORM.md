@@ -1,6 +1,6 @@
 # Backend Campaign — Core Multi-User Platform
 
-- **Status:** active
+- **Status:** owner action required (Stop 2)
 - **Mode:** Backend Campaign
 - **Campaign unit of completion:** the entire remaining approved Core multi-user platform phase
 - **Starting commit:** `919226ad6d8a50388a36934db25b6c27852d25d6` (`Clarify verified phone uniqueness`)
@@ -39,14 +39,14 @@ Explicitly excluded:
 | --- | --- | --- | --- |
 | A | Campaign protocol and durable implementation plan | Complete | Commits `e36f15b`, `6364797`; CI `31879226949` and rerun `31879539830` green |
 | B | Phone verification foundation | Complete | Commit `1391288`; CI `31880347230` green, including clean replay and phone boundary tests |
-| C | Contextual registration and account completion | In progress | Draft boundary commit `66722e0`, CI `31881253603`; application slice commit `67db6e6`, CI `32401683278`, all green; final publication joins D/F and provider/legal gates remain |
+| C | Contextual registration and account completion | Complete | Commits `66722e0`, `67db6e6`, `182c776`; CI `31881253603`, `32401683278`, and `32418023006` green; protected resume, verified-email claim, account/adult/Terms/phone gates, explicit final review, and separate explicit publication/response verified locally, including an anonymous browser return-and-send flow |
 | D | Server-owned multi-user transport domain | Complete | Commit `5b2b563`; CI `32404233548` green; source entities, eligibility/ownership, safe projections, regular occurrences, and tests; stops before Maps/quality matching |
 | E | Ownership, confirmation, agreements, capacity, cancellation, disclosure | Complete | Commit `18d749a`; CI `32407136829` green; both response directions, immutable snapshots, atomic confirmation/capacity, exact-once cancellation/restoration, lifecycle, disclosure, concurrency and privacy tests |
-| F | Core application integration and browser-state cutover | In progress | Server-rendered RPC board, contextual explicit publication, owner actions, response/agreement flows, protected on-demand disclosure, and isolated multi-session browser verification implemented locally; no visual-redesign expansion |
-| G | Remote/staging readiness | In progress | Exact environment, Auth redirect, migration, SMS-worker, privacy, smoke, and promotion contracts documented locally without remote access or credentials |
-| H | Fresh final Core Platform audit | Pending | Full authority, migrations, security/privacy, browser/E2E, documentation, Git and CI audit |
+| F | Core application integration and browser-state cutover | Complete | Commits `182c776`, `1632ade`, `02c9977`, `b5be089`; CI `32418023006` and `32418725132` green; configured RPC-only board, contextual actions/responses, agreements, capacity, cancellation/restoration, disclosure, and isolated passenger/driver/unrelated multi-session browser verification complete without a configured-backend `localStorage` fallback |
+| G | Remote/staging readiness | Owner action required | Version-controlled environment, Auth redirect, migration, provider-adapter/worker, privacy, smoke, promotion, and fail-closed readiness contracts are complete through `e3e0e12`, CI `32420628949` green. A 20 August 2026 read-only gate audit found no linked Supabase project, staging access token/values, GitHub Actions secrets or environments, HTTPS staging deployment, or approved SMS provider credentials |
+| H | Fresh final Core Platform audit | Repository audit complete; staging delta pending | Commits `b5be089`, `6d502ef`, `e3e0e12`; CI `32418725132`, `32419971689`, and `32420628949` green. Clean and representative replay, 289 tests, lint/build, full dependency audit, grants/RLS/actor-boundary/secret review, browser evidence, documentation, Git scope, and no campaign Maps/quality-matching work verified; repeat only the remote/provider delta after G |
 
-**Current continuation:** verify and publish Checkpoint F, then continue immediately through independent remote/staging readiness and the fresh final Core audit. Checkpoint C remains open only until F has green CI evidence for the full contextual return-and-send journey.
+**Current continuation:** all repository-owned and locally verifiable work is complete. Resume this same campaign after the minimum owner-controlled staging/provider action below, then apply migrations to synthetic-only staging, configure Auth/email/SMS through protected secrets, run the documented remote multi-user/privacy smoke sequence, repeat the H audit delta, and require final green CI. Do not start Maps or quality matching.
 
 For every completed checkpoint, replace its status with `Complete` and record commit SHA plus final green CI run. Update **Current continuation** to the next unfinished scope. Do not record synthetic research, pending CI as green, or external verification that did not occur.
 
@@ -57,6 +57,13 @@ For every completed checkpoint, replace its status with `Complete` and record co
 - A real SMS provider account, billing, sender registration, callbacks, protected credentials, an isolated Supabase staging project, domain/DNS, or unavailable permissions may require a minimal owner-controlled action only after all independent work is complete.
 - Final production Terms/Privacy copy belongs to a later roadmap phase. Core enforcement uses the existing versioned legal-document boundary without inventing production legal text.
 - Later Maps work supplies exact coordinate/route and approximate-public geography. Core uses only the smallest compatible non-map representation and does not introduce a competing map architecture.
+
+### Minimum owner action required to resume
+
+1. Provision or designate an isolated synthetic-only Supabase staging project and an HTTPS staging application deployment, and grant Codex the minimum staging-only permissions needed to link, configure Auth redirects, deploy, inject secrets, and run reviewed migrations. Authenticate the relevant CLIs or place credentials in their protected environment; do not paste secrets into chat. No production project or production data may be exposed.
+2. Approve and enable a staging email sender/catcher plus an SMS verification provider account. Bird is the architecture's first candidate but is not yet owner-approved. Complete any required billing, sender/route registration, and callback setup, then inject provider credentials only through the staging secret manager.
+
+The exact application variables and smoke sequence are recorded in `docs/CORE_STAGING_READINESS.md`. Once these resources are available, ordinary staging configuration, migration, deployment, synthetic fixtures, browser verification, defect repair, commits, pushes, and CI continue autonomously in this same campaign.
 
 ## Stopping conditions
 
