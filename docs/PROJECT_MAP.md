@@ -406,14 +406,14 @@ flowchart LR
     PARSE --> LEGACY["Legacy pendingContact response becomes expired<br/>legacy hidden request safely reopens"]
 ```
 
-The mock has no backend, authentication, maps, route geometry, real delivery channels, payments, ratings, or multi-user isolation.
+This persistence diagram describes only the explicitly unconfigured demo. The configured Core church board does not mount this state and instead uses session-derived RPC authorization and PostgreSQL persistence. Neither mode includes maps, route geometry, real delivery channels, payments, or ratings.
 
-## 13. Target production architecture — approved, not implemented
+## 13. Target production architecture and implemented Core slice
 
-This section visualizes the approved target selected in the architecture documents. It does not replace or reinterpret the current-prototype diagrams above. Across the diagrams:
+This section visualizes the approved target selected in the architecture documents. The local account, eligibility, contextual-registration, Core transport, response/agreement, and application-cutover subset is implemented; later providers and domains remain target-only. It does not replace or reinterpret the unconfigured-demo diagrams above. Across the diagrams:
 
-- **Current mock** means the implemented single-browser `localStorage` prototype.
-- **Target production** means proposed Next.js, PostgreSQL/Supabase, and protected integrations.
+- **Current mock** means the isolated single-browser `localStorage` demo used only when backend configuration is absent.
+- **Target production** means Next.js, PostgreSQL/Supabase, and protected integrations; the Core subset is implemented locally.
 - **Public data** may cross the anonymous boundary only through deliberate safe projections.
 - **Participant/user-private data** crosses only authenticated protected operations.
 - **Operationally restricted data** remains behind separate owner/worker boundaries.
@@ -692,20 +692,19 @@ Database backups do not contain Storage objects. The initial target accepts up t
 
 ```mermaid
 flowchart LR
-    subgraph CURRENT["Current mock — implemented, untrusted for import"]
+    subgraph CURRENT["Unconfigured demo — isolated, untrusted for import"]
         LS["localStorage offers, requests,<br/>responses, RideMatches, notifications"]
         RULES["Reusable domain rules,<br/>validators, state machines and tests"]
     end
 
-    subgraph STAGING["Target staging migration boundary"]
+    subgraph STAGING["Core migration and cutover boundary — implemented locally"]
         SEEDS["Canonical schema + synthetic seeds"]
         AUTH["Authentication + eligibility"]
         REQUESTS["Passenger requests"]
         OFFERS["One-time offers, then series + occurrences"]
         AGREEMENTS["Responses, atomic confirmation,<br/>capacity, disclosure, cancellation"]
-        TRIPS["My Trips + durable notifications"]
-        CUTOVER["Full backend cutover"]
-        SEEDS --> AUTH --> REQUESTS --> OFFERS --> AGREEMENTS --> TRIPS --> CUTOVER
+        CUTOVER["Configured Core board cutover"]
+        SEEDS --> AUTH --> REQUESTS --> OFFERS --> AGREEMENTS --> CUTOVER
     end
 
     subgraph PROD["Target production trust boundary"]
@@ -720,4 +719,4 @@ flowchart LR
     CLEANUP["One-time obsolete-key cleanup"] --> PREFS
 ```
 
-Production never dual-writes the same entity to PostgreSQL and `localStorage`. Current mock records have no trustworthy cross-device identity or provenance.
+The configured Core board never dual-writes the same entity to PostgreSQL and `localStorage`; the latter board is mounted only when backend configuration is absent. Existing mock records have no trustworthy cross-device identity or provenance and are not imported.

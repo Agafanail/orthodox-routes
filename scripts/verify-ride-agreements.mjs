@@ -185,9 +185,112 @@ async function placeId(requestId) {
 
 const firstArrival = isoAfter(7, 9);
 const firstRequest = await publishRequest(clients[0], firstArrival, 2, 'Alpha');
+const churchProjection = await rpc(anonymous, 'transport_church_by_slug', { p_slug: `agreement-test-${suffix}` });
+assert.equal(churchProjection.church_id, churchId);
+assert.equal(churchProjection.official_name, 'Synthetic Agreement Church');
+assert.equal(JSON.stringify(churchProjection).includes('Exact'), false);
+assert.equal(await rpc(anonymous, 'transport_church_by_slug', { p_slug: `missing-${suffix}` }), null);
+
+const contextualDraftId = randomUUID();
+runSql(container, `
+  insert into private.contextual_draft (
+    public_id, client_key, action_type, payload_version, payload, payload_fingerprint,
+    state, auth_user_id, account_id, expires_at, claimed_at
+  ) values (
+    ${sqlLiteral(contextualDraftId)}::uuid, ${sqlLiteral(randomUUID())}::uuid,
+    'passenger_request', 1, '{"safe":"fixture"}'::jsonb, repeat('c', 64),
+    'claimed', ${sqlLiteral(identities[0].id)}::uuid, ${sqlLiteral(identities[0].id)}::uuid,
+    now() + interval '1 hour', now()
+  );
+`);
+await expectRpcFailure(clients[4], 'complete_contextual_transport_draft', {
+  p_draft_id: contextualDraftId, p_result_id: firstRequest.request_id, p_result_type: 'passenger_request',
+});
+const completedDraft = await rpc(clients[0], 'complete_contextual_transport_draft', {
+  p_draft_id: contextualDraftId, p_result_id: firstRequest.request_id, p_result_type: 'passenger_request',
+});
+assert.equal(completedDraft.status, 'completed');
+assert.equal(runSql(container, `select state || ':' || (payload is null)::text from private.contextual_draft where public_id = ${sqlLiteral(contextualDraftId)}::uuid;`), 'completed:true');
 const firstOccurrence = await publishOccurrence(firstArrival, 1, 'first');
 const firstPlaceId = await placeId(firstRequest.request_id);
 assert.ok(firstPlaceId);
+
+const contextualResponseDraftId = randomUUID();
+runSql(container, `
+  insert into private.contextual_draft (
+    public_id, client_key, action_type, payload_version, payload, payload_fingerprint,
+    state, auth_user_id, account_id, expires_at, claimed_at
+  ) values (
+    ${sqlLiteral(contextualResponseDraftId)}::uuid, ${sqlLiteral(randomUUID())}::uuid,
+    'ride_response', 1, '{"safe":"response-fixture"}'::jsonb, repeat('d', 64),
+    'claimed', ${sqlLiteral(identities[2].id)}::uuid, ${sqlLiteral(identities[2].id)}::uuid,
+    now() + interval '1 hour', now()
+  );
+`);
+const contextualPassengerResponseArgs = {
+  p_child_seat_required: false, p_children_count: 0, p_church_id: churchId,
+  p_client_key: contextualResponseDraftId, p_desired_arrival_at: firstArrival,
+  p_occurrence_id: firstOccurrence.occurrence_id,
+  p_places: [{ exact_label: 'Exact contextual passenger', public_area_label: 'Context passenger district' }],
+  p_public_note: null, p_return_required: false, p_service_occurrence_id: null,
+  p_timezone: 'UTC', p_total_passengers: 1,
+};
+const contextualPassengerResponse = await rpc(clients[2], 'publish_contextual_passenger_response', contextualPassengerResponseArgs);
+assert.equal(contextualPassengerResponse.status, 'await_driver');
+assert.deepEqual(
+  await rpc(clients[2], 'publish_contextual_passenger_response', contextualPassengerResponseArgs),
+  contextualPassengerResponse,
+);
+assert.equal((await rpc(clients[2], 'complete_contextual_transport_draft', {
+  p_draft_id: contextualResponseDraftId, p_result_id: contextualPassengerResponse.response_id,
+  p_result_type: 'ride_response',
+})).status, 'completed');
+const unrelatedResponseDraftId = randomUUID();
+runSql(container, `
+  insert into private.contextual_draft (
+    public_id, client_key, action_type, payload_version, payload, payload_fingerprint,
+    state, auth_user_id, account_id, expires_at, claimed_at
+  ) values (
+    ${sqlLiteral(unrelatedResponseDraftId)}::uuid, ${sqlLiteral(randomUUID())}::uuid,
+    'ride_response', 1, '{"safe":"unrelated-response-fixture"}'::jsonb, repeat('e', 64),
+    'claimed', ${sqlLiteral(identities[2].id)}::uuid, ${sqlLiteral(identities[2].id)}::uuid,
+    now() + interval '1 hour', now()
+  );
+`);
+await expectRpcFailure(clients[2], 'complete_contextual_transport_draft', {
+  p_draft_id: unrelatedResponseDraftId, p_result_id: contextualPassengerResponse.response_id,
+  p_result_type: 'ride_response',
+});
+await rpc(clients[3], 'answer_passenger_response', {
+  p_accept: false, p_client_key: randomUUID(), p_offered_passenger_count: null,
+  p_place_id: null, p_response_id: contextualPassengerResponse.response_id,
+});
+
+const wrapperRequest = await publishRequest(clients[1], firstArrival, 1, 'Wrapper Beta');
+const contextualDriverResponse = await rpc(clients[3], 'publish_contextual_driver_response', {
+  p_arrival_at: firstArrival, p_children_allowed: false, p_church_id: churchId,
+  p_client_key: randomUUID(), p_departure_at: new Date(new Date(firstArrival).getTime() - 3600000).toISOString(),
+  p_driver_child_seat_available: false, p_exact_origin_label: 'Exact contextual driver',
+  p_max_detour_km: 5, p_offered_passenger_count: 1,
+  p_place_id: await placeId(wrapperRequest.request_id), p_public_note: null,
+  p_public_origin_area: 'Context driver district', p_request_id: wrapperRequest.request_id,
+  p_return_available: false, p_service_occurrence_id: null, p_timezone: 'UTC', p_total_seats: 1,
+});
+assert.equal(contextualDriverResponse.status, 'await_passenger');
+await rpc(clients[1], 'decline_ride_response', {
+  p_client_key: randomUUID(), p_response_id: contextualDriverResponse.response_id,
+});
+
+const requestCountBeforeFailedWrapper = runSql(container, `select count(*) from app.passenger_request where author_account_id = ${sqlLiteral(identities[2].id)}::uuid;`);
+await expectRpcFailure(clients[2], 'publish_contextual_passenger_response', {
+  p_child_seat_required: false, p_children_count: 0, p_church_id: churchId,
+  p_client_key: randomUUID(), p_desired_arrival_at: firstArrival, p_occurrence_id: randomUUID(),
+  p_places: [{ exact_label: 'Must roll back', public_area_label: 'Rollback district' }],
+  p_public_note: null, p_return_required: false, p_service_occurrence_id: null,
+  p_timezone: 'UTC', p_total_passengers: 1,
+});
+assert.equal(runSql(container, `select count(*) from app.passenger_request where author_account_id = ${sqlLiteral(identities[2].id)}::uuid;`), requestCountBeforeFailedWrapper);
+
 const firstResponse = await rpc(clients[3], 'submit_driver_response', {
   p_client_key: randomUUID(),
   p_occurrence_id: firstOccurrence.occurrence_id,
@@ -199,6 +302,7 @@ assert.equal(firstResponse.status, 'await_passenger');
 
 const passengerResponses = await rpc(clients[0], 'current_ride_responses');
 assert.equal(passengerResponses[0].response_id, firstResponse.response_id);
+assert.equal(passengerResponses[0].current_role, 'passenger');
 assert.equal(passengerResponses[0].selected_place.public_area_label, 'Alpha district');
 assert.equal(JSON.stringify(passengerResponses).includes('Exact Alpha'), false);
 assert.equal(JSON.stringify(passengerResponses).includes(identities[3].phone), false);
@@ -210,6 +314,8 @@ const firstAgreement = await rpc(clients[0], 'confirm_ride_response', {
   p_client_key: firstConfirmKey, p_response_id: firstResponse.response_id,
 });
 assert.equal(firstAgreement.status, 'confirmed');
+assert.equal((await rpc(clients[0], 'current_ride_agreements'))[0].current_role, 'passenger');
+assert.equal((await rpc(clients[3], 'current_ride_agreements'))[0].current_role, 'driver');
 assert.deepEqual(await rpc(clients[0], 'confirm_ride_response', {
   p_client_key: firstConfirmKey, p_response_id: firstResponse.response_id,
 }), firstAgreement);

@@ -14,6 +14,8 @@
     "test:drafts": "node scripts/verify-contextual-registration.mjs",
     "test:transport": "node scripts/verify-transport-foundation.mjs",
     "test:agreements": "node scripts/verify-ride-agreements.mjs",
+    "test:core-upgrade": "supabase db reset --local --version 20260820170000 && node scripts/verify-transport-foundation.mjs && supabase migration up --local && node scripts/verify-ride-agreements.mjs",
+    "core:e2e:prepare": "node scripts/prepare-core-browser-e2e.mjs",
     "db:start": "supabase db start",
     "db:reset": "supabase db reset --local",
     "db:stop": "supabase stop",

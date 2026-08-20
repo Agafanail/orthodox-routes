@@ -71,6 +71,9 @@ jobs:
       - name: Rebuild database from migrations
         run: npm run db:reset
 
+      - name: Verify representative Core upgrade
+        run: npm run test:core-upgrade
+
       - name: Stop local database
         if: always()
         run: npm run db:stop

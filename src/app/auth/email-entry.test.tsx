@@ -17,6 +17,7 @@ function renderEntry(
     <EmailEntry
       configured
       contextual={false}
+      contextualEmailSent={false}
       initialError={null}
       requestAction={requestAction}
       signedOut={false}
@@ -26,6 +27,20 @@ function renderEntry(
 }
 
 describe('email entry completed state', () => {
+  it('shows the contextual sent state without asking for the email again', () => {
+    render(<EmailEntry
+      configured
+      contextual
+      contextualEmailSent
+      initialError={null}
+      requestAction={vi.fn()}
+      signedOut={false}
+    />);
+    expect(screen.getByRole('heading', { name: 'Проверьте почту' })).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('не отправятся автоматически');
+    expect(screen.queryByRole('textbox', { name: 'Email' })).toBeNull();
+  });
+
   it('replaces the form after a successful request and includes the submitted email', async () => {
     const requestAction = renderEntry();
     fireEvent.change(screen.getByRole('textbox', { name: 'Email' }), {

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import type { EmailLinkActionState } from './state';
 import styles from './auth.module.css';
@@ -12,6 +13,7 @@ type RequestEmailLinkAction = (
 type EmailEntryProps = {
   configured: boolean;
   contextual: boolean;
+  contextualEmailSent: boolean;
   initialError: string | null;
   requestAction: RequestEmailLinkAction;
   signedOut: boolean;
@@ -28,6 +30,7 @@ const errors: Partial<Record<EmailLinkActionState['status'], string>> = {
 export function EmailEntry({
   configured,
   contextual,
+  contextualEmailSent,
   initialError,
   requestAction,
   signedOut,
@@ -50,6 +53,19 @@ export function EmailEntry({
       emailInputRef.current?.focus();
     }
   }, [standalone, state]);
+
+  if (contextualEmailSent) {
+    return (
+      <>
+        <p className={styles.eyebrow}>Письмо отправлено</p>
+        <h1 className={styles.title}>Проверьте почту</h1>
+        <p className={styles.lead} role="status">
+          Откройте письмо и подтвердите email. После этого вы вернётесь к сохранённым данным — они не отправятся автоматически.
+        </p>
+        <Link className={styles.secondaryButton} href="/churches">Вернуться к храмам</Link>
+      </>
+    );
+  }
 
   if (standalone) {
     const sent = state.status === 'sent';

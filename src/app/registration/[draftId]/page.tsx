@@ -5,9 +5,11 @@ import { parseContextualDraftId, type ContextualActionType } from '@/lib/context
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import {
   cancelContextualDraftAction,
+  acceptContextualTermsAction,
   createContextualAccountAction,
   declareContextualAdultAction,
   requestContextualPhoneVerificationAction,
+  publishContextualDraftAction,
   verifyContextualPhoneAction,
 } from '../actions';
 import styles from '../../auth/auth.module.css';
@@ -37,24 +39,40 @@ const actionLabels: Record<ContextualActionType, string> = {
 const payloadLabels: Record<string, string> = {
   churchId: 'Храм',
   churchName: 'Храм',
+  childrenAllowed: 'Можно с детьми',
+  childrenCount: 'Детей',
   date: 'Дата',
+  arrivalAt: 'Прибытие',
+  departureAt: 'Выезд',
+  desiredArrivalAt: 'Желаемое время прибытия',
   departureDescription: 'Откуда',
   departureTime: 'Время выезда',
   driverOfferId: 'Поездка',
+  driverChildSeatAvailable: 'Есть детское кресло',
+  exactOriginLabel: 'Точное место выезда',
   maxDetourKm: 'Максимальный крюк, км',
+  localArrivalTime: 'Время прибытия',
+  localDepartureTime: 'Время выезда',
   offerId: 'Поездка',
   offerMode: 'Периодичность',
   passengerCount: 'Пассажиров',
   passengerRequestId: 'Запрос',
   pickupDescription: 'Место посадки',
+  publicAreaLabel: 'Район посадки',
+  publicOriginArea: 'Район выезда',
   publicNote: 'Комментарий',
   returnRequired: 'Нужна обратная дорога',
+  returnAvailable: 'Возможна обратная дорога',
   seatsAvailable: 'Свободных мест',
   seatsRequested: 'Нужно мест',
   serviceDate: 'Дата службы',
   serviceEvent: 'Служба',
   serviceId: 'Служба',
   serviceName: 'Служба или дата',
+  startsOn: 'Начало повторения',
+  targetName: 'Ответ для',
+  targetSummary: 'Выбранная карточка',
+  endsOn: 'Конец повторения',
   weekdays: 'Дни недели',
 };
 
@@ -71,6 +89,13 @@ const statusMessages: Record<string, string> = {
   'phone-requested': 'Код поставлен в очередь на отправку.',
   'phone-unavailable': 'Проверка телефона сейчас недоступна.',
   'phone-verified': 'Телефон подтверждён.',
+  'eligibility-required': 'Сначала завершите обязательные проверки и примите актуальные Условия участия.',
+  'publication-failed': 'Не удалось отправить действие. Данные сохранены — попробуйте ещё раз.',
+  'publication-invalid': 'Сохранённые данные больше нельзя отправить. Удалите действие и заполните форму заново.',
+  'publication-saved': 'Действие опубликовано, но финальная отметка не сохранилась. Нажмите отправку ещё раз — дубликат не появится.',
+  'publication-unavailable': 'Этот тип действия пока нельзя отправить из данного экрана.',
+  'terms-accepted': 'Актуальные Условия участия приняты.',
+  'terms-failed': 'Не удалось принять Условия участия. Обновите страницу и попробуйте ещё раз.',
 };
 
 function asObject(value: unknown): JsonObject | null {
@@ -79,20 +104,27 @@ function asObject(value: unknown): JsonObject | null {
     : null;
 }
 
-const weekdayLabels = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+const weekdayLabels = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
-function displayValue(key: string, value: unknown) {
+function displayValue(key: string, value: unknown, timezone?: string) {
   if (typeof value === 'boolean') return value ? 'Да' : 'Нет';
   if (key === 'offerMode' && value === 'trip') return 'Разовая поездка';
   if (key === 'offerMode' && value === 'route') return 'Регулярная поездка';
   if (key === 'weekdays' && Array.isArray(value)) {
     const labels = value
-      .filter((day): day is number => Number.isInteger(day) && day >= 1 && day <= 7)
-      .map((day) => weekdayLabels[day - 1]);
+      .filter((day): day is number => Number.isInteger(day) && day >= 0 && day <= 6)
+      .map((day) => weekdayLabels[day]);
     return labels.length > 0 ? labels.join(', ') : null;
   }
   if (typeof value === 'string') {
     const visible = value.trim();
+    if (['arrivalAt', 'departureAt', 'desiredArrivalAt'].includes(key) && Number.isFinite(Date.parse(visible))) {
+      try {
+        return new Intl.DateTimeFormat('ru-RU', {
+          dateStyle: 'medium', timeStyle: 'short', timeZone: timezone ?? 'UTC',
+        }).format(new Date(visible));
+      } catch { return visible; }
+    }
     return visible ? visible.slice(0, 240) : null;
   }
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
@@ -123,12 +155,13 @@ export default async function RegistrationPage({ params, searchParams }: Registr
     ? await supabase.schema('api').rpc('current_phone_verification')
     : null;
   const phoneAttempt = asObject(phoneResult?.data);
+  const payloadTimezone = typeof payload.timezone === 'string' ? payload.timezone : undefined;
   const query = await searchParams;
   const status = typeof query.status === 'string' ? statusMessages[query.status] : null;
   const summary = Object.entries(payload)
     .filter(([key, value]) => (
       payloadLabels[key]
-      && displayValue(key, value) !== null
+      && displayValue(key, value, payloadTimezone) !== null
       && !(key === 'churchId' && typeof payload.churchName === 'string')
       && !(key === 'serviceId' && typeof payload.serviceName === 'string')
       && !(key === 'serviceDate' && typeof payload.serviceName === 'string')
@@ -154,7 +187,7 @@ export default async function RegistrationPage({ params, searchParams }: Registr
           {summary.length > 0 ? summary.map(([key, value]) => (
             <div key={key}>
               <dt>{payloadLabels[key]}</dt>
-              <dd>{displayValue(key, value)}</dd>
+              <dd>{displayValue(key, value, payloadTimezone)}</dd>
             </div>
           )) : (
             <div><dt>Данные</dt><dd>Сохранены и доступны только вам до завершения действия.</dd></div>
@@ -226,10 +259,28 @@ export default async function RegistrationPage({ params, searchParams }: Registr
           <p className={styles.notice}>
             Актуальные Условия участия ещё не опубликованы. Принять их и отправить действие сейчас нельзя.
           </p>
+        ) : eligibility.current_terms_accepted !== true && account ? (
+          <form action={acceptContextualTermsAction} className={styles.form}>
+            <input name="draft_id" type="hidden" value={draftId} />
+            <label>
+              <input name="terms" required type="checkbox" value="yes" /> Я принимаю актуальные Условия участия
+            </label>
+            <button className={styles.secondaryButton} type="submit">Принять условия</button>
+          </form>
         ) : null}
-        <p className={styles.secondaryText}>
-          Кнопка отправки появится только после всех обязательных проверок и повторной проверки данных сервером.
-        </p>
+
+        {eligibility.eligible === true ? (
+          <form action={publishContextualDraftAction} className={styles.form}>
+            <input name="draft_id" type="hidden" value={draftId} />
+            <button className={styles.primaryButton} type="submit">
+              {actionType === 'ride_response' ? 'Отправить ответ' : 'Опубликовать'}
+            </button>
+          </form>
+        ) : (
+          <p className={styles.secondaryText}>
+            Кнопка отправки появится только после всех обязательных проверок и повторной проверки данных сервером.
+          </p>
+        )}
 
         <form action={cancelContextualDraftAction} className={styles.form}>
           <input name="draft_id" type="hidden" value={draftId} />

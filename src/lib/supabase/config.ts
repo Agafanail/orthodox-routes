@@ -51,6 +51,13 @@ export function isSafePublicSupabaseKey(key: string) {
   return getJwtRole(value) !== 'service_role';
 }
 
+export function hasPublicSupabaseConfigurationIntent() {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+    || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim(),
+  );
+}
+
 export function getPublicSupabaseConfig(): PublicSupabaseConfig | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();

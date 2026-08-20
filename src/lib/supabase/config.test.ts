@@ -4,6 +4,7 @@ import {
   getApplicationOrigin,
   getPublicSupabaseConfig,
   getServerSupabaseConfig,
+  hasPublicSupabaseConfigurationIntent,
   isSafePublicSupabaseKey,
   isSafeServerSupabaseKey,
 } from './config';
@@ -49,6 +50,14 @@ describe('public Supabase configuration', () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
+    expect(getPublicSupabaseConfig()).toBeNull();
+    expect(hasPublicSupabaseConfigurationIntent()).toBe(false);
+  });
+
+  it('distinguishes partial configuration from an explicitly unconfigured environment', () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://partial.example.test';
+    delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    expect(hasPublicSupabaseConfigurationIntent()).toBe(true);
     expect(getPublicSupabaseConfig()).toBeNull();
   });
 

@@ -1,6 +1,6 @@
 # Roadmap for Codex tasks
 
-Roadmap separates the implemented browser-only prototype from the approved first complete public multi-user version. Product purpose and version boundaries are defined by [ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md](ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md); target screens, navigation, journeys, permissions, states, visibility, routes, taxonomy, and content structure are defined by [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md). The phases below are an implementation sequence for that one complete approved version, not a series of reduced product releases. Do not add future functionality silently or combine multiple phases into one task without explicit approval.
+Roadmap separates the isolated browser demo and implemented local Core slice from the approved first complete public multi-user version. Product purpose and version boundaries are defined by [ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md](ORTHODOX_ROUTES_PRODUCT_SCOPE_V1.md); target screens, navigation, journeys, permissions, states, visibility, routes, taxonomy, and content structure are defined by [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md). The phases below are an implementation sequence for that one complete approved version, not a series of reduced product releases. Do not add future functionality silently or combine multiple phases into one task without explicit approval.
 
 ## Authority and current phase
 
@@ -15,7 +15,7 @@ Roadmap separates the implemented browser-only prototype from the approved first
 - Maps are part of the required first full version, even though they are not part of the current mock.
 - Product-scope approval does not authorize implementing all phases in one change.
 
-## Current implemented mock prototype
+## Current implementation and unconfigured demo
 
 - Next.js App Router prototype with React, TypeScript, Tailwind CSS, and ESLint.
 - Public routes for churches and drivers without registration.
@@ -46,7 +46,8 @@ Roadmap separates the implemented browser-only prototype from the approved first
 - Provider-independent application-owned phone verification with versioned policy, idempotent attempts, transient restricted delivery material, expiry and attempt limits, race-safe uniqueness, authoritative eligibility transition, and an ungranted worker lease contract. No external SMS provider or production fake is configured.
 - A protected contextual-registration application foundation with bounded action-only payloads, separate temporary profile data, sealed resume tickets, hashed capabilities and intended-email binding, server-only rate-limited writes, pre-account Auth ownership, account linking, explicit final review, and terminal cleanup. Claim and verification never publish an action.
 - The first server-owned Core transport slice with canonical church/service references, passenger requests, one-time driver offers, bounded regular series, date-specific capacity records, eligibility-gated/idempotent protected operations, owner-only exact pre-map labels, safe anonymous projections, and database-enforced ownership.
-- The participant boundary for bidirectional responses, immutable condition snapshots, atomic agreement confirmation, independent occurrence capacity, partial passenger need, exact-once individual/date/series cancellation, explicit request restoration, lifecycle expiry, and participant-only contact/exact-place disclosure. The application UI cutover remains a later checkpoint.
+- The participant boundary for bidirectional responses, immutable condition snapshots, atomic agreement confirmation, independent occurrence capacity, partial passenger need, exact-once individual/date/series cancellation, explicit request restoration, lifecycle expiry, and participant-only contact/exact-place disclosure.
+- The configured church transport board reads and mutates only the server-owned Core domain, supports contextual explicit publication after eligibility, and retrieves protected contact/exact-place data only after a participant action. The historical browser board remains an unconfigured demo and is never a fallback for a configured backend.
 - First church transport board component-extraction refactor for the request dialog, passenger request card, and mock notification center.
 - Second church transport board presentational extraction for page actions, request and response panels, targeted requests, and driver offers.
 - Centralized one-time-trip visibility based on open status, available seats, and a local departure date and time that has not passed.
@@ -54,7 +55,7 @@ Roadmap separates the implemented browser-only prototype from the approved first
 - Human-language driver-offer UI with trip-specific origin, numeric maximum detour, 1–55 seat selection, blur/touched validation, human cancellation copy, and static-plus-browser-local church counters.
 - Role-labelled passenger/driver page actions, origin-to-church offers with numeric maximum detour, shared compact service/date selection, and an intentional no-schedule church scenario.
 
-The repository still has no remote application backend, production application cutover, production email/push/SMS delivery, production Terms/Privacy text, Firebase, Google Maps, Telegram, payments, WhatsApp API, or admin features. The configured contextual flow is connected to passenger-request and driver-offer entry, verified-email claim, account materialization, adult declaration, phone challenge request, and final review, but no SMS provider or production Terms version is configured, so eligibility and explicit publication remain unavailable through the ordinary UI. The server-owned transport, response, agreement, capacity, cancellation, and disclosure RPC boundaries are implemented and verified locally; current visible transport flows remain browser-local until the campaign integration checkpoint replaces that trust boundary.
+The repository still has no remote application backend, production email/push/SMS delivery, production Terms/Privacy text, Firebase, Google Maps, Telegram, payments, WhatsApp API, or admin features. The contextual flow is connected from passenger/driver input through verified-email claim, account materialization, adult declaration, phone challenge, Terms acceptance, explicit final review, and idempotent publication. Local browser verification uses synthetic legal and eligible-account fixtures; ordinary environments remain correctly gated until current legal content and phone delivery are configured. The configured church transport board is cut over to the server-owned transport, response, agreement, capacity, cancellation, restoration, and disclosure RPCs with no `localStorage` fallback or dual write.
 
 ## Development sequence
 
@@ -91,12 +92,12 @@ The target data model and target project diagrams are approved architecture arti
 - Implement the local passwordless email identity/session foundation — completed locally only, without remote Supabase or production email.
 - Implement the backend-only Account & Eligibility Foundation — completed locally with explicit application-account materialization, protected contacts, an 18+ declaration, versioned legal-document/Terms acceptance, and authoritative eligibility evaluation; no external SMS delivery, production legal text, profile UI, or contextual registration is included.
 - Implement the provider-independent Phone Verification Foundation — completed locally in the active Backend Campaign; external SMS delivery remains behind the adapter and owner-controlled provider boundary.
-- Implement contextual registration/profile flow — protected drafts, application orchestration, verified-email claim, account materialization, adult declaration, phone challenge request, and explicit final review are complete; Terms acceptance, phone delivery, and final publication remain gated on the corresponding Core integration/provider boundaries.
-- Implement external SMS adapter/environment work and later Core application backend slices in the active Backend Campaign.
-- Migrate the approved transport-board domain model from browser storage — source entities, ownership, safe projections, date-specific occurrences, responses, agreements, capacity, cancellation, and disclosure are implemented locally; application cutover remains.
-- Enforce ownership and authorization server-side.
-- Keep contacts unavailable to anonymous users and unconfirmed counterparties.
-- Support contextual registration from the action the visitor was already performing.
+- Implement contextual registration/profile flow — protected drafts, application orchestration, verified-email claim, account materialization, adult declaration, phone challenge request, Terms acceptance, explicit final review, idempotent publication, and terminal draft cleanup are complete; real SMS delivery and production legal versions remain external gates.
+- Keep real SMS delivery behind the owner-controlled provider, billing, sender-registration, callback, and secret-injection staging gate; no provider is approved or configured in the repository.
+- Migrate the approved transport-board domain model from browser storage — source entities, ownership, safe projections, date-specific occurrences, responses, agreements, capacity, cancellation, disclosure, and the configured Core application cutover are implemented locally without importing or dual-writing browser records.
+- Enforce ownership and authorization server-side — completed for the implemented Core domain.
+- Keep contacts unavailable to anonymous users and unconfirmed counterparties — completed for the implemented Core agreement boundary.
+- Support contextual registration from the action the visitor was already performing — completed for requests, offers, and responses with an explicit final send.
 
 ### 5. Maps and quality matching
 

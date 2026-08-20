@@ -41,12 +41,12 @@ Explicitly excluded:
 | B | Phone verification foundation | Complete | Commit `1391288`; CI `31880347230` green, including clean replay and phone boundary tests |
 | C | Contextual registration and account completion | In progress | Draft boundary commit `66722e0`, CI `31881253603`; application slice commit `67db6e6`, CI `32401683278`, all green; final publication joins D/F and provider/legal gates remain |
 | D | Server-owned multi-user transport domain | Complete | Commit `5b2b563`; CI `32404233548` green; source entities, eligibility/ownership, safe projections, regular occurrences, and tests; stops before Maps/quality matching |
-| E | Ownership, confirmation, agreements, capacity, cancellation, disclosure | In progress | Both response directions, immutable snapshots, atomic confirmation/capacity, exact-once cancellation/restoration, lifecycle, disclosure, concurrency and privacy tests implemented locally |
-| F | Core application integration and browser-state cutover | Pending | Real multi-user flows; no visual-redesign expansion |
-| G | Remote/staging readiness | Pending | Complete independent configuration before any owner-action gate |
+| E | Ownership, confirmation, agreements, capacity, cancellation, disclosure | Complete | Commit `18d749a`; CI `32407136829` green; both response directions, immutable snapshots, atomic confirmation/capacity, exact-once cancellation/restoration, lifecycle, disclosure, concurrency and privacy tests |
+| F | Core application integration and browser-state cutover | In progress | Server-rendered RPC board, contextual explicit publication, owner actions, response/agreement flows, protected on-demand disclosure, and isolated multi-session browser verification implemented locally; no visual-redesign expansion |
+| G | Remote/staging readiness | In progress | Exact environment, Auth redirect, migration, SMS-worker, privacy, smoke, and promotion contracts documented locally without remote access or credentials |
 | H | Fresh final Core Platform audit | Pending | Full authority, migrations, security/privacy, browser/E2E, documentation, Git and CI audit |
 
-**Current continuation:** verify and publish Checkpoint E, then immediately cut the real Core application flows over to the backend in Checkpoint F. Keep C open until the D/F publication path proves the full contextual return-and-send journey.
+**Current continuation:** verify and publish Checkpoint F, then continue immediately through independent remote/staging readiness and the fresh final Core audit. Checkpoint C remains open only until F has green CI evidence for the full contextual return-and-send journey.
 
 For every completed checkpoint, replace its status with `Complete` and record commit SHA plus final green CI run. Update **Current continuation** to the next unfinished scope. Do not record synthetic research, pending CI as green, or external verification that did not occur.
 

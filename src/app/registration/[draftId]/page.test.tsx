@@ -10,10 +10,12 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 vi.mock('../actions', () => ({
+  acceptContextualTermsAction: vi.fn(),
   cancelContextualDraftAction: vi.fn(),
   createContextualAccountAction: vi.fn(),
   declareContextualAdultAction: vi.fn(),
   requestContextualPhoneVerificationAction: vi.fn(),
+  publishContextualDraftAction: vi.fn(),
   verifyContextualPhoneAction: vi.fn(),
 }));
 
@@ -113,5 +115,66 @@ describe('contextual registration final review', () => {
     expect(html).toContain('Актуальные Условия участия ещё не опубликованы');
     expect(html).not.toContain('Принять Условия');
     expect(html).toContain('Кнопка отправки появится только после');
+  });
+
+  it('reviews the selected response target and preserves Sunday in a regular schedule', async () => {
+    rpc.mockImplementation(async (name: string) => {
+      if (name === 'current_contextual_draft') return {
+        data: {
+          ...draft,
+          action_type: 'ride_response',
+          payload: {
+            churchName: 'Храм Покрова',
+            targetName: 'Иван',
+            targetSummary: 'Северный район · 1 сентября, 11:00',
+            weekdays: [0, 6],
+          },
+        },
+        error: null,
+      };
+      if (name === 'current_account') return { data: null, error: null };
+      throw new Error(`Unexpected RPC: ${name}`);
+    });
+
+    const html = renderToStaticMarkup(await RegistrationPage({
+      params: Promise.resolve({ draftId }), searchParams: Promise.resolve({}),
+    }));
+    expect(html).toContain('Ответ на поездку');
+    expect(html).toContain('Ответ для');
+    expect(html).toContain('Иван');
+    expect(html).toContain('Северный район');
+    expect(html).toContain('вс, сб');
+  });
+
+  it('shows one explicit publication action only after server-owned eligibility is complete', async () => {
+    rpc.mockImplementation(async (name: string) => {
+      if (name === 'current_contextual_draft') return {
+        data: {
+          ...draft,
+          eligibility: {
+            account_exists: true,
+            current_terms_accepted: true,
+            current_terms_version: 'terms-1',
+            eligible: true,
+          },
+        },
+        error: null,
+      };
+      if (name === 'current_account') return {
+        data: {
+          adult_declared_at: '2026-08-20T10:00:00Z', display_name: 'Мария',
+          email: 'maria@example.org', phone: '+390000000000', phone_verified_at: '2026-08-20T10:00:00Z',
+        },
+        error: null,
+      };
+      throw new Error(`Unexpected RPC: ${name}`);
+    });
+
+    const html = renderToStaticMarkup(await RegistrationPage({
+      params: Promise.resolve({ draftId }), searchParams: Promise.resolve({}),
+    }));
+    expect(html).toContain('>Опубликовать<');
+    expect(html).not.toContain('Кнопка отправки появится только после');
+    expect(html).not.toContain('Я принимаю актуальные Условия участия');
   });
 });

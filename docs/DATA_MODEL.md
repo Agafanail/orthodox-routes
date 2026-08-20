@@ -1,6 +1,6 @@
 # Current prototype data model v0.1
 
-> **Status:** this is a historical Firestore-shaped model plus detailed notes about the current browser-only implementation. It is not the canonical target model, an approved physical database schema, backend choice, API contract, or migration plan. The current runnable prototype remains mock-only and does not add Firebase.
+> **Status:** this is a historical Firestore-shaped model plus detailed notes about the isolated unconfigured browser demo. It is not the canonical target model, an approved physical database schema, backend choice, API contract, or migration plan. The configured Core transport board now uses the separate PostgreSQL/RPC model documented in the approved target model and migrations; the demo remains mock-only and does not add Firebase.
 >
 > The approved future product relationships, visibility levels, permissions, states, routes, and context transitions are defined in [ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md](ORTHODOX_ROUTES_INFORMATION_ARCHITECTURE_V2.md), especially sections 42–49. The draft canonical production logical model is [ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md](ORTHODOX_ROUTES_TARGET_DATA_MODEL_V1.md), and its selected technology and trust boundaries are in [ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md](ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md). Both remain pending final owner review and are not executable migrations. If this v0.1 model conflicts with Product Scope, IA V2, or the later approved target model, this document remains only a current-prototype or historical implementation reference.
 
@@ -495,7 +495,7 @@ Locally created routes keep explicit `status: 'cancelled'` support. Cancellation
 
 Hydration parses local profile and offer records into explicit safe shapes. Malformed or outdated entries are ignored, unexpected fields are discarded, duplicate local IDs are suppressed, and IDs colliding with static drivers or offers are not merged into the public board.
 
-Browser localStorage is not an authorization boundary and can be manually modified. Authentication, server persistence, per-user ownership, and cancellation authorization must be enforced by the backend architecture selected in a later phase.
+Browser localStorage is not an authorization boundary and can be manually modified. It is now confined to the explicitly unconfigured demo transport board. The configured Core board uses server persistence, session-derived actors, per-user ownership, and protected cancellation RPCs with no localStorage fallback or dual write.
 
 A mock one-time `Trip` is publicly available only while `status === 'open'`, `seatsAvailable > 0`, and the local value composed from `date` and `departureTime` has not passed. The same rule filters church and driver trip selectors and church-board offers. Passenger and driver service dropdowns use the church's structured future services rather than deriving schedule choices from transport offers. Regular-route visibility is unchanged.
 

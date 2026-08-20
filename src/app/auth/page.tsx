@@ -81,6 +81,7 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
           <EmailEntry
             configured={configured}
             contextual={contextual}
+            contextualEmailSent={contextual && status === 'contextual-email-sent'}
             initialError={error}
             requestAction={requestEmailLinkAction}
             signedOut={status === 'signed-out'}
