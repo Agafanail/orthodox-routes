@@ -57,14 +57,25 @@ function userClient(url, publicKey) {
   });
 }
 
+async function callRpc(client, name, args = {}) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const result = await client.schema('api').rpc(name, args);
+    const cachePending = result.error
+      && /schema cache|could not find the function|retrying/i.test(result.error.message);
+    if (!cachePending || attempt === 11) return result;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error('Unreachable RPC retry state.');
+}
+
 async function rpc(client, name, args = {}) {
-  const result = await client.schema('api').rpc(name, args);
+  const result = await callRpc(client, name, args);
   if (result.error) fail(`Transport RPC failed: ${name}: ${result.error.message}`);
   return result.data;
 }
 
 async function expectRpcFailure(client, name, args = {}) {
-  const result = await client.schema('api').rpc(name, args);
+  const result = await callRpc(client, name, args);
   assert.ok(result.error, `${name} unexpectedly succeeded.`);
   return result.error;
 }
