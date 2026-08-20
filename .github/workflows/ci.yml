@@ -113,6 +113,9 @@ jobs:
       - name: Verify contextual registration drafts
         run: npm run test:drafts
 
+      - name: Verify server-owned transport foundation
+        run: npm run test:transport
+
       - name: Stop local Auth
         if: always()
         run: npm run auth:stop
