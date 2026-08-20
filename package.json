@@ -13,6 +13,7 @@
     "test:phone": "node scripts/verify-phone-verification.mjs",
     "test:drafts": "node scripts/verify-contextual-registration.mjs",
     "test:transport": "node scripts/verify-transport-foundation.mjs",
+    "test:agreements": "node scripts/verify-ride-agreements.mjs",
     "db:start": "supabase db start",
     "db:reset": "supabase db reset --local",
     "db:stop": "supabase stop",

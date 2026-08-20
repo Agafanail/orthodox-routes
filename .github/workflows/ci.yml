@@ -116,6 +116,9 @@ jobs:
       - name: Verify server-owned transport foundation
         run: npm run test:transport
 
+      - name: Verify ride agreements and disclosure
+        run: npm run test:agreements
+
       - name: Stop local Auth
         if: always()
         run: npm run auth:stop
