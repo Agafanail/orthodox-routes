@@ -63,11 +63,11 @@ function userClient(url, publicKey) {
 }
 
 async function callRpc(client, name, args = {}) {
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
     const result = await client.schema('api').rpc(name, args);
     const cachePending = result.error
       && /schema cache|could not find the function|retrying/i.test(result.error.message);
-    if (!cachePending || attempt === 11) return result;
+    if (!cachePending || attempt === 59) return result;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error('Unreachable RPC retry state.');
