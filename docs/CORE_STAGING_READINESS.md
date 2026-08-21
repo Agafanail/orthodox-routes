@@ -1,8 +1,16 @@
 # Core Multi-User Staging Readiness
 
+## Verified staging state — 21 August 2026
+
+The isolated `orthodox-routes-staging` Supabase project and `https://orthodox-routes-staging.onrender.com` deployment are configured with synthetic-only data boundaries. All eight committed migrations through `20260820200000_core_application_projection.sql` are applied with matching local/remote history. The remote API exposes only the committed `api` schema, Auth uses the exact HTTPS `/auth/confirm` redirect, and `GET /api/readiness` returns HTTP 200.
+
+`npm run test:staging-core` passed against the remote Auth/Data API and HTTPS board with separate synthetic passenger, driver, and unrelated identities. It verified public/private projections, actor ownership, agreement, capacity, cancellation, restoration, and on-demand disclosure, then removed every synthetic fixture. Remote security advisors reported 41 expected warnings for the deliberately executable `SECURITY DEFINER` RPC boundary and no other warning type; direct sensitive grants, unhardened security-definer functions, actor-ID API arguments, and protected tables without FORCE RLS all remained zero.
+
+Real staging email-link delivery and real SMS delivery are not verified. No application SMS worker/provider account, billing, sender/route registration, callback authentication, or provider secret is configured. The database-owner phone fixture used by the remote smoke proves only the deployed eligibility boundary and is not provider evidence.
+
 ## Status and boundary
 
-This is the version-controlled readiness contract for an isolated Orthodox Routes Core staging environment. It does not link this repository to a Supabase project, create a remote project, apply remote migrations, configure billing, publish legal text, or store provider credentials. Those are owner-controlled actions. Maps, geocoding, routing, PostGIS quality matching, notification delivery, and later roadmap domains are outside this contract.
+This is the version-controlled readiness contract for the isolated Orthodox Routes Core staging environment. It does not authorize production access, configure billing, publish production legal text, or store provider credentials. Those remain owner-controlled actions. Maps, geocoding, routing, PostGIS quality matching, notification delivery, and later roadmap domains are outside this contract.
 
 ## Required environment values
 
@@ -20,9 +28,9 @@ The Next.js runtime requires exactly these application values:
 
 ## Supabase and Auth configuration
 
-Before application smoke testing, the owner or authorized deployment pipeline must:
+Before application smoke testing, the owner or authorized deployment pipeline must maintain the following configuration:
 
-1. create or select an isolated staging project and record its region and ownership;
+1. use only the isolated staging project and record its region and ownership;
 2. configure the Auth Site URL to the exact `ORTHODOX_ROUTES_APP_URL` origin;
 3. allow the exact `/auth/confirm` redirect on that origin, without wildcard production domains;
 4. keep anonymous Auth identities disabled and email confirmation enabled;
@@ -52,6 +60,10 @@ Run these checks before declaring staging usable:
 9. confirm contacts and exact meeting place are absent from initial HTML and appear only after the participant's explicit disclosure action;
 10. cancel the agreement and verify disclosure is immediately unavailable, capacity returns exactly once, and full passenger need requires explicit restoration;
 11. inspect application, Auth, database, and provider logs to confirm they contain no OTP, resume capability, contact, exact-place, cookie, service key, or full protected payload.
+
+For a newly linked, empty, synthetic-only project named exactly `orthodox-routes-staging`, `npm run test:staging-core` performs the database/API part of this sequence with three isolated synthetic identities and then removes every fixture it created. It refuses any differently named, unhealthy, or non-empty project, obtains keys only through the already-authenticated Supabase CLI without persisting or printing them, and leaves real email-link and SMS delivery for the separately configured provider smoke. Its database-owner phone fixture proves remote eligibility wiring only and must never be reported as real SMS verification.
+
+The committed `supabase/config.toml` is local-only and must never be pushed directly to a remote project because its Auth URLs intentionally point at localhost. Remote API/Auth changes require a reviewed staging-specific operation that preserves the exact HTTPS Site URL and `/auth/confirm` redirect.
 
 ## Promotion gate
 

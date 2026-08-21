@@ -1,5 +1,6 @@
 # Safe, local-only configuration for the database foundation and email Auth slice.
-# No remote project is linked. The auth:start wrapper excludes every unrelated service.
+# This file does not select or configure any remote target. The auth:start wrapper excludes every unrelated service.
+# Never run `supabase config push` against a remote project from this file: its Auth URLs are intentionally local.
 project_id = "orthodox-routes"
 
 [api]
