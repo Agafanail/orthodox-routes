@@ -10,6 +10,12 @@ export type ContextualRegistrationConfig = {
   secret: string;
 };
 
+export type BirdSmsConfig = {
+  apiBaseUrl: string;
+  apiKey: string;
+  sender: string;
+};
+
 export function getApplicationOrigin() {
   const appUrl = process.env.ORTHODOX_ROUTES_APP_URL?.trim();
   if (!appUrl) return null;
@@ -99,4 +105,37 @@ export function getContextualRegistrationConfig(): ContextualRegistrationConfig 
   const appOrigin = getApplicationOrigin();
   const secret = process.env.CONTEXTUAL_REGISTRATION_SECRET?.trim();
   return appOrigin && secret && secret.length >= 32 ? { appOrigin, secret } : null;
+}
+
+export function getBirdSmsConfig(): BirdSmsConfig | null {
+  const apiBaseUrl = process.env.BIRD_API_BASE_URL?.trim();
+  const apiKey = process.env.BIRD_API_KEY?.trim();
+  const sender = process.env.BIRD_SMS_SENDER?.trim();
+  if (
+    !apiBaseUrl
+    || !apiKey
+    || !sender
+    || !/^bk_[a-z]{2}[0-9]+_[A-Za-z0-9_-]{16,}$/.test(apiKey)
+    || !/^(?=.{1,11}$)(?=.*[A-Za-z])[A-Za-z0-9]+$/.test(sender)
+  ) return null;
+
+  try {
+    const parsed = new URL(apiBaseUrl);
+    const region = /^([a-z]{2}[0-9]+)\.platform\.bird\.com$/.exec(parsed.hostname)?.[1];
+    const keyRegion = /^bk_([a-z]{2}[0-9]+)_/.exec(apiKey)?.[1];
+    if (
+      parsed.protocol !== 'https:'
+      || parsed.username
+      || parsed.password
+      || parsed.port
+      || parsed.search
+      || parsed.hash
+      || (parsed.pathname !== '/' && parsed.pathname !== '')
+      || !region
+      || region !== keyRegion
+    ) return null;
+    return { apiBaseUrl: parsed.origin, apiKey, sender };
+  } catch {
+    return null;
+  }
 }

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   getContextualRegistrationConfig,
   getApplicationOrigin,
+  getBirdSmsConfig,
   getPublicSupabaseConfig,
   getServerSupabaseConfig,
   hasPublicSupabaseConfigurationIntent,
@@ -14,6 +15,9 @@ const originalKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const originalSecretKey = process.env.SUPABASE_SECRET_KEY;
 const originalAppUrl = process.env.ORTHODOX_ROUTES_APP_URL;
 const originalContextSecret = process.env.CONTEXTUAL_REGISTRATION_SECRET;
+const originalBirdApiBaseUrl = process.env.BIRD_API_BASE_URL;
+const originalBirdApiKey = process.env.BIRD_API_KEY;
+const originalBirdSmsSender = process.env.BIRD_SMS_SENDER;
 
 function legacyJwt(role: string) {
   const payload = Buffer.from(JSON.stringify({ role })).toString('base64url');
@@ -33,6 +37,12 @@ afterEach(() => {
   else process.env.ORTHODOX_ROUTES_APP_URL = originalAppUrl;
   if (originalContextSecret === undefined) delete process.env.CONTEXTUAL_REGISTRATION_SECRET;
   else process.env.CONTEXTUAL_REGISTRATION_SECRET = originalContextSecret;
+  if (originalBirdApiBaseUrl === undefined) delete process.env.BIRD_API_BASE_URL;
+  else process.env.BIRD_API_BASE_URL = originalBirdApiBaseUrl;
+  if (originalBirdApiKey === undefined) delete process.env.BIRD_API_KEY;
+  else process.env.BIRD_API_KEY = originalBirdApiKey;
+  if (originalBirdSmsSender === undefined) delete process.env.BIRD_SMS_SENDER;
+  else process.env.BIRD_SMS_SENDER = originalBirdSmsSender;
 });
 
 describe('public Supabase configuration', () => {
@@ -107,5 +117,39 @@ describe('server-only backend configuration', () => {
     process.env.ORTHODOX_ROUTES_APP_URL = 'https://routes.example.org';
     process.env.CONTEXTUAL_REGISTRATION_SECRET = 'short';
     expect(getContextualRegistrationConfig()).toBeNull();
+  });
+});
+
+describe('Bird SMS configuration', () => {
+  it('accepts one matching regional key, base URL, and active alphanumeric sender', () => {
+    process.env.BIRD_API_BASE_URL = 'https://eu1.platform.bird.com';
+    process.env.BIRD_API_KEY = `bk_eu1_${'a'.repeat(32)}`;
+    process.env.BIRD_SMS_SENDER = 'OrthoRoutes';
+
+    expect(getBirdSmsConfig()).toEqual({
+      apiBaseUrl: 'https://eu1.platform.bird.com',
+      apiKey: process.env.BIRD_API_KEY,
+      sender: 'OrthoRoutes',
+    });
+  });
+
+  it('fails closed for absent, mismatched, or unsafe provider configuration', () => {
+    delete process.env.BIRD_API_BASE_URL;
+    delete process.env.BIRD_API_KEY;
+    delete process.env.BIRD_SMS_SENDER;
+    expect(getBirdSmsConfig()).toBeNull();
+
+    process.env.BIRD_API_BASE_URL = 'https://us1.platform.bird.com';
+    process.env.BIRD_API_KEY = `bk_eu1_${'a'.repeat(32)}`;
+    process.env.BIRD_SMS_SENDER = 'OrthoRoutes';
+    expect(getBirdSmsConfig()).toBeNull();
+
+    process.env.BIRD_API_BASE_URL = 'https://eu1.platform.bird.com/untrusted';
+    expect(getBirdSmsConfig()).toBeNull();
+    process.env.BIRD_API_BASE_URL = 'https://eu1.platform.bird.com';
+    process.env.BIRD_SMS_SENDER = 'sender-too-long';
+    expect(getBirdSmsConfig()).toBeNull();
+    process.env.BIRD_SMS_SENDER = 'unsafe-id';
+    expect(getBirdSmsConfig()).toBeNull();
   });
 });

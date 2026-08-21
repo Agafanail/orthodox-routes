@@ -96,6 +96,31 @@ function completeDelivery(container, attemptId, leaseToken, delivered = true, ex
   );
 }
 
+async function claimDeliveryThroughWorkerApi(client, attemptId) {
+  const leaseToken = randomUUID();
+  const result = await client.schema('api').rpc('phone_worker_claim_delivery', {
+    p_attempt_id: attemptId,
+    p_lease_token: leaseToken,
+  });
+  if (result.error || !Array.isArray(result.data) || result.data.length !== 1) {
+    fail('The service-role phone worker could not claim one queued synthetic delivery.');
+  }
+  return { delivery: result.data[0], leaseToken };
+}
+
+async function completeDeliveryThroughWorkerApi(client, attemptId, leaseToken) {
+  const result = await client.schema('api').rpc('phone_worker_complete_delivery', {
+    p_attempt_id: attemptId,
+    p_lease_token: leaseToken,
+    p_delivered: true,
+    p_provider_adapter: 'local-test',
+    p_provider_reference: 'synthetic-provider-reference',
+  });
+  if (result.error || result.data !== true) {
+    fail('The service-role phone worker could not complete one synthetic delivery.');
+  }
+}
+
 const { publicKey, serviceRoleKey, url } = readLocalConfig();
 const container = findDatabaseContainer();
 const suffix = `${Date.now()}-${process.pid}`;
@@ -163,11 +188,24 @@ try {
     p_code: '000000',
   })).status, 'invalid_attempt');
 
-  const claimedA = claimDelivery(container);
+  const forbiddenWorkerClaim = await clients[0].schema('api').rpc('phone_worker_claim_delivery', {
+    p_attempt_id: requestedA.attempt_id,
+    p_lease_token: randomUUID(),
+  });
+  assert.ok(forbiddenWorkerClaim.error);
+
+  const unrelatedWorkerClaim = await admin.schema('api').rpc('phone_worker_claim_delivery', {
+    p_attempt_id: randomUUID(),
+    p_lease_token: randomUUID(),
+  });
+  assert.equal(unrelatedWorkerClaim.error, null);
+  assert.deepEqual(unrelatedWorkerClaim.data, []);
+
+  const claimedA = await claimDeliveryThroughWorkerApi(admin, requestedA.attempt_id);
   assert.equal(claimedA.delivery.attempt_id, requestedA.attempt_id);
   assert.equal(claimedA.delivery.phone_e164, identities[0].phone);
   assert.match(claimedA.delivery.verification_code, /^[0-9]{6}$/);
-  completeDelivery(container, requestedA.attempt_id, claimedA.leaseToken);
+  await completeDeliveryThroughWorkerApi(admin, requestedA.attempt_id, claimedA.leaseToken);
 
   const safeStatusA = await rpc(clients[0], 'current_phone_verification');
   assert.equal(safeStatusA.status, 'sent');
@@ -200,6 +238,38 @@ try {
   assert.equal(
     runSql(container, `select count(*) from ops.phone_verification_delivery where attempt_id = '${requestedA.attempt_id}';`),
     '0',
+  );
+  assert.equal(
+    runSql(
+      container,
+      `select count(*) from information_schema.routine_privileges
+       where grantee in ('anon', 'authenticated')
+         and specific_schema = 'api'
+         and routine_name in ('phone_worker_claim_delivery', 'phone_worker_complete_delivery')
+         and privilege_type = 'EXECUTE';`,
+    ),
+    '0',
+  );
+  assert.equal(
+    runSql(
+      container,
+      `select count(*) from information_schema.routine_privileges
+       where grantee = 'service_role'
+         and specific_schema = 'api'
+         and routine_name in ('phone_worker_claim_delivery', 'phone_worker_complete_delivery')
+         and privilege_type = 'EXECUTE';`,
+    ),
+    '2',
+  );
+  assert.equal(
+    runSql(
+      container,
+      `select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'api'
+         and p.proname in ('phone_worker_claim_delivery', 'phone_worker_complete_delivery')
+         and p.prosecdef and p.proconfig @> array['search_path=""'];`,
+    ),
+    '2',
   );
   assert.equal((await rpc(clients[0], 'request_phone_verification', {
     p_client_key: randomUUID(),
@@ -375,6 +445,7 @@ try {
       'Phone verification foundation verification passed:',
       '- the authenticated API never returns OTP or provider diagnostics',
       '- only a restricted worker contract can lease transient delivery material',
+      '- only the service-role Next.js worker bridge can lease the requested attempt through the Data API',
       '- cross-account attempts and anonymous requests cannot verify a phone',
       '- resend delay, expiry state, and five-attempt exhaustion are database-owned',
       '- successful verification clears recoverable code material and updates eligibility',

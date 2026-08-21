@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import { parseContextualDraftId } from '@/lib/contextual-registration/flow';
+import { processPhoneVerificationDelivery } from '@/lib/phone-verification/worker';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 function returnToDraft(draftId: string, status: string): never {
@@ -173,8 +174,16 @@ export async function requestContextualPhoneVerificationAction(formData: FormDat
   const status = result.data && typeof result.data === 'object'
     ? (result.data as Record<string, unknown>).status
     : null;
-  if (status === 'queued' || status === 'already_verified') {
-    returnToDraft(owned.draftId, status === 'queued' ? 'phone-requested' : 'phone-verified');
+  if (status === 'already_verified') returnToDraft(owned.draftId, 'phone-verified');
+  if (status === 'queued') {
+    const attemptId = (result.data as Record<string, unknown>).attempt_id;
+    const worker = typeof attemptId === 'string'
+      ? await processPhoneVerificationDelivery(attemptId)
+      : { configured: false, outcomes: [] };
+    const accepted = typeof attemptId === 'string'
+      && worker.configured
+      && worker.outcomes.some((outcome) => outcome.attemptId === attemptId && outcome.delivered);
+    returnToDraft(owned.draftId, accepted ? 'phone-requested' : 'phone-unavailable');
   }
   returnToDraft(owned.draftId, status === 'rate_limited' ? 'phone-rate-limited' : 'phone-unavailable');
 }

@@ -1,12 +1,14 @@
 # Core Multi-User Staging Readiness
 
-## Verified staging state — 21 August 2026
+## Verified staging state — 22 August 2026
 
-The isolated `orthodox-routes-staging` Supabase project and `https://orthodox-routes-staging.onrender.com` deployment are configured with synthetic-only data boundaries. All eight committed migrations through `20260820200000_core_application_projection.sql` are applied with matching local/remote history. The remote API exposes only the committed `api` schema, Auth uses the exact HTTPS `/auth/confirm` redirect, and `GET /api/readiness` returns HTTP 200.
+The isolated `orthodox-routes-staging` Supabase project and `https://orthodox-routes-staging.onrender.com` deployment are configured with synthetic-only data boundaries. All nine committed migrations through the service-role-only targeted phone-delivery bridge in `20260822130000_phone_delivery_worker_api.sql` are applied with matching local/remote history. The remote API exposes only the committed `api` schema, Auth uses the exact HTTPS `/auth/confirm` redirect, and `GET /api/readiness` returns HTTP 200.
 
-`npm run test:staging-core` passed against the remote Auth/Data API and HTTPS board with separate synthetic passenger, driver, and unrelated identities. It verified public/private projections, actor ownership, agreement, capacity, cancellation, restoration, and on-demand disclosure, then removed every synthetic fixture. Remote security advisors reported 41 expected warnings for the deliberately executable `SECURITY DEFINER` RPC boundary and no other warning type; direct sensitive grants, unhardened security-definer functions, actor-ID API arguments, and protected tables without FORCE RLS all remained zero.
+`npm run test:staging-core` passed again after the ninth migration against the remote Auth/Data API and HTTPS board with separate synthetic passenger, driver, and unrelated identities. It verified public/private projections, actor ownership, agreement, capacity, cancellation, restoration, and on-demand disclosure, then removed every synthetic fixture. The new worker functions have zero `anon`/`authenticated` grants and exactly two `service_role` grants. The prior remote security advisor audit reported 41 expected warnings for the deliberately executable `SECURITY DEFINER` RPC boundary and no other warning type; direct sensitive grants, unhardened security-definer functions, actor-ID API arguments, and protected tables without FORCE RLS all remained zero before this hardened two-function delta.
 
-Real staging email-link delivery and real SMS delivery are not verified. No application SMS worker/provider account, billing, sender/route registration, callback authentication, or provider secret is configured. The database-owner phone fixture used by the remote smoke proves only the deployed eligibility boundary and is not provider evidence.
+Staging Auth is owner-configured to send through Resend as `Orthodox Routes <auth@orthodox-routes-staging.churchmemory.by>`; its domain authentication is verified and no Render email variables are required. On 22 August, Supabase Auth accepted and recorded a real passwordless-email request, but the owner-approved Gmail recipient received no message in Inbox, Spam, or All Mail, so delivery, explicit confirmation, SSR persistence, and logout remain unverified until the external SMTP delivery issue is resolved.
+
+Bird is owner-approved for staging SMS delivery without Bird Verify. Billing, Italy routing, and the active alphanumeric sender `OrthoRoutes` are owner-controlled and ready. The application owns OTP generation and verification; the repository implements the current Bird Messages API adapter and targeted service-role worker bridge. The Bird API key is not injected and real SMS delivery is therefore not verified. The database-owner phone fixture used by the remote smoke proves only the deployed eligibility boundary and is not provider evidence.
 
 ## Status and boundary
 
@@ -23,8 +25,11 @@ The Next.js runtime requires exactly these application values:
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | browser and server | Publishable/anonymous key only; a service-role or secret key is rejected |
 | `SUPABASE_SECRET_KEY` | server only | Staging secret/service-role key used only by the contextual-draft orchestration boundary |
 | `CONTEXTUAL_REGISTRATION_SECRET` | server only | Independent high-entropy value of at least 32 characters used to seal short-lived resume tickets |
+| `BIRD_API_KEY` | server only | Owner-held Bird API key whose region prefix must match the configured API host |
+| `BIRD_API_BASE_URL` | server only | Exact regional Bird origin, for example `https://eu1.platform.bird.com`, with no path, query, fragment, port, or credentials |
+| `BIRD_SMS_SENDER` | server only | Approved 1–11 character alphanumeric sender; staging uses `OrthoRoutes` |
 
-`SUPABASE_SECRET_KEY` and `CONTEXTUAL_REGISTRATION_SECRET` must be injected by the hosting secret manager. They must never use a `NEXT_PUBLIC_` prefix, appear in browser bundles, `.env.local`, logs, screenshots, CI artifacts, or repository files. Production and staging must use different values and different Supabase projects.
+`SUPABASE_SECRET_KEY`, `CONTEXTUAL_REGISTRATION_SECRET`, and `BIRD_API_KEY` must be injected by the hosting secret manager. They must never use a `NEXT_PUBLIC_` prefix, appear in browser bundles, `.env.local`, logs, screenshots, CI artifacts, or repository files. Production and staging must use different values, keys, and Supabase projects. The Bird adapter fails closed unless all three Bird values pass strict validation.
 
 ## Supabase and Auth configuration
 
@@ -34,7 +39,7 @@ Before application smoke testing, the owner or authorized deployment pipeline mu
 2. configure the Auth Site URL to the exact `ORTHODOX_ROUTES_APP_URL` origin;
 3. allow the exact `/auth/confirm` redirect on that origin, without wildcard production domains;
 4. keep anonymous Auth identities disabled and email confirmation enabled;
-5. configure an approved staging email sender/catcher that does not deliver synthetic tests to real people;
+5. maintain the owner-approved Resend SMTP sender directly in Supabase Auth; no duplicate Render email configuration is required;
 6. apply every committed migration in timestamp order to an empty staging database through a reviewed, auditable migration job;
 7. publish a staging-only Terms version and only synthetic church/account fixtures clearly labelled as staging data;
 8. keep direct grants on `app`, `private`, and `ops` tables absent and expose only the committed `api` schema.
@@ -43,7 +48,7 @@ The application intentionally shows a safe unavailable state when a configured b
 
 ## Phone-provider boundary
 
-Core phone ownership is provider-independent and already enforced by the database. Enabling real staging delivery still requires an owner-approved SMS account, billing, sender/route registration where applicable, callback authentication, and secret injection. The worker may lease only the restricted transient delivery contract. It must never receive general application table access or return OTP material to the browser API. Until that adapter is configured, staging participation remains correctly ineligible unless an isolated privileged synthetic fixture is used for testing.
+Core phone ownership remains application-owned and database-authoritative. The Next.js server action can lease only the attempt just returned by the authenticated request, and only through two `service_role`-granted `api` functions; browser roles cannot execute them and direct `ops` grants remain absent. Bird receives the E.164 destination, short-lived OTP text, sender, authentication category, and attempt ID as an idempotency key. HTTP 202 with a validated `sms_` message ID records provider acceptance, not handset delivery. Provider errors, keys, OTPs, phone numbers, and response bodies are not logged or returned to the browser. Missing or invalid Bird configuration and any provider/database failure clear recoverable delivery material and surface only the safe unavailable state.
 
 ## Deployment and smoke sequence
 
@@ -54,14 +59,14 @@ Run these checks before declaring staging usable:
 3. require `GET /api/readiness` to return HTTP 200 with only `{ "scope": "core-application", "status": "ready" }`; HTTP 503 means required server/public configuration is incomplete or the committed safe Core RPC boundary is unavailable;
 4. load an unconfigured deployment and confirm only the isolated demo board is available;
 5. load the configured staging deployment and confirm a missing church cannot fall back to demo data;
-6. complete passwordless email sign-in through the explicit confirmation button and verify SSR session persistence and local sign-out;
+6. run `npm run test:staging-email`, supply only an owner-approved recipient and its newly received confirmation URL through standard input, and require safe callback GET, explicit verification, SSR session persistence, local sign-out, and synthetic-user cleanup to pass;
 7. with synthetic eligible passenger and driver accounts, publish from separate browser contexts, exchange a response, confirm exactly one agreement, and verify capacity in both contexts;
 8. verify an unrelated signed-in account receives no participant responses, agreements, contacts, or exact meeting place;
 9. confirm contacts and exact meeting place are absent from initial HTML and appear only after the participant's explicit disclosure action;
 10. cancel the agreement and verify disclosure is immediately unavailable, capacity returns exactly once, and full passenger need requires explicit restoration;
 11. inspect application, Auth, database, and provider logs to confirm they contain no OTP, resume capability, contact, exact-place, cookie, service key, or full protected payload.
 
-For a newly linked, empty, synthetic-only project named exactly `orthodox-routes-staging`, `npm run test:staging-core` performs the database/API part of this sequence with three isolated synthetic identities and then removes every fixture it created. It refuses any differently named, unhealthy, or non-empty project, obtains keys only through the already-authenticated Supabase CLI without persisting or printing them, and leaves real email-link and SMS delivery for the separately configured provider smoke. Its database-owner phone fixture proves remote eligibility wiring only and must never be reported as real SMS verification.
+For a newly linked, empty, synthetic-only project named exactly `orthodox-routes-staging`, `npm run test:staging-core` performs the database/API part of this sequence with three isolated synthetic identities and then removes every fixture it created. It refuses any differently named, unhealthy, or non-empty project, obtains keys only through the already-authenticated Supabase CLI without persisting or printing them, and leaves real email-link and SMS delivery for the separately configured provider smokes. `npm run test:staging-email` applies the same project-name and health guard, does not include the recipient/link in its own status output, and removes a newly created synthetic Auth identity after success. The database-owner phone fixture proves remote eligibility wiring only and must never be reported as real SMS verification.
 
 The committed `supabase/config.toml` is local-only and must never be pushed directly to a remote project because its Auth URLs intentionally point at localhost. Remote API/Auth changes require a reviewed staging-specific operation that preserves the exact HTTPS Site URL and `/auth/confirm` redirect.
 
