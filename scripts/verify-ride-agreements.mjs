@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
+import { syntheticPlace } from './synthetic-geo.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 
@@ -146,12 +147,21 @@ runSql(container, `
 const churchId = randomUUID();
 runSql(container, `
   insert into app.church (
-    public_id, slug, official_name, address_display, locality, country_code, timezone, status
+    public_id, slug, official_name, address_display, locality, country_code, timezone, status, location
   ) values (
     ${sqlLiteral(churchId)}::uuid, ${sqlLiteral(`agreement-test-${suffix}`)}, 'Synthetic Agreement Church',
-    'Synthetic public church address', 'Test Locality', 'IT', 'UTC', 'published'
+    'Synthetic public church address', 'Test Locality', 'IT', 'UTC', 'published',
+    extensions.st_setsrid(extensions.st_makepoint(7.6869, 45.0703), 4326)::extensions.geography
   );
 `);
+
+// Distinct synthetic labels must land on distinct synthetic points so that each derived public
+// area is its own circle.
+function labelOffset(label) {
+  let total = 0;
+  for (const character of label) total += character.codePointAt(0);
+  return (total % 40) / 1000;
+}
 
 async function publishRequest(client, arrivalAt, passengers, label) {
   return rpc(client, 'publish_passenger_request', {
@@ -160,7 +170,7 @@ async function publishRequest(client, arrivalAt, passengers, label) {
     p_church_id: churchId,
     p_client_key: randomUUID(),
     p_desired_arrival_at: arrivalAt,
-    p_places: [{ exact_label: `Exact ${label}`, public_area_label: `${label} district` }],
+    p_places: [syntheticPlace(45.052 + labelOffset(label), 7.664 + labelOffset(label), `Exact ${label}`, `${label} district`)],
     p_public_note: null,
     p_return_required: false,
     p_service_occurrence_id: null,
@@ -178,10 +188,9 @@ async function publishOccurrence(arrivalAt, seats, label) {
     p_client_key: randomUUID(),
     p_departure_at: departure,
     p_driver_child_seat_available: true,
-    p_exact_origin_label: `Exact driver origin ${label}`,
     p_max_detour_km: 5,
+    p_origin: syntheticPlace(45.031 + labelOffset(label), 7.641 + labelOffset(label), `Exact driver origin ${label}`, `${label} origin district`),
     p_public_note: null,
-    p_public_origin_area: `${label} origin district`,
     p_return_available: false,
     p_service_occurrence_id: null,
     p_timezone: 'UTC',
@@ -242,7 +251,7 @@ const contextualPassengerResponseArgs = {
   p_child_seat_required: false, p_children_count: 0, p_church_id: churchId,
   p_client_key: contextualResponseDraftId, p_desired_arrival_at: firstArrival,
   p_occurrence_id: firstOccurrence.occurrence_id,
-  p_places: [{ exact_label: 'Exact contextual passenger', public_area_label: 'Context passenger district' }],
+  p_places: [syntheticPlace(45.0481, 7.6591, 'Exact contextual passenger', 'Context passenger district')],
   p_public_note: null, p_return_required: false, p_service_occurrence_id: null,
   p_timezone: 'UTC', p_total_passengers: 1,
 };
@@ -281,10 +290,11 @@ const wrapperRequest = await publishRequest(clients[1], firstArrival, 1, 'Wrappe
 const contextualDriverResponse = await rpc(clients[3], 'publish_contextual_driver_response', {
   p_arrival_at: firstArrival, p_children_allowed: false, p_church_id: churchId,
   p_client_key: randomUUID(), p_departure_at: new Date(new Date(firstArrival).getTime() - 3600000).toISOString(),
-  p_driver_child_seat_available: false, p_exact_origin_label: 'Exact contextual driver',
+  p_driver_child_seat_available: false,
   p_max_detour_km: 5, p_offered_passenger_count: 1,
   p_place_id: await placeId(wrapperRequest.request_id), p_public_note: null,
-  p_public_origin_area: 'Context driver district', p_request_id: wrapperRequest.request_id,
+  p_origin: syntheticPlace(45.0288, 7.6372, 'Exact contextual driver', 'Context driver district'),
+  p_request_id: wrapperRequest.request_id,
   p_return_available: false, p_service_occurrence_id: null, p_timezone: 'UTC', p_total_seats: 1,
 });
 assert.equal(contextualDriverResponse.status, 'await_passenger');
@@ -296,7 +306,7 @@ const requestCountBeforeFailedWrapper = runSql(container, `select count(*) from 
 await expectRpcFailure(clients[2], 'publish_contextual_passenger_response', {
   p_child_seat_required: false, p_children_count: 0, p_church_id: churchId,
   p_client_key: randomUUID(), p_desired_arrival_at: firstArrival, p_occurrence_id: randomUUID(),
-  p_places: [{ exact_label: 'Must roll back', public_area_label: 'Rollback district' }],
+  p_places: [syntheticPlace(45.0455, 7.6512, 'Must roll back', 'Rollback district')],
   p_public_note: null, p_return_required: false, p_service_occurrence_id: null,
   p_timezone: 'UTC', p_total_passengers: 1,
 });
@@ -315,6 +325,7 @@ const passengerResponses = await rpc(clients[0], 'current_ride_responses');
 assert.equal(passengerResponses[0].response_id, firstResponse.response_id);
 assert.equal(passengerResponses[0].current_role, 'passenger');
 assert.equal(passengerResponses[0].selected_place.public_area_label, 'Alpha district');
+assert.equal(passengerResponses[0].selected_place.public_area.radius_m, 1000);
 assert.equal(JSON.stringify(passengerResponses).includes('Exact Alpha'), false);
 assert.equal(JSON.stringify(passengerResponses).includes(identities[3].phone), false);
 assert.deepEqual(await rpc(clients[4], 'current_ride_responses'), []);
@@ -337,7 +348,15 @@ assert.equal(passengerContact.phone, identities[3].phone);
 const driverContact = await rpc(clients[3], 'get_agreement_contacts', { p_agreement_id: firstAgreement.agreement_id });
 assert.equal(driverContact.email, identities[0].email);
 assert.equal(driverContact.phone, identities[0].phone);
-assert.equal((await rpc(clients[0], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id })).exact_meeting_label, 'Exact Alpha');
+// Disclosure boundary: the driver receives the one selected meeting place, the passenger
+// receives the driver's exact departure place, and neither receives anything else.
+const passengerDisclosure = await rpc(clients[0], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id });
+assert.equal(passengerDisclosure.exact_meeting_label, 'Exact Alpha');
+assert.equal(passengerDisclosure.meeting_place.exact_address, 'Exact Alpha');
+assert.equal(passengerDisclosure.departure_place.exact_address, 'Exact driver origin first');
+assert.equal(typeof passengerDisclosure.departure_place.exact_point.lat, 'number');
+assert.equal(typeof passengerDisclosure.meeting_place.exact_point.lng, 'number');
+assert.equal(await rpc(clients[4], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id }), null);
 assert.equal((await rpc(clients[3], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id })).exact_meeting_label, 'Exact Alpha');
 assert.equal(await rpc(clients[4], 'get_agreement_contacts', { p_agreement_id: firstAgreement.agreement_id }), null);
 assert.equal(await rpc(clients[4], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id }), null);
@@ -503,12 +522,11 @@ const seriesOffer = await rpc(clients[3], 'publish_driver_series', {
   p_client_key: randomUUID(),
   p_driver_child_seat_available: true,
   p_ends_on: seriesDate,
-  p_exact_origin_label: 'Exact series lifecycle origin',
+  p_origin: syntheticPlace(45.0201, 7.6288, 'Exact series lifecycle origin', 'Series lifecycle district'),
   p_local_arrival_time: '13:00:00',
   p_local_departure_time: '12:00:00',
   p_max_detour_km: 5,
   p_public_note: null,
-  p_public_origin_area: 'Series lifecycle district',
   p_return_available: false,
   p_starts_on: seriesDate,
   p_timezone: 'UTC',

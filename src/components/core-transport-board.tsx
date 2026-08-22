@@ -27,6 +27,8 @@ import {
   withdrawRideResponseAction,
 } from '@/app/core-transport/actions';
 import type { CoreTransportData } from '@/lib/core-transport/types';
+import type { SavedPlace } from '@/lib/geo/types';
+import { PlaceField } from './place-field';
 
 type Props = CoreTransportData & { status?: string };
 
@@ -90,22 +92,35 @@ function IdentityFields() {
   </fieldset>;
 }
 
-function PassengerFields() {
+type PlaceContext = {
+  mapAvailable: boolean;
+  savedPlaces: SavedPlace[];
+  near?: { lat: number; lng: number };
+};
+
+function PassengerFields({ places }: { places: PlaceContext }) {
   return <>
     <label className="grid gap-1">Желаемое прибытие<input name="desired_arrival_local" required type="datetime-local" /></label>
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="grid gap-1">Всего пассажиров<input defaultValue={1} max={55} min={1} name="passenger_count" required type="number" /></label>
       <label className="grid gap-1">Из них детей<input defaultValue={0} max={55} min={0} name="children_count" required type="number" /></label>
     </div>
-    <label className="grid gap-1">Точное место встречи<input maxLength={300} name="exact_label" required /></label>
-    <label className="grid gap-1">Район для публичной карточки<input maxLength={120} name="public_area_label" required /></label>
+    <PlaceField
+      hint="Укажите, где вас удобно забрать. Всем будет видна только примерная область около 1 км."
+      legend="Место встречи"
+      mapAvailable={places.mapAvailable}
+      maximum={3}
+      name="places"
+      near={places.near}
+      savedPlaces={places.savedPlaces}
+    />
     <label><input name="child_seat_required" type="checkbox" value="yes" /> Нужно детское кресло</label>
     <label><input name="return_required" type="checkbox" value="yes" /> Нужна обратная дорога</label>
     <label className="grid gap-1">Комментарий<textarea maxLength={300} name="public_note" /></label>
   </>;
 }
 
-function DriverFields({ series = false }: { series?: boolean }) {
+function DriverFields({ places, series = false }: { places: PlaceContext; series?: boolean }) {
   return <>
     {series ? <>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -125,8 +140,15 @@ function DriverFields({ series = false }: { series?: boolean }) {
       <label className="grid gap-1">Выезд<input name="departure_local" required type="datetime-local" /></label>
       <label className="grid gap-1">Прибытие<input name="arrival_local" required type="datetime-local" /></label>
     </div>}
-    <label className="grid gap-1">Точное место выезда<input maxLength={300} name="exact_origin_label" required /></label>
-    <label className="grid gap-1">Район выезда для публичной карточки<input maxLength={120} name="public_origin_area" required /></label>
+    <PlaceField
+      hint="Укажите, откуда вы выезжаете. Всем будет видна только примерная область около 1 км, а маршрут поездки не публикуется."
+      legend="Место отправления"
+      mapAvailable={places.mapAvailable}
+      maximum={1}
+      name="origin"
+      near={places.near}
+      savedPlaces={places.savedPlaces}
+    />
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="grid gap-1">Свободных мест<input defaultValue={1} max={55} min={1} name="seats_available" required type="number" /></label>
       <label className="grid gap-1">Максимальный крюк
@@ -166,6 +188,13 @@ export function CoreTransportBoard(props: Props) {
     churchId: props.church.churchId, churchName: props.church.officialName,
     slug: props.church.slug, timezone: props.church.timezone,
   };
+  const places: PlaceContext = {
+    mapAvailable: props.mapAvailable,
+    savedPlaces: props.savedPlaces,
+    ...(props.church.lat === undefined || props.church.lng === undefined
+      ? {}
+      : { near: { lat: props.church.lat, lng: props.church.lng } }),
+  };
 
   return <section className="mt-5 space-y-5" data-core-transport-board>
     {notice ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-4" role="status">{notice}</p> : null}
@@ -181,19 +210,19 @@ export function CoreTransportBoard(props: Props) {
     <div className="grid gap-4 lg:grid-cols-3">
       <FormShell title="Попросить подвезти">
         <form action={eligible ? publishPassengerRequestAction : startPassengerContextualAction} className="mt-4 grid gap-3">
-          <Hidden {...common} />{!eligible ? <IdentityFields /> : null}<PassengerFields />
+          <Hidden {...common} />{!eligible ? <IdentityFields /> : null}<PassengerFields places={places} />
           <button className="rounded-md bg-amber-800 px-4 py-2 font-semibold text-white" type="submit">{eligible ? 'Опубликовать запрос' : 'Продолжить с регистрацией'}</button>
         </form>
       </FormShell>
       <FormShell title="Предложить разовую поездку">
         <form action={eligible ? publishDriverOccurrenceAction : startDriverOccurrenceContextualAction} className="mt-4 grid gap-3">
-          <Hidden {...common} />{!eligible ? <IdentityFields /> : null}<DriverFields />
+          <Hidden {...common} />{!eligible ? <IdentityFields /> : null}<DriverFields places={places} />
           <button className="rounded-md bg-amber-800 px-4 py-2 font-semibold text-white" type="submit">{eligible ? 'Опубликовать поездку' : 'Продолжить с регистрацией'}</button>
         </form>
       </FormShell>
       <FormShell title="Предложить регулярные поездки">
         <form action={eligible ? publishDriverSeriesAction : startDriverSeriesContextualAction} className="mt-4 grid gap-3">
-          <Hidden {...common} />{!eligible ? <IdentityFields /> : null}<DriverFields series />
+          <Hidden {...common} />{!eligible ? <IdentityFields /> : null}<DriverFields places={places} series />
           <button className="rounded-md bg-amber-800 px-4 py-2 font-semibold text-white" type="submit">{eligible ? 'Опубликовать расписание' : 'Продолжить с регистрацией'}</button>
         </form>
       </FormShell>
@@ -228,7 +257,7 @@ export function CoreTransportBoard(props: Props) {
                 <input name="target_summary" type="hidden" value={`${date(request.desiredArrivalAt, request.timezone)} · ${request.placeOptions.map((place) => place.publicAreaLabel).join(' / ')}`} />
                 <label className="grid gap-1">Место встречи<select name="place_id">{request.placeOptions.map((place) => <option key={place.placeId} value={place.placeId}>{place.publicAreaLabel}</option>)}</select></label>
                 <label className="grid gap-1">Сколько пассажиров<input defaultValue={request.passengerCount} max={request.passengerCount} min={1} name="passenger_count" required type="number" /></label>
-                <DriverFields />
+                <DriverFields places={places} />
                 <button className="font-semibold text-amber-900" type="submit">{eligible ? 'Опубликовать поездку и ответить' : 'Продолжить с регистрацией'}</button>
               </form>
             </details> : null}
@@ -260,7 +289,7 @@ export function CoreTransportBoard(props: Props) {
                 <input name="occurrence_id" type="hidden" value={offer.occurrenceId} />
                 <input name="target_name" type="hidden" value={offer.authorName} />
                 <input name="target_summary" type="hidden" value={`${offer.publicOriginArea} · ${date(offer.arrivalAt, offer.timezone)}`} />
-                <PassengerFields />
+                <PassengerFields places={places} />
                 <button className="font-semibold text-amber-900" type="submit">{eligible ? 'Опубликовать запрос и ответить' : 'Продолжить с регистрацией'}</button>
               </form>
             </details> : null}

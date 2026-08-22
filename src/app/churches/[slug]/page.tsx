@@ -23,6 +23,8 @@ import {
   getChurchTrips,
   mockChurches,
 } from '@/lib/mockData';
+import { parseSavedPlaces } from '@/lib/geo/place';
+import { hasBrowserMapConfiguration } from '@/lib/geo/provider';
 import { getPublicSupabaseConfig, hasPublicSupabaseConfigurationIntent } from '@/lib/supabase/config';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { CoreChurch } from '@/lib/core-transport/types';
@@ -85,17 +87,20 @@ export default async function ChurchPage({ params, searchParams }: PageProps) {
           let owned = parseCoreOwnedItems(null);
           let responses: ReturnType<typeof parseCoreResponses> = [];
           let agreements: ReturnType<typeof parseCoreAgreements> = [];
+          let savedPlaces: ReturnType<typeof parseSavedPlaces> = [];
           if (signedIn) {
-            const [accountResult, ownedResult, responsesResult, agreementsResult] = await Promise.all([
+            const [accountResult, ownedResult, responsesResult, agreementsResult, savedResult] = await Promise.all([
               supabase.schema('api').rpc('current_account'),
               supabase.schema('api').rpc('current_transport_items'),
               supabase.schema('api').rpc('current_ride_responses'),
               supabase.schema('api').rpc('current_ride_agreements'),
+              supabase.schema('api').rpc('list_saved_places'),
             ]);
             account = accountResult.error ? null : asRecord(accountResult.data);
             owned = ownedResult.error ? owned : parseCoreOwnedItems(ownedResult.data);
             responses = responsesResult.error ? [] : parseCoreResponses(responsesResult.data);
             agreements = agreementsResult.error ? [] : parseCoreAgreements(agreementsResult.data);
+            savedPlaces = savedResult.error ? [] : parseSavedPlaces(savedResult.data);
           }
           let disclosure;
           if (reveal && agreements.some((agreement) => agreement.agreementId === reveal && agreement.contactAvailable)) {
@@ -112,11 +117,13 @@ export default async function ChurchPage({ params, searchParams }: PageProps) {
             disclosure={disclosure}
             driverOccurrences={parseCoreDriverOccurrences(occurrencesResult.data)}
             eligibility={parseCoreEligibility(account?.eligibility)}
+            mapAvailable={hasBrowserMapConfiguration()}
             ownedOccurrences={owned.ownedOccurrences}
             ownedRequests={owned.ownedRequests}
             ownedSeries={owned.ownedSeries}
             passengerRequests={parseCorePassengerRequests(requestsResult.data)}
             responses={responses}
+            savedPlaces={savedPlaces}
             signedIn={signedIn}
             status={status}
           />;

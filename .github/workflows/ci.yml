@@ -71,8 +71,8 @@ jobs:
       - name: Rebuild database from migrations
         run: npm run db:reset
 
-      - name: Verify representative Core upgrade
-        run: npm run test:core-upgrade
+      - name: Verify representative Maps upgrade
+        run: npm run test:maps-upgrade
 
       - name: Stop local Core stack
         if: always()
@@ -121,6 +121,9 @@ jobs:
 
       - name: Verify ride agreements and disclosure
         run: npm run test:agreements
+
+      - name: Verify geographic foundation and privacy boundary
+        run: npm run test:geography
 
       - name: Stop local Auth
         if: always()

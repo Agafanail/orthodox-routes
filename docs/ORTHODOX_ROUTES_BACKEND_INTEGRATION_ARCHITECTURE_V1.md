@@ -225,13 +225,39 @@ Cancellation atomically changes agreement state, returns seats exactly once, res
 
 ### Provider boundary
 
-- Google Maps is the only embedded map provider.
-- Places/Geocoding supports church discovery and user-confirmed address/place selection.
-- Routes is called server-side for temporary route and detour validation.
+- The application depends on three provider capabilities: map tiles/SDK, address and place search (geocoding), and driving-route distance/duration. The specific vendor is deliberately **not** hard-coded into the domain: every call goes through an application-owned adapter contract, and the database never stores a vendor-specific payload.
 - PostGIS stores application-owned exact coordinates, public approximate geometry, spatial indexes, and candidate filters.
-- Google and Yandex external navigation links are offered only after confirmation. Russia may default to Yandex first while preserving a user/device choice.
+- External navigation links (Google, Yandex, or another handler) are offered only after confirmation and only as an outbound link. Russia may default to Yandex first while preserving a user/device choice.
 
 Exact user locations never enter anonymous HTML, public API responses, public map payloads, analytics, or logs.
+
+### Provider terms review — 23 August 2026
+
+The previously assumed Google Maps Platform direction was re-checked against the **current** Google Maps Platform Service Specific Terms at `https://cloud.google.com/maps-platform/terms/maps-service-terms` (page fetched 23 August 2026; the most recent listed prior version is 10 June 2026). Findings, quoted from the current terms:
+
+| Clause | Rule |
+| --- | --- |
+| A.3 Google ID Caching | `place_id` from Places API, Directions API, Geolocation API, and Routes API may be cached in accordance with the Documentation. |
+| 6.3.1 Geocoding API | Latitude and longitude values may be cached temporarily "for up to 30 consecutive calendar days, after which Customer must delete the cached latitude and longitude values". |
+| 6.3.2 Geocoding API | Latitude, longitude, formatted address, and structured address values may be cached **indefinitely** "solely to support the direct, End User facing functionality of the Customer Application that initiated the request", only where the cache does not replace an additional call, and — decisively — "Cached data must be logically isolated to the specific End User it is associated with and **must not be used across multiple End Users**". |
+| 14.3 Places API | Latitude and longitude values: 30 consecutive calendar days maximum. There is **no** indefinite-caching exception. |
+| 15.2 Places UI Kit | Latitude and longitude values: 30 consecutive calendar days maximum. |
+| 4.3 Directions API, 19.3 Routes API | Latitude and longitude values: 30 consecutive calendar days maximum. |
+| 6.2, 14.2, 19.2 | Google Maps Content must not be used in conjunction with a non-Google map. |
+
+**Conclusion.** Google Maps Platform, under its current terms, does **not** support the approved Orthodox Routes model. The approved product rule keeps a user's saved precise place until that user deletes it, and the product's central function — quality matching — deliberately uses one person's stored coordinate together with another person's stored coordinate and publishes a derived approximate area to every visitor. Clause 6.3.2 is the only indefinite-storage permission available, and it excludes exactly that: data cached under it must stay logically isolated to one End User and must not be used across multiple End Users. Places-derived coordinates have no indefinite permission at all.
+
+The fact that the person confirms the marker does not resolve this. The coordinate returned by a search result is provider Map Content regardless of user confirmation, the approved place picker begins with address search, and the "no use with a non-Google map" clause means the confirmation itself happens on a Google surface. Treating a confirmed geocode as application-owned would be an interpretation, not a permission, and the product's most protected data must not rest on one.
+
+**Required storage boundary, provider-independent.** Whichever provider is selected must permit, in writing:
+
+1. permanent storage of a coordinate the user selected, until that user deletes it;
+2. use of that stored coordinate in server-side computation involving other users' records;
+3. publication of an application-derived approximate area computed from it.
+
+Routing is unaffected by storage limits because no routing output is persisted: the adapter returns distance and duration, the domain keeps only derived added distance, added estimated time, and identifiers, and provider route geometry is discarded.
+
+**Consequence for this campaign.** The provider selection is an owner decision with cost and account consequences, so it is an owner-controlled gate rather than an engineering choice. All provider-independent work — schema, protected functions, approximation, matching, projections, adapters, deterministic local fakes, tests, and documentation — is completed first and does not depend on which vendor is chosen. The domain calls only the adapter contract, so selecting a provider later is configuration, not redesign.
 
 ### Public approximate area
 
@@ -262,11 +288,25 @@ Provider responses are cached only when current terms permit and are invalidated
 
 ### Cost and key controls
 
-- Separate Google Cloud projects and credentials per environment.
-- Separate browser and server keys with application and API restrictions.
-- Enable only required APIs.
-- Set per-API quotas below financially dangerous levels and add application-side per-user/network limits.
+- Separate provider projects and credentials per environment.
+- Separate browser and server keys with application and API restrictions; a browser key never carries server-only permissions.
+- Enable only the required APIs.
+- Set per-API quotas below financially dangerous levels and add application-side per-user and per-network limits.
 - Add billing budgets and alerts, understanding that budget alerts do not stop spend.
+- Run every cheap deterministic database filter before any billed route call, so an ineligible candidate never reaches the provider.
+- Keys live only in the hosting secret manager. No provider key is committed, printed, logged, or requested in conversation.
+
+### Provider adapter contract
+
+The domain depends on two narrow server-side contracts and one browser map surface.
+
+| Contract | Input | Output | Storage rule |
+| --- | --- | --- | --- |
+| Place search | free text, optional bias location, language | candidate list of display name, structured address parts, locality, country, coordinate | the coordinate is stored only after the user confirms a place; nothing else is retained |
+| Route measurement | origin, optional intermediate point, destination | road distance in metres and duration in seconds | never persisted; the domain keeps only derived added distance, added estimated time, and identifiers |
+| Map surface | tiles/SDK plus application-drawn markers and circles | rendered map | no provider content is copied into the database |
+
+A deterministic local fake implements both server contracts for tests and local development, so the entire domain, matching engine, and migration suite are verifiable without any provider account, network access, or spend. A local fake is never described as provider verification.
 
 ## 12. Notifications, email, Web Push, and PWA
 

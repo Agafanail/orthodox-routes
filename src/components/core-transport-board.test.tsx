@@ -29,9 +29,11 @@ const base = {
   church: {
     churchId: '00000000-0000-4000-8000-000000000001', slug: 'test-church', officialName: 'Test Church',
     address: 'Public address', locality: 'Test', countryCode: 'IT', timezone: 'UTC',
+    lat: 45.0703, lng: 7.6869,
   },
   driverOccurrences: [], eligibility: { eligible: true, reasons: [], currentTermsAccepted: true },
-  ownedOccurrences: [], ownedRequests: [], ownedSeries: [], passengerRequests: [], responses: [], signedIn: true,
+  mapAvailable: true, ownedOccurrences: [], ownedRequests: [], ownedSeries: [],
+  passengerRequests: [], responses: [], savedPlaces: [], signedIn: true,
 };
 
 describe('CoreTransportBoard', () => {
@@ -80,7 +82,7 @@ describe('CoreTransportBoard', () => {
     expect(html).toContain('Продолжить с регистрацией');
     expect(html).toContain('name="occurrence_id"');
     expect(html).toContain('name="email"');
-    expect(html).toContain('name="exact_label"');
+    expect(html).toContain('name="places"');
     expect(html).toContain('name="target_name"');
     expect(html).toContain('value="Иван"');
     expect(html).not.toContain('driver@example.test');

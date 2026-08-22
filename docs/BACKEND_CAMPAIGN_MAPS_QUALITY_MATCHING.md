@@ -47,15 +47,15 @@ Explicitly excluded:
 
 | Checkpoint | Scope | Status | Evidence |
 | --- | --- | --- | --- |
-| A | Campaign authority and documentation reconciliation | Not started | |
-| B | Provider/legal feasibility and provider-independent geo design | Not started | |
-| C | PostGIS and protected location foundation | Not started | |
+| A | Campaign authority and documentation reconciliation | Complete | Commit `2698399`; CI `32601966939` green on all three jobs |
+| B | Provider/legal feasibility and provider-independent geo design | Complete | Google Maps Platform terms fetched and reviewed 23 August 2026, recorded clause by clause in Backend Architecture V1 §11; the approved model is not contractually supportable on Google. The provider adapter contract, its storage rule, and a deterministic local fake are implemented, so Checkpoints C to F stay provider-independent |
+| C | PostGIS and protected location foundation | Complete | Migration `20260823120000_geographic_foundation.sql`; clean replay, `test:transport`, `test:agreements`, `test:geography`, and the representative `test:maps-upgrade` pass locally |
 | D | Location selection and map foundation | Not started | |
 | E | Deterministic quality-matching engine | Not started | |
 | F | Transport-board integration and matching UX | Not started | |
 | G | Full campaign verification, privacy audit, human UX gate, release | Not started | |
 
-**Current continuation:** Checkpoint A — verify the baseline, create this campaign file, audit authority documents and the current Core implementation, and reconcile the approved Maps/matching product decisions across canonical documentation.
+**Current continuation:** Checkpoint D — the provider-independent parts of location selection and the map foundation: the place field, the picker flow with its manual fallback and explicit location action, saved-place reuse, and the church catalog surface. The interactive tile layer and address search need the selected provider and are completed after the owner gate.
 
 For every completed checkpoint, replace its status with `Complete` and record the commit SHA plus the final green CI run. Update **Current continuation** to the next unfinished scope. Do not record synthetic research, pending CI as green, or external verification that did not occur.
 
@@ -64,6 +64,21 @@ For every completed checkpoint, replace its status with `Complete` and record th
 - A route/geocoding provider is required for real detour calculation. All provider-independent schema, contracts, adapters, local fakes, matching logic, tests, and documentation are completed before any provider gate is raised.
 - Provider account, billing, API key, key restrictions, and environment configuration remain owner-controlled. Secrets are never requested in conversation or committed.
 - Production access remains excluded. Verification uses local synthetic data only.
+
+### Provider terms review, 23 August 2026
+
+The current Google Maps Platform Service Specific Terms were fetched and read on 23 August 2026. The detailed clause-by-clause record lives in `docs/ORTHODOX_ROUTES_BACKEND_INTEGRATION_ARCHITECTURE_V1.md` §11. Summary:
+
+- coordinates from Geocoding, Places, Directions, and Routes may be cached for at most 30 consecutive calendar days;
+- the single indefinite-storage permission, Geocoding clause 6.3.2, requires the cached data to stay "logically isolated to the specific End User it is associated with" and states it "must not be used across multiple End Users";
+- Places-derived coordinates have no indefinite permission at all;
+- Google Maps Content must not be used with a non-Google map.
+
+The approved product model stores a user's saved precise place until that user deletes it and uses one person's stored coordinate together with another person's for cross-user matching and public approximation. That is precisely what clause 6.3.2 excludes. User confirmation of a marker does not convert provider Map Content into application-owned data, and the approved decisions forbid assuming that it does.
+
+**Therefore Google Maps Platform cannot support the approved model, and a provider decision with cost and account consequences belongs to the owner.** This is Gate 2 (owner-controlled external action) combined with an architecture consequence. It is raised only after Checkpoints C to F, all of which are provider-independent: the domain calls an application-owned adapter contract, a deterministic local fake implements it for tests, and no vendor payload ever reaches the database.
+
+Whichever provider is selected must permit in writing: permanent storage of a user-selected coordinate until the user deletes it; use of that coordinate in server-side computation involving other users' records; and publication of an application-derived approximate area computed from it. Routing is unaffected because no routing output is persisted.
 
 ## Approved product decisions applied by this campaign
 

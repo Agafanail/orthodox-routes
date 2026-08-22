@@ -1,3 +1,5 @@
+import type { PublicPlace, SavedPlace } from '@/lib/geo/types';
+
 export type CoreChurch = {
   churchId: string;
   slug: string;
@@ -6,12 +8,13 @@ export type CoreChurch = {
   locality: string;
   countryCode: string;
   timezone: string;
+  /** The church location is public and exact; it is absent only before the Maps migration. */
+  lat?: number;
+  lng?: number;
 };
 
-export type CorePlaceOption = {
-  placeId: string;
-  publicAreaLabel: string;
-};
+/** A place as an anonymous visitor sees it: an approximate area, never an exact point. */
+export type CorePlaceOption = PublicPlace;
 
 export type CorePassengerRequest = {
   requestId: string;
@@ -42,6 +45,7 @@ export type CoreDriverOccurrence = {
   returnAvailable: boolean;
   publicNote?: string;
   publicOriginArea: string;
+  originArea?: CorePlaceOption;
 };
 
 export type CoreOwnedRequest = {
@@ -100,12 +104,28 @@ export type CoreEligibility = {
   currentTermsAccepted: boolean;
 };
 
+export type CoreExactPlace = {
+  placeId: string;
+  exactAddress: string;
+  locality?: string;
+  countryCode?: string;
+  lat?: number;
+  lng?: number;
+};
+
+/**
+ * What a confirmed participant receives. The driver learns the one meeting place selected for
+ * this agreement, the passenger learns the driver's exact departure place, and neither learns
+ * the passenger's unused places.
+ */
 export type CoreDisclosure = {
   agreementId: string;
   counterpartyName: string;
   email: string;
   phone: string;
   exactMeetingLabel: string;
+  meetingPlace?: CoreExactPlace;
+  departurePlace?: CoreExactPlace;
   visibleUntil: string;
 };
 
@@ -122,4 +142,7 @@ export type CoreTransportData = {
   eligibility?: CoreEligibility;
   disclosure?: CoreDisclosure;
   signedIn: boolean;
+  /** Whether the browser may render an interactive map surface for place selection. */
+  mapAvailable: boolean;
+  savedPlaces: SavedPlace[];
 };
