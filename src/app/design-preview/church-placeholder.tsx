@@ -32,7 +32,7 @@ export function ChurchPlaceholder({ churchId, compact = false, className }: Chur
         viewBox="0 0 240 200"
         preserveAspectRatio="xMidYMax meet"
         role="img"
-        aria-label="Фотография храма не загружена"
+        aria-label="Фотографии храма пока нет"
       >
         <rect width="240" height="200" fill="var(--ph-bg)" />
         <rect x="64" y="132" width="112" height="68" fill="var(--ph-drum)" />
