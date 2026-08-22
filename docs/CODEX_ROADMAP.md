@@ -86,7 +86,7 @@ The approved [Backend and Integration Architecture V1](ORTHODOX_ROUTES_BACKEND_I
 
 The target data model and target project diagrams are approved architecture artifacts. This phase is complete; their approval does not constitute backend implementation or resolve the implementation gates listed inside the documents.
 
-### 4. Core multi-user platform — final release verification
+### 4. Core multi-user platform — completed
 
 - Establish version-controlled local Supabase/PostgreSQL configuration and clean migration replay — completed locally.
 - Implement the passwordless email identity/session foundation — completed locally and on isolated staging; the owner confirmed real Gmail delivery, explicit visible confirmation, SSR session persistence after refresh, and current-device sign-out. Spam placement remains a separate deliverability issue, and production email is absent.
@@ -98,6 +98,8 @@ The target data model and target project diagrams are approved architecture arti
 - Enforce ownership and authorization server-side — completed for the implemented Core domain.
 - Keep contacts unavailable to anonymous users and unconfirmed counterparties — completed for the implemented Core agreement boundary.
 - Support contextual registration from the action the visitor was already performing — completed for requests, offers, and responses with an explicit final send.
+
+The complete Core campaign passed its final local, migration, security/privacy, isolated-staging, provider, and GitHub Actions release gates. The next Maps/quality-matching phase has not started and requires separate explicit authorization.
 
 ### 5. Maps and quality matching
 
