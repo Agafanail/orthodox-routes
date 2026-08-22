@@ -232,15 +232,18 @@ assert.match(
 
 const nearChurchId = randomUUID();
 const farChurchId = randomUUID();
+// Other suites in the same CI job leave their own synthetic churches behind, so the catalog
+// assertions search for a term unique to this run instead of a shared generic word.
+const searchTerm = `Geocheck${suffix.replaceAll('-', '')}`;
 runSql(container, `
   insert into app.church (
     public_id, slug, official_name, address_display, locality, country_code, timezone, status, location
   ) values (
-    ${sqlLiteral(nearChurchId)}::uuid, ${sqlLiteral(`geo-near-${suffix}`)}, 'Synthetic Near Church',
+    ${sqlLiteral(nearChurchId)}::uuid, ${sqlLiteral(`geo-near-${suffix}`)}, ${sqlLiteral(`Near Church ${searchTerm}`)},
     'Near public address', 'Torino', 'IT', 'UTC', 'published',
     extensions.st_setsrid(extensions.st_makepoint(7.6869, 45.0703), 4326)::extensions.geography
   ), (
-    ${sqlLiteral(farChurchId)}::uuid, ${sqlLiteral(`geo-far-${suffix}`)}, 'Synthetic Far Church',
+    ${sqlLiteral(farChurchId)}::uuid, ${sqlLiteral(`geo-far-${suffix}`)}, ${sqlLiteral(`Far Church ${searchTerm}`)},
     'Far public address', 'Palermo', 'IT', 'UTC', 'published',
     extensions.st_setsrid(extensions.st_makepoint(13.3614, 38.1157), 4326)::extensions.geography
   );
@@ -255,20 +258,21 @@ assert.match(
   /church_published_location/i,
 );
 
-const anonymousCatalog = await rpc(anonymous, 'search_published_churches', { p_query: `Synthetic` });
+const anonymousCatalog = await rpc(anonymous, 'search_published_churches', { p_query: searchTerm });
+assert.equal(anonymousCatalog.length, 2);
 assert.ok(anonymousCatalog.some((church) => church.church_id === nearChurchId));
 assert.ok(anonymousCatalog.every((church) => typeof church.lat === 'number' && typeof church.lng === 'number'));
 
 // Proximity ordering applies only when the caller supplies a location.
 const nearFirst = await rpc(anonymous, 'search_published_churches', {
-  p_lat: 45.07, p_lng: 7.68, p_query: 'Synthetic',
+  p_lat: 45.07, p_lng: 7.68, p_query: searchTerm,
 });
 assert.equal(nearFirst[0].church_id, nearChurchId);
 assert.ok(nearFirst[0].distance_m < 2000);
-assert.equal(await rpc(anonymous, 'search_published_churches', { p_query: 'Synthetic' }).then((rows) => rows[0].distance_m), null);
+assert.equal(anonymousCatalog[0].distance_m, null);
 
 const bounded = await rpc(anonymous, 'search_published_churches', {
-  p_east: 8.0, p_north: 45.5, p_query: 'Synthetic', p_south: 44.5, p_west: 7.0,
+  p_east: 8.0, p_north: 45.5, p_query: searchTerm, p_south: 44.5, p_west: 7.0,
 });
 assert.equal(bounded.length, 1);
 assert.equal(bounded[0].church_id, nearChurchId);
@@ -419,9 +423,14 @@ for (const invalid of [
 const retainedPlace = await rpc(clients[1], 'save_place', {
   p_place: syntheticPlace(45.0208, 7.6301, 'Retained saved place', 'Moncalieri', { label: 'Работа' }),
 });
+// Retention is forced only for this run's own synthetic agreements, so a parallel suite in the
+// same job is never rewritten.
 runSql(container, `
   update app.ride_agreement set status = 'archived', archived_at = now(),
-    exact_data_delete_due_at = now() - interval '1 day';
+    contact_visible_until = now() - interval '2 days',
+    exact_data_delete_due_at = now() - interval '1 day'
+  where driver_account_id in (${identities.map((identity) => `${sqlLiteral(identity.id)}::uuid`).join(', ')})
+     or passenger_account_id in (${identities.map((identity) => `${sqlLiteral(identity.id)}::uuid`).join(', ')});
 `);
 const anonymized = JSON.parse(runSql(container, 'select ops.anonymize_expired_places();'));
 assert.ok(anonymized.anonymized_places >= 0);

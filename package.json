@@ -15,6 +15,7 @@
     "test:transport": "node scripts/verify-transport-foundation.mjs",
     "test:agreements": "node scripts/verify-ride-agreements.mjs",
     "test:geography": "node scripts/verify-geographic-foundation.mjs",
+    "test:matching": "node scripts/verify-quality-matching.mjs",
     "test:maps-upgrade": "supabase db reset --local --version 20260822130000 && node scripts/prepare-maps-upgrade.mjs && supabase migration up --local && node scripts/verify-maps-upgrade.mjs",
     "test:staging-email": "node scripts/verify-staging-email.mjs",
     "test:staging-core": "node scripts/verify-staging-core.mjs",

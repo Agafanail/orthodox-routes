@@ -50,12 +50,12 @@ Explicitly excluded:
 | A | Campaign authority and documentation reconciliation | Complete | Commit `2698399`; CI `32601966939` green on all three jobs |
 | B | Provider/legal feasibility and provider-independent geo design | Complete | Google Maps Platform terms fetched and reviewed 23 August 2026, recorded clause by clause in Backend Architecture V1 §11; the approved model is not contractually supportable on Google. The provider adapter contract, its storage rule, and a deterministic local fake are implemented, so Checkpoints C to F stay provider-independent |
 | C | PostGIS and protected location foundation | Complete | Migration `20260823120000_geographic_foundation.sql`; clean replay, `test:transport`, `test:agreements`, `test:geography`, and the representative `test:maps-upgrade` pass locally |
-| D | Location selection and map foundation | Not started | |
-| E | Deterministic quality-matching engine | Not started | |
-| F | Transport-board integration and matching UX | Not started | |
+| D | Location selection and map foundation | Provider-independent part complete | Place field, picker flow with manual fallback and explicit location action, saved-place reuse, church catalog with universal search and `Рядом со мной`, catalog map panel, and the dedicated church location screen. The tile layer and address search need the selected provider |
+| E | Deterministic quality-matching engine | Complete | Migration `20260823170000_quality_matching.sql`; `test:matching` proves every hard condition, the detour rule, the best place among alternatives, block suppression, live recomputation, provider-failure degradation, and agreement independence |
+| F | Transport-board integration and matching UX | Provider-independent part complete | `Подходит` marker, `Подходящие мне` view, explainable detour line, and the ordinary-language unavailable message; Core responses, confirmation, capacity, cancellation, restoration, and disclosure preserved |
 | G | Full campaign verification, privacy audit, human UX gate, release | Not started | |
 
-**Current continuation:** Checkpoint D — the provider-independent parts of location selection and the map foundation: the place field, the picker flow with its manual fallback and explicit location action, saved-place reuse, and the church catalog surface. The interactive tile layer and address search need the selected provider and are completed after the owner gate.
+**Current continuation:** Checkpoint G verification, and then the owner gates. Every provider-independent slice of Checkpoints A to F is complete and verified. Two owner decisions remain: selecting a map provider that permits the approved storage model, and the final manual UX test.
 
 For every completed checkpoint, replace its status with `Complete` and record the commit SHA plus the final green CI run. Update **Current continuation** to the next unfinished scope. Do not record synthetic research, pending CI as green, or external verification that did not occur.
 

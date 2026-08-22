@@ -27,6 +27,7 @@ import {
   withdrawRideResponseAction,
 } from '@/app/core-transport/actions';
 import type { CoreTransportData } from '@/lib/core-transport/types';
+import { detourSummary, matchesOccurrence, matchesRequest, type QualityMatch } from '@/lib/geo/match';
 import type { SavedPlace } from '@/lib/geo/types';
 import { PlaceField } from './place-field';
 
@@ -175,6 +176,24 @@ function date(value: string, timezone: string) {
   } catch { return value; }
 }
 
+/**
+ * The whole user-facing result of matching: one plain word plus facts a person can check.
+ * There is no percentage, no score, and no claim that one driver is better than another.
+ */
+function MatchBadge({ match }: { match?: QualityMatch }) {
+  if (!match) return null;
+  const best = match.places.find((place) => place.best) ?? match.places[0];
+  return <p className="mt-2 text-sm font-semibold text-amber-900" data-quality-match>
+    Подходит · {detourSummary(match)}
+    {best ? <span className="block font-normal text-stone-700">
+      {match.places.length > 1 ? 'Лучше всего подходит' : 'Подходит место встречи'}: {best.publicAreaLabel}
+    </span> : null}
+    {match.places.length > 1 ? <span className="block font-normal text-stone-600">
+      Также подходит: {match.places.filter((place) => !place.best).map((place) => place.publicAreaLabel).join(', ')}
+    </span> : null}
+  </p>;
+}
+
 function actionHidden(slug: string) {
   return <><input name="church_slug" type="hidden" value={slug} /><input name="client_key" type="hidden" value={randomUUID()} /></>;
 }
@@ -188,6 +207,13 @@ export function CoreTransportBoard(props: Props) {
     churchId: props.church.churchId, churchName: props.church.officialName,
     slug: props.church.slug, timezone: props.church.timezone,
   };
+  const matches = props.qualityMatches;
+  const matchedRequests = props.showMatchesOnly
+    ? props.passengerRequests.filter((request) => matchesRequest(matches, request.requestId))
+    : props.passengerRequests;
+  const matchedOccurrences = props.showMatchesOnly
+    ? props.driverOccurrences.filter((offer) => matchesOccurrence(matches, offer.occurrenceId))
+    : props.driverOccurrences;
   const places: PlaceContext = {
     mapAvailable: props.mapAvailable,
     savedPlaces: props.savedPlaces,
@@ -228,12 +254,32 @@ export function CoreTransportBoard(props: Props) {
       </FormShell>
     </div>
 
+    {props.signedIn ? <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm" data-match-view>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link
+          className={props.showMatchesOnly ? 'font-semibold text-stone-700' : 'font-bold text-amber-900'}
+          href={`/churches/${props.church.slug}`}
+        >Все объявления</Link>
+        <Link
+          className={props.showMatchesOnly ? 'font-bold text-amber-900' : 'font-semibold text-stone-700'}
+          href={`/churches/${props.church.slug}?view=matches`}
+        >Подходящие мне</Link>
+      </div>
+      {props.showMatchesOnly && !props.matchingAvailable ? <p className="mt-3 text-sm" data-match-unavailable>
+        Не удалось проверить подходящие поездки. Посмотрите все объявления.
+      </p> : null}
+      {props.showMatchesOnly && props.matchingAvailable ? <p className="mt-3 text-sm text-stone-600">
+        Это подсказка. Договориться можно и с теми, кого здесь нет.
+      </p> : null}
+    </div> : null}
+
     <div className="grid gap-5 lg:grid-cols-2">
       <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
         <h2 className="text-xl font-bold">Пассажирам нужна помощь</h2>
         <div className="mt-4 space-y-3">
-          {props.passengerRequests.length === 0 ? <p className="text-stone-600">Активных запросов пока нет.</p> : props.passengerRequests.map((request) => <article className="rounded-md bg-stone-50 p-4" key={request.requestId}>
+          {matchedRequests.length === 0 ? <p className="text-stone-600">{props.showMatchesOnly ? 'Пока нет просьб, которые вам подходят.' : 'Активных запросов пока нет.'}</p> : matchedRequests.map((request) => <article className="rounded-md bg-stone-50 p-4" key={request.requestId}>
             <h3 className="font-bold">{request.authorName}: {request.passengerCount} мест.</h3>
+            <MatchBadge match={matches.find((match) => match.requestId === request.requestId && match.currentRole === 'driver')} />
             <p>{date(request.desiredArrivalAt, request.timezone)} · {request.placeOptions.map((place) => place.publicAreaLabel).join(' / ')}</p>
             <p className="text-sm text-stone-600">Детей: {request.childrenCount}. {request.returnRequired ? 'Нужна обратная дорога.' : ''}</p>
             {request.publicNote ? <p className="mt-1 text-sm">{request.publicNote}</p> : null}
@@ -268,8 +314,9 @@ export function CoreTransportBoard(props: Props) {
       <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
         <h2 className="text-xl font-bold">Водители едут в храм</h2>
         <div className="mt-4 space-y-3">
-          {props.driverOccurrences.length === 0 ? <p className="text-stone-600">Активных предложений пока нет.</p> : props.driverOccurrences.map((offer) => <article className="rounded-md bg-stone-50 p-4" key={offer.occurrenceId}>
+          {matchedOccurrences.length === 0 ? <p className="text-stone-600">{props.showMatchesOnly ? 'Пока нет поездок, которые вам подходят.' : 'Активных предложений пока нет.'}</p> : matchedOccurrences.map((offer) => <article className="rounded-md bg-stone-50 p-4" key={offer.occurrenceId}>
             <h3 className="font-bold">{offer.authorName}: {offer.availableSeats} мест.</h3>
+            <MatchBadge match={matches.find((match) => match.occurrenceId === offer.occurrenceId && match.currentRole === 'passenger')} />
             <p>{offer.publicOriginArea} · {date(offer.arrivalAt, offer.timezone)}</p>
             <p className="text-sm text-stone-600">Крюк до {offer.maxDetourKm} км. {offer.returnAvailable ? 'Возможна обратная дорога.' : ''}</p>
             {offer.publicNote ? <p className="mt-1 text-sm">{offer.publicNote}</p> : null}

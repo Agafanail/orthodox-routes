@@ -125,6 +125,9 @@ jobs:
       - name: Verify geographic foundation and privacy boundary
         run: npm run test:geography
 
+      - name: Verify deterministic quality matching
+        run: npm run test:matching
+
       - name: Stop local Auth
         if: always()
         run: npm run auth:stop

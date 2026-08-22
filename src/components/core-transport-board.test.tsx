@@ -32,8 +32,9 @@ const base = {
     lat: 45.0703, lng: 7.6869,
   },
   driverOccurrences: [], eligibility: { eligible: true, reasons: [], currentTermsAccepted: true },
-  mapAvailable: true, ownedOccurrences: [], ownedRequests: [], ownedSeries: [],
-  passengerRequests: [], responses: [], savedPlaces: [], signedIn: true,
+  mapAvailable: true, matchingAvailable: true, ownedOccurrences: [], ownedRequests: [],
+  ownedSeries: [], passengerRequests: [], qualityMatches: [], responses: [], savedPlaces: [],
+  showMatchesOnly: false, signedIn: true,
 };
 
 describe('CoreTransportBoard', () => {
@@ -86,5 +87,98 @@ describe('CoreTransportBoard', () => {
     expect(html).toContain('name="target_name"');
     expect(html).toContain('value="Иван"');
     expect(html).not.toContain('driver@example.test');
+  });
+});
+
+const suggestion = {
+  addedDistanceM: 4200,
+  addedDurationS: 480,
+  arrivalAt: '2026-09-01T09:00:00Z',
+  availableSeats: 3,
+  currentRole: 'passenger' as const,
+  departureAt: '2026-09-01T08:00:00Z',
+  occurrenceId: '20000000-0000-4000-8000-000000000001',
+  passengerCount: 2,
+  places: [
+    { addedDistanceM: 4200, addedDurationS: 480, best: true, placeId: 'a', position: 1, publicAreaLabel: 'Северный район' },
+    { addedDistanceM: 6100, addedDurationS: 700, best: false, placeId: 'b', position: 2, publicAreaLabel: 'Центр' },
+  ],
+  requestId: '10000000-0000-4000-8000-000000000001',
+  timezone: 'UTC',
+};
+
+const offer = {
+  occurrenceId: '20000000-0000-4000-8000-000000000001',
+  churchId: base.church.churchId,
+  authorName: 'Иван',
+  departureAt: '2026-09-01T08:00:00Z',
+  arrivalAt: '2026-09-01T09:00:00Z',
+  timezone: 'UTC',
+  availableSeats: 3,
+  maxDetourKm: 5,
+  childrenAllowed: true,
+  driverChildSeatAvailable: true,
+  returnAvailable: false,
+  publicOriginArea: 'Южный район',
+};
+
+describe('CoreTransportBoard quality matching', () => {
+  it('explains a suggestion with facts rather than a score', () => {
+    const html = renderToStaticMarkup(<CoreTransportBoard
+      {...base}
+      driverOccurrences={[offer]}
+      qualityMatches={[suggestion]}
+    />);
+
+    expect(html).toContain('Подходит');
+    expect(html).toContain('+4 км · примерно +8 мин');
+    expect(html).toContain('Лучше всего подходит');
+    // Alternatives stay visible instead of being hidden behind the best one.
+    expect(html).toContain('Также подходит');
+    expect(html).not.toMatch(/\d+\s*%/);
+    expect(html).not.toContain('рейтинг');
+  });
+
+  it('keeps every listing on the ordinary board even when nothing matches', () => {
+    const html = renderToStaticMarkup(<CoreTransportBoard {...base} driverOccurrences={[offer]} />);
+
+    expect(html).toContain('Иван');
+    expect(html).not.toContain('Подходит ·');
+    // An unestablished result is never turned into a negative claim on an ordinary card.
+    expect(html).not.toContain('не подходит');
+  });
+
+  it('shows only suggestions in the dedicated view and keeps the board reachable', () => {
+    const html = renderToStaticMarkup(<CoreTransportBoard
+      {...base}
+      driverOccurrences={[offer, { ...offer, occurrenceId: '20000000-0000-4000-8000-000000000002', authorName: 'Пётр' }]}
+      qualityMatches={[suggestion]}
+      showMatchesOnly
+    />);
+
+    expect(html).toContain('Иван');
+    expect(html).not.toContain('Пётр');
+    expect(html).toContain('Все объявления');
+    expect(html).toContain('Договориться можно и с теми, кого здесь нет.');
+  });
+
+  it('explains an unavailable check only inside the suggestions view', () => {
+    const unavailable = renderToStaticMarkup(<CoreTransportBoard
+      {...base}
+      driverOccurrences={[offer]}
+      matchingAvailable={false}
+      showMatchesOnly
+    />);
+    expect(unavailable).toContain('Не удалось проверить подходящие поездки. Посмотрите все объявления.');
+
+    const ordinary = renderToStaticMarkup(<CoreTransportBoard
+      {...base}
+      driverOccurrences={[offer]}
+      matchingAvailable={false}
+    />);
+    expect(ordinary).not.toContain('Не удалось проверить подходящие поездки');
+    // Ordinary cards never mention a provider, an interface, or a technical cause.
+    expect(ordinary).not.toContain('API');
+    expect(ordinary).not.toContain('Google');
   });
 });

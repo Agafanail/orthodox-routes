@@ -1,3 +1,4 @@
+import type { QualityMatch } from '@/lib/geo/match';
 import type { PublicPlace, SavedPlace } from '@/lib/geo/types';
 
 export type CoreChurch = {
@@ -145,4 +146,15 @@ export type CoreTransportData = {
   /** Whether the browser may render an interactive map surface for place selection. */
   mapAvailable: boolean;
   savedPlaces: SavedPlace[];
+  /**
+   * Suggestions for the current user. They are a recommendation only: the board stays the
+   * primary experience and never hides a listing because matching did not name it.
+   */
+  qualityMatches: QualityMatch[];
+  /**
+   * False when suggestions could not be established at all. The board then simply makes no
+   * claim; only the explicit suggestions view says so in one ordinary sentence.
+   */
+  matchingAvailable: boolean;
+  showMatchesOnly: boolean;
 };
