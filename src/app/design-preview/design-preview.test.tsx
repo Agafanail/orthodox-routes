@@ -303,7 +303,7 @@ describe('Design System V2 preview route', () => {
 
     const map = screen.getByRole('region', { name: 'Мобильная карта поездок' });
     expect(within(map).getByRole('button', { name: 'Есть места' }).getAttribute('aria-pressed')).toBe('true');
-    expect(map.querySelectorAll('[data-map-object="corridor"]')).toHaveLength(2);
+    expect(map.querySelectorAll('[data-map-object="departureArea"]')).toHaveLength(2);
     expect(map.querySelectorAll('[data-map-object="area"]')).toHaveLength(0);
 
     fireEvent.click(within(map).getByRole('button', { name: 'Назад к доске поездок' }));
@@ -345,18 +345,21 @@ describe('Design System V2 preview route', () => {
     expect(within(desktopMap()).getByRole('button', { name: 'Ищут место' }).getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('shows only approximate passenger areas and driver corridors for one service group', () => {
+  it('shows only approximate passenger and driver departure areas for one service group', () => {
     const { container } = render(<DesignPreviewPage />);
     select('Мобильная карта поездок');
     const map = screen.getByRole('region', { name: 'Мобильная карта поездок' });
 
     expect(map.querySelectorAll('[data-map-object="area"]')).toHaveLength(3);
-    expect(map.querySelectorAll('[data-map-object="corridor"]')).toHaveLength(2);
+    expect(map.querySelectorAll('[data-map-object="departureArea"]')).toHaveLength(2);
     expect(map.textContent).toContain('Литургия · 10 августа');
     // the public area circle carries no centre marker that could imply the exact place
     const shapes = map.querySelector('svg[preserveAspectRatio="xMidYMid meet"]') as SVGElement;
     expect(shapes.querySelectorAll('[data-map-shape="area"]')).toHaveLength(3);
-    expect(shapes.querySelectorAll('[data-map-shape="corridor"]')).toHaveLength(2);
+    expect(shapes.querySelectorAll('[data-map-shape="departure-area"]')).toHaveLength(2);
+    // no public route line or corridor exists anywhere on the map
+    expect(shapes.querySelectorAll('[data-map-shape="corridor"]')).toHaveLength(0);
+    expect(map.textContent).not.toContain('направление');
     expect(container.textContent).not.toContain('Via XX Settembre, 45, 88100');
   });
 
@@ -384,8 +387,8 @@ describe('Design System V2 preview route', () => {
     render(<DesignPreviewPage />);
 
     for (const [label, objectName, action] of [
-      ['Мобильная карта поездок', /примерное направление/, 'Попросить подвезти'],
-      ['Карта поездок на компьютере', /примерная область/, 'Предложить подвезти'],
+      ['Мобильная карта поездок', /примерная область отправления/, 'Попросить подвезти'],
+      ['Карта поездок на компьютере', /примерная область, место/, 'Предложить подвезти'],
     ] as const) {
       select(label);
       const map = screen.getByRole('region', { name: label });
@@ -408,14 +411,14 @@ describe('Design System V2 preview route', () => {
     expect(map.querySelector('[data-map-shape="user"]')).toBeNull();
     expect(map.querySelector('[data-location-note]')).toBeNull();
 
-    fireEvent.click(within(map).getAllByRole('button', { name: /примерное направление/ })[0]);
+    fireEvent.click(within(map).getAllByRole('button', { name: /примерная область отправления/ })[0]);
     expect(map.querySelector('[data-ride-distance]')).toBeNull();
 
     fireEvent.click(within(map).getByRole('button', { name: 'Показать, где я' }));
     expect(map.querySelector('[data-map-shape="user"]')).not.toBeNull();
     expect(map.querySelector('[data-ride-distance]')?.textContent).toMatch(/^≈\d+ км от вас$/);
     expect(map.querySelector('[data-location-note]')?.textContent)
-      .toContain('до публичной области или направления, а не до точного места');
+      .toContain('до публичной области, а не до точного места');
   });
 
   it('scales map markers down on desktop while keeping the accepted mobile field', () => {

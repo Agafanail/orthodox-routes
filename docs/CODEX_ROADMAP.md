@@ -11,7 +11,7 @@ Roadmap separates the isolated browser demo and implemented local Core slice fro
 - The code, tests, and README describe what is implemented now.
 - `PROJECT_SPEC_V0_1.md`, `DATA_MODEL.md`, `UX_RULES.md`, and `PROJECT_MAP.md` remain explicitly labelled prototype or legacy references and cannot override Product Scope or IA V2.
 - Information architecture is complete at the approved-document level. Empirical card sorting and tree testing remain future validation work recorded in IA V2, not invented research results; they do not block Design System V2 approval.
-- **Design System V2** is canonical and approved, and **Backend and integration architecture** is complete and approved. The active phase is **Core multi-user platform**. The isolated `/design-preview` reference artifact now carries twelve V2 control screens, including the approved transport-board ride map; production adoption remains separate Phase 10 work. Phase approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
+- **Design System V2** is canonical and approved, and **Backend and integration architecture** is complete and approved. The **Core multi-user platform** phase is complete. The active phase is **Maps and quality matching**, tracked in [BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md](BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md). The isolated `/design-preview` reference artifact now carries twelve V2 control screens, including the approved transport-board ride map; production adoption remains separate Phase 10 work. Phase approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
 - Maps are part of the required first full version, even though they are not part of the current mock.
 - Product-scope approval does not authorize implementing all phases in one change.
 
@@ -99,14 +99,16 @@ The target data model and target project diagrams are approved architecture arti
 - Keep contacts unavailable to anonymous users and unconfirmed counterparties — completed for the implemented Core agreement boundary.
 - Support contextual registration from the action the visitor was already performing — completed for requests, offers, and responses with an explicit final send.
 
-The complete Core campaign passed its final local, migration, security/privacy, isolated-staging, provider, and GitHub Actions release gates. The next Maps/quality-matching phase has not started and requires separate explicit authorization.
+The complete Core campaign passed its final local, migration, security/privacy, isolated-staging, provider, and GitHub Actions release gates. The Maps and quality-matching phase is separately authorized and now active.
 
-### 5. Maps and quality matching
+### 5. Maps and quality matching — active
 
-- Add the church directory map and address-based church creation.
-- Add protected exact driver departure points, up to three passenger meeting points, and driver routes, exposing only approved approximate public representations before mutual confirmation.
-- Implement route-aware matching with seat, church, service/date, one-hour time compatibility, detour, direction, and active-status rules.
-- Send suggestions only for quality matches; suggestions never confirm a ride automatically.
+- Add the church catalog map with universal search and an explicit `Рядом со мной` action, and the dedicated church location screen opened from the exact public address.
+- Add the reusable address/place-first location picker with map confirmation, marker correction, manual placement fallback, and reusable saved places.
+- Add protected exact church and user coordinates, up to three passenger meeting points, one driver departure point, and stable off-centre approximate public areas exposed identically to anonymous visitors and authenticated non-participants.
+- Implement deterministic route-aware quality matching with church, active-state, service/date and one-hour time compatibility, block, whole-group seat, child and child-seat, and detour-distance rules.
+- Show suggestions as an explainable `Подходит` marker and a `Подходящие мне` view; suggestions never confirm a ride, never restrict the ordinary board, and never show a score.
+- Do not create public driver route corridors, persisted provider route geometry, a separate direction rule, route optimization, or pgRouting.
 
 ### 6. My Trips, notifications, profile, and PWA
 
@@ -156,7 +158,7 @@ Open to real users only when the Product Scope and IA V2 readiness criteria are 
 ## Required before real users
 
 - Backend, authentication, server-side authorization, and cross-device persistence.
-- Maps, geocoding, routing, protected exact data, approximate public areas/corridors, and quality matching.
+- Maps, geocoding, routing, protected exact data, stable approximate public areas, and quality matching.
 - Complete driver, passenger, confirmation, contact-disclosure, capacity, and cancellation flows.
 - My Trips, profile, and real in-app, email, and Web Push notifications.
 - Installable PWA behavior.

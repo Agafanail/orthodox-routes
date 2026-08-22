@@ -191,10 +191,12 @@ Authoritative roles and permissions are not stored in user-editable auth metadat
 
 | Class | Examples | Permitted delivery |
 | --- | --- | --- |
-| Public | Published church and schedule; active safe ride cards; safe names/counts; stable approximate areas/corridors | Anonymous public views and pages |
-| Participant-private | Confirmed agreement snapshot; exact agreed meeting point; counterparty contacts during authorized visibility | Protected participant operation after checking both caller and agreement |
+| Public | Published church and schedule; exact public church location; active safe ride cards; safe names/counts; stable approximate passenger and driver-departure areas | Anonymous public views and authenticated non-participants alike |
+| Participant-private | Confirmed agreement snapshot; the one exact meeting point selected for that agreement; the driver's exact departure point; counterparty contacts during authorized visibility | Protected participant operation after checking both caller and agreement |
 | User-private | Verified email/phone; exact proposed locations; notification preferences/subscriptions; recovery state | Account owner and narrowly scoped system functions |
 | Operationally restricted | Complaints; abuse controls; audit; deletion ledger; provider references; owner-operation state | Protected operational functions only |
+
+Authentication alone never widens geographic visibility: an authenticated account that is not a participant in a specific confirmed agreement receives exactly the same approximate representation as an anonymous visitor.
 
 Private data is omitted from public response shapes, logs, analytics, email, push, search markup, and client prefetch. Sensitive schemas are not broadly exposed by the Supabase Data API. Views exposed to application roles use explicit grants and `security_invoker` where appropriate.
 
@@ -241,18 +243,22 @@ The application generates a stable one-kilometre area from an application-owned,
 - reuse the same representation until the protected point changes;
 - never recalculate a different circle on every view.
 
-### Public corridor
+### No public route geometry
 
-The exact driver route remains private. The permanent public corridor is generated from application-owned inputs such as the stable approximate origin area, user-supplied intermediate localities/landmarks, church location, and a versioned application approximation algorithm. Google route geometry is not edited, simplified, stored, or republished as a permanent public corridor.
+There is no public driver route corridor and no public driver route line. The driver has not promised to follow a road computed by a provider, so the application does not publish, store, or present such a road as a ride commitment. The driver's public representation is only the stable approximate departure area described above.
 
-Google results are temporary quality-validation inputs subject to the then-current retention, display, attribution, caching, and derivative-content terms. Place IDs are retained only where permitted; provider payloads are not stored wholesale. The boundary between user-confirmed coordinates and Google Maps Content requires a fresh contractual review before implementation and must not be presented as settled legal interpretation.
+Provider route responses are temporary calculation inputs. Route geometry is not persisted. A derived match cache, where technically justified, holds only privacy-safe facts: source entity and version identifiers, the selected compatible passenger place reference, the verdict, added distance, added estimated time, and a calculation timestamp/version.
+
+Provider results remain subject to the then-current retention, display, attribution, caching, and derivative-content terms. Place identifiers are retained only where permitted; provider payloads are not stored wholesale. The boundary between user-confirmed application-owned coordinates and provider-owned Map Content requires a fresh contractual review before persistent implementation and is recorded with its date in this document.
 
 ### Two-stage matching
 
-1. PostgreSQL/PostGIS selects candidates with the same church and occurrence/date, one-hour compatibility, sufficient capacity, child/seat compatibility, active states, and broad proximity to the application-owned corridor.
-2. Google Routes validates only the best candidates by comparing the baseline route with the route through the proposed meeting point and calculating added distance/time against the driver's approved detour.
+1. PostgreSQL/PostGIS selects candidates cheaply: same church, both records active, same service occurrence or compatible custom date/time, no applicable mutual block, enough available seats for the passenger's entire remaining group, child and child-seat compatibility, and a broad spatial bound derived from the driver's approved detour limit.
+2. The route provider is called only for surviving candidates. For each of the passenger's up to three meeting points it compares the baseline driver-departure-to-church route with the route through that meeting point and derives added distance and added estimated time.
 
-Provider responses are cached only when current terms permit and are invalidated when relevant inputs or terms change. Existing agreements, contact access, and cancellation remain usable during map-provider outages.
+Added kilometres are the only blocking geographic condition; added minutes are informational. There is no separate direction rule, no directional-angle heuristic, no corridor proximity test, and no route optimization.
+
+Provider responses are cached only when current terms permit and are invalidated when relevant inputs or terms change. Church and catalog data that needs no new provider call, the transport board, existing listings, existing agreements, cancellation, and other Core agreement operations remain fully usable during provider outages. An uncomputed candidate is never labelled as not matching.
 
 ### Cost and key controls
 

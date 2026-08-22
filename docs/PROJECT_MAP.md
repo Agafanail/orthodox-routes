@@ -432,7 +432,7 @@ flowchart LR
 
     subgraph PUBLIC["Public trust boundary — target"]
         VISITOR["Anonymous visitor"]
-        PUB["Public safe projections<br/>churches, schedules, active cards,<br/>approximate areas and corridors"]
+        PUB["Public safe projections<br/>churches, schedules, active cards,<br/>approximate areas only"]
     end
 
     subgraph TARGET["Application trust boundary — target production"]
