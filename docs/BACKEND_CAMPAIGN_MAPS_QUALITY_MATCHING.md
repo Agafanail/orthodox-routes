@@ -50,12 +50,14 @@ Explicitly excluded:
 | A | Campaign authority and documentation reconciliation | Complete | Commit `2698399`; CI `32601966939` green on all three jobs |
 | B | Provider/legal feasibility and provider-independent geo design | Complete | Google Maps Platform terms fetched and reviewed 23 August 2026, recorded clause by clause in Backend Architecture V1 §11; the approved model is not contractually supportable on Google. The provider adapter contract, its storage rule, and a deterministic local fake are implemented, so Checkpoints C to F stay provider-independent |
 | C | PostGIS and protected location foundation | Complete | Commit `21ceb1a`; migration `20260823120000_geographic_foundation.sql`; CI `32604195964` after the shared-database fix, confirmed by `32605335711` |
-| D | Location selection and map foundation | Provider-independent part complete | Commits `324d4b8`, `ada3b12`; place field, picker flow with manual fallback and explicit location action, saved-place reuse, church catalog with universal search and `Рядом со мной`, catalog map panel, and the dedicated church location screen. The tile layer and address search need the selected provider |
+| D | Location selection and map foundation | Complete | Commits `324d4b8`, `ada3b12`, `0039742`; place field, picker flow with address search, tap-to-place correction, manual fallback, explicit location action, saved-place reuse, church catalog with universal search and `Рядом со мной`, catalog map, and the dedicated church location screen. Map imagery and address search run through the Geoapify adapter and activate as soon as the owner injects the keys |
 | E | Deterministic quality-matching engine | Complete | Migration `20260823170000_quality_matching.sql`; CI `32605335711` green; `test:matching` proves every hard condition, the detour rule, the best place among alternatives, block suppression, live recomputation, provider-failure degradation, and agreement independence |
-| F | Transport-board integration and matching UX | Provider-independent part complete | `Подходит` marker, `Подходящие мне` view, explainable detour line, and the ordinary-language unavailable message; Core responses, confirmation, capacity, cancellation, restoration, and disclosure preserved |
+| F | Transport-board integration and matching UX | Complete | `Подходит` marker, `Подходящие мне` view, explainable detour line, and the ordinary-language unavailable message; Core responses, confirmation, capacity, cancellation, restoration, and disclosure preserved |
 | G | Full campaign verification, privacy audit, human UX gate, release | In progress | CI `32607226326` fully green. Local verification, browser verification, and the privacy audit are complete; the provider decision and the owner manual UX test remain |
 
-**Current continuation:** two owner gates, in order. First the map-provider decision, because the visible tile layer and address search cannot be finished without it. Then the manual UX test, once those two pieces are in place.
+**Current continuation:** one owner action, then the manual UX test.
+
+All code is written, including the vendor adapter and the map imagery. Nothing further can be built without an account that only the owner can create: the application needs a Geoapify API key injected through the hosting secret manager. Once the keys exist, address search, route measurement, and map imagery activate through configuration alone, with no further change. The manual UX test follows immediately after.
 
 ### Verification completed so far
 
@@ -66,15 +68,21 @@ Explicitly excluded:
 - Public payload inspection: no exact address, exact coordinate, or route geometry in any anonymous response; every published circle centre measured between 300 and 700 metres from its exact point.
 - Grant audit: `route_worker_*` reachable only by the service role; every exact-data function limited to `authenticated` with an actor check inside; no application role holding table or view access to church, place, block, measurement, or approximation-secret relations; forced row level security on every new table.
 
-### Owner gate 1 — map provider
+### Owner gate — the provider account and its keys
 
-Raised after all provider-independent work was finished. Google Maps Platform cannot support the approved model, as recorded above and in Backend Architecture V1 §11. The recommendation put to the owner is **Geoapify**: one account covering address search, autocomplete, driving routes, and map tiles; data from OpenStreetMap, OpenAddresses, and GeoNames, whose Open Data licences permit permanent storage and cross-user reuse subject to attribution; a free tier of 3000 requests per day; EU registration. The obligation it creates is a visible attribution to the data sources and, on the free tier, a link to Geoapify.
+Google Maps Platform cannot support the approved model, as recorded above and in Backend Architecture V1 §11. **Geoapify** is the selected direction: one account covering address search, autocomplete, driving routes, and map imagery; data from OpenStreetMap, OpenAddresses, and GeoNames, whose open licences permit permanent storage and cross-user reuse subject to attribution; a free tier of 3000 requests per day; EU registration. The obligation it creates is visible attribution to the data sources and, on the free tier, a link to Geoapify, which the application already renders beneath every map surface.
 
-Only the owner can create the account and inject the keys. Nothing else in the campaign depends on it.
+The adapter, the imagery, the attribution, the key separation, and the tests are all implemented and merged. What remains is only what the owner alone can do:
 
-### Owner gate 2 — manual UX test
+1. create a Geoapify account and an API key;
+2. set `ORTHODOX_ROUTES_MAP_PROVIDER` to `geoapify`, and both `ORTHODOX_ROUTES_MAP_SERVER_KEY` and `NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_BROWSER_KEY` to that key, through the hosting secret manager;
+3. confirm that it is done.
 
-Opens once the provider keys exist and the tile layer and address search are connected to the adapter that is already in place.
+The key is never requested in conversation and never committed. Until it exists, maps and suggestions stay unavailable and the ordinary board keeps working, which is the approved degradation and is covered by tests.
+
+### Manual UX test
+
+Opens as soon as the keys are in place. The checklist is limited to human-visible behavior: the catalog and its map, `Рядом со мной`, the church address opening the location screen, choosing and correcting a meeting place, the privacy sentence about the approximate area, publishing, the `Подходит` marker with its added-distance line, `Подходящие мне`, and what each side sees after a confirmed agreement.
 
 For every completed checkpoint, replace its status with `Complete` and record the commit SHA plus the final green CI run. Update **Current continuation** to the next unfinished scope. Do not record synthetic research, pending CI as green, or external verification that did not occur.
 
