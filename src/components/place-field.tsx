@@ -22,9 +22,11 @@ export type PlaceFieldProps = {
   maximum: number;
   savedPlaces: SavedPlace[];
   mapAvailable: boolean;
+  browserKey: string | null;
   /** Bias place search towards the church the person is looking at. */
   near?: { lat: number; lng: number };
-  searchPlaces?: (query: string) => Promise<PlaceCandidate[]>;
+  searchPlaces: (query: string, near?: { lat: number; lng: number })
+  => Promise<{ candidates: PlaceCandidate[]; available: boolean }>;
 };
 
 type Entry =
@@ -40,6 +42,7 @@ function entryPayload(entry: Entry): PlaceInput {
 }
 
 export function PlaceField({
+  browserKey,
   hint,
   legend,
   mapAvailable,
@@ -121,6 +124,7 @@ export function PlaceField({
 
       {picking && (
         <PlacePicker
+          browserKey={browserKey}
           mapAvailable={mapAvailable}
           near={near}
           onCancel={() => setPicking(false)}

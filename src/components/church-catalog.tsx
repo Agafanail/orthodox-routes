@@ -11,11 +11,13 @@ import { NearMeAction } from './near-me-action';
  * a missing map surface never stops a person from finding a church.
  */
 export function ChurchCatalog({
+  browserKey,
   churches,
   mapAvailable,
   near,
   query,
 }: {
+  browserKey: string | null;
   churches: CatalogChurch[];
   mapAvailable: boolean;
   near: Coordinate | null;
@@ -69,7 +71,7 @@ export function ChurchCatalog({
           ))}
         </div>
 
-        <CatalogMap churches={churches} mapAvailable={mapAvailable} near={near} />
+        <CatalogMap browserKey={browserKey} churches={churches} mapAvailable={mapAvailable} near={near} />
       </div>
     </section>
   );

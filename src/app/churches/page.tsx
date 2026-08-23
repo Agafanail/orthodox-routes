@@ -4,6 +4,7 @@ import { ChurchCatalog } from '@/components/church-catalog';
 import { ChurchList } from '@/components/church-list';
 import { parseCatalogChurches, parseCoarseLocation } from '@/lib/geo/church';
 import { hasBrowserMapConfiguration } from '@/lib/geo/provider';
+import { getBrowserMapKey } from '@/lib/geo/provider-factory';
 import { mockChurches, mockDrivers, mockRoutes, mockTrips } from '@/lib/mockData';
 import { getPublicSupabaseConfig } from '@/lib/supabase/config';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -53,6 +54,7 @@ export default async function ChurchesPage({ searchParams }: PageProps) {
 
       {catalog ? (
         <ChurchCatalog
+          browserKey={getBrowserMapKey()}
           churches={catalog}
           mapAvailable={hasBrowserMapConfiguration()}
           near={near}

@@ -32,7 +32,8 @@ const base = {
     lat: 45.0703, lng: 7.6869,
   },
   driverOccurrences: [], eligibility: { eligible: true, reasons: [], currentTermsAccepted: true },
-  mapAvailable: true, matchingAvailable: true, ownedOccurrences: [], ownedRequests: [],
+  mapAvailable: true, mapBrowserKey: 'test-browser-key', matchingAvailable: true,
+  ownedOccurrences: [], ownedRequests: [],
   ownedSeries: [], passengerRequests: [], qualityMatches: [], responses: [], savedPlaces: [],
   showMatchesOnly: false, signedIn: true,
 };

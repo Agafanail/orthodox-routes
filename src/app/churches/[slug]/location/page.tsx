@@ -2,7 +2,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { connection } from 'next/server';
 import { parseCoreChurch } from '@/lib/core-transport/parse';
+import { GEOAPIFY_ATTRIBUTION } from '@/lib/geo/geoapify';
 import { hasBrowserMapConfiguration } from '@/lib/geo/provider';
+import { getBrowserMapKey } from '@/lib/geo/provider-factory';
+import { staticMapUrl } from '@/lib/geo/static-map';
 import { getChurchBySlug } from '@/lib/mockData';
 import { getPublicSupabaseConfig } from '@/lib/supabase/config';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -53,15 +56,25 @@ export default async function ChurchLocationPage({ params }: PageProps) {
       <h1 className="text-3xl font-bold text-stone-950">{name}</h1>
       <p className="mt-3 text-lg text-stone-700" data-church-address>{address}</p>
 
-      {hasBrowserMapConfiguration() && point ? (
-        <div
-          className="mt-5 grid min-h-72 place-items-center rounded-lg border border-stone-200 bg-stone-100 p-4 text-center text-sm text-stone-600"
-          data-church-lat={point.lat}
-          data-church-lng={point.lng}
-          data-church-location-map
-        >
-          Храм отмечен на карте.
-        </div>
+      {hasBrowserMapConfiguration() && point && getBrowserMapKey() ? (
+        <figure className="mt-5" data-church-lat={point.lat} data-church-lng={point.lng} data-church-location-map>
+          {/* eslint-disable-next-line @next/next/no-img-element -- provider-rendered map tile, not a static asset */}
+          <img
+            alt={`Храм на карте: ${address}`}
+            className="w-full rounded-lg border border-stone-200"
+            height={360}
+            src={staticMapUrl({
+              apiKey: getBrowserMapKey()!,
+              center: point,
+              height: 360,
+              markers: [{ ...point, kind: 'church' }],
+              width: 640,
+              zoom: 16,
+            })}
+            width={640}
+          />
+          <figcaption className="mt-1 text-xs text-stone-500">{GEOAPIFY_ATTRIBUTION}</figcaption>
+        </figure>
       ) : (
         <p className="mt-5 rounded-lg border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600" data-church-location-map-unavailable>
           Карта сейчас недоступна. Полный адрес храма указан выше.

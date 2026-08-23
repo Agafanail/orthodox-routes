@@ -143,8 +143,10 @@ export type CoreTransportData = {
   eligibility?: CoreEligibility;
   disclosure?: CoreDisclosure;
   signedIn: boolean;
-  /** Whether the browser may render an interactive map surface for place selection. */
+  /** Whether the browser may render map imagery for place selection. */
   mapAvailable: boolean;
+  /** Render-only provider key; it carries no search or routing rights. */
+  mapBrowserKey: string | null;
   savedPlaces: SavedPlace[];
   /**
    * Suggestions for the current user. They are a recommendation only: the board stays the

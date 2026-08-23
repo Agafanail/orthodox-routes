@@ -18,8 +18,9 @@ import { MapSurface } from './map-surface';
 export type PlacePickerProps = {
   title: string;
   mapAvailable: boolean;
+  browserKey: string | null;
   near?: Coordinate;
-  searchPlaces?: (query: string) => Promise<PlaceCandidate[]>;
+  searchPlaces: (query: string, near?: Coordinate) => Promise<{ candidates: PlaceCandidate[]; available: boolean }>;
   onConfirm: (place: SelectedPlace) => void;
   onCancel: () => void;
 };
@@ -44,21 +45,26 @@ function draftFromCandidate(candidate: PlaceCandidate): Draft {
   };
 }
 
-export function PlacePicker({ mapAvailable, near, onCancel, onConfirm, searchPlaces, title }: PlacePickerProps) {
+export function PlacePicker({ browserKey, mapAvailable, near, onCancel, onConfirm, searchPlaces, title }: PlacePickerProps) {
   const [query, setQuery] = useState('');
   const [candidates, setCandidates] = useState<PlaceCandidate[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Choosing a search result is an explicit action, so it is the moment the view may move.
+  const [focus, setFocus] = useState<Coordinate | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchFailed, setSearchFailed] = useState(false);
   const [save, setSave] = useState(false);
   const [label, setLabel] = useState('');
 
   async function search() {
-    if (!searchPlaces || query.trim().length === 0) return;
+    if (query.trim().length === 0) return;
     setSearching(true);
     setSearchFailed(false);
     try {
-      setCandidates(await searchPlaces(query.trim()));
+      const result = await searchPlaces(query.trim(), near);
+      setCandidates(result.candidates);
+      // Nothing found and nothing to say about why: the manual fallback is always offered.
+      setSearchFailed(!result.available || result.candidates.length === 0);
     } catch {
       setCandidates([]);
       setSearchFailed(true);
@@ -133,7 +139,10 @@ export function PlacePicker({ mapAvailable, near, onCancel, onConfirm, searchPla
                 <li key={candidate.id}>
                   <button
                     className="min-h-11 w-full rounded-lg border border-stone-300 bg-white p-2 text-left text-sm"
-                    onClick={() => setDraft(draftFromCandidate(candidate))}
+                    onClick={() => {
+                      setDraft(draftFromCandidate(candidate));
+                      setFocus({ lat: candidate.lat, lng: candidate.lng });
+                    }}
                     type="button"
                   >
                     {candidate.address}
@@ -144,6 +153,8 @@ export function PlacePicker({ mapAvailable, near, onCancel, onConfirm, searchPla
           )}
 
           <MapSurface
+            browserKey={browserKey}
+            focus={focus}
             marker={draft?.point ?? null}
             near={near}
             onMarkerChange={(point) => setDraft((current) => (current
@@ -151,10 +162,16 @@ export function PlacePicker({ mapAvailable, near, onCancel, onConfirm, searchPla
               : { address: '', moved: true, point }))}
           />
 
-          <p className="text-sm text-stone-700">
-            Найдите адрес или передвиньте отметку на карте. Если адрес не находится, поставьте
-            отметку вручную.
-          </p>
+          {browserKey ? (
+            <p className="text-sm text-stone-700">
+              Найдите адрес или нажмите на карте, чтобы поставить отметку. Если адрес не
+              находится, достаточно правильно отметить место на карте.
+            </p>
+          ) : (
+            <p className="text-sm text-stone-700">
+              Найдите адрес. Отметить место на карте сейчас не получится.
+            </p>
+          )}
 
           {draft && (
             <>

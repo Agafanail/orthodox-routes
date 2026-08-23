@@ -26,7 +26,7 @@ import {
 import { parseQualityMatches } from '@/lib/geo/match';
 import { parseSavedPlaces } from '@/lib/geo/place';
 import { hasBrowserMapConfiguration } from '@/lib/geo/provider';
-import { resolveGeoProvider } from '@/lib/geo/provider-factory';
+import { getBrowserMapKey, resolveGeoProvider } from '@/lib/geo/provider-factory';
 import { createRouteWorkerGateway } from '@/lib/geo/route-gateway';
 import { measurePendingLegs } from '@/lib/geo/route-worker';
 import { createPrivilegedSupabaseClient } from '@/lib/supabase/server-privileged';
@@ -154,6 +154,7 @@ export default async function ChurchPage({ params, searchParams }: PageProps) {
             driverOccurrences={parseCoreDriverOccurrences(occurrencesResult.data)}
             eligibility={parseCoreEligibility(account?.eligibility)}
             mapAvailable={hasBrowserMapConfiguration()}
+            mapBrowserKey={getBrowserMapKey()}
             matchingAvailable={matchingAvailable}
             ownedOccurrences={owned.ownedOccurrences}
             ownedRequests={owned.ownedRequests}

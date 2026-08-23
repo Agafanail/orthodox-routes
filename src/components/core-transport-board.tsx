@@ -26,6 +26,7 @@ import {
   submitPassengerResponseAction,
   withdrawRideResponseAction,
 } from '@/app/core-transport/actions';
+import { searchPlacesAction } from '@/app/core-transport/place-search';
 import type { CoreTransportData } from '@/lib/core-transport/types';
 import { detourSummary, matchesOccurrence, matchesRequest, type QualityMatch } from '@/lib/geo/match';
 import type { SavedPlace } from '@/lib/geo/types';
@@ -95,6 +96,7 @@ function IdentityFields() {
 
 type PlaceContext = {
   mapAvailable: boolean;
+  browserKey: string | null;
   savedPlaces: SavedPlace[];
   near?: { lat: number; lng: number };
 };
@@ -107,6 +109,7 @@ function PassengerFields({ places }: { places: PlaceContext }) {
       <label className="grid gap-1">Из них детей<input defaultValue={0} max={55} min={0} name="children_count" required type="number" /></label>
     </div>
     <PlaceField
+      browserKey={places.browserKey}
       hint="Укажите, где вас удобно забрать. Всем будет видна только примерная область около 1 км."
       legend="Место встречи"
       mapAvailable={places.mapAvailable}
@@ -114,6 +117,7 @@ function PassengerFields({ places }: { places: PlaceContext }) {
       name="places"
       near={places.near}
       savedPlaces={places.savedPlaces}
+      searchPlaces={searchPlacesAction}
     />
     <label><input name="child_seat_required" type="checkbox" value="yes" /> Нужно детское кресло</label>
     <label><input name="return_required" type="checkbox" value="yes" /> Нужна обратная дорога</label>
@@ -142,6 +146,7 @@ function DriverFields({ places, series = false }: { places: PlaceContext; series
       <label className="grid gap-1">Прибытие<input name="arrival_local" required type="datetime-local" /></label>
     </div>}
     <PlaceField
+      browserKey={places.browserKey}
       hint="Укажите, откуда вы выезжаете. Всем будет видна только примерная область около 1 км, а маршрут поездки не публикуется."
       legend="Место отправления"
       mapAvailable={places.mapAvailable}
@@ -149,6 +154,7 @@ function DriverFields({ places, series = false }: { places: PlaceContext; series
       name="origin"
       near={places.near}
       savedPlaces={places.savedPlaces}
+      searchPlaces={searchPlacesAction}
     />
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="grid gap-1">Свободных мест<input defaultValue={1} max={55} min={1} name="seats_available" required type="number" /></label>
@@ -239,6 +245,7 @@ export function CoreTransportBoard(props: Props) {
     ? props.driverOccurrences.filter((offer) => matchesOccurrence(matches, offer.occurrenceId))
     : props.driverOccurrences;
   const places: PlaceContext = {
+    browserKey: props.mapBrowserKey,
     mapAvailable: props.mapAvailable,
     savedPlaces: props.savedPlaces,
     ...(props.church.lat === undefined || props.church.lng === undefined

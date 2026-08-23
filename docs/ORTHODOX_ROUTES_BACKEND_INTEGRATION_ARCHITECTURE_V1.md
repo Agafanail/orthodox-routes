@@ -259,6 +259,26 @@ Routing is unaffected by storage limits because no routing output is persisted: 
 
 **Consequence for this campaign.** The provider selection is an owner decision with cost and account consequences, so it is an owner-controlled gate rather than an engineering choice. All provider-independent work — schema, protected functions, approximation, matching, projections, adapters, deterministic local fakes, tests, and documentation — is completed first and does not depend on which vendor is chosen. The domain calls only the adapter contract, so selecting a provider later is configuration, not redesign.
 
+### Selected direction — Geoapify
+
+The implemented vendor adapter is Geoapify, recommended to the owner as the single provider covering all three capabilities.
+
+| Requirement | How Geoapify meets it |
+| --- | --- |
+| Permanent storage of a user-selected coordinate | Its geocoding results derive from OpenStreetMap, OpenAddresses, and GeoNames. Those open licences grant the right to store and reuse the data, subject to attribution, rather than leaving it to a vendor's discretionary caching clause. Geoapify states the same in its own documentation: results may be stored provided the data-source attribution is kept. |
+| Use across multiple end users | Nothing in the open licences or the documented policy restricts a stored coordinate to one end user, which is the clause that rules Google out. |
+| Publication of a derived approximate area | The published circle is application-owned geometry computed from the stored coordinate; the open licences permit derived works under the same attribution. |
+| Driving distance and duration | The Routing API returns total distance and time. The adapter reads only those two numbers and never the route geometry. |
+| Map imagery | The Static Maps API renders the church catalog, the church location screen, and the place picker. |
+
+The obligation this creates is visible attribution to the data sources, and on the free tier a link to Geoapify. The application renders that attribution beneath every map surface.
+
+Selecting a different vendor later means replacing one adapter file and one static-map URL builder. No schema, protected function, projection, or matching rule depends on the vendor.
+
+### Key separation
+
+Two distinct values are configured. `ORTHODOX_ROUTES_MAP_SERVER_KEY` is used only on the server, for address search and route measurement, so a page can never spend those calls. `NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_BROWSER_KEY` is used only for map imagery and is withheld entirely unless a vendor that serves imagery is configured. Neither key is committed, logged, or included in an error message; a provider failure surfaces as one ordinary sentence with no vendor name, status code, or technical cause.
+
 ### Public approximate area
 
 The application generates a stable one-kilometre area from an application-owned, user-confirmed exact point:
