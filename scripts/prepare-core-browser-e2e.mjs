@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import { syntheticPlace } from './synthetic-geo.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 
@@ -39,6 +41,14 @@ function sql(container, statement) {
   if (result.status !== 0) fail(`Browser fixture SQL failed.\n${result.stderr}`);
 }
 
+function sqlValue(container, statement) {
+  const result = spawnSync('docker', [
+    'exec', '-i', container, 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At', '-f', '-',
+  ], { encoding: 'utf8', input: statement });
+  if (result.status !== 0) fail(`Browser fixture query failed.\n${result.stderr}`);
+  return result.stdout.trim();
+}
+
 async function rpc(client, name, args = {}) {
   const result = await client.schema('api').rpc(name, args);
   if (result.error) fail(`Browser fixture RPC ${name} failed: ${result.error.message}`);
@@ -65,17 +75,26 @@ sql(container, `
     'published', repeat('e', 64)
   );
   insert into app.church (
-    slug, official_name, address_display, locality, country_code, timezone, status
+    slug, official_name, address_display, locality, country_code, timezone, status, location
   ) values (
     'pokrov-catanzaro', 'Храм Покрова Пресвятой Богородицы',
-    'Via browser fixture 1', 'Catanzaro', 'IT', 'Europe/Rome', 'published'
+    'Via browser fixture 1', 'Catanzaro', 'IT', 'Europe/Rome', 'published',
+    extensions.st_setsrid(extensions.st_makepoint(16.5960, 38.9098), 4326)::extensions.geography
   ) on conflict (slug) do update set
     official_name = excluded.official_name,
     address_display = excluded.address_display,
     locality = excluded.locality,
     country_code = excluded.country_code,
     timezone = excluded.timezone,
-    status = excluded.status;
+    status = excluded.status,
+    location = excluded.location;
+  insert into app.church (
+    slug, official_name, address_display, locality, country_code, timezone, status, location
+  ) values (
+    'browser-far-church', 'Храм святителя Николая',
+    'Via browser fixture 2', 'Palermo', 'IT', 'Europe/Rome', 'published',
+    extensions.st_setsrid(extensions.st_makepoint(13.3614, 38.1157), 4326)::extensions.geography
+  ) on conflict (slug) do update set location = excluded.location, status = excluded.status;
 `);
 
 for (const user of users) {
@@ -95,6 +114,53 @@ sql(container, `
   where account_id in (${users.map((user) => `${sqlLiteral(user.id)}::uuid`).join(', ')});
 `);
 
+// Published synthetic geography so the browser check has a passenger with several meeting
+// places and a driver whose departure is genuinely on the way to the same church.
+const churchId = sqlValue(container, `select public_id from app.church where slug = 'pokrov-catanzaro';`);
+const arrival = new Date();
+arrival.setUTCDate(arrival.getUTCDate() + 7);
+arrival.setUTCHours(9, 0, 0, 0);
+const departure = new Date(arrival.getTime() - 60 * 60 * 1000);
+
+const passengerClient = createClient(url, publicKey, { auth: { persistSession: false } });
+await passengerClient.auth.signInWithPassword({ email: users[0].email, password });
+await rpc(passengerClient, 'publish_passenger_request', {
+  p_child_seat_required: false,
+  p_children_count: 0,
+  p_church_id: churchId,
+  p_client_key: randomUUID(),
+  p_desired_arrival_at: arrival.toISOString(),
+  p_places: [
+    // One place needs a noticeable detour and one only a small one, so the suggestion shows a
+    // real added distance and keeps the alternative visible.
+    syntheticPlace(38.8600, 16.6100, 'Via Sintetica 10, вход во двор', 'Catanzaro'),
+    syntheticPlace(38.8900, 16.5450, 'Piazza Sintetica 3, у фонтана', 'Catanzaro Lido'),
+  ],
+  p_public_note: 'Поедем вдвоём, без багажа.',
+  p_return_required: true,
+  p_service_occurrence_id: null,
+  p_timezone: 'Europe/Rome',
+  p_total_passengers: 2,
+});
+
+const driverClient = createClient(url, publicKey, { auth: { persistSession: false } });
+await driverClient.auth.signInWithPassword({ email: users[1].email, password });
+await rpc(driverClient, 'publish_driver_occurrence', {
+  p_arrival_at: arrival.toISOString(),
+  p_children_allowed: true,
+  p_church_id: churchId,
+  p_client_key: randomUUID(),
+  p_departure_at: departure.toISOString(),
+  p_driver_child_seat_available: true,
+  p_max_detour_km: 10,
+  p_origin: syntheticPlace(38.8400, 16.5300, 'Via Sintetica 88, у ворот', 'Catanzaro Lido'),
+  p_public_note: null,
+  p_return_available: true,
+  p_service_occurrence_id: null,
+  p_timezone: 'Europe/Rome',
+  p_total_seats: 3,
+});
+
 for (const user of users) {
   const generated = await admin.auth.admin.generateLink({ type: 'magiclink', email: user.email });
   const tokenHash = generated.data?.properties?.hashed_token;
@@ -104,4 +170,10 @@ for (const user of users) {
   delete user.phone;
 }
 
-console.log(JSON.stringify({ churchUrl: 'http://localhost:3000/churches/pokrov-catanzaro', users }, null, 2));
+console.log(JSON.stringify({
+  catalogUrl: 'http://localhost:3000/churches',
+  churchUrl: 'http://localhost:3000/churches/pokrov-catanzaro',
+  locationUrl: 'http://localhost:3000/churches/pokrov-catanzaro/location',
+  matchesUrl: 'http://localhost:3000/churches/pokrov-catanzaro?view=matches',
+  users,
+}, null, 2));

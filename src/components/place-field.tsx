@@ -82,7 +82,7 @@ export function PlaceField({
                 {maximum > 1 ? `${index + 1}. ` : ''}
                 {entryName(entry)}
               </span>
-              <button className="text-sm font-semibold text-amber-800" onClick={() => remove(index)} type="button">
+              <button className="min-h-11 px-2 text-sm font-semibold text-amber-800" onClick={() => remove(index)} type="button">
                 Убрать
               </button>
             </li>
@@ -97,7 +97,7 @@ export function PlaceField({
             {savedPlaces.map((saved) => (
               <li key={saved.placeId}>
                 <button
-                  className="rounded-full border border-stone-300 px-3 py-1 text-sm"
+                  className="min-h-11 rounded-full border border-stone-300 px-4 py-1 text-sm"
                   onClick={() => add({ kind: 'saved', saved })}
                   type="button"
                 >
@@ -111,7 +111,7 @@ export function PlaceField({
 
       {!full && !picking && (
         <button
-          className="justify-self-start rounded-lg border border-amber-800 px-4 py-2 text-sm font-semibold text-amber-900"
+          className="min-h-11 justify-self-start rounded-lg border border-amber-800 px-4 py-2 text-sm font-semibold text-amber-900"
           onClick={() => setPicking(true)}
           type="button"
         >

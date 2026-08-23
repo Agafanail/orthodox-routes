@@ -177,6 +177,30 @@ function date(value: string, timezone: string) {
 }
 
 /**
+ * What a confirmed agreement opens, and only that.
+ *
+ * The driver receives the one meeting place chosen for this ride; the passenger receives the
+ * driver's exact departure place. The passenger's other places are never part of this, and the
+ * whole block appears only after an explicit participant action.
+ */
+function AgreementDisclosure({ disclosure }: { disclosure: NonNullable<Props['disclosure']> }) {
+  return <dl className="mt-3 rounded border border-amber-200 bg-amber-50 p-3" data-agreement-disclosure>
+    <div>
+      <dt className="font-semibold">Контакт</dt>
+      <dd>{disclosure.counterpartyName}: {disclosure.email}, {disclosure.phone}</dd>
+    </div>
+    <div>
+      <dt className="font-semibold">Точное место встречи</dt>
+      <dd>{disclosure.meetingPlace?.exactAddress ?? disclosure.exactMeetingLabel}</dd>
+    </div>
+    {disclosure.departurePlace ? <div>
+      <dt className="font-semibold">Точное место отправления водителя</dt>
+      <dd>{disclosure.departurePlace.exactAddress}</dd>
+    </div> : null}
+  </dl>;
+}
+
+/**
  * The whole user-facing result of matching: one plain word plus facts a person can check.
  * There is no percentage, no score, and no claim that one driver is better than another.
  */
@@ -257,11 +281,11 @@ export function CoreTransportBoard(props: Props) {
     {props.signedIn ? <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm" data-match-view>
       <div className="flex flex-wrap items-center gap-3">
         <Link
-          className={props.showMatchesOnly ? 'font-semibold text-stone-700' : 'font-bold text-amber-900'}
+          className={`inline-flex min-h-11 items-center ${props.showMatchesOnly ? 'font-semibold text-stone-700' : 'font-bold text-amber-900'}`}
           href={`/churches/${props.church.slug}`}
         >Все объявления</Link>
         <Link
-          className={props.showMatchesOnly ? 'font-bold text-amber-900' : 'font-semibold text-stone-700'}
+          className={`inline-flex min-h-11 items-center ${props.showMatchesOnly ? 'font-bold text-amber-900' : 'font-semibold text-stone-700'}`}
           href={`/churches/${props.church.slug}?view=matches`}
         >Подходящие мне</Link>
       </div>
@@ -382,7 +406,9 @@ export function CoreTransportBoard(props: Props) {
       <h2 className="text-xl font-bold">Договорённости</h2>
       <div className="mt-4 space-y-3">{props.agreements.map((agreement) => <article className="rounded bg-stone-50 p-4" key={agreement.agreementId}>
         <p className="font-semibold">{agreement.passengerName} ↔ {agreement.driverName}</p><p>{agreement.confirmedPassengerCount} мест · {date(agreement.scheduledArrivalAt, agreement.timezone)} · {stateLabel(agreement.status)}</p>
-        {props.disclosure?.agreementId === agreement.agreementId ? <dl className="mt-3 rounded border border-amber-200 bg-amber-50 p-3"><div><dt className="font-semibold">Контакт</dt><dd>{props.disclosure.counterpartyName}: {props.disclosure.email}, {props.disclosure.phone}</dd></div><div><dt className="font-semibold">Точное место встречи</dt><dd>{props.disclosure.exactMeetingLabel}</dd></div></dl> : agreement.contactAvailable ? <form action={revealAgreementAction} className="mt-2"><input name="church_slug" type="hidden" value={props.church.slug} /><input name="agreement_id" type="hidden" value={agreement.agreementId} /><button className="font-semibold text-amber-900" type="submit">Показать контакт и точное место</button></form> : null}
+        {props.disclosure?.agreementId === agreement.agreementId
+          ? <AgreementDisclosure disclosure={props.disclosure} />
+          : agreement.contactAvailable ? <form action={revealAgreementAction} className="mt-2"><input name="church_slug" type="hidden" value={props.church.slug} /><input name="agreement_id" type="hidden" value={agreement.agreementId} /><button className="font-semibold text-amber-900" type="submit">Показать контакт и точное место</button></form> : null}
         {['confirmed', 'change_pending'].includes(agreement.status) ? <form action={cancelRideAgreementAction} className="mt-2">{actionHidden(props.church.slug)}<input name="agreement_id" type="hidden" value={agreement.agreementId} /><button type="submit">Отменить договорённость</button></form> : null}
       </article>)}</div>
     </section> : null}

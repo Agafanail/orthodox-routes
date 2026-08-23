@@ -327,6 +327,8 @@ begin
 end;
 $$;
 
+-- The published centre is rounded to about a metre. A circle of a kilometre needs no more, and
+-- publishing thirteen decimals would only add noise to every public payload.
 create function app.public_place_shape(place private.user_place)
 returns jsonb
 language sql
@@ -340,8 +342,8 @@ as $$
     'place_id', place.public_id,
     'public_area_label', place.public_area_name,
     'public_area', jsonb_build_object(
-      'lat', extensions.st_y(place.public_center::extensions.geometry),
-      'lng', extensions.st_x(place.public_center::extensions.geometry),
+      'lat', round(extensions.st_y(place.public_center::extensions.geometry)::numeric, 5),
+      'lng', round(extensions.st_x(place.public_center::extensions.geometry)::numeric, 5),
       'radius_m', place.public_radius_m
     )
   ) end;

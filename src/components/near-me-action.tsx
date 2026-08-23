@@ -47,7 +47,7 @@ export function NearMeAction({ query }: { query: string }) {
   return (
     <span className="grid gap-1">
       <button
-        className="rounded-lg border border-amber-800 px-4 py-2 font-semibold text-amber-900"
+        className="min-h-11 rounded-lg border border-amber-800 px-4 py-2 font-semibold text-amber-900"
         disabled={locating}
         onClick={locate}
         type="button"

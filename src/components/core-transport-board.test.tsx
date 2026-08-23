@@ -182,3 +182,37 @@ describe('CoreTransportBoard quality matching', () => {
     expect(ordinary).not.toContain('Google');
   });
 });
+
+describe('CoreTransportBoard disclosure boundary', () => {
+  const disclosure = {
+    agreementId: base.agreements[0].agreementId,
+    counterpartyName: 'Иван',
+    departurePlace: { exactAddress: 'Via Partenza 88, у ворот', placeId: 'd' },
+    email: 'driver@example.test',
+    exactMeetingLabel: 'Via Roma 1',
+    meetingPlace: { exactAddress: 'Via Roma 1', placeId: 'm' },
+    phone: '+390000000000',
+    visibleUntil: '2026-10-01T09:00:00Z',
+  };
+
+  it('opens the selected meeting place and the driver exact departure place together', () => {
+    const html = renderToStaticMarkup(<CoreTransportBoard {...base} disclosure={disclosure} />);
+
+    expect(html).toContain('Точное место встречи');
+    expect(html).toContain('Via Roma 1');
+    expect(html).toContain('Точное место отправления водителя');
+    expect(html).toContain('Via Partenza 88, у ворот');
+    expect(html).toContain('driver@example.test');
+  });
+
+  // A pre-Maps agreement has no coordinate for the departure place; the block simply omits it.
+  it('omits the departure place when the record predates coordinates', () => {
+    const legacy = { ...disclosure };
+    delete (legacy as Partial<typeof disclosure>).departurePlace;
+    delete (legacy as Partial<typeof disclosure>).meetingPlace;
+    const html = renderToStaticMarkup(<CoreTransportBoard {...base} disclosure={legacy} />);
+
+    expect(html).toContain('Via Roma 1');
+    expect(html).not.toContain('Точное место отправления водителя');
+  });
+});

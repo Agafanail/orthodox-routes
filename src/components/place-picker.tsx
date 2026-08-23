@@ -113,7 +113,7 @@ export function PlacePicker({ mapAvailable, near, onCancel, onConfirm, searchPla
             />
           </label>
           <button
-            className="justify-self-start rounded-lg border border-amber-800 px-3 py-1 text-sm font-semibold text-amber-900"
+            className="min-h-11 justify-self-start rounded-lg border border-amber-800 px-4 py-1 text-sm font-semibold text-amber-900"
             disabled={searching || query.trim().length === 0}
             onClick={() => void search()}
             type="button"
@@ -132,7 +132,7 @@ export function PlacePicker({ mapAvailable, near, onCancel, onConfirm, searchPla
               {candidates.map((candidate) => (
                 <li key={candidate.id}>
                   <button
-                    className="w-full rounded-lg border border-stone-300 bg-white p-2 text-left text-sm"
+                    className="min-h-11 w-full rounded-lg border border-stone-300 bg-white p-2 text-left text-sm"
                     onClick={() => setDraft(draftFromCandidate(candidate))}
                     type="button"
                   >
@@ -197,14 +197,14 @@ export function PlacePicker({ mapAvailable, near, onCancel, onConfirm, searchPla
 
       <div className="flex flex-wrap gap-2">
         <button
-          className="rounded-lg bg-amber-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="min-h-11 rounded-lg bg-amber-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           disabled={!draft || draft.address.trim().length === 0}
           onClick={confirm}
           type="button"
         >
           Подтвердить место
         </button>
-        <button className="px-4 py-2 text-sm font-semibold text-stone-700" onClick={onCancel} type="button">
+        <button className="min-h-11 px-4 py-2 text-sm font-semibold text-stone-700" onClick={onCancel} type="button">
           Отмена
         </button>
       </div>

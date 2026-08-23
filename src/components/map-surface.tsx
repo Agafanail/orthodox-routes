@@ -62,7 +62,7 @@ export function MapSurface({ marker, near, onMarkerChange }: MapSurfaceProps) {
       </div>
 
       <button
-        className="justify-self-start rounded-lg border border-stone-400 px-3 py-1 text-sm font-semibold"
+        className="min-h-11 justify-self-start rounded-lg border border-stone-400 px-4 py-1 text-sm font-semibold"
         disabled={locating}
         onClick={useMyLocation}
         type="button"
