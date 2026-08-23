@@ -49,13 +49,32 @@ Explicitly excluded:
 | --- | --- | --- | --- |
 | A | Campaign authority and documentation reconciliation | Complete | Commit `2698399`; CI `32601966939` green on all three jobs |
 | B | Provider/legal feasibility and provider-independent geo design | Complete | Google Maps Platform terms fetched and reviewed 23 August 2026, recorded clause by clause in Backend Architecture V1 §11; the approved model is not contractually supportable on Google. The provider adapter contract, its storage rule, and a deterministic local fake are implemented, so Checkpoints C to F stay provider-independent |
-| C | PostGIS and protected location foundation | Complete | Migration `20260823120000_geographic_foundation.sql`; clean replay, `test:transport`, `test:agreements`, `test:geography`, and the representative `test:maps-upgrade` pass locally |
-| D | Location selection and map foundation | Provider-independent part complete | Place field, picker flow with manual fallback and explicit location action, saved-place reuse, church catalog with universal search and `Рядом со мной`, catalog map panel, and the dedicated church location screen. The tile layer and address search need the selected provider |
-| E | Deterministic quality-matching engine | Complete | Migration `20260823170000_quality_matching.sql`; `test:matching` proves every hard condition, the detour rule, the best place among alternatives, block suppression, live recomputation, provider-failure degradation, and agreement independence |
+| C | PostGIS and protected location foundation | Complete | Commit `21ceb1a`; migration `20260823120000_geographic_foundation.sql`; CI `32604195964` after the shared-database fix, confirmed by `32605335711` |
+| D | Location selection and map foundation | Provider-independent part complete | Commits `324d4b8`, `ada3b12`; place field, picker flow with manual fallback and explicit location action, saved-place reuse, church catalog with universal search and `Рядом со мной`, catalog map panel, and the dedicated church location screen. The tile layer and address search need the selected provider |
+| E | Deterministic quality-matching engine | Complete | Migration `20260823170000_quality_matching.sql`; CI `32605335711` green; `test:matching` proves every hard condition, the detour rule, the best place among alternatives, block suppression, live recomputation, provider-failure degradation, and agreement independence |
 | F | Transport-board integration and matching UX | Provider-independent part complete | `Подходит` marker, `Подходящие мне` view, explainable detour line, and the ordinary-language unavailable message; Core responses, confirmation, capacity, cancellation, restoration, and disclosure preserved |
-| G | Full campaign verification, privacy audit, human UX gate, release | Not started | |
+| G | Full campaign verification, privacy audit, human UX gate, release | In progress | CI `32607226326` fully green. Local verification, browser verification, and the privacy audit are complete; the provider decision and the owner manual UX test remain |
 
-**Current continuation:** Checkpoint G verification, and then the owner gates. Every provider-independent slice of Checkpoints A to F is complete and verified. Two owner decisions remain: selecting a map provider that permits the approved storage model, and the final manual UX test.
+**Current continuation:** two owner gates, in order. First the map-provider decision, because the visible tile layer and address search cannot be finished without it. Then the manual UX test, once those two pieces are in place.
+
+### Verification completed so far
+
+- Clean nine-plus-two migration replay from empty, and a representative pre-Maps upgrade with a confirmed agreement created on the last pre-Maps migration.
+- `npm test` (368 tests), `npm run lint`, `npm run build`, and `git diff --check` clean.
+- The full database suite in CI order against one shared database: account, phone, drafts, transport, agreements, geography, matching.
+- Browser verification against the local deterministic fake provider: anonymous visitor, authenticated non-participant, passenger author, driver author, and a confirmed pair; catalog search, proximity ordering, and viewport; the church location screen; the place picker with its explicit location action; the suggestion marker and the suggestions view; provider-unavailable degradation; and mobile layout without horizontal overflow.
+- Public payload inspection: no exact address, exact coordinate, or route geometry in any anonymous response; every published circle centre measured between 300 and 700 metres from its exact point.
+- Grant audit: `route_worker_*` reachable only by the service role; every exact-data function limited to `authenticated` with an actor check inside; no application role holding table or view access to church, place, block, measurement, or approximation-secret relations; forced row level security on every new table.
+
+### Owner gate 1 — map provider
+
+Raised after all provider-independent work was finished. Google Maps Platform cannot support the approved model, as recorded above and in Backend Architecture V1 §11. The recommendation put to the owner is **Geoapify**: one account covering address search, autocomplete, driving routes, and map tiles; data from OpenStreetMap, OpenAddresses, and GeoNames, whose Open Data licences permit permanent storage and cross-user reuse subject to attribution; a free tier of 3000 requests per day; EU registration. The obligation it creates is a visible attribution to the data sources and, on the free tier, a link to Geoapify.
+
+Only the owner can create the account and inject the keys. Nothing else in the campaign depends on it.
+
+### Owner gate 2 — manual UX test
+
+Opens once the provider keys exist and the tile layer and address search are connected to the adapter that is already in place.
 
 For every completed checkpoint, replace its status with `Complete` and record the commit SHA plus the final green CI run. Update **Current continuation** to the next unfinished scope. Do not record synthetic research, pending CI as green, or external verification that did not occur.
 
