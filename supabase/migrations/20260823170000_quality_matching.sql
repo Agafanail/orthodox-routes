@@ -217,6 +217,7 @@ as $$
       ranked.occurrence_public_id,
       ranked.current_role,
       min(ranked.added_distance_m) as best_added_distance_m,
+      min(ranked.added_duration_s) as best_added_duration_s,
       min(ranked.remaining_passengers) as remaining_passengers,
       min(ranked.available_seats) as available_seats,
       min(ranked.arrival_at) as arrival_at,
@@ -245,7 +246,9 @@ as $$
     'added_distance_m', paired.best_added_distance_m,
     'added_duration_s', (paired.places -> 0 ->> 'added_duration_s')::integer,
     'places', paired.places
-  ) order by paired.best_added_distance_m asc, paired.arrival_at asc), '[]'::jsonb)
+  -- Smallest added road distance first. Added estimated time is only a tie-break, never a
+  -- condition of its own, and arrival time settles a remaining tie so the order is stable.
+  ) order by paired.best_added_distance_m asc, paired.best_added_duration_s asc, paired.arrival_at asc), '[]'::jsonb)
   from paired;
 $$;
 
