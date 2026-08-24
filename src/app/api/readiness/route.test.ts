@@ -46,7 +46,7 @@ describe('Core application readiness', () => {
     mocks.resolveGeoProvider.mockReturnValue({ name: 'geoapify' });
     mocks.getBrowserMapKey.mockReturnValue('render-key');
 
-    const body = await (await GET()).json();
+    const body = await (await GET(new Request('https://app.example.test/api/readiness'))).json();
 
     expect(body.maps).toEqual({ rendering: true, search: true });
     expect(JSON.stringify(body)).not.toContain('render-key');
@@ -55,15 +55,42 @@ describe('Core application readiness', () => {
   it('shows search unconfigured while rendering still works', async () => {
     mocks.getBrowserMapKey.mockReturnValue('render-key');
 
-    const body = await (await GET()).json();
+    const body = await (await GET(new Request('https://app.example.test/api/readiness'))).json();
 
     expect(body.maps).toEqual({ rendering: true, search: false });
+  });
+
+  // The probe costs a billed provider request, so an ordinary poll must never trigger it.
+  it('does not call the provider unless the probe is requested', async () => {
+    const probe = vi.fn();
+    mocks.resolveGeoProvider.mockReturnValue({ name: 'geoapify', probe });
+
+    const body = await (await GET(new Request('https://app.example.test/api/readiness'))).json();
+
+    expect(probe).not.toHaveBeenCalled();
+    expect(body.maps.probe).toBeUndefined();
+  });
+
+  it('reports the provider outcome and status when the probe is requested', async () => {
+    const probe = vi.fn().mockResolvedValue({ ok: false, results: null, status: 401 });
+    mocks.resolveGeoProvider.mockReturnValue({ name: 'geoapify', probe });
+
+    const body = await (await GET(new Request('https://app.example.test/api/readiness?probe=maps'))).json();
+
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(body.maps.probe).toEqual({ ok: false, results: null, status: 401 });
+  });
+
+  it('reports an unconfigured provider rather than calling nothing silently', async () => {
+    const body = await (await GET(new Request('https://app.example.test/api/readiness?probe=maps'))).json();
+
+    expect(body.maps.probe).toEqual({ ok: false, results: null, status: null });
   });
 
   it('fails closed when required staging configuration is incomplete', async () => {
     mocks.getServerSupabaseConfig.mockReturnValue(null);
 
-    const response = await GET();
+    const response = await GET(new Request('https://app.example.test/api/readiness'));
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ maps: { rendering: false, search: false }, scope: 'core-application', status: 'unavailable' });
@@ -73,14 +100,14 @@ describe('Core application readiness', () => {
   it('contains backend errors without returning their details', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'private backend detail' } });
 
-    const response = await GET();
+    const response = await GET(new Request('https://app.example.test/api/readiness'));
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ maps: { rendering: false, search: false }, scope: 'core-application', status: 'unavailable' });
   });
 
   it('reports ready only after the committed Core API responds', async () => {
-    const response = await GET();
+    const response = await GET(new Request('https://app.example.test/api/readiness'));
 
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');

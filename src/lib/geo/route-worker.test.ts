@@ -55,6 +55,7 @@ describe('measurePendingLegs', () => {
   it('treats an unexpected provider error the same way', async () => {
     const failing: GeoProvider = {
       name: 'broken',
+  async probe() { return { ok: true, results: 0, status: 200 }; },
       async measureRoute() { throw new Error('unexpected'); },
       async searchPlaces() { return []; },
     };
@@ -82,6 +83,7 @@ describe('measurePendingLegs', () => {
   it('skips a nonsensical measurement rather than storing it', async () => {
     const broken: GeoProvider = {
       name: 'broken',
+  async probe() { return { ok: true, results: 0, status: 200 }; },
       async measureRoute() { return { distanceM: Number.NaN, durationS: -1 }; },
       async searchPlaces() { return []; },
     };

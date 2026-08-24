@@ -1,4 +1,10 @@
-import { GeoProviderUnavailableError, type GeoProvider, type PlaceSearchOptions, type RouteRequest } from './provider';
+import {
+  GeoProviderUnavailableError,
+  type GeoProvider,
+  type GeoProviderProbe,
+  type PlaceSearchOptions,
+  type RouteRequest,
+} from './provider';
 import type { PlaceCandidate, RouteMeasurement } from './types';
 
 /**
@@ -91,24 +97,49 @@ function parseCandidate(value: unknown, index: number): PlaceCandidate | null {
 }
 
 export function createGeoapifyProvider(apiKey: string): GeoProvider {
+  function searchUrl(text: string, options: PlaceSearchOptions = {}) {
+    const url = new URL(SEARCH_ENDPOINT);
+    url.searchParams.set('text', text.slice(0, 200));
+    url.searchParams.set('format', 'geojson');
+    url.searchParams.set('limit', String(Math.min(Math.max(options.limit ?? 8, 1), 20)));
+    url.searchParams.set('lang', options.language ?? 'ru');
+    // Bias towards the church the person is looking at, so a village street name near that
+    // church beats an identical name in another country.
+    if (options.near) url.searchParams.set('bias', `proximity:${options.near.lng},${options.near.lat}`);
+    url.searchParams.set('apiKey', apiKey);
+    return url;
+  }
+
   return {
     name: 'geoapify',
+
+    async probe(): Promise<GeoProviderProbe> {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      try {
+        const response = await fetch(searchUrl('Via Roma 1, Torino'), {
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
+        if (!response.ok) return { ok: false, results: null, status: response.status };
+        const payload = record(await response.json());
+        const features = Array.isArray(payload?.features) ? payload.features : [];
+        const usable = features
+          .map(parseCandidate)
+          .filter((candidate): candidate is PlaceCandidate => candidate !== null);
+        return { ok: usable.length > 0, results: usable.length, status: response.status };
+      } catch {
+        return { ok: false, results: null, status: null };
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
 
     async searchPlaces(query: string, options: PlaceSearchOptions = {}): Promise<PlaceCandidate[]> {
       const trimmed = query.trim();
       if (trimmed.length === 0) return [];
 
-      const url = new URL(SEARCH_ENDPOINT);
-      url.searchParams.set('text', trimmed.slice(0, 200));
-      url.searchParams.set('format', 'geojson');
-      url.searchParams.set('limit', String(Math.min(Math.max(options.limit ?? 8, 1), 20)));
-      url.searchParams.set('lang', options.language ?? 'ru');
-      // Bias towards the church the person is looking at, so a village street name near that
-      // church beats an identical name in another country.
-      if (options.near) url.searchParams.set('bias', `proximity:${options.near.lng},${options.near.lat}`);
-      url.searchParams.set('apiKey', apiKey);
-
-      const payload = record(await requestJson(url, options.signal));
+      const payload = record(await requestJson(searchUrl(trimmed, options), options.signal));
       const features = Array.isArray(payload?.features) ? payload.features : [];
       return features
         .map(parseCandidate)

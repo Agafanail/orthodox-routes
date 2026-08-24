@@ -19,6 +19,23 @@ export type GeoProvider = {
   readonly name: string;
   searchPlaces(query: string, options?: PlaceSearchOptions): Promise<PlaceCandidate[]>;
   measureRoute(request: RouteRequest): Promise<RouteMeasurement>;
+  /**
+   * One deliberately boring search used only by the readiness endpoint.
+   *
+   * Ordinary calls hide every provider detail from the person using the application, which is
+   * right for them and useless during deployment: a missing credential, a rejected one, and a
+   * blocked network all look the same. This reports the coarse outcome and the HTTP status so
+   * an operator can tell those apart. It returns no address, no key, and no response body.
+   */
+  probe(): Promise<GeoProviderProbe>;
+};
+
+export type GeoProviderProbe = {
+  ok: boolean;
+  /** The provider's HTTP status, or null when the request never completed. */
+  status: number | null;
+  /** How many candidates a known-good query returned, so an empty answer is distinguishable. */
+  results: number | null;
 };
 
 export type PlaceSearchOptions = {

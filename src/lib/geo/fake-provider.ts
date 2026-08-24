@@ -40,6 +40,12 @@ export function createFakeGeoProvider(options: FakeGeoProviderOptions = {}): Geo
   return {
     name: 'local-fake',
 
+    async probe() {
+      return options.unavailable
+        ? { ok: false, results: null, status: null }
+        : { ok: true, results: places.length, status: 200 };
+    },
+
     async searchPlaces(query, searchOptions) {
       if (options.unavailable) throw new GeoProviderUnavailableError();
       const needle = query.trim().toLowerCase();
