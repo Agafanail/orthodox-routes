@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
@@ -47,7 +49,9 @@ async function rpc(client, name, args = {}) {
 
 const { publicKey, serviceRoleKey, url } = localConfig();
 const container = databaseContainer();
+const appOrigin = process.env.CORE_E2E_APP_ORIGIN?.trim() || 'http://127.0.0.1:3000';
 const suffix = `${Date.now()}-${process.pid}`;
+const markerSuffix = suffix.replace(/[0-9]/g, (digit) => String.fromCharCode(97 + Number(digit)));
 const password = `Core-browser-${suffix}-Aa1!`;
 const phoneStem = String(Date.now()).slice(-8);
 const admin = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
@@ -99,9 +103,36 @@ for (const user of users) {
   const generated = await admin.auth.admin.generateLink({ type: 'magiclink', email: user.email });
   const tokenHash = generated.data?.properties?.hashed_token;
   if (generated.error || !tokenHash) fail(`Could not generate ${user.role} browser link.`);
-  user.loginUrl = `http://localhost:3000/auth/confirm#flow=login&type=email&token_hash=${encodeURIComponent(tokenHash)}`;
+  user.loginUrl = `${appOrigin}/auth/confirm#flow=login&type=email&token_hash=${encodeURIComponent(tokenHash)}`;
   delete user.id;
-  delete user.phone;
 }
 
-console.log(JSON.stringify({ churchUrl: 'http://localhost:3000/churches/pokrov-catanzaro', users }, null, 2));
+const fixture = {
+  api: { publicKey, url },
+  churchUrl: `${appOrigin}/churches/pokrov-catanzaro`,
+  markers: {
+    driverExactOrigin: `Browser driver exact origin ${markerSuffix}`,
+    driverPublicArea: `Browser driver public area ${markerSuffix}`,
+    passengerExactPlace: `Browser passenger exact place ${markerSuffix}`,
+    passengerPublicArea: `Browser passenger public area ${markerSuffix}`,
+  },
+  users,
+};
+const fixturePath = process.env.CORE_E2E_FIXTURE_PATH?.trim();
+
+if (fixturePath) {
+  const absolutePath = resolve(fixturePath);
+  mkdirSync(dirname(absolutePath), { recursive: true });
+  writeFileSync(absolutePath, JSON.stringify(fixture), { encoding: 'utf8', mode: 0o600 });
+  process.stdout.write('Core browser fixtures are ready.\n');
+} else {
+  console.log(JSON.stringify({
+    churchUrl: fixture.churchUrl,
+    users: users.map((entry) => ({
+      role: entry.role,
+      name: entry.name,
+      email: entry.email,
+      loginUrl: entry.loginUrl,
+    })),
+  }, null, 2));
+}
