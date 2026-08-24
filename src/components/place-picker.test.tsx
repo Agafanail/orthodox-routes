@@ -88,7 +88,9 @@ describe('PlacePicker', () => {
     expect(html).toContain('нажмите на карте, чтобы поставить отметку');
     expect(html).toContain('Карту можно двигать и приближать');
     expect(html).toContain('достаточно правильно отметить место на карте');
-    expect(html).toContain('Подтвердить место');
+    // The reviewed confirmation wording stays inside the copy review route until that group
+    // is migrated into production, so the picker carries its own wording for now.
+    expect(html).toContain('Использовать это место');
   });
 
   // Permission is never requested on open; the action is the only entry point.

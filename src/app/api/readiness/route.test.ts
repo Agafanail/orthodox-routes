@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
+  getBrowserMapKey: vi.fn(),
   getContextualRegistrationConfig: vi.fn(),
   getPublicSupabaseConfig: vi.fn(),
   getServerSupabaseConfig: vi.fn(),
+  resolveGeoProvider: vi.fn(),
   rpc: vi.fn(),
 }));
 
@@ -13,6 +15,10 @@ vi.mock('@/lib/supabase/config', () => ({
   getContextualRegistrationConfig: mocks.getContextualRegistrationConfig,
   getPublicSupabaseConfig: mocks.getPublicSupabaseConfig,
   getServerSupabaseConfig: mocks.getServerSupabaseConfig,
+}));
+vi.mock('@/lib/geo/provider-factory', () => ({
+  getBrowserMapKey: mocks.getBrowserMapKey,
+  resolveGeoProvider: mocks.resolveGeoProvider,
 }));
 
 import { GET } from './route';
@@ -30,6 +36,28 @@ describe('Core application readiness', () => {
       schema: vi.fn(() => ({ rpc: mocks.rpc })),
     });
     mocks.rpc.mockResolvedValue({ data: null, error: null });
+    mocks.resolveGeoProvider.mockReturnValue(null);
+    mocks.getBrowserMapKey.mockReturnValue(null);
+  });
+
+  // A missing credential and a rejected one look identical from a page, so readiness reports
+  // which half is configured. It reports booleans only: no key, no length, no provider reply.
+  it('reports each map capability separately without revealing a credential', async () => {
+    mocks.resolveGeoProvider.mockReturnValue({ name: 'geoapify' });
+    mocks.getBrowserMapKey.mockReturnValue('render-key');
+
+    const body = await (await GET()).json();
+
+    expect(body.maps).toEqual({ rendering: true, search: true });
+    expect(JSON.stringify(body)).not.toContain('render-key');
+  });
+
+  it('shows search unconfigured while rendering still works', async () => {
+    mocks.getBrowserMapKey.mockReturnValue('render-key');
+
+    const body = await (await GET()).json();
+
+    expect(body.maps).toEqual({ rendering: true, search: false });
   });
 
   it('fails closed when required staging configuration is incomplete', async () => {
@@ -38,7 +66,7 @@ describe('Core application readiness', () => {
     const response = await GET();
 
     expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ scope: 'core-application', status: 'unavailable' });
+    await expect(response.json()).resolves.toEqual({ maps: { rendering: false, search: false }, scope: 'core-application', status: 'unavailable' });
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
@@ -48,7 +76,7 @@ describe('Core application readiness', () => {
     const response = await GET();
 
     expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ scope: 'core-application', status: 'unavailable' });
+    await expect(response.json()).resolves.toEqual({ maps: { rendering: false, search: false }, scope: 'core-application', status: 'unavailable' });
   });
 
   it('reports ready only after the committed Core API responds', async () => {
@@ -56,7 +84,7 @@ describe('Core application readiness', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
-    await expect(response.json()).resolves.toEqual({ scope: 'core-application', status: 'ready' });
+    await expect(response.json()).resolves.toEqual({ maps: { rendering: false, search: false }, scope: 'core-application', status: 'ready' });
     expect(mocks.rpc).toHaveBeenCalledWith('transport_church_by_slug', {
       p_slug: '__core_readiness__',
     });

@@ -977,3 +977,379 @@
   overflow-wrap: anywhere;
   color: var(--or-text-secondary);
 }
+
+/* ------------------------------------------ group 2A: passenger request form (IA §10.1, §29.5) */
+
+/*
+ * The form carries no stepper and no progress bar: a quiet way back and the name of what is being
+ * created are the whole chrome. The bottom navigation is absent because a form is its own task.
+ */
+.formHeader {
+  display: flex;
+  min-height: 60px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--or-space-3);
+  border-bottom: 1px solid var(--or-border);
+  padding: var(--or-space-2) var(--or-space-4);
+}
+
+.formContext {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-secondary);
+  text-align: right;
+}
+
+.formContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: var(--or-space-6) var(--or-space-4) var(--or-space-8);
+}
+
+.formChurch {
+  overflow-wrap: anywhere;
+  margin: 0 0 var(--or-space-2);
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-secondary);
+}
+
+/* The single primary intent sits at the end of the content and takes the full column (DS §5). */
+.formFooter {
+  margin-top: auto;
+  padding-top: var(--or-space-8);
+}
+
+.formFooter .primaryButton {
+  width: 100%;
+}
+
+.fieldLabel {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 0 0 var(--or-space-2);
+  color: var(--or-text);
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-medium);
+}
+
+.fieldHint {
+  overflow-wrap: anywhere;
+  margin: var(--or-space-2) 0 0;
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-secondary);
+}
+
+/* A field revealed by an answer above it, not a new step. */
+.revealed {
+  margin-top: var(--or-space-4);
+}
+
+.textField {
+  display: block;
+  margin-top: var(--or-space-4);
+}
+
+.textField > span {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-bottom: var(--or-space-2);
+  color: var(--or-text);
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-medium);
+}
+
+.textField input {
+  display: block;
+  width: 100%;
+  min-height: var(--or-height-field);
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  color: var(--or-text);
+  padding: 0 var(--or-space-3);
+}
+
+/* --------------------------------------------------------------- screen 5: one question, one group */
+
+.choiceGroup {
+  margin: var(--or-space-6) 0 0;
+  border: 0;
+  padding: 0;
+}
+
+.choice {
+  display: flex;
+  min-height: var(--or-target-min);
+  align-items: flex-start;
+  gap: var(--or-space-3);
+  margin-top: var(--or-space-2);
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  cursor: pointer;
+  padding: var(--or-space-3);
+}
+
+/* The one approved way of showing a chosen object: pale fill plus the primary border (DS §6). */
+.choice[data-choice-selected] {
+  border-color: var(--or-primary);
+  background: var(--or-primary-pale);
+}
+
+.choice input {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--or-primary);
+}
+
+.choice > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.choice strong {
+  overflow-wrap: anywhere;
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-medium);
+}
+
+.choice > span > span {
+  overflow-wrap: anywhere;
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-secondary);
+}
+
+/* ------------------------------------------------------------------- screen 6: picking a place */
+
+.pickMapArea {
+  position: relative;
+  display: flex;
+  min-height: 360px;
+  flex: 1;
+}
+
+/* Anchored so enlarged text grows into free space instead of past the edge of the drawing. */
+.pickLabelOne {
+  left: 6%;
+  top: 54%;
+}
+
+.pickLabelTwo {
+  right: 6%;
+  bottom: 8%;
+}
+
+.pickControls {
+  position: absolute;
+  top: var(--or-space-3);
+  right: var(--or-space-4);
+  left: var(--or-space-4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--or-space-2);
+}
+
+.pickControls > * {
+  box-shadow: var(--or-shadow-float);
+}
+
+.pickControls .searchField {
+  width: auto;
+  min-width: 0;
+  flex: 1;
+}
+
+/* Map guidance stays a readable card over the map, never a caption inside the drawing (DS §8). */
+.pickHint {
+  position: absolute;
+  top: calc(var(--or-space-3) + var(--or-target-min) + var(--or-space-2));
+  right: var(--or-space-4);
+  left: var(--or-space-4);
+  overflow-wrap: anywhere;
+  margin: 0;
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  box-shadow: var(--or-shadow-float);
+  color: var(--or-text-secondary);
+  padding: var(--or-space-3);
+  font-size: var(--or-size-secondary);
+}
+
+/* The marker the person places. The public 1 km circle is not drawn: it is not what is chosen. */
+.pickMarker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--or-primary);
+  border-radius: var(--or-radius-pill) var(--or-radius-pill) var(--or-radius-pill) 0;
+  background: var(--or-primary);
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.pickMarker::after {
+  position: absolute;
+  inset: 9px;
+  border-radius: var(--or-radius-pill);
+  background: var(--or-surface);
+  content: '';
+}
+
+.pickSheet {
+  position: relative;
+  z-index: 2;
+  margin-top: calc(-1 * var(--or-space-6));
+  border-radius: var(--or-radius-sheet) var(--or-radius-sheet) 0 0;
+  background: var(--or-surface);
+  padding: var(--or-space-6) var(--or-space-4) var(--or-space-8);
+}
+
+.pickSheet .primaryButton {
+  width: 100%;
+  margin-top: var(--or-space-4);
+}
+
+/*
+ * What becomes public, said where the choice is still open. It is quiet on purpose: an alarm-shaped
+ * block would read as an error, and green is forbidden in privacy blocks (DS §5).
+ */
+.privacyNote {
+  overflow-wrap: anywhere;
+  margin: var(--or-space-4) 0 0;
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface-subtle);
+  color: var(--or-text-secondary);
+  padding: var(--or-space-4);
+  font-size: var(--or-size-secondary);
+}
+
+/* ------------------------------------------------------------- screen 7: alternatives, not stops */
+
+.placeList {
+  margin-top: var(--or-space-6);
+}
+
+.placeCard + .placeCard,
+.placeList > div + div .placeCard {
+  margin-top: 0;
+}
+
+/*
+ * A vertical list of places reads as a route unless something says otherwise. The word between the
+ * cards says it before the hint below is read; the container is not an ordered list, so nothing
+ * numbers the places (IA §10.2).
+ */
+.placeOr,
+.choiceOr {
+  display: flex;
+  align-items: center;
+  gap: var(--or-space-3);
+  margin: var(--or-space-3) 0;
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-secondary);
+}
+
+.placeOr::before,
+.placeOr::after,
+.choiceOr::before,
+.choiceOr::after {
+  height: 1px;
+  flex: 1;
+  background: var(--or-border);
+  content: '';
+}
+
+.placeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--or-space-2);
+  margin-top: var(--or-space-2);
+}
+
+.placeActions .quietButton {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.placeActions .quietButton + .quietButton {
+  padding-left: var(--or-space-4);
+}
+
+.placeList + .secondaryButton {
+  width: 100%;
+  margin-top: var(--or-space-4);
+}
+
+/* ------------------------------------------------------------------ screen 8: how many people */
+
+.stepper {
+  margin-top: var(--or-space-6);
+}
+
+.stepper > div {
+  display: flex;
+  align-items: center;
+  gap: var(--or-space-2);
+}
+
+.stepperButton {
+  display: inline-grid;
+  width: var(--or-target-min);
+  min-width: var(--or-target-min);
+  height: var(--or-target-min);
+  place-items: center;
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  color: var(--or-control-text);
+  cursor: pointer;
+  font-size: var(--or-size-body);
+  font-weight: var(--or-weight-semibold);
+}
+
+.stepperButton:disabled {
+  border-color: var(--or-border);
+  color: var(--or-text-subtle);
+  cursor: default;
+}
+
+.stepper output {
+  display: inline-flex;
+  min-width: var(--or-target-min);
+  min-height: var(--or-target-min);
+  align-items: center;
+  justify-content: center;
+  color: var(--or-text);
+  padding: 0 var(--or-space-2);
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-semibold);
+}
+
+.checkboxField {
+  display: flex;
+  min-height: var(--or-target-min);
+  align-items: center;
+  gap: var(--or-space-3);
+  cursor: pointer;
+}
+
+.checkboxField input {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--or-primary);
+}
+
+.checkboxField > span {
+  overflow-wrap: anywhere;
+  font-size: var(--or-size-data);
+}

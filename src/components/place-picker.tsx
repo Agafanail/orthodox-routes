@@ -224,7 +224,7 @@ export function PlacePicker({ browserKey, mapAvailable, near, onCancel, onConfir
           onClick={confirm}
           type="button"
         >
-          Подтвердить место
+          Использовать это место
         </button>
         <button className="min-h-11 px-4 py-2 text-sm font-semibold text-stone-700" onClick={onCancel} type="button">
           Отмена
