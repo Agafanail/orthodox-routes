@@ -20,6 +20,7 @@
     "test:maps-upgrade": "supabase db reset --local --version 20260822130000 && node scripts/prepare-maps-upgrade.mjs && supabase migration up --local && node scripts/verify-maps-upgrade.mjs",
     "test:staging-email": "node scripts/verify-staging-email.mjs",
     "test:staging-core": "node scripts/verify-staging-core.mjs",
+    "test:staging-maps": "node scripts/verify-staging-maps.mjs",
     "core:e2e:prepare": "node scripts/prepare-core-browser-e2e.mjs",
     "db:start": "supabase db start",
     "db:reset": "supabase db reset --local",

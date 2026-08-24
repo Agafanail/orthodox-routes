@@ -96,6 +96,18 @@ Neither key is ever requested in conversation, committed, logged, or placed in a
 
 After the keys are configured, the remaining verification runs in this same campaign: real interactive maps, real address search including the documented Italy, USA, Belarus, and Russia check through `npm run test:geoapify-search`, routing and matching against live measurements, attribution, and provider-failure behavior. The manual mobile and desktop UX test follows.
 
+### Staging verification state — 23 August 2026
+
+The owner created the Geoapify account, generated the two restricted keys, injected them into Render, and switched the staging service to deploy this campaign branch.
+
+One step remains before staging can be verified: the isolated `orthodox-routes-staging` database is still on the nine Core migrations and has not received `20260823120000_geographic_foundation.sql` or `20260823170000_quality_matching.sql`. This was confirmed against the live project, not assumed: `supabase migration list --linked` reports both with an empty `remote` column, and `supabase db push --dry-run` reports exactly those two migrations, with no seeds and no roles.
+
+The code and the schema must move together. The geographic migration drops and recreates the five publication functions with new signatures, so an application deployed against the old schema cannot publish, and vice versa.
+
+Applying it is an owner-controlled action here: the agent's attempt to write to the remote database was refused by the environment's safety classifier, which is the correct outcome for a schema change to a live environment. The command is `npx supabase db push --linked --yes`, run on this branch.
+
+`npm run test:staging-maps` is ready for the moment the schema catches up. It is guarded to the exact staging project, writes nothing, prints no key, and currently fails on its first assertion with `expected '20260823120000', actual ''`, which is the intended detection of the missing migration.
+
 ### Manual UX test
 
 Opens as soon as the keys are in place. The checklist is limited to human-visible behavior: the catalog and its map, `Рядом со мной`, the church address opening the location screen, choosing and correcting a meeting place, the privacy sentence about the approximate area, publishing, the `Подходит` marker with its added-distance line, `Подходящие мне`, and what each side sees after a confirmed agreement.
