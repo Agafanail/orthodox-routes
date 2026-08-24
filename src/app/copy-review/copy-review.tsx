@@ -156,9 +156,10 @@ const copy = {
 } as const;
 
 /**
- * Group 2A: the passenger request form. Every string here is proposed and nothing in this object is
- * approved wording — the source key below marks the whole group `Проект`. Keys follow Foundation 4.5
- * and 4.4.2 so the owner compares the rendered screen with the master text line by line.
+ * Group 2A: the passenger request form. The owner reviewed these screens on 24 August 2026, so the
+ * wording of the three semantic screens is approved and the source key marks it `Утверждено`. Keys
+ * follow Foundation 4.5 and 4.4.2 so the owner compares the rendered screen with the master text
+ * line by line. The last screen, «Последние детали», was not part of that review and is not here.
  */
 const requestCopy = {
   title: 'Нужна поездка',
@@ -1199,48 +1200,48 @@ const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   ],
 
   /*
-   * Group 2A. Every row is `Проект`: the owner decision of 22 August 2026 changed the structure of
-   * the form, not the wording of its screens. Nothing below is approved until this group is seen.
+   * Group 2A, approved by the owner on 24 August 2026. The note next to a row still names where the
+   * wording came from; the mark records that the owner accepted it on the assembled screen.
    */
   'request-when': [
-    { text: requestCopy.title, mark: 'Проект', note: 'копия 4.5; название того, что создаётся' },
-    { text: requestCopy.back, mark: 'Проект', note: 'DS §5, тихое действие' },
-    { text: requestCopy.whenTitle, mark: 'Проект', note: 'копия 4.5; один вопрос экрана' },
-    { text: requestCopy.whenOr, mark: 'Проект', note: 'тихий разделитель двух способов ответить' },
-    { text: requestCopy.whenCustom, mark: 'Проект', note: 'IA §10.1; второй способ ответить на тот же вопрос' },
-    { text: requestCopy.whenArrivalLabel, mark: 'Проект', note: 'PS §12.2; появляется при своей дате' },
-    { text: requestCopy.whenCustomHint, mark: 'Проект', note: 'PS §7.2, дословно' },
-    { text: requestCopy.whenHorizon, mark: 'Проект', note: 'IA §10.3, `request.limit.horizon`' },
-    { text: requestCopy.next, mark: 'Проект', note: 'DS §5, одно главное действие' },
+    { text: requestCopy.title, mark: 'Утверждено', note: 'копия 4.5; название того, что создаётся' },
+    { text: requestCopy.back, mark: 'Утверждено', note: 'DS §5, тихое действие' },
+    { text: requestCopy.whenTitle, mark: 'Утверждено', note: 'копия 4.5; один вопрос экрана' },
+    { text: requestCopy.whenOr, mark: 'Утверждено', note: 'тихий разделитель двух способов ответить' },
+    { text: requestCopy.whenCustom, mark: 'Утверждено', note: 'IA §10.1; второй способ ответить на тот же вопрос' },
+    { text: requestCopy.whenArrivalLabel, mark: 'Утверждено', note: 'PS §12.2; появляется при своей дате' },
+    { text: requestCopy.whenCustomHint, mark: 'Утверждено', note: 'PS §7.2, дословно' },
+    { text: requestCopy.whenHorizon, mark: 'Утверждено', note: 'IA §10.3, `request.limit.horizon`' },
+    { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5, одно главное действие' },
   ],
   'request-map': [
-    { text: requestCopy.placeTitle, mark: 'Проект', note: 'PS §8.1' },
-    { text: requestCopy.mapSearch, mark: 'Проект', note: 'копия 4.4.2, `map.pick.search`' },
-    { text: requestCopy.mapHint, mark: 'Проект', note: 'копия 4.4.2, `map.pick.hint`; сокращена решением владельца' },
-    { text: 'Выбрано: {адрес}', mark: 'Проект', note: 'копия 4.4.2, `map.pick.selected`' },
-    { text: requestCopy.placePrivacy, mark: 'Проект', note: 'IA §10.4, до подтверждения места; правка владельца, ждёт повторного просмотра' },
-    { text: requestCopy.mapConfirm, mark: 'Проект', note: 'копия 4.4.2, `map.pick.confirm`' },
+    { text: requestCopy.placeTitle, mark: 'Утверждено', note: 'PS §8.1' },
+    { text: requestCopy.mapSearch, mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.search`' },
+    { text: requestCopy.mapHint, mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.hint`; сокращена решением владельца' },
+    { text: 'Выбрано: {адрес}', mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.selected`' },
+    { text: requestCopy.placePrivacy, mark: 'Утверждено', note: 'IA §10.4, до подтверждения места; правка владельца, ждёт повторного просмотра' },
+    { text: requestCopy.mapConfirm, mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.confirm`' },
   ],
   'request-place': [
-    { text: requestCopy.placeTitle, mark: 'Проект', note: 'PS §8.1; тот же вопрос после выбора' },
-    { text: requestCopy.placePrivacy, mark: 'Проект', note: 'IA §10.4; та же строка, что на карте, — второй формулировки рядом нет' },
-    { text: requestCopy.placePrimary, mark: 'Проект', note: 'копия 4.5' },
-    { text: requestCopy.placeAlternative, mark: 'Проект', note: 'новое: подпись второго и третьего места' },
-    { text: requestCopy.placeOr, mark: 'Проект', note: 'новое: разделитель между карточками мест' },
-    { text: requestCopy.placeChange, mark: 'Проект', note: 'копия 4.5' },
-    { text: requestCopy.placeRemove, mark: 'Проект', note: 'копия 4.5; у основного места не показывается' },
-    { text: requestCopy.placeAdd, mark: 'Проект', note: 'решение 1.7 (6): «Добавить ещё точку» не используется' },
-    { text: requestCopy.placeAlternativesHint, mark: 'Проект', note: 'IA §10.2, дословно' },
-    { text: requestCopy.placeLimit, mark: 'Проект', note: 'новое: причина вместо неактивной кнопки, IA §28.3' },
-    { text: requestCopy.next, mark: 'Проект', note: 'DS §5' },
+    { text: requestCopy.placeTitle, mark: 'Утверждено', note: 'PS §8.1; тот же вопрос после выбора' },
+    { text: requestCopy.placePrivacy, mark: 'Утверждено', note: 'IA §10.4; та же строка, что на карте, — второй формулировки рядом нет' },
+    { text: requestCopy.placePrimary, mark: 'Утверждено', note: 'копия 4.5' },
+    { text: requestCopy.placeAlternative, mark: 'Утверждено', note: 'новое: подпись второго и третьего места' },
+    { text: requestCopy.placeOr, mark: 'Утверждено', note: 'новое: разделитель между карточками мест' },
+    { text: requestCopy.placeChange, mark: 'Утверждено', note: 'копия 4.5' },
+    { text: requestCopy.placeRemove, mark: 'Утверждено', note: 'копия 4.5; у основного места не показывается' },
+    { text: requestCopy.placeAdd, mark: 'Утверждено', note: 'решение 1.7 (6): «Добавить ещё точку» не используется' },
+    { text: requestCopy.placeAlternativesHint, mark: 'Утверждено', note: 'IA §10.2, дословно' },
+    { text: requestCopy.placeLimit, mark: 'Утверждено', note: 'новое: причина вместо неактивной кнопки, IA §28.3' },
+    { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5' },
   ],
   'request-people': [
-    { text: requestCopy.peopleTitle, mark: 'Проект', note: 'копия 4.5; один вопрос, три поля' },
-    { text: requestCopy.peopleTotal, mark: 'Проект', note: 'IA §47.6' },
-    { text: requestCopy.peopleChildren, mark: 'Проект', note: 'IA §47.6' },
-    { text: requestCopy.peopleChildSeat, mark: 'Проект', note: 'IA §2.3; появляется, когда есть дети' },
-    { text: requestCopy.peopleChildSeatHint, mark: 'Проект', note: 'IA §2.3, дословно' },
-    { text: requestCopy.next, mark: 'Проект', note: 'DS §5' },
+    { text: requestCopy.peopleTitle, mark: 'Утверждено', note: 'копия 4.5; один вопрос, три поля' },
+    { text: requestCopy.peopleTotal, mark: 'Утверждено', note: 'IA §47.6' },
+    { text: requestCopy.peopleChildren, mark: 'Утверждено', note: 'IA §47.6' },
+    { text: requestCopy.peopleChildSeat, mark: 'Утверждено', note: 'IA §2.3; появляется, когда есть дети' },
+    { text: requestCopy.peopleChildSeatHint, mark: 'Утверждено', note: 'IA §2.3, дословно' },
+    { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5' },
   ],
 };
 
@@ -1259,9 +1260,9 @@ function SourcePanel({ sample }: { sample: SampleId }) {
       </p>
       {sample.startsWith('request-') && (
         <p>
-          Экраны 5–8 — форма просьбы пассажира. Здесь «Проект» стоит у каждой строки: решение
-          владельца от 22 августа 2026 года изменило структуру формы, а не её слова. Пометка
-          источника показывает, откуда взята формулировка, а не то, что она утверждена.
+          Экраны 5–8 — форма просьбы пассажира, просмотренная 24 августа 2026 года. Строки этих трёх
+          смысловых экранов утверждены; пометка рядом показывает, откуда взята формулировка. Экран
+          «Последние детали» в этот просмотр не входил и здесь не собран.
         </p>
       )}
       <dl className={styles.sourceList}>
@@ -1314,13 +1315,14 @@ export function CopyReview() {
   return (
     <div className={styles.reviewRoot}>
       <header className={styles.reviewHeader}>
-        <p>Временная поверхность проверки · группа 1 просмотрена, группа 2A ждёт просмотра</p>
+        <p>Временная поверхность проверки · группы 1 и 2A просмотрены</p>
         <h1>Проверка русской копии: храм и первая половина просьбы пассажира</h1>
         <p>
           Мобильные экраны шириной 390 px. Экраны 1–4 — первая группа после правок владельца от
           22 августа 2026 года. Экраны 5–8 — форма просьбы пассажира в новой структуре из четырёх
-          смысловых вопросов, без отдельного экрана проверки перед публикацией. Производственный
-          интерфейс не изменён; поверхность существует только для просмотра слов.
+          смысловых вопросов, без отдельного экрана проверки перед публикацией; просмотрены
+          24 августа 2026 года. Производственный интерфейс не изменён; поверхность существует
+          только для просмотра слов.
         </p>
       </header>
       <nav className={styles.reviewControls} aria-label="Выбор экрана проверки">

@@ -625,7 +625,7 @@ describe('Passenger request review states', () => {
     });
   });
 
-  it('marks every string of the new group as proposed and approves nothing', () => {
+  it('marks every reviewed string of the group as approved by the owner', () => {
     render(<CopyReviewPage />);
 
     requestSamples.forEach(([label]) => {
@@ -633,8 +633,25 @@ describe('Passenger request review states', () => {
       const marks = sourceRows();
 
       expect(marks.length).toBeGreaterThan(0);
-      expect(new Set(marks)).toEqual(new Set(['Проект']));
+      expect(new Set(marks)).toEqual(new Set(['Утверждено']));
     });
+  });
+
+  it('carries no pending-review wording for a group the owner has already seen', () => {
+    render(<CopyReviewPage />);
+    openSample('5 · Просьба: когда');
+
+    // The shared legend still explains `Проект` for the group 1 rows that keep it; what must be
+    // gone is any claim that this group is still waiting to be seen.
+    const panel = screen.getByRole('complementary', { name: 'Источники формулировок на экране' });
+    expect(panel.textContent).toContain('24 августа 2026');
+    expect(panel.textContent).not.toContain('ждёт просмотра');
+    expect(panel.textContent).not.toContain('ничего не утверждает');
+
+    // The simulated product screen has its own header, so pick the review chrome one.
+    const header = screen.getAllByRole('banner').find((node) => !node.closest('[data-product-screen]'))!;
+    expect(header.textContent).not.toContain('ждёт просмотра');
+    expect(header.textContent).toContain('просмотрены');
   });
 
   it('keeps the reviewed group 1 wording and marks untouched', () => {
