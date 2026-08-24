@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { GEOAPIFY_ATTRIBUTION } from '@/lib/geo/geoapify';
 import type { Coordinate, PlaceCandidate, SelectedPlace } from '@/lib/geo/types';
 import { MapSurface } from './map-surface';
 
@@ -134,6 +135,10 @@ export function PlacePicker({ browserKey, mapAvailable, near, onCancel, onConfir
           )}
 
           {candidates.length > 0 && (
+            <p className="text-xs text-stone-500" data-search-attribution>{GEOAPIFY_ATTRIBUTION}</p>
+          )}
+
+          {candidates.length > 0 && (
             <ul className="grid gap-1" data-place-candidates>
               {candidates.map((candidate) => (
                 <li key={candidate.id}>
@@ -164,8 +169,8 @@ export function PlacePicker({ browserKey, mapAvailable, near, onCancel, onConfir
 
           {browserKey ? (
             <p className="text-sm text-stone-700">
-              Найдите адрес или нажмите на карте, чтобы поставить отметку. Если адрес не
-              находится, достаточно правильно отметить место на карте.
+              Найдите адрес или нажмите на карте, чтобы поставить отметку. Карту можно двигать и
+              приближать. Если адрес не находится, достаточно правильно отметить место на карте.
             </p>
           ) : (
             <p className="text-sm text-stone-700">

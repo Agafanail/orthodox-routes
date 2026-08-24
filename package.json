@@ -16,6 +16,7 @@
     "test:agreements": "node scripts/verify-ride-agreements.mjs",
     "test:geography": "node scripts/verify-geographic-foundation.mjs",
     "test:matching": "node scripts/verify-quality-matching.mjs",
+    "test:geoapify-search": "node scripts/verify-geoapify-search.mjs",
     "test:maps-upgrade": "supabase db reset --local --version 20260822130000 && node scripts/prepare-maps-upgrade.mjs && supabase migration up --local && node scripts/verify-maps-upgrade.mjs",
     "test:staging-email": "node scripts/verify-staging-email.mjs",
     "test:staging-core": "node scripts/verify-staging-core.mjs",
@@ -30,6 +31,7 @@
   "dependencies": {
     "@supabase/ssr": "0.10.0",
     "@supabase/supabase-js": "2.105.0",
+    "maplibre-gl": "^6.5.0",
     "next": "16.2.11",
     "react": "19.2.7",
     "react-dom": "19.2.7"

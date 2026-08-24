@@ -69,17 +69,30 @@ All code is written, including the vendor adapter and the map imagery. Nothing f
 - Grant audit: `route_worker_*` reachable only by the service role; every exact-data function limited to `authenticated` with an actor check inside; no application role holding table or view access to church, place, block, measurement, or approximation-secret relations; forced row level security on every new table.
 - Campaign diff review over `8da5f38..HEAD`: no secret-shaped string, no `pgRouting`, corridor, polyline, stored route geometry, compatibility score, or match percentage in the new code, and no vendor name in any user-facing text apart from the licence attribution the map surfaces are required to show.
 
+### Final provider decision — 23 August 2026
+
+The owner selected **Geoapify as the only embedded map and geospatial provider** for V1: embedded maps, address search and autocomplete, geocoding, route and detour calculation, and the map interaction used to select a place. PostgreSQL with PostGIS remains the application-owned durable store and spatial computation layer.
+
+Google Maps and Yandex Maps are **not** embedded providers; their map, search, and routing APIs must not be integrated. They may be opened externally when a person explicitly chooses another maps application, as outbound links only.
+
+The decision confirms the standing rules: public approximate areas remain required, provider route geometry is never stored, saved places live until their owner deletes them with no thirty-day expiry, the board stays the default experience, and matching stays an explainable aid rather than a gate.
+
 ### Owner gate — the provider account and its keys
 
 Google Maps Platform cannot support the approved model, as recorded above and in Backend Architecture V1 §11. **Geoapify** is the selected direction: one account covering address search, autocomplete, driving routes, and map imagery; data from OpenStreetMap, OpenAddresses, and GeoNames, whose open licences permit permanent storage and cross-user reuse subject to attribution; a free tier of 3000 requests per day; EU registration. The obligation it creates is visible attribution to the data sources and, on the free tier, a link to Geoapify, which the application already renders beneath every map surface.
 
-The adapter, the imagery, the attribution, the key separation, and the tests are all implemented and merged. What remains is only what the owner alone can do:
+The adapter, the interactive maps, the attribution, the key separation, and the tests are all implemented. What remains is only what the owner alone can do:
 
-1. create a Geoapify account and an API key;
-2. set `ORTHODOX_ROUTES_MAP_PROVIDER` to `geoapify`, and both `ORTHODOX_ROUTES_MAP_SERVER_KEY` and `NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_BROWSER_KEY` to that key, through the hosting secret manager;
-3. confirm that it is done.
+1. create a Geoapify account and one project;
+2. create **two separate keys** in it, because one value must never serve both purposes:
+   - a server key restricted by allowed IP address to the hosting platform's outbound addresses;
+   - a render key restricted by allowed HTTP referrers and origins to the application's own domains;
+3. set `ORTHODOX_ROUTES_MAP_PROVIDER` to `geoapify`, `ORTHODOX_ROUTES_MAP_SERVER_KEY` to the server key, and `NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_RENDER_KEY` to the render key, through the hosting secret manager;
+4. confirm that it is done.
 
-The key is never requested in conversation and never committed. Until it exists, maps and suggestions stay unavailable and the ordinary board keeps working, which is the approved degradation and is covered by tests.
+Neither key is ever requested in conversation, committed, logged, or placed in a fixture or a screenshot. Until they exist, maps and suggestions stay unavailable and the ordinary board keeps working, which is the approved degradation and is covered by tests.
+
+After the keys are configured, the remaining verification runs in this same campaign: real interactive maps, real address search including the documented Italy, USA, Belarus, and Russia check through `npm run test:geoapify-search`, routing and matching against live measurements, attribution, and provider-failure behavior. The manual mobile and desktop UX test follows.
 
 ### Manual UX test
 

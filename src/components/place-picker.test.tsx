@@ -6,11 +6,6 @@ import { PlacePicker } from './place-picker';
 const noSearch = vi.fn(async () => ({ available: true, candidates: [] }));
 const church = { lat: 45.0703, lng: 7.6869 };
 
-function parseMapUrl(html: string) {
-  const match = html.match(/src="([^"]*staticmap[^"]*)"/);
-  return match ? new URL(match[1].replaceAll('&amp;', '&')) : null;
-}
-
 describe('PlaceField', () => {
   it('carries its value as one JSON payload and starts empty', () => {
     const html = renderToStaticMarkup(
@@ -91,6 +86,7 @@ describe('PlacePicker', () => {
 
     expect(html).toContain('Найти адрес');
     expect(html).toContain('нажмите на карте, чтобы поставить отметку');
+    expect(html).toContain('Карту можно двигать и приближать');
     expect(html).toContain('достаточно правильно отметить место на карте');
     expect(html).toContain('Подтвердить место');
   });
@@ -102,16 +98,20 @@ describe('PlacePicker', () => {
     expect(html).not.toContain('getCurrentPosition');
   });
 
-  it('shows the church for orientation and renders real map imagery', () => {
-    const url = parseMapUrl(picker('browser-key'))!;
-    expect(url.searchParams.get('marker')).toContain(`lonlat:${church.lng},${church.lat}`);
-    expect(url.searchParams.get('apiKey')).toBe('browser-key');
+  it('mounts the interactive map with the church shown for orientation', () => {
+    const html = picker('render-key');
+    expect(html).toContain('data-interactive-map');
+    // One marker for the church; the chosen place appears once a person picks it.
+    expect(html).toContain('data-map-markers="1"');
+    expect(html).toContain('Карта выбора места');
+    // The render key never appears in the served markup.
+    expect(html).not.toContain('render-key');
   });
 
-  it('keeps search usable and states the limit when imagery is unavailable', () => {
+  it('keeps search usable and states the limit when the map is unavailable', () => {
     const html = picker(null);
 
-    expect(parseMapUrl(html)).toBeNull();
+    expect(html).not.toContain('data-map-canvas');
     expect(html).toContain('Найти адрес');
     expect(html).toContain('Карта сейчас недоступна');
     expect(html).toContain('Отметить место на карте сейчас не получится');

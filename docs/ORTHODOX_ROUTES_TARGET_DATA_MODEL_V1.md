@@ -563,7 +563,7 @@ Before the remaining executable target domain migrations are written, owner/lega
 - technical upper bounds for passenger counts, seats, note lengths, and detour values;
 - protective delay and verification policy for email replacement while the previously verified phone remains available;
 - remaining retention-policy values within the approved 30-day maximum, including the short cancelled-data cleanup period and dispute-scoped legal holds;
-- Google Maps Content versus application-owned/user-confirmed data boundary;
+- provider content versus application-owned and user-confirmed data boundary, resolved in favour of open-licensed Geoapify data;
 - phone verification provider coverage and fallback;
 - the remaining exposed schema/function list and complete RLS matrix beyond the implemented account/eligibility boundary;
 - backup encryption/key custody and deletion-ledger protection;

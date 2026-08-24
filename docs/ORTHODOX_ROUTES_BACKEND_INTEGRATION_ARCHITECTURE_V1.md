@@ -67,8 +67,8 @@ No separately deployed backend language, microservices, Kubernetes, self-managed
 | Account identity | Supabase Auth email magic links | Passwordless verified-email identity and remembered sessions |
 | Phone verification | Application adapter; Bird selected for staging | International testing without coupling the account model to one SMS vendor |
 | Email | Resend, including Supabase custom SMTP | One transactional channel with webhook support and tracking disabled |
-| Maps and routing | Google Maps, Places/Geocoding, Routes | One embedded map system and route-quality validation |
-| External navigation | Google Maps and Yandex Maps links | User choice after confirmation without a second embedded map architecture |
+| Maps and routing | Geoapify: map tiles, geocoding/autocomplete, and routing, rendered with MapLibre GL | One embedded map system and route-quality validation on open-licensed data that permits durable storage and cross-user matching |
+| External navigation | Google Maps and Yandex Maps links only | User choice after confirmation, as outbound links; no external map, search, or routing API is integrated |
 | Files | Supabase Storage | One church photograph plus cleaned prepared variants |
 | Translation | Google Cloud Translation adapter | Stored translations, glossary support, replaceable provider boundary |
 | In-app refresh | Supabase Realtime, optional | Convenience only; durable rows remain authoritative |
@@ -231,7 +231,15 @@ Cancellation atomically changes agreement state, returns seats exactly once, res
 
 Exact user locations never enter anonymous HTML, public API responses, public map payloads, analytics, or logs.
 
-### Provider terms review — 23 August 2026
+### Selected provider
+
+**Geoapify is the only embedded map and geospatial provider.** It serves map tiles, address search and autocomplete, geocoding, and route measurement. PostgreSQL with PostGIS remains the application-owned durable store and the spatial computation layer for user locations, public approximations, candidate filtering, and matching; the provider is a calculation and rendering tool, never a store.
+
+Google Maps and Yandex Maps are **not** embedded providers and their map, search, and routing APIs are not integrated. They appear only as outbound links a person may follow to open a place or build a route in the application they already use.
+
+### Historical assessment — Google Maps Platform, rejected 23 August 2026
+
+The following analysis is retained as the record of why Google was rejected. It does not describe the current architecture.
 
 The previously assumed Google Maps Platform direction was re-checked against the **current** Google Maps Platform Service Specific Terms at `https://cloud.google.com/maps-platform/terms/maps-service-terms` (page fetched 23 August 2026; the most recent listed prior version is 10 June 2026). Findings, quoted from the current terms:
 
@@ -257,11 +265,11 @@ The fact that the person confirms the marker does not resolve this. The coordina
 
 Routing is unaffected by storage limits because no routing output is persisted: the adapter returns distance and duration, the domain keeps only derived added distance, added estimated time, and identifiers, and provider route geometry is discarded.
 
-**Consequence for this campaign.** The provider selection is an owner decision with cost and account consequences, so it is an owner-controlled gate rather than an engineering choice. All provider-independent work — schema, protected functions, approximation, matching, projections, adapters, deterministic local fakes, tests, and documentation — is completed first and does not depend on which vendor is chosen. The domain calls only the adapter contract, so selecting a provider later is configuration, not redesign.
+**Consequence.** Google was rejected on these grounds and the owner selected Geoapify on 23 August 2026.
 
-### Selected direction — Geoapify
+### Why Geoapify satisfies the approved model
 
-The implemented vendor adapter is Geoapify, recommended to the owner as the single provider covering all three capabilities.
+Geoapify is the single provider covering all three capabilities.
 
 | Requirement | How Geoapify meets it |
 | --- | --- |
@@ -271,13 +279,44 @@ The implemented vendor adapter is Geoapify, recommended to the owner as the sing
 | Driving distance and duration | The Routing API returns total distance and time. The adapter reads only those two numbers and never the route geometry. |
 | Map imagery | The Static Maps API renders the church catalog, the church location screen, and the place picker. |
 
-The obligation this creates is visible attribution to the data sources, and on the free tier a link to Geoapify. The application renders that attribution beneath every map surface.
+The obligation this creates is visible attribution to the data sources, and on the free plan a link to Geoapify. The application renders that attribution beneath every map surface.
 
-Selecting a different vendor later means replacing one adapter file and one static-map URL builder. No schema, protected function, projection, or matching rule depends on the vendor.
+Selecting a different vendor later means replacing one adapter file and one style URL. No schema, protected function, projection, or matching rule depends on the vendor.
+
+### Embedded map implementation
+
+The map is drawn by **MapLibre GL JS**, the open-source library Geoapify documents for its vector styles, loading a style from `https://maps.geoapify.com/v1/styles/{style}/style.json`. This is the minimum adequate choice: it provides pan, zoom, and touch gestures on mobile without a vendor SDK, it keeps the tile source replaceable behind one URL, and its licence places no restriction on the application.
+
+One component renders every map surface — the church catalog, the church location screen, the transport board group map, and the place picker — so there is a single embedded map architecture rather than one per screen. Markers, approximate circles, and view fitting are drawn by the application from its own data; the provider supplies only the background.
 
 ### Key separation
 
-Two distinct values are configured. `ORTHODOX_ROUTES_MAP_SERVER_KEY` is used only on the server, for address search and route measurement, so a page can never spend those calls. `NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_BROWSER_KEY` is used only for map imagery and is withheld entirely unless a vendor that serves imagery is configured. Neither key is committed, logged, or included in an error message; a provider failure surfaces as one ordinary sentence with no vendor name, status code, or technical cause.
+**Two different Geoapify keys are created, never one value used twice.** Geoapify supports several keys per project and restricts each by allowed IP addresses, HTTP referrers and origins, and CORS.
+
+| Credential | Environment variable | Used for | Restriction |
+| --- | --- | --- | --- |
+| Server key | `ORTHODOX_ROUTES_MAP_SERVER_KEY` | Address search, autocomplete, geocoding, route measurement | Allowed IP addresses: the hosting platform's outbound addresses. Never sent to a browser |
+| Render key | `NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_RENDER_KEY` | Map tiles and styles only | Allowed HTTP referrers and origins: the application's own domains |
+
+The render key is necessarily visible in the page, because the browser fetches the tiles. Restricting it to the application's own origins is what makes that acceptable: copied elsewhere it renders nothing, and it cannot be used to spend searches or route calls. The server key never leaves the server, so those billable calls cannot be triggered from a page at all.
+
+Neither key is committed, logged, printed, placed in a test fixture or screenshot, or included in an error message. A provider failure surfaces as one ordinary sentence with no vendor name, status code, or technical cause.
+
+### External processing boundary
+
+Using a hosted provider means some exact coordinates are sent to it, and the documentation must be honest about that rather than implying the exact point never leaves the system.
+
+**What is sent to Geoapify:** the text a person types while searching for an address; the coordinate of a confirmed place when a route is measured, together with the church coordinate; and the coordinates a browser needs to fetch map tiles for the area a person is looking at.
+
+**What this is:** processing by a contracted provider, on the instruction of the application, for a purpose the person initiated. It is not publication and not disclosure to another user.
+
+**What remains true regardless:** an exact coordinate never appears in a public application response, in server logs, in analytics, in page metadata, or in any interface shown to someone who is not authorized to see it. The route request is transient and its geometry is discarded. The provider receives what it needs to answer one question and nothing about who asked it: no account identifier, no name, no contact, and no ride context travels with a search or a route call.
+
+**Volume control follows from the same boundary.** Every cheap deterministic database filter runs before any billed call, so a candidate that fails on seats, children, church, time, or a block never reaches the provider.
+
+### Attribution
+
+The data is OpenStreetMap-derived and the free plan additionally requires crediting Geoapify. Every map surface renders `Данные: © OpenStreetMap · © OpenMapTiles · Powered by Geoapify`, and the search results list renders the geocoding-source credit. The vector style also carries its own attribution control. Removing either credit is not permitted.
 
 ### Public approximate area
 
@@ -476,7 +515,7 @@ All prices and limits below are a planning snapshot accessed **6 August 2026**, 
 | Supabase | Free: $0, two active projects, 500 MB database and 1 GB Storage per project, pausing after inactivity, no automatic backups; Pro from $25/month with first project included and daily backups, additional projects from $10/month | Database/storage/egress, MAU, compute, reliability |
 | Resend | Free: 3,000 emails/month and 100/day; Pro: $20/month for 50,000 with $0.90/1,000 overage | Authentication and transactional email volume |
 | Bird SMS | Published base examples per segment: Italy $0.0896, US $0.0073, Canada $0.0075, Belarus $0.2395, Russia $0.6859; carrier/sender fees and registration may add cost | Country, carrier, sender registration, message segments, abuse |
-| Google Maps | Essentials free caps generally 10,000 monthly events per SKU; Dynamic Maps $7/1,000, Routes Essentials $5/1,000, Geocoding $5/1,000 after cap | Map loads, address searches, route validations |
+| Geoapify | Free: 3,000 credits/day with up to 5 requests/second and a required Geoapify link; paid plans from $59/month for 10,000 credits/day. A simple geocoding, places, or routing request costs one credit | Map loads, address searches, route validations |
 | Google Cloud Translation | First 500,000 characters/month covered by a $10 credit; then $20/million NMT characters | Source characters times target languages and revisions |
 | Cloudflare Turnstile | Free plan with unlimited challenges and up to 20 widgets | Enterprise requirements only |
 | Cloudflare Web Analytics | Free privacy-first service | No planned usage charge |
@@ -491,15 +530,15 @@ Published SMS coverage and a price row do not guarantee successful production de
 | Scenario | Fixed planning baseline | Variable assumptions |
 | --- | ---: | --- |
 | Development | Approximately $0/month | Vercel Hobby previews are temporary and non-commercial; synthetic Supabase projects; provider test/free allowances |
-| Small public launch | Approximately $7/month | Render Starter; accepted Supabase Free risk; Resend/Turnstile/analytics/monitoring/B2 within free allowances; SMS and Google usage charged as incurred |
+| Small public launch | Approximately $7/month | Render Starter; accepted Supabase Free risk; Resend/Turnstile/analytics/monitoring/B2 within free allowances; Geoapify within the free daily allowance; SMS charged as incurred |
 | Reliability upgrade | Approximately $32–42/month | Render Starter plus Supabase Pro for production; second Pro project adds cost if staging also moves into the paid organization; usage remains variable |
 | Growing usage | Scenario, not promise: roughly $52–100+ fixed before SMS/maps | Supabase Pro, Resend Pro, Render Starter or Standard, plus provider and storage usage |
 
-No fixed EUR 100–250 budget is guaranteed. SMS is the least predictable early expense. Google Maps is the strongest deliberate vendor dependency. Budget alerts do not guarantee a spend stop.
+No fixed EUR 100–250 budget is guaranteed. SMS is the least predictable early expense. The map provider is the next one to watch: the free Geoapify allowance is a daily credit budget rather than a monthly one, so a single busy day can exhaust it even when the month is quiet. The application spends credits only after every cheap database filter has passed, and a map load, an address search, and a route measurement each cost separately. Budget alerts do not guarantee a spend stop.
 
 ### 18.3 Hard controls and upgrade triggers
 
-Configurable operational values include monthly SMS warning and stop amounts, per-country/day limits, per-number/network limits, Google per-SKU quotas, translation batch limits, email priority shedding, and upload limits. Initial values require owner approval after staging measurements.
+Configurable operational values include monthly SMS warning and stop amounts, per-country/day limits, per-number/network limits, the map-provider daily credit allowance and per-render bound, translation batch limits, email priority shedding, and upload limits. Initial values require owner approval after staging measurements.
 
 Upgrade Supabase production to Pro when any one trigger is met:
 
@@ -521,7 +560,7 @@ Upgrade Render when memory/CPU/latency remains above an approved threshold for 1
 | Supabase Storage | Low | Object manifest and S3-compatible/export tooling; application-owned opaque paths |
 | Resend | Low | Application email adapter, owned templates, standard SMTP/API concepts |
 | Bird | Low | Phone-verification adapter and provider-neutral verification records; add second provider before claiming unsupported countries |
-| Google Maps | High and deliberate | Provider adapter for calls, but embedded UX, Places semantics, billing, and terms require a planned product/contract migration |
+| Geoapify | Moderate and deliberate | The domain calls an application-owned adapter, the map renders through MapLibre GL rather than a vendor SDK, and the underlying data is open-licensed, so a change of vendor is one adapter plus one style URL. Coordinates already stored stay usable because their licence, not the vendor contract, grants that right |
 | Google Translation | Low | Stored source/versioned translations and provider metadata permit regeneration through another adapter |
 | Web Push | Low | Standard protocol and VAPID; subscriptions may need renewal after key/provider changes |
 | Backblaze B2 | Low | Encrypted standard backup archives can move to another object store |
@@ -530,7 +569,7 @@ Upgrade Render when memory/CPU/latency remains above an approved threshold for 1
 
 The architecture is not launch approval. Required gates are:
 
-1. Current Google Maps contractual review before storing, caching, or deriving geographic data.
+1. Completed: the map-provider contractual review before storing, caching, or deriving geographic data. Google Maps Platform was assessed and rejected; Geoapify is the selected provider. See §11.
 2. Actual sender registration and end-to-end SMS delivery tests in Italy, representative EU countries, United States, Canada, Belarus, and Russia. Add a second provider behind the same adapter if Bird is inadequate in any mandatory country.
 3. Legal review of GDPR special-category implications, controller/processor obligations, international transfers, Terms, Privacy, retention, deletion, and translation.
 4. Approve exact configurable protective delays for email replacement, remaining retention values within approved product maxima, rate limits, SMS warning/stop thresholds, and capacity/text limits.
@@ -552,7 +591,8 @@ Accessed 6 August 2026; the Bird Messages API and region references were refresh
 - Vercel: [Terms, Hobby Plan](https://vercel.com/legal/terms).
 - Resend: [pricing](https://resend.com/pricing), [quotas](https://resend.com/docs/knowledge-base/account-quotas-and-limits), and [open/click tracking](https://resend.com/docs/dashboard/domains/tracking).
 - Bird: [SMS pricing](https://bird.com/en-us/pricing/sms), [SMS sending, cost, and idempotency](https://bird.com/en-us/docs/guides/sms/sending-sms), [create SMS message](https://bird.com/en-us/docs/api/reference/create-sms-message), [API regions](https://bird.com/en-us/docs/api/regions), and [SMS overview](https://bird.com/en-us/docs/guides/sms/overview).
-- Google Maps Platform: [core pricing](https://developers.google.com/maps/billing-and-pricing/pricing), [cost controls](https://developers.google.com/maps/billing-and-pricing/manage-costs), [API security](https://developers.google.com/maps/api-security-best-practices), [Terms](https://cloud.google.com/maps-platform/terms), and [Service Specific Terms dated 22 April 2026](https://cloud.google.com/archive/maps-platform/terms/maps-service-terms-20260422).
+- Geoapify, the selected map provider: [pricing](https://www.geoapify.com/pricing/), [terms and conditions](https://www.geoapify.com/terms-and-conditions/), [map tiles and attribution](https://apidocs.geoapify.com/docs/maps/map-tiles/), [geocoding](https://apidocs.geoapify.com/docs/geocoding/), and [routing](https://apidocs.geoapify.com/docs/routing/). Reviewed 23 August 2026.
+- Google Maps Platform, assessed and rejected as an internal provider, retained here only as the record of that analysis: [Terms](https://cloud.google.com/maps-platform/terms) and [Service Specific Terms](https://cloud.google.com/maps-platform/terms/maps-service-terms).
 - Google Cloud Translation: [pricing](https://cloud.google.com/translate/pricing).
 - Cloudflare: [Turnstile plans](https://developers.cloudflare.com/turnstile/plans/), [Web Analytics](https://developers.cloudflare.com/web-analytics/about/), and [data collection](https://developers.cloudflare.com/web-analytics/data-metrics/data-origin-and-collection/).
 - Sentry: [Germany data region](https://sentry.io/changelog/data-storage-location-in-germany-is-generally-available/) and [organization privacy/scrubbing controls](https://docs.sentry.io/api/organizations/update-an-organization/).

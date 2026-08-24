@@ -29,17 +29,18 @@ export function resolveGeoProvider(
 const IMAGERY_PROVIDERS = new Set(['geoapify']);
 
 /**
- * The key the browser may use for map imagery.
+ * The credential the browser uses to render map tiles.
  *
- * It is separate from the server key on purpose: the browser key is restricted to rendering and
- * carries no search or routing rights that could be spent from a page. It is withheld unless a
- * vendor that actually serves imagery is configured, so the local fake never produces a request
- * to a vendor that would fail and never pretends to be a real map.
+ * This is a second, different key from the server one. The server key stays on the server and is
+ * restricted by IP; this one is necessarily visible in the page and is therefore restricted at
+ * the provider to this application's domains and to map rendering only, so copying it out of a
+ * page buys nothing. It is withheld entirely unless a vendor that serves imagery is configured,
+ * so the local fake never produces a request that would fail and never pretends to be a map.
  */
 export function getBrowserMapKey(
   environment: Record<string, string | undefined> = process.env,
 ): string | null {
   const provider = environment.ORTHODOX_ROUTES_MAP_PROVIDER?.trim();
   if (!provider || !IMAGERY_PROVIDERS.has(provider)) return null;
-  return environment.NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_BROWSER_KEY?.trim() || null;
+  return environment.NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_RENDER_KEY?.trim() || null;
 }

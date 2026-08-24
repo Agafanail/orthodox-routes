@@ -30,6 +30,7 @@ import { searchPlacesAction } from '@/app/core-transport/place-search';
 import type { CoreTransportData } from '@/lib/core-transport/types';
 import { detourSummary, matchesOccurrence, matchesRequest, type QualityMatch } from '@/lib/geo/match';
 import type { SavedPlace } from '@/lib/geo/types';
+import { BoardMap } from './board-map';
 import { PlaceField } from './place-field';
 
 type Props = CoreTransportData & { status?: string };
@@ -303,6 +304,14 @@ export function CoreTransportBoard(props: Props) {
         Это подсказка. Договориться можно и с теми, кого здесь нет.
       </p> : null}
     </div> : null}
+
+    <BoardMap
+      browserKey={props.mapBrowserKey}
+      church={props.church}
+      driverOccurrences={matchedOccurrences}
+      mapAvailable={props.mapAvailable}
+      passengerRequests={matchedRequests}
+    />
 
     <div className="grid gap-5 lg:grid-cols-2">
       <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">

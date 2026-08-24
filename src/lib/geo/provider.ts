@@ -50,8 +50,12 @@ export class GeoProviderUnavailableError extends Error {
 
 export type GeoProviderConfig = {
   provider: string;
+  /**
+   * Used only on the server, for address search and route measurement. It is a different
+   * credential from the render key, restricted by allowed IP address at the provider, and it
+   * must never be exposed to a browser.
+   */
   serverKey: string;
-  browserKey?: string;
 };
 
 /**
@@ -64,18 +68,20 @@ export function getGeoProviderConfig(
 ): GeoProviderConfig | null {
   const provider = environment.ORTHODOX_ROUTES_MAP_PROVIDER?.trim();
   const serverKey = environment.ORTHODOX_ROUTES_MAP_SERVER_KEY?.trim();
-  const browserKey = environment.NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_BROWSER_KEY?.trim();
   if (!provider || !serverKey) return null;
-  return {
-    provider,
-    serverKey,
-    ...(browserKey ? { browserKey } : {}),
-  };
+  return { provider, serverKey };
 }
 
-/** True when the browser may render an interactive map surface. */
+/**
+ * True when the browser may render an interactive map surface.
+ *
+ * The render credential is deliberately separate from the server credential. It is exposed to
+ * the browser by necessity — map tiles are fetched by the page — so at the provider it is
+ * restricted to this application's domains and to map rendering alone. It can therefore not be
+ * used to spend address searches or route calculations even if someone copies it out of a page.
+ */
 export function hasBrowserMapConfiguration(
   environment: Record<string, string | undefined> = process.env,
 ) {
-  return Boolean(environment.NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_BROWSER_KEY?.trim());
+  return Boolean(environment.NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_RENDER_KEY?.trim());
 }

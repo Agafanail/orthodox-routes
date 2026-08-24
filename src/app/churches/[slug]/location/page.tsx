@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { connection } from 'next/server';
+import { ExternalMapLinks } from '@/components/external-map-links';
+import { InteractiveMap } from '@/components/interactive-map';
 import { parseCoreChurch } from '@/lib/core-transport/parse';
-import { GEOAPIFY_ATTRIBUTION } from '@/lib/geo/geoapify';
 import { hasBrowserMapConfiguration } from '@/lib/geo/provider';
 import { getBrowserMapKey } from '@/lib/geo/provider-factory';
-import { staticMapUrl } from '@/lib/geo/static-map';
 import { getChurchBySlug } from '@/lib/mockData';
 import { getPublicSupabaseConfig } from '@/lib/supabase/config';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -43,7 +43,6 @@ export default async function ChurchLocationPage({ params }: PageProps) {
   const point = church && church.lat !== undefined && church.lng !== undefined
     ? { lat: church.lat, lng: church.lng }
     : null;
-  const destination = point ? `${point.lat},${point.lng}` : address;
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-4 py-6 sm:px-6">
@@ -56,49 +55,25 @@ export default async function ChurchLocationPage({ params }: PageProps) {
       <h1 className="text-3xl font-bold text-stone-950">{name}</h1>
       <p className="mt-3 text-lg text-stone-700" data-church-address>{address}</p>
 
-      {hasBrowserMapConfiguration() && point && getBrowserMapKey() ? (
-        <figure className="mt-5" data-church-lat={point.lat} data-church-lng={point.lng} data-church-location-map>
-          {/* eslint-disable-next-line @next/next/no-img-element -- provider-rendered map tile, not a static asset */}
-          <img
-            alt={`Храм на карте: ${address}`}
-            className="w-full rounded-lg border border-stone-200"
-            height={360}
-            src={staticMapUrl({
-              apiKey: getBrowserMapKey()!,
-              center: point,
-              height: 360,
-              markers: [{ ...point, kind: 'church' }],
-              width: 640,
-              zoom: 16,
-            })}
-            width={640}
+      {point ? (
+        <div className="mt-5" data-church-lat={point.lat} data-church-lng={point.lng} data-church-location-map>
+          <InteractiveMap
+            ariaLabel={`Храм на карте: ${address}`}
+            browserKey={hasBrowserMapConfiguration() ? getBrowserMapKey() : null}
+            center={point}
+            heightClass="h-96"
+            markers={[{ id: 'church', kind: 'church', label: name, ...point }]}
+            unavailableText="Карта сейчас недоступна. Полный адрес храма указан выше."
+            zoom={16}
           />
-          <figcaption className="mt-1 text-xs text-stone-500">{GEOAPIFY_ATTRIBUTION}</figcaption>
-        </figure>
+        </div>
       ) : (
         <p className="mt-5 rounded-lg border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600" data-church-location-map-unavailable>
           Карта сейчас недоступна. Полный адрес храма указан выше.
         </p>
       )}
 
-      <div className="mt-5 flex flex-wrap gap-3">
-        <a
-          className="rounded-lg border border-amber-800 px-4 py-2 font-semibold text-amber-900"
-          href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`}
-          rel="noreferrer noopener"
-          target="_blank"
-        >
-          Построить маршрут
-        </a>
-        <a
-          className="rounded-lg border border-stone-300 px-4 py-2 font-semibold text-stone-700"
-          href={`https://yandex.ru/maps/?rtext=~${encodeURIComponent(destination)}`}
-          rel="noreferrer noopener"
-          target="_blank"
-        >
-          Маршрут в Яндекс Картах
-        </a>
-      </div>
+      {point ? <ExternalMapLinks mode="route" target={{ label: name, point }} title="Построить маршрут" /> : null}
 
       <p className="mt-5 text-sm text-stone-600">
         Маршрут строится во внешнем приложении карт. Внутри Orthodox Routes навигации нет.

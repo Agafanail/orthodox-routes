@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 // The catalog renders a client action that navigates; only its presence is under test here.
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
+import { BoardMap } from './board-map';
 import { CatalogMap } from './catalog-map';
 import { ChurchCatalog } from './church-catalog';
 
@@ -29,70 +30,55 @@ const far = {
   slug: 'far-church',
 };
 
-function parseMapUrl(html: string) {
-  const match = html.match(/src="([^"]*staticmap[^"]*)"/);
-  if (!match) return null;
-  return new URL(match[1].replaceAll('&amp;', '&'));
-}
-
 describe('CatalogMap', () => {
-  it('plots every returned church and shows the required attribution', () => {
+  it('mounts the shared interactive map with one pin per returned church', () => {
     const html = renderToStaticMarkup(
-      <CatalogMap browserKey="browser-key" churches={[church, far]} mapAvailable near={null} />,
+      <CatalogMap browserKey="render-key" churches={[church, far]} mapAvailable near={null} />,
     );
-    const url = parseMapUrl(html)!;
 
-    expect(url.origin + url.pathname).toBe('https://maps.geoapify.com/v1/staticmap');
-    expect(url.searchParams.getAll('marker')).toHaveLength(2);
+    expect(html).toContain('data-interactive-map');
+    expect(html).toContain('data-map-markers="2"');
     expect(html).toContain('data-church-pins="2"');
     // The licence obligation is part of the surface, not an optional extra.
     expect(html).toContain('OpenStreetMap');
+    expect(html).toContain('Geoapify');
   });
 
-  it('frames both churches into one view rather than centring on one', () => {
-    const url = parseMapUrl(renderToStaticMarkup(
-      <CatalogMap browserKey="browser-key" churches={[church, far]} mapAvailable near={null} />,
-    ))!;
-    const zoom = Number(url.searchParams.get('zoom'));
-    // Two churches nearly a thousand kilometres apart cannot share a close zoom.
-    expect(zoom).toBeLessThan(10);
-  });
-
-  it('marks the person location only when they asked for it', () => {
-    const without = parseMapUrl(renderToStaticMarkup(
-      <CatalogMap browserKey="browser-key" churches={[church]} mapAvailable near={null} />,
-    ))!;
-    expect(without.searchParams.getAll('marker')).toHaveLength(1);
+  it('adds the person marker only when they asked to be located', () => {
+    const without = renderToStaticMarkup(
+      <CatalogMap browserKey="render-key" churches={[church]} mapAvailable near={null} />,
+    );
+    expect(without).toContain('data-map-markers="1"');
 
     const withLocation = renderToStaticMarkup(
-      <CatalogMap browserKey="browser-key" churches={[church]} mapAvailable near={{ lat: 45.07, lng: 7.68 }} />,
+      <CatalogMap browserKey="render-key" churches={[church]} mapAvailable near={{ lat: 45.07, lng: 7.68 }} />,
     );
-    expect(parseMapUrl(withLocation)!.searchParams.getAll('marker')).toHaveLength(2);
+    expect(withLocation).toContain('data-map-markers="2"');
     expect(withLocation).toContain('data-user-located="true"');
   });
 
   // The list is the dependable half: a missing map never blocks finding a church.
-  it('explains itself without imagery and never invents a map', () => {
+  it('explains itself without a render key and never invents a map', () => {
     const html = renderToStaticMarkup(
       <CatalogMap browserKey={null} churches={[church]} mapAvailable={false} near={null} />,
     );
-    expect(html).toContain('Карта сейчас недоступна');
+    expect(html).toContain('data-map-unavailable');
     expect(html).toContain('Список храмов рядом работает как обычно');
-    expect(parseMapUrl(html)).toBeNull();
+    expect(html).not.toContain('data-map-canvas');
   });
 
-  it('does not request imagery when no key is available even if a map is expected', () => {
+  it('withholds the map when a key exists but the surface is disabled', () => {
     const html = renderToStaticMarkup(
-      <CatalogMap browserKey={null} churches={[church]} mapAvailable near={null} />,
+      <CatalogMap browserKey="render-key" churches={[church]} mapAvailable={false} near={null} />,
     );
-    expect(parseMapUrl(html)).toBeNull();
+    expect(html).toContain('data-map-unavailable');
   });
 });
 
 describe('ChurchCatalog', () => {
   it('offers one universal search and the explicit location action', () => {
     const html = renderToStaticMarkup(
-      <ChurchCatalog browserKey="browser-key" churches={[church]} mapAvailable near={null} query="" />,
+      <ChurchCatalog browserKey="render-key" churches={[church]} mapAvailable near={null} query="" />,
     );
 
     expect(html).toContain('name="q"');
@@ -106,13 +92,13 @@ describe('ChurchCatalog', () => {
 
   it('shows an approximate distance only when a location was supplied', () => {
     const without = renderToStaticMarkup(
-      <ChurchCatalog browserKey="browser-key" churches={[church]} mapAvailable near={null} query="" />,
+      <ChurchCatalog browserKey="render-key" churches={[church]} mapAvailable near={null} query="" />,
     );
     expect(without).not.toContain('от вас');
 
     const withLocation = renderToStaticMarkup(
       <ChurchCatalog
-        browserKey="browser-key"
+        browserKey="render-key"
         churches={[{ ...church, distanceM: 23400 }]}
         mapAvailable
         near={{ lat: 45.07, lng: 7.68 }}
@@ -125,8 +111,103 @@ describe('ChurchCatalog', () => {
 
   it('says plainly when a search found nothing', () => {
     const html = renderToStaticMarkup(
-      <ChurchCatalog browserKey="browser-key" churches={[]} mapAvailable near={null} query="нет" />,
+      <ChurchCatalog browserKey="render-key" churches={[]} mapAvailable near={null} query="нет" />,
     );
     expect(html).toContain('Храмы не найдены');
+  });
+});
+
+describe('BoardMap', () => {
+  const coreChurch = {
+    address: 'Via Roma 1',
+    churchId: 'c1',
+    countryCode: 'IT',
+    lat: 45.0703,
+    lng: 7.6869,
+    locality: 'Torino',
+    officialName: 'Тестовый храм',
+    slug: 'test-church',
+    timezone: 'UTC',
+  };
+
+  const request = {
+    authorName: 'Анна',
+    childSeatRequired: false,
+    childrenCount: 0,
+    churchId: 'c1',
+    desiredArrivalAt: '2026-09-01T09:00:00Z',
+    passengerCount: 1,
+    placeOptions: [{
+      placeId: 'p1',
+      publicArea: { lat: 45.06, lng: 7.67, radiusM: 1000 },
+      publicAreaLabel: 'Torino',
+    }],
+    requestId: 'r1',
+    returnRequired: false,
+    timezone: 'UTC',
+  };
+
+  const offer = {
+    arrivalAt: '2026-09-01T09:00:00Z',
+    authorName: 'Иван',
+    availableSeats: 3,
+    childrenAllowed: true,
+    churchId: 'c1',
+    departureAt: '2026-09-01T08:00:00Z',
+    driverChildSeatAvailable: true,
+    maxDetourKm: 5,
+    occurrenceId: 'o1',
+    originArea: {
+      placeId: 'p2',
+      publicArea: { lat: 45.03, lng: 7.64, radiusM: 1000 },
+      publicAreaLabel: 'Moncalieri',
+    },
+    publicOriginArea: 'Moncalieri',
+    returnAvailable: false,
+    timezone: 'UTC',
+  };
+
+  it('draws the exact church and both kinds of approximate area', () => {
+    const html = renderToStaticMarkup(
+      <BoardMap
+        browserKey="render-key"
+        church={coreChurch}
+        driverOccurrences={[offer]}
+        mapAvailable
+        passengerRequests={[request]}
+      />,
+    );
+
+    expect(html).toContain('Поездки на карте');
+    expect(html).toContain('data-map-markers="1"');
+    expect(html).toContain('data-map-areas="2"');
+    expect(html).toContain('Маршрут поездки не показывается');
+  });
+
+  // The map is a second view of the same listings, never a replacement for the board.
+  it('is absent when the group has no approximate area to show', () => {
+    const html = renderToStaticMarkup(
+      <BoardMap
+        browserKey="render-key"
+        church={coreChurch}
+        driverOccurrences={[]}
+        mapAvailable
+        passengerRequests={[]}
+      />,
+    );
+    expect(html).toBe('');
+  });
+
+  it('is absent when the church has no published location', () => {
+    const html = renderToStaticMarkup(
+      <BoardMap
+        browserKey="render-key"
+        church={{ ...coreChurch, lat: undefined, lng: undefined }}
+        driverOccurrences={[offer]}
+        mapAvailable
+        passengerRequests={[request]}
+      />,
+    );
+    expect(html).toBe('');
   });
 });
