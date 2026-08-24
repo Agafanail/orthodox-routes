@@ -166,4 +166,32 @@ Checkpoint completion, commits, pushes, green CI, ordinary technical uncertainty
 
 ## Final completion criteria
 
+### Final audit — 23 August 2026
+
+Each criterion checked against repository evidence rather than recollection. Three remain open and none of them can be closed by the agent.
+
+| Criterion | State | Evidence |
+| --- | --- | --- |
+| Documentation matches the approved product decisions | Closed | Corridor and direction concepts removed across Product Scope, IA V2, Design System V2, backend architecture, target data model, UX copy, UX rules, roadmap, and the project map. IA §16.5 no longer promises access to an exact route; the PR review thread that raised it is resolved |
+| Core transport, agreement, capacity, cancellation, restoration, and disclosure behavior intact | Closed | `test:transport` and `test:agreements` pass in CI; the disclosure and cancellation functions are unchanged apart from the added driver departure place |
+| Exact church and user geography migration-backed and protected | Closed | `20260823120000`; forced row level security and no application-role grants on every new relation |
+| Public approximation cannot expose an exact point through its centre | Closed | Database constraint `user_place_public_contains_exact` requires the point inside the circle and at least 100 m from its centre; the offset is deterministic per owner and place |
+| Saved places under a compliant storage model | Closed | Open-licensed provider data; `ops.anonymize_expired_places` excludes `saved` rows; publication copies a saved place so deleting it never rewrites a live listing |
+| Maps work on the approved surfaces | Partially closed | Implemented and unit-verified for the catalog, church location screen, board group map, and picker. Verification against the deployed environment is pending |
+| Deterministic matching enforces every approved hard condition | Closed | `test:matching` in CI; re-audited after the provider decision, one ordering defect found and fixed |
+| Up to three passenger places with explainable results | Closed | `passenger_request_place_position between 1 and 3`; every fitting place is exposed with the smallest-detour one marked |
+| Matching failure never breaks the ordinary board | Closed | An unmeasured candidate is never a negative claim; the failure line appears only in the suggestions view |
+| Confirmation and disclosure boundaries correct | Closed | Driver receives only the selected meeting place, passenger receives the driver departure place, unused places stay private |
+| No public corridor and no unnecessary route geometry | Closed | No such entity in the schema; the adapter never reads route geometry; anonymous payload scans are clean |
+| Automated, database, and privacy verification clean | Closed | CI `32756648075` green on `fc2a804`, all three jobs |
+| Browser verification | Partially closed | Local surfaces and fallbacks verified; the deployed environment is pending |
+| Owner manual UX test passed | **Open** | Requires the deployed staging environment |
+| `main` pushed, every required job green | **Open** | The branch is pushed and green; merging waits on the owner's approval by design |
+| This file records final evidence | Closed | This table, plus the checkpoint table and the staging state section |
+| No later roadmap phase silently implemented | Closed | No My Trips, Web Push, PWA, church administration, or schedule management in the diff |
+
+The three open items share one cause: the staging database is two migrations behind, so the deployed branch cannot be exercised. That push is an owner action, as recorded above.
+
+### Original criteria
+
 Completion requires repository evidence that documentation matches the approved product decisions; Core transport, agreement, capacity, cancellation, restoration, and disclosure behavior remains intact; exact church and user geography is migration-backed and protected; the public approximation cannot expose an exact point through its centre; saved places work under a compliant storage model; maps work on the approved surfaces; route-aware deterministic quality matching enforces every approved hard condition; up to three passenger places are supported with explainable results; matching failure never breaks the ordinary board; confirmation and disclosure boundaries are correct; no public driver route corridor and no unnecessary route geometry exist; automated, database, browser, and privacy verification is clean; the owner's manual UX test has passed; Git history is coherent; `main` is pushed; every required GitHub Actions job and cleanup step is green; this file records final evidence; and no later roadmap phase was silently implemented.
