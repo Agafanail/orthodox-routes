@@ -204,10 +204,13 @@ assert.equal(
 assert.equal(readiness.maps?.probe?.ok, true, 'A known-good address must return at least one usable result.');
 // The diagnostic must stay a diagnostic: no key, no address, no provider payload.
 assert.deepEqual(
-  Object.keys(readiness.maps.probe).sort(),
+  Object.keys(readiness.maps.probe).sort().filter((key) => key !== 'endpoints'),
   ['ok', 'results', 'status'],
   'The probe must report nothing beyond its coarse outcome.',
 );
+for (const status of Object.values(readiness.maps.probe.endpoints ?? {})) {
+  assert.ok(status === null || typeof status === 'number', 'An endpoint check reports a status only.');
+}
 
 // ------------------------------------------------------------------ deployed map surfaces
 

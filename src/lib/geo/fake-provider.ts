@@ -42,8 +42,8 @@ export function createFakeGeoProvider(options: FakeGeoProviderOptions = {}): Geo
 
     async probe() {
       return options.unavailable
-        ? { ok: false, results: null, status: null }
-        : { ok: true, results: places.length, status: 200 };
+        ? { endpoints: { autocomplete: null }, ok: false, results: null, status: null }
+        : { endpoints: { autocomplete: 200 }, ok: true, results: places.length, status: 200 };
     },
 
     async searchPlaces(query, searchOptions) {

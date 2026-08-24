@@ -72,13 +72,13 @@ describe('Core application readiness', () => {
   });
 
   it('reports the provider outcome and status when the probe is requested', async () => {
-    const probe = vi.fn().mockResolvedValue({ ok: false, results: null, status: 401 });
+    const probe = vi.fn().mockResolvedValue({ endpoints: { autocomplete: 401 }, ok: false, results: null, status: 401 });
     mocks.resolveGeoProvider.mockReturnValue({ name: 'geoapify', probe });
 
     const body = await (await GET(new Request('https://app.example.test/api/readiness?probe=maps'))).json();
 
     expect(probe).toHaveBeenCalledTimes(1);
-    expect(body.maps.probe).toEqual({ ok: false, results: null, status: 401 });
+    expect(body.maps.probe).toEqual({ endpoints: { autocomplete: 401 }, ok: false, results: null, status: 401 });
   });
 
   it('reports an unconfigured provider rather than calling nothing silently', async () => {

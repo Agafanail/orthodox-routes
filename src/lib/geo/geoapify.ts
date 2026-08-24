@@ -23,6 +23,7 @@ import type { PlaceCandidate, RouteMeasurement } from './types';
  */
 
 const SEARCH_ENDPOINT = 'https://api.geoapify.com/v1/geocode/autocomplete';
+const GEOCODE_ENDPOINT = 'https://api.geoapify.com/v1/geocode/search';
 const ROUTING_ENDPOINT = 'https://api.geoapify.com/v1/routing';
 const REQUEST_TIMEOUT_MS = 8000;
 
@@ -114,25 +115,59 @@ export function createGeoapifyProvider(apiKey: string): GeoProvider {
     name: 'geoapify',
 
     async probe(): Promise<GeoProviderProbe> {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-      try {
-        const response = await fetch(searchUrl('Via Roma 1, Torino'), {
-          headers: { Accept: 'application/json' },
-          signal: controller.signal,
-        });
-        if (!response.ok) return { ok: false, results: null, status: response.status };
-        const payload = record(await response.json());
-        const features = Array.isArray(payload?.features) ? payload.features : [];
-        const usable = features
-          .map(parseCandidate)
-          .filter((candidate): candidate is PlaceCandidate => candidate !== null);
-        return { ok: usable.length > 0, results: usable.length, status: response.status };
-      } catch {
-        return { ok: false, results: null, status: null };
-      } finally {
-        clearTimeout(timeout);
+      // Each capability is checked separately. A credential refused everywhere points at the
+      // key or its restrictions; one endpoint refused alone points at that endpoint.
+      const checks: Record<string, URL> = {
+        autocomplete: searchUrl('Via Roma 1, Torino'),
+        geocode: (() => {
+          const url = new URL(GEOCODE_ENDPOINT);
+          url.searchParams.set('text', 'Via Roma 1, Torino');
+          url.searchParams.set('format', 'geojson');
+          url.searchParams.set('limit', '1');
+          url.searchParams.set('apiKey', apiKey);
+          return url;
+        })(),
+        routing: (() => {
+          const url = new URL(ROUTING_ENDPOINT);
+          url.searchParams.set('waypoints', '45.0703,7.6869|45.0200,7.6500');
+          url.searchParams.set('mode', 'drive');
+          url.searchParams.set('apiKey', apiKey);
+          return url;
+        })(),
+      };
+
+      const endpoints: Record<string, number | null> = {};
+      let usableResults: number | null = null;
+
+      for (const [name, url] of Object.entries(checks)) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        try {
+          const response = await fetch(url, {
+            headers: { Accept: 'application/json' },
+            signal: controller.signal,
+          });
+          endpoints[name] = response.status;
+          if (name === 'autocomplete' && response.ok) {
+            const payload = record(await response.json());
+            const features = Array.isArray(payload?.features) ? payload.features : [];
+            usableResults = features
+              .map(parseCandidate)
+              .filter((candidate): candidate is PlaceCandidate => candidate !== null).length;
+          }
+        } catch {
+          endpoints[name] = null;
+        } finally {
+          clearTimeout(timeout);
+        }
       }
+
+      return {
+        endpoints,
+        ok: endpoints.autocomplete === 200 && (usableResults ?? 0) > 0,
+        results: usableResults,
+        status: endpoints.autocomplete,
+      };
     },
 
     async searchPlaces(query: string, options: PlaceSearchOptions = {}): Promise<PlaceCandidate[]> {

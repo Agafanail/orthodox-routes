@@ -36,6 +36,12 @@ export type GeoProviderProbe = {
   status: number | null;
   /** How many candidates a known-good query returned, so an empty answer is distinguishable. */
   results: number | null;
+  /**
+   * The status of each capability the application actually uses, so a refusal that applies to
+   * one endpoint is not mistaken for a broken credential. A key restricted by origin fails
+   * everywhere; an endpoint the plan does not cover fails alone.
+   */
+  endpoints?: Record<string, number | null>;
 };
 
 export type PlaceSearchOptions = {
