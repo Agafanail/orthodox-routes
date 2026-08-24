@@ -15,6 +15,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
@@ -35,6 +36,14 @@ function runCli(args) {
   });
   if (result.status !== 0) fail('The authenticated staging CLI operation failed.');
   return result.stdout;
+}
+
+function runSql(statement) {
+  runCli(['db', 'query', '--linked', statement]);
+}
+
+function sqlLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
 }
 
 function readStagingConfiguration() {
@@ -89,6 +98,26 @@ for (const version of ['20260823120000', '20260823170000']) {
   assert.equal(entry.remote, version, `Migration ${version} must be applied to staging.`);
 }
 
+// ------------------------------------------------------------------ synthetic fixture
+
+// Staging carries no real data, so the check creates one synthetic published church with a
+// location, verifies the surfaces against it, and removes it again in the `finally` below.
+const churchId = randomUUID();
+const churchSlug = `maps-check-${Date.now()}-${process.pid}`;
+const churchPoint = { lat: 45.0703, lng: 7.6869 };
+
+runSql(`
+  insert into app.church (
+    public_id, slug, official_name, address_display, locality, country_code, timezone, status, location
+  ) values (
+    ${sqlLiteral(churchId)}::uuid, ${sqlLiteral(churchSlug)}, 'Synthetic Maps Check Church',
+    'Synthetic staging address', 'Torino', 'IT', 'UTC', 'published',
+    extensions.st_setsrid(extensions.st_makepoint(${churchPoint.lng}, ${churchPoint.lat}), 4326)::extensions.geography
+  );
+`);
+
+try {
+
 // ------------------------------------------------------------------ public church geography
 
 // A church location is public and exact: the catalog map plots it.
@@ -99,15 +128,18 @@ for (const church of catalog) {
   assert.equal(typeof church.lng, 'number');
 }
 
+const created = catalog.find((church) => church.church_id === churchId);
+assert.ok(created, 'The synthetic church must appear in the public catalog.');
+assert.equal(created.lat, churchPoint.lat);
+assert.equal(created.lng, churchPoint.lng);
+
 // Proximity ordering is available but only when a caller supplies a location.
-if (catalog.length > 0) {
-  const near = await rpc(anonymous, 'search_published_churches', {
-    p_lat: catalog[0].lat, p_lng: catalog[0].lng, p_limit: 5,
-  });
-  assert.equal(near[0].church_id, catalog[0].church_id);
-  assert.equal(typeof near[0].distance_m, 'number');
-  assert.equal(catalog[0].distance_m ?? null, null, 'Distance must be absent without a supplied location.');
-}
+const near = await rpc(anonymous, 'search_published_churches', {
+  p_lat: churchPoint.lat, p_lng: churchPoint.lng, p_limit: 5,
+});
+assert.equal(near[0].church_id, churchId);
+assert.equal(typeof near[0].distance_m, 'number');
+assert.equal(created.distance_m ?? null, null, 'Distance must be absent without a supplied location.');
 
 // ------------------------------------------------------------------ approximate public areas
 
@@ -154,28 +186,37 @@ await expectRpcDenied(anonymous, 'list_saved_places');
 
 // ------------------------------------------------------------------ deployed map surfaces
 
-const catalogHtml = await page('/churches');
+const catalogHtml = await page(`/churches?q=${encodeURIComponent('Synthetic Maps Check')}`);
 assert.ok(catalogHtml.includes('data-church-catalog'), 'The deployed catalog must render.');
 assert.ok(catalogHtml.includes('Рядом со мной'), 'The explicit location action must be present.');
 assert.ok(catalogHtml.includes('data-catalog-map'), 'The catalog map surface must be present.');
+assert.ok(catalogHtml.includes('data-interactive-map'), 'The catalog must mount the interactive map.');
 // Attribution is a licence obligation, not decoration.
-assert.ok(
-  catalogHtml.includes('OpenStreetMap') || catalogHtml.includes('data-map-unavailable'),
-  'A rendered map must carry its data attribution.',
-);
+assert.ok(catalogHtml.includes('OpenStreetMap'), 'A rendered map must carry its data attribution.');
+assert.ok(catalogHtml.includes('Geoapify'), 'The provider credit must be present.');
 // The server credential must never reach a page.
 assert.equal(catalogHtml.includes('ORTHODOX_ROUTES_MAP_SERVER_KEY'), false);
 
-if (catalog.length > 0) {
-  const churchHtml = await page(`/churches/${catalog[0].slug}/location`);
-  assert.ok(churchHtml.includes('data-church-location-map') || churchHtml.includes('data-church-location-map-unavailable'));
-  // External navigation stays a link and never becomes an embedded integration.
-  assert.ok(churchHtml.includes('google.com/maps') || churchHtml.includes('data-external-maps'));
-}
+const churchHtml = await page(`/churches/${churchSlug}/location`);
+assert.ok(churchHtml.includes('data-church-location-map'), 'The church location map must render.');
+assert.ok(churchHtml.includes('data-interactive-map'), 'The location screen must mount the interactive map.');
+// External navigation stays a link and never becomes an embedded integration.
+assert.ok(churchHtml.includes('data-external-maps'), 'The external navigation links must be offered.');
+assert.ok(churchHtml.includes('google.com/maps') && churchHtml.includes('yandex.ru/maps'));
 
 // Exact private coordinates must not appear in anonymous HTML anywhere.
-for (const html of [catalogHtml]) {
+for (const html of [catalogHtml, churchHtml]) {
   assert.equal(/data-exact-(lat|lng|point)/.test(html), false, 'Exact geography must not reach anonymous HTML.');
 }
 
 console.log(`Staging maps verification passed for project ${projectRef}.`);
+console.log('- both geographic migrations are applied remotely');
+console.log('- the public catalog exposes exact church coordinates and optional proximity ordering');
+console.log('- public listings expose only approximate areas and carry no route geometry');
+console.log('- the matching reader, the route bridge, and saved places refuse an anonymous caller');
+console.log('- the deployed catalog and church location screens mount the interactive map with attribution');
+console.log('- no server credential and no exact geography reached anonymous HTML');
+
+} finally {
+  runSql(`delete from app.church where public_id = ${sqlLiteral(churchId)}::uuid;`);
+}

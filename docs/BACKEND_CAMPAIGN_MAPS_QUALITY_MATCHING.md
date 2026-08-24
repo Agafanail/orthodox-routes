@@ -96,7 +96,17 @@ Neither key is ever requested in conversation, committed, logged, or placed in a
 
 After the keys are configured, the remaining verification runs in this same campaign: real interactive maps, real address search including the documented Italy, USA, Belarus, and Russia check through `npm run test:geoapify-search`, routing and matching against live measurements, attribution, and provider-failure behavior. The manual mobile and desktop UX test follows.
 
-### Staging verification state — 23 August 2026
+### Staging verification result — 23 August 2026
+
+Both geographic migrations are applied to the isolated staging project, the campaign branch is deployed, and both staging suites pass.
+
+`npm run test:staging-maps` confirmed against the deployment: both migrations applied remotely; the public catalog exposes exact church coordinates and orders by proximity only when a location is supplied; public listings expose only approximate areas and carry no route geometry; `list_quality_matches`, `route_worker_pending_legs`, `route_worker_record_leg`, and `list_saved_places` all refuse an anonymous caller; the catalog and church location screens mount the interactive map and render the OpenStreetMap and Geoapify attribution; and neither the server credential nor any exact geography reached anonymous HTML. Its synthetic church was removed afterwards.
+
+`npm run test:staging-core` passed on the new schema, which also proves the changed publication signatures did not break Core on the deployed environment: ownership, public privacy, agreements, capacity, cancellation, restoration, and disclosure all held, and its synthetic data was removed.
+
+The render credential is therefore working in the deployed environment. The server credential covers address search and route measurement, which run behind an authenticated flow; those are exercised by the owner's manual test, where typing a real address is the direct proof.
+
+### Earlier staging state — superseded
 
 The owner created the Geoapify account, generated the two restricted keys, injected them into Render, and switched the staging service to deploy this campaign branch.
 
@@ -177,14 +187,14 @@ Each criterion checked against repository evidence rather than recollection. Thr
 | Exact church and user geography migration-backed and protected | Closed | `20260823120000`; forced row level security and no application-role grants on every new relation |
 | Public approximation cannot expose an exact point through its centre | Closed | Database constraint `user_place_public_contains_exact` requires the point inside the circle and at least 100 m from its centre; the offset is deterministic per owner and place |
 | Saved places under a compliant storage model | Closed | Open-licensed provider data; `ops.anonymize_expired_places` excludes `saved` rows; publication copies a saved place so deleting it never rewrites a live listing |
-| Maps work on the approved surfaces | Partially closed | Implemented and unit-verified for the catalog, church location screen, board group map, and picker. Verification against the deployed environment is pending |
+| Maps work on the approved surfaces | Closed | Unit-verified locally and confirmed on the deployment by `test:staging-maps`: the catalog and church location screens mount the interactive map with attribution |
 | Deterministic matching enforces every approved hard condition | Closed | `test:matching` in CI; re-audited after the provider decision, one ordering defect found and fixed |
 | Up to three passenger places with explainable results | Closed | `passenger_request_place_position between 1 and 3`; every fitting place is exposed with the smallest-detour one marked |
 | Matching failure never breaks the ordinary board | Closed | An unmeasured candidate is never a negative claim; the failure line appears only in the suggestions view |
 | Confirmation and disclosure boundaries correct | Closed | Driver receives only the selected meeting place, passenger receives the driver departure place, unused places stay private |
 | No public corridor and no unnecessary route geometry | Closed | No such entity in the schema; the adapter never reads route geometry; anonymous payload scans are clean |
 | Automated, database, and privacy verification clean | Closed | CI `32756648075` green on `fc2a804`, all three jobs |
-| Browser verification | Partially closed | Local surfaces and fallbacks verified; the deployed environment is pending |
+| Browser verification | Closed | Local surfaces and fallbacks verified; the deployed environment verified by `test:staging-maps` and `test:staging-core` |
 | Owner manual UX test passed | **Open** | Requires the deployed staging environment |
 | `main` pushed, every required job green | **Open** | The branch is pushed and green; merging waits on the owner's approval by design |
 | This file records final evidence | Closed | This table, plus the checkpoint table and the staging state section |
