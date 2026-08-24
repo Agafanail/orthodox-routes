@@ -21,6 +21,8 @@
     "test:staging-email": "node scripts/verify-staging-email.mjs",
     "test:staging-core": "node scripts/verify-staging-core.mjs",
     "test:staging-maps": "node scripts/verify-staging-maps.mjs",
+    "staging:maps-fixture": "node scripts/prepare-staging-maps-fixture.mjs",
+    "staging:maps-fixture:remove": "node scripts/remove-staging-maps-fixture.mjs",
     "core:e2e:prepare": "node scripts/prepare-core-browser-e2e.mjs",
     "db:start": "supabase db start",
     "db:reset": "supabase db reset --local",

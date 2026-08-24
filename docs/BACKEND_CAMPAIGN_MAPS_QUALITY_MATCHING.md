@@ -104,7 +104,17 @@ Both geographic migrations are applied to the isolated staging project, the camp
 
 `npm run test:staging-core` passed on the new schema, which also proves the changed publication signatures did not break Core on the deployed environment: ownership, public privacy, agreements, capacity, cancellation, restoration, and disclosure all held, and its synthetic data was removed.
 
-The render credential is therefore working in the deployed environment. The server credential covers address search and route measurement, which run behind an authenticated flow; those are exercised by the owner's manual test, where typing a real address is the direct proof.
+### Deployed provider check — 23 August 2026
+
+Walked the deployed application as a signed-in synthetic passenger against the walkthrough fixture.
+
+**Rendering works.** The catalog map loads real Geoapify resources — `style.json`, `data.json`, and sprites from `maps.geoapify.com` — and displays the OpenStreetMap, OpenMapTiles, and Geoapify credits. The render credential and its origin restriction are correct.
+
+**Address search and route measurement do not.** Searching `Via Roma 1, Torino` in the place picker returns the ordinary fallback line, and `app.route_measurement` holds no rows after loading a board that has a matching passenger request and driver offer, so no `Подходит` marker appears. The server action itself responds normally, which means the failure is inside the provider call rather than in the application.
+
+The cause is the server credential: either `ORTHODOX_ROUTES_MAP_SERVER_KEY` is absent in the hosting environment, or Geoapify is rejecting the call. The likeliest reason for rejection is the IP restriction recommended for that key. That recommendation deserves a correction: a hosting platform only offers stable outbound addresses on some plans, and an incomplete or wrong list produces exactly this silent refusal. Restricting the server key by IP is worth keeping only if the platform's outbound addresses are genuinely fixed and fully listed.
+
+The application behaves correctly throughout: it never shows a vendor name, a status code, or a technical cause, it never claims a ride does not match when it could not check, and the board, listings, and agreements keep working. That is the approved degradation, observed live.
 
 ### Earlier staging state — superseded
 
@@ -187,7 +197,7 @@ Each criterion checked against repository evidence rather than recollection. Thr
 | Exact church and user geography migration-backed and protected | Closed | `20260823120000`; forced row level security and no application-role grants on every new relation |
 | Public approximation cannot expose an exact point through its centre | Closed | Database constraint `user_place_public_contains_exact` requires the point inside the circle and at least 100 m from its centre; the offset is deterministic per owner and place |
 | Saved places under a compliant storage model | Closed | Open-licensed provider data; `ops.anonymize_expired_places` excludes `saved` rows; publication copies a saved place so deleting it never rewrites a live listing |
-| Maps work on the approved surfaces | Closed | Unit-verified locally and confirmed on the deployment by `test:staging-maps`: the catalog and church location screens mount the interactive map with attribution |
+| Maps work on the approved surfaces | Partially closed | Map rendering is confirmed on the deployment: the catalog map loads real Geoapify tiles, sprites, and style data, and shows the attribution. Address search and route measurement do not work there yet, because the server credential is not answering |
 | Deterministic matching enforces every approved hard condition | Closed | `test:matching` in CI; re-audited after the provider decision, one ordering defect found and fixed |
 | Up to three passenger places with explainable results | Closed | `passenger_request_place_position between 1 and 3`; every fitting place is exposed with the smallest-detour one marked |
 | Matching failure never breaks the ordinary board | Closed | An unmeasured candidate is never a negative claim; the failure line appears only in the suggestions view |
