@@ -184,6 +184,31 @@ await expectRpcDenied(anonymous, 'route_worker_record_leg', {
 });
 await expectRpcDenied(anonymous, 'list_saved_places');
 
+// ------------------------------------------------------------------ provider reachability
+
+// This check once passed while address search was completely dead, because it only looked at
+// rendering. Rendering and search use different credentials and different network paths, so
+// both are asserted now.
+const readiness = await (await fetch(`${stagingAppOrigin}/api/readiness?probe=maps`, {
+  headers: { 'cache-control': 'no-cache' },
+})).json();
+
+assert.equal(readiness.status, 'ready', 'The deployment must report itself ready.');
+assert.equal(readiness.maps?.rendering, true, 'The map render credential must be configured.');
+assert.equal(readiness.maps?.search, true, 'The server credential must be configured.');
+assert.equal(
+  readiness.maps?.probe?.status,
+  200,
+  `The provider refused the server credential (HTTP ${readiness.maps?.probe?.status}).`,
+);
+assert.equal(readiness.maps?.probe?.ok, true, 'A known-good address must return at least one usable result.');
+// The diagnostic must stay a diagnostic: no key, no address, no provider payload.
+assert.deepEqual(
+  Object.keys(readiness.maps.probe).sort(),
+  ['ok', 'results', 'status'],
+  'The probe must report nothing beyond its coarse outcome.',
+);
+
 // ------------------------------------------------------------------ deployed map surfaces
 
 const catalogHtml = await page(`/churches?q=${encodeURIComponent('Synthetic Maps Check')}`);
@@ -215,6 +240,7 @@ console.log('- the public catalog exposes exact church coordinates and optional 
 console.log('- public listings expose only approximate areas and carry no route geometry');
 console.log('- the matching reader, the route bridge, and saved places refuse an anonymous caller');
 console.log('- the deployed catalog and church location screens mount the interactive map with attribution');
+console.log('- the provider accepted the server credential and returned a usable result');
 console.log('- no server credential and no exact geography reached anonymous HTML');
 
 } finally {
