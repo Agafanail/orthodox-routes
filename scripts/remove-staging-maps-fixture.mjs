@@ -47,17 +47,40 @@ const admin = createClient(url, secretKey, {
   auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
 });
 
-// Ride records reference places and accounts, so the church goes first and cascades.
+/**
+ * Removes the fixture in dependency order.
+ *
+ * Most ride records refuse to disappear with their church rather than cascade, which is right
+ * for real data and means this teardown has to name them. Route measurements and personal
+ * blocks do cascade from the church, so they are not listed. Everything is scoped to the
+ * tagged church and the tagged accounts, so a real record is never in range.
+ */
+const fixtureChurches = `select id from app.church where official_name like '%(проверка)%'`;
+const fixtureRequests = `select id from app.passenger_request where church_id in (${fixtureChurches})`;
+const fixtureOccurrences = `select id from app.driver_offer_occurrence where church_id in (${fixtureChurches})`;
+const fixtureAgreements = `
+  select id from app.ride_agreement
+  where passenger_request_id in (${fixtureRequests})
+     or driver_occurrence_id in (${fixtureOccurrences})
+`;
+const fixtureAccounts = `select id from app.account where display_name like '%(проверка)%'`;
+
 runCli(['db', 'query', '--linked', `
-  delete from app.ride_agreement where driver_occurrence_id in (
-    select id from app.driver_offer_occurrence where church_id in (
-      select id from app.church where official_name like '%(проверка)%'
-    )
-  );
+  delete from app.agreement_event where agreement_id in (${fixtureAgreements});
+  update app.ride_agreement set active_snapshot_id = null where id in (${fixtureAgreements});
+  delete from private.agreement_contact_snapshot where agreement_id in (${fixtureAgreements});
+  delete from app.ride_agreement where id in (${fixtureAgreements});
+  delete from app.ride_response
+  where passenger_request_id in (${fixtureRequests})
+     or driver_occurrence_id in (${fixtureOccurrences});
+  delete from app.ride_condition_snapshot where church_id in (${fixtureChurches});
+  delete from app.passenger_request_place where request_id in (${fixtureRequests});
+  delete from app.passenger_request where church_id in (${fixtureChurches});
+  delete from app.driver_offer_occurrence where church_id in (${fixtureChurches});
+  delete from app.driver_offer_series where church_id in (${fixtureChurches});
+  delete from app.service_occurrence where church_id in (${fixtureChurches});
   delete from app.church where official_name like '%(проверка)%';
-  delete from private.user_place where owner_account_id in (
-    select id from app.account where display_name like '%(проверка)%'
-  );
+  delete from private.user_place where owner_account_id in (${fixtureAccounts});
   delete from app.account where display_name like '%(проверка)%';
 `]);
 

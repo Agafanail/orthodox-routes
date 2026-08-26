@@ -92,6 +92,45 @@ const admin = createClient(url, secretKey, {
   auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
 });
 
+/** Mints one fresh one-use sign-in link per walkthrough identity and prints the entry points. */
+async function announce(entries) {
+  const links = [];
+  for (const identity of entries) {
+    const link = await admin.auth.admin.generateLink({ email: identity.email, type: 'magiclink' });
+    if (link.error || !link.data?.properties?.hashed_token) {
+      fail('A one-use staging sign-in link could not be generated.');
+    }
+    links.push({
+      name: identity.name,
+      url: `${stagingAppOrigin}/auth/confirm#flow=login&type=email&token_hash=${link.data.properties.hashed_token}`,
+    });
+  }
+  console.log(`Церковь:   ${stagingAppOrigin}/churches/pokrov-catanzaro`);
+  console.log(`Каталог:   ${stagingAppOrigin}/churches\n`);
+  console.log('Одноразовые ссылки для входа (каждая работает один раз):');
+  for (const link of links) console.log(`  ${link.name}\n    ${link.url}`);
+  console.log('\nУдалить данные после проверки: npm run staging:maps-fixture:remove');
+}
+
+// A sign-in link is spent the moment it is used, so a walkthrough that is paused and resumed
+// needs new links rather than new data. This mode mints them against the identities that are
+// already there and writes nothing.
+if (process.argv.includes('--links-only')) {
+  const listed = await admin.auth.admin.listUsers({ perPage: 200 });
+  const existing = (listed.data?.users ?? [])
+    .filter((candidate) => candidate.email?.startsWith(`${fixtureTag}-`))
+    .sort((left, right) => String(left.email).localeCompare(String(right.email)));
+  if (listed.error || existing.length === 0) {
+    fail('No synthetic staging walkthrough identity exists. Run the fixture without --links-only.');
+  }
+  console.log('Fresh one-use sign-in links for the existing walkthrough data.\n');
+  await announce(existing.map((candidate) => ({
+    email: candidate.email,
+    name: candidate.email.includes('-driver-') ? 'Иван (проверка)' : 'Анна (проверка)',
+  })));
+  process.exit(0);
+}
+
 // Turin, so the synthetic geography is coherent and the detour numbers are believable.
 const church = { lat: 45.0703, lng: 7.6869 };
 // The church page still resolves its slug against the bundled reference churches, so the
@@ -184,23 +223,7 @@ const occurrence = await rpc(clients[1], 'publish_driver_occurrence', {
   p_total_seats: 3,
 });
 
-const links = [];
-for (const identity of identities) {
-  const link = await admin.auth.admin.generateLink({ email: identity.email, type: 'magiclink' });
-  if (link.error || !link.data?.properties?.hashed_token) {
-    fail('A one-use staging sign-in link could not be generated.');
-  }
-  links.push({
-    name: identity.name,
-    url: `${stagingAppOrigin}/auth/confirm#flow=login&type=email&token_hash=${link.data.properties.hashed_token}`,
-  });
-}
-
 console.log('Synthetic staging walkthrough data is in place and will remain until removed.\n');
-console.log(`Церковь:   ${stagingAppOrigin}/churches/${churchSlug}`);
-console.log(`Каталог:   ${stagingAppOrigin}/churches`);
 console.log(`Просьба:   ${request.request_id}`);
-console.log(`Поездка:   ${occurrence.occurrence_id}\n`);
-console.log('Одноразовые ссылки для входа (каждая работает один раз):');
-for (const link of links) console.log(`  ${link.name}\n    ${link.url}`);
-console.log('\nУдалить данные после проверки: npm run staging:maps-fixture:remove');
+console.log(`Поездка:   ${occurrence.occurrence_id}`);
+await announce(identities);
