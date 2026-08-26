@@ -18,6 +18,12 @@ export default defineConfig({
   reporter: process.env.CI ? [['line']] : [['list']],
   use: {
     ...devices['Desktop Chrome'],
+    // Playwright leaves both of these unbounded by default, so a single slow navigation or
+    // click quietly consumes the whole test budget and the timeout then blames whichever
+    // unrelated call happened to be in flight when the clock ran out. Bounding them makes a
+    // stall name itself.
+    actionTimeout: 20_000,
+    navigationTimeout: 30_000,
     baseURL: 'http://127.0.0.1:3000',
     screenshot: 'off',
     // A failing run keeps its trace. The timeout report names only where the clock ran out
