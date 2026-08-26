@@ -112,14 +112,21 @@
   color: var(--or-text-secondary);
 }
 
+/* Two rows: the first group of screens, and the entry points into the one passenger form. */
 .reviewControls {
   display: flex;
   max-width: 1120px;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
   gap: var(--or-space-2);
   margin: 0 auto;
   padding: 0 var(--or-space-6) var(--or-space-6);
+}
+
+.reviewControls > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--or-space-2);
 }
 
 .reviewControls button {
@@ -1127,11 +1134,72 @@
 
 /* ------------------------------------------------------------------- screen 6: picking a place */
 
+/*
+ * The place screen is a map screen: the map takes the whole upper part, and the working sheet rides
+ * over its lower edge (owner reference of 26 August 2026). It is still ONE screen — nothing is
+ * opened and left — but the map is given the room a map needs to be usable.
+ *
+ * The floor grows with the reader's text: the controls floating over the map are text, and a fixed
+ * floor left them covering the drawing and the marker at 200 %.
+ */
 .pickMapArea {
   position: relative;
   display: flex;
-  min-height: 360px;
+  min-height: max(360px, 22em);
   flex: 1;
+}
+
+/* Map guidance stays a readable card over the map, never a caption inside the drawing (DS §8). */
+.pickHint {
+  position: absolute;
+  top: calc(var(--or-space-3) + var(--or-target-min) + var(--or-space-2));
+  right: var(--or-space-4);
+  left: var(--or-space-4);
+  overflow-wrap: anywhere;
+  margin: 0;
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  box-shadow: var(--or-shadow-float);
+  color: var(--or-text-secondary);
+  padding: var(--or-space-3);
+  font-size: var(--or-size-secondary);
+}
+
+/* The working sheet: it carries the question, the marked address, the rule and the actions. */
+.pickSheet {
+  position: relative;
+  z-index: 2;
+  margin-top: calc(-1 * var(--or-space-6));
+  border-radius: var(--or-radius-sheet) var(--or-radius-sheet) 0 0;
+  background: var(--or-surface);
+  padding: var(--or-space-6) var(--or-space-4) var(--or-space-8);
+}
+
+/*
+ * Paired actions: primary full width, the secondary below it and deliberately smaller — moving on is
+ * the ordinary intent, adding a second meeting place is the rarer one (DS §5).
+ */
+.sheetActions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--or-space-3);
+  margin-top: var(--or-space-6);
+}
+
+.sheetActions .primaryButton {
+  width: 100%;
+}
+
+.sheetActions .secondaryButton {
+  min-width: max-content;
+  padding: var(--or-space-2) var(--or-space-6);
+  font-size: var(--or-size-secondary);
+}
+
+.sheetActions .fieldHint {
+  margin: 0;
+  text-align: center;
 }
 
 /* Anchored so enlarged text grows into free space instead of past the edge of the drawing. */
@@ -1166,33 +1234,47 @@
   flex: 1;
 }
 
-/* Map guidance stays a readable card over the map, never a caption inside the drawing (DS §8). */
-.pickHint {
+/*
+ * The place the marker stands on and the other places it can be moved to. The public 1 km circle is
+ * not drawn: it is not what is chosen (DS §8.2). The pin is 22–28 px, the target around it is the
+ * full 44 px the design system requires — visible size and touch target are different values.
+ */
+.pickPoints {
   position: absolute;
-  top: calc(var(--or-space-3) + var(--or-target-min) + var(--or-space-2));
-  right: var(--or-space-4);
-  left: var(--or-space-4);
-  overflow-wrap: anywhere;
-  margin: 0;
-  border-radius: var(--or-radius-control);
-  background: var(--or-surface);
-  box-shadow: var(--or-shadow-float);
-  color: var(--or-text-secondary);
-  padding: var(--or-space-3);
-  font-size: var(--or-size-secondary);
+  inset: 0;
 }
 
-/* The marker the person places. The public 1 km circle is not drawn: it is not what is chosen. */
-.pickMarker {
+.pickPoint {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  display: grid;
+  width: var(--or-target-min);
+  height: var(--or-target-min);
+  place-items: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  transform: translate(-50%, -50%);
+}
+
+.pickMarker,
+.pickSpare {
+  position: relative;
   width: 28px;
   height: 28px;
   border: 1px solid var(--or-primary);
   border-radius: var(--or-radius-pill) var(--or-radius-pill) var(--or-radius-pill) 0;
   background: var(--or-primary);
-  transform: translate(-50%, -50%) rotate(-45deg);
+  transform: rotate(-45deg);
+}
+
+/* A place not chosen is the ordinary quiet map pin of the catalog, never a second green marker. */
+.pickSpare {
+  width: 22px;
+  height: 22px;
+  border-color: var(--or-marker-border);
+  background: var(--or-surface);
+  box-shadow: var(--or-shadow-float);
 }
 
 .pickMarker::after {
@@ -1203,18 +1285,12 @@
   content: '';
 }
 
-.pickSheet {
-  position: relative;
-  z-index: 2;
-  margin-top: calc(-1 * var(--or-space-6));
-  border-radius: var(--or-radius-sheet) var(--or-radius-sheet) 0 0;
-  background: var(--or-surface);
-  padding: var(--or-space-6) var(--or-space-4) var(--or-space-8);
-}
-
-.pickSheet .primaryButton {
-  width: 100%;
-  margin-top: var(--or-space-4);
+.pickSpare::after {
+  position: absolute;
+  inset: 7px;
+  border-radius: var(--or-radius-pill);
+  background: var(--or-text-subtle);
+  content: '';
 }
 
 /*
@@ -1240,6 +1316,12 @@
 .placeCard + .placeCard,
 .placeList > div + div .placeCard {
   margin-top: 0;
+}
+
+/* The one approved way of showing a chosen object: pale fill plus the primary border (DS §6). */
+.placeCard[data-place-editing] {
+  border-color: var(--or-primary);
+  background: var(--or-primary-pale);
 }
 
 /*
@@ -1283,7 +1365,49 @@
   padding-left: var(--or-space-4);
 }
 
-.placeList + .secondaryButton {
+/*
+ * Adding an alternative sits inside the main place card, under «Изменить это место». It is
+ * deliberately small — the rarer intent, next to the place it is an alternative to — while the one
+ * large primary of the screen stays «Далее» below the card.
+ *
+ * The visible pill is 36 px, drawn by ::before, but the tap target is a full 44 px: visible size and
+ * touch target are different values (DS §3.5, §8.2, decision 17).
+ */
+.cardAddPlace {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  min-height: var(--or-target-min);
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--or-control-text);
+  cursor: pointer;
+  margin-top: var(--or-space-1);
+  padding: 0 var(--or-space-4);
+  font-size: var(--or-size-secondary);
+  font-weight: var(--or-weight-medium);
+}
+
+.cardAddPlace::before {
+  position: absolute;
+  z-index: -1;
+  inset-block: calc((var(--or-target-min) - var(--or-height-filter-chip)) / 2);
+  inset-inline: 0;
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  content: '';
+}
+
+/* The reason for the limit stands where the action it replaces stood. */
+.placeCard .fieldHint {
+  margin-top: var(--or-space-3);
+}
+
+.placeList + .secondaryButton,
+.addPlace {
   width: 100%;
   margin-top: var(--or-space-4);
 }
@@ -1352,4 +1476,99 @@
 .checkboxField > span {
   overflow-wrap: anywhere;
   font-size: var(--or-size-data);
+}
+
+/* ------------------------------------------------------------- screen 4: the final details */
+
+/*
+ * The optional note. It is the only multi-line field of the form and the only place a landmark like
+ * «у входа в библиотеку» is written, so it is visibly a place to write, not a one-line answer.
+ */
+.noteField {
+  display: block;
+  margin-top: var(--or-space-6);
+}
+
+.noteField > span {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-bottom: var(--or-space-2);
+  color: var(--or-text);
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-medium);
+}
+
+.noteField textarea {
+  display: block;
+  width: 100%;
+  min-height: calc(var(--or-height-field) * 2);
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  color: var(--or-text);
+  font: inherit;
+  padding: var(--or-space-3);
+  resize: vertical;
+}
+
+/*
+ * The compact summary: a few lines beside the primary action on the same screen, not a review
+ * screen (IA §10.1, decision 1.9 (23)). It has no heading announcing a check — the row labels are
+ * the questions the person already answered — and it stands above the button, never below it.
+ *
+ * One card, rows inside: two levels of nesting, which is the maximum the design system allows (§4).
+ */
+.summary {
+  margin-top: var(--or-space-8);
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-card);
+  background: var(--or-surface-subtle);
+  padding: 0 var(--or-space-4);
+}
+
+.summaryRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--or-space-2);
+  padding: var(--or-space-4) 0;
+}
+
+.summaryRow + .summaryRow {
+  border-top: 1px solid var(--or-border);
+}
+
+.summaryRow > div {
+  min-width: 0;
+  flex: 1 1 60%;
+}
+
+/* The action stays quiet: green is forbidden in «Изменить» (DS §5). */
+.summaryRow .quietButton {
+  flex: 0 0 auto;
+  padding-right: 0;
+  padding-left: var(--or-space-2);
+}
+
+.summaryLabel {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-secondary);
+}
+
+/* Decision-critical data: never below 15 px and never in the secondary colour (DS §3.4). */
+.summaryValue {
+  overflow-wrap: anywhere;
+  margin: var(--or-space-1) 0 0;
+  color: var(--or-text);
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-medium);
+}
+
+/* The same «или» as on the place screen: several places are alternatives here too, not stops. */
+.summaryOr {
+  color: var(--or-text-secondary);
+  font-weight: var(--or-weight-regular);
 }

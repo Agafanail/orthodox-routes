@@ -31,7 +31,7 @@ describe('Russian copy review surface', () => {
     expect(existsSync(resolve(process.cwd(), 'src/app/design-preview/fonts/Onest-Variable.ttf'))).toBe(true);
   });
 
-  it('offers the four reviewed screens plus the four request screens, with the switch outside them', () => {
+  it('offers the four reviewed screens plus the ten request states, with the switch outside them', () => {
     render(<CopyReviewPage />);
 
     const selector = screen.getByRole('navigation', { name: 'Выбор экрана проверки' });
@@ -40,10 +40,16 @@ describe('Russian copy review surface', () => {
       '2 · Страница храма',
       '3 · Поездки храма',
       '4 · Пустой храм',
-      '5 · Просьба: когда',
-      '6 · Где вас забрать: карта',
-      '7 · Где вас забрать: места',
-      '8 · Просьба: сколько вас',
+      '5 · Когда: выбрана служба',
+      '6 · Когда: свои дата и время',
+      '7 · Где забрать: место не выбрано',
+      '8 · Где забрать: изменение места',
+      '9 · Где забрать: одно место',
+      '10 · Где забрать: три места',
+      '11 · Сколько вас: без детей',
+      '12 · Сколько вас: дети и кресло',
+      '13 · Последние детали',
+      '14 · Последние детали: заполнено',
       'Текст 200 %',
     ]);
     expect(productScreen().contains(selector)).toBe(false);
@@ -326,10 +332,16 @@ describe('Russian copy review surface', () => {
       '2 · Страница храма',
       '3 · Поездки храма',
       '4 · Пустой храм',
-      '5 · Просьба: когда',
-      '6 · Где вас забрать: карта',
-      '7 · Где вас забрать: места',
-      '8 · Просьба: сколько вас',
+      '5 · Когда: выбрана служба',
+      '6 · Когда: свои дата и время',
+      '7 · Где забрать: место не выбрано',
+      '8 · Где забрать: изменение места',
+      '9 · Где забрать: одно место',
+      '10 · Где забрать: три места',
+      '11 · Сколько вас: без детей',
+      '12 · Сколько вас: дети и кресло',
+      '13 · Последние детали',
+      '14 · Последние детали: заполнено',
     ].forEach((label) => {
       openSample(label);
       const text = productScreen().textContent ?? '';
@@ -349,24 +361,54 @@ describe('Russian copy review surface', () => {
   });
 });
 /*
- * Group 2A: the first four semantic screens of the passenger request form after the owner decision
- * of 22 August 2026 (Foundation 1.9, IA §10.1). The tests guard the structure that decision fixed —
- * four screens, no review step, alternatives instead of stops — and the wording actually rendered.
+ * The passenger request form after the owner decision of 22 August 2026 (Foundation 1.9, IA §10.1).
+ * The tests guard the structure that decision fixed — four screens, no review step, alternatives
+ * instead of stops — and the wording actually rendered.
+ *
+ * The ten states are entry points into one interactive form, not ten steps, so the tests also guard
+ * what makes them one form: navigation forwards and backwards, and answers that survive both.
  */
 describe('Passenger request review states', () => {
+  /** Every entry point, in the order the review switch offers them. */
   const requestSamples = [
-    ['5 · Просьба: когда', 'request-when'],
-    ['6 · Где вас забрать: карта', 'request-map'],
-    ['7 · Где вас забрать: места', 'request-place'],
-    ['8 · Просьба: сколько вас', 'request-people'],
+    ['5 · Когда: выбрана служба', 'request-when'],
+    ['6 · Когда: свои дата и время', 'request-when-custom'],
+    ['7 · Где забрать: место не выбрано', 'request-place-empty'],
+    ['8 · Где забрать: изменение места', 'request-map'],
+    ['9 · Где забрать: одно место', 'request-place'],
+    ['10 · Где забрать: три места', 'request-place-three'],
+    ['11 · Сколько вас: без детей', 'request-people'],
+    ['12 · Сколько вас: дети и кресло', 'request-people-children'],
+    ['13 · Последние детали', 'request-final'],
+    ['14 · Последние детали: заполнено', 'request-final-filled'],
   ] as const;
+
+  /** The four states of group 2A keep the anchors the canonical documents already name. */
+  const groupTwoASamples = requestSamples.filter(([, anchor]) =>
+    ['request-when', 'request-map', 'request-place', 'request-people'].includes(anchor));
 
   function sourceRows() {
     const panel = screen.getByRole('complementary', { name: 'Источники формулировок на экране' });
     return [...panel.querySelectorAll('dd')].map((row) => row.textContent);
   }
 
-  it('opens each of the four states directly from its own address', () => {
+  function step() {
+    return (productScreen().querySelector('[data-request-step]') as HTMLElement | null)?.dataset.requestStep;
+  }
+
+  const press = (name: string) => fireEvent.click(within(productScreen()).getByRole('button', { name }));
+
+  /**
+   * The map is on the place screen itself, so saving a place is one press and never leaves the
+   * screen. Before the first place the single action confirms the marked point; afterwards the
+   * smaller secondary adds another alternative. Either way the marker moves on to a free address.
+   */
+  function addPlaceViaMap() {
+    const sheet = productScreen().querySelector('[data-place-add]') as HTMLButtonElement;
+    fireEvent.click(sheet);
+  }
+
+  it('opens each of the ten states directly from its own address', () => {
     requestSamples.forEach(([label, anchor]) => {
       window.location.hash = `#${anchor}`;
       render(<CopyReviewPage />);
@@ -379,16 +421,27 @@ describe('Passenger request review states', () => {
     window.location.hash = '';
   });
 
+  it('keeps the four anchors the canonical documents name for group 2A', () => {
+    expect(groupTwoASamples.map(([, anchor]) => anchor)).toEqual([
+      'request-when',
+      'request-map',
+      'request-place',
+      'request-people',
+    ]);
+  });
+
   it('asks when the passenger wants to arrive with the service and an own date in one group', () => {
     render(<CopyReviewPage />);
-    openSample('5 · Просьба: когда');
+    openSample('5 · Когда: выбрана служба');
     const form = productScreen();
 
     expect(within(form).getByRole('heading', { level: 1, name: 'Когда вам нужна поездка?' })).not.toBeNull();
     expect(form.textContent).toContain('Храм Покрова Пресвятой Богородицы в Catanzaro');
     expect(form.textContent).toContain('Всенощное бдение');
     expect(form.textContent).toContain('Указать свои дату и время');
-    expect(form.textContent).toContain('Просьбу можно создать не больше чем на 8 недель вперёд.');
+    expect(form.textContent).toContain(
+      'Если нужной службы нет в расписании, укажите дату и время, к которому нужно приехать.',
+    );
 
     // The heading is the only visible label of the group: no second heading over the services.
     expect(form.textContent).not.toContain('Выберите службу');
@@ -409,20 +462,43 @@ describe('Passenger request review states', () => {
     expect(group.querySelector('[data-choice-selected]')).not.toBeNull();
 
     fireEvent.click(form.querySelector('[data-custom-choice] input')!);
-    expect(form.querySelector('[data-custom-arrival]')!.textContent).toContain('Хочу приехать к');
-    expect(form.textContent).toContain(
+    expect(form.querySelector('[data-custom-arrival]')!.textContent).toContain('Дата и время');
+    expect(form.textContent).not.toContain('Хочу приехать к');
+  });
+
+  it('answers the question the person has, one hint at a time', () => {
+    render(<CopyReviewPage />);
+    openSample('5 · Когда: выбрана служба');
+    const hint = () => productScreen().querySelector('[data-when-hint]')!.textContent;
+    const hints = () => productScreen().querySelectorAll('[data-when-hint]').length;
+
+    // Before the own date is chosen: how to act when the service is not in the list.
+    expect(hints()).toBe(1);
+    expect(hint()).toBe(
       'Если нужной службы нет в расписании, укажите дату и время, к которому нужно приехать.',
     );
+    expect(productScreen().textContent).not.toContain('не больше чем на 8 недель вперёд');
+
+    // After it: how far ahead the date may be. The first hint has done its job and goes.
+    fireEvent.click(productScreen().querySelector('[data-custom-choice] input')!);
+    expect(hints()).toBe(1);
+    expect(hint()).toBe('Просьбу можно создать не больше чем на 8 недель вперёд.');
+    expect(productScreen().textContent).not.toContain('Если нужной службы нет в расписании');
+
+    // The state that opens on the own date shows the horizon straight away.
+    openSample('6 · Когда: свои дата и время');
+    expect(productScreen().querySelector('[data-when-hint]')!.textContent)
+      .toBe('Просьбу можно создать не больше чем на 8 недель вперёд.');
   });
 
   it('explains what becomes public while the place is still being chosen, not after publication', () => {
     render(<CopyReviewPage />);
-    openSample('6 · Где вас забрать: карта');
+    openSample('8 · Где забрать: изменение места');
     const map = productScreen();
 
-    expect(within(map).getAllByPlaceholderText('Найти адрес').length).toBe(1);
+    expect(within(map).getAllByPlaceholderText('Адрес').length).toBe(1);
     expect(map.textContent).toContain('Введите адрес или передвиньте маркер на карте.');
-    expect(map.textContent).toContain('Выбрано: Via Milano, 8, 88100 Catanzaro CZ');
+    expect(map.textContent).toContain('Выбрано: Piazza Matteotti, 88100 Catanzaro CZ');
 
     const privacy = map.querySelector('[data-place-privacy]')!;
     const confirm = within(map).getByRole('button', { name: 'Подтвердить место' });
@@ -436,7 +512,7 @@ describe('Passenger request review states', () => {
   it('never claims that the exact place or the contacts are public', () => {
     render(<CopyReviewPage />);
 
-    ['6 · Где вас забрать: карта', '7 · Где вас забрать: места'].forEach((label) => {
+    ['8 · Где забрать: изменение места', '9 · Где забрать: одно место'].forEach((label) => {
       openSample(label);
       const text = productScreen().querySelector('[data-place-privacy]')!.textContent ?? '';
 
@@ -451,7 +527,7 @@ describe('Passenger request review states', () => {
   it('states the privacy rule once per screen, in one wording', () => {
     render(<CopyReviewPage />);
 
-    ['6 · Где вас забрать: карта', '7 · Где вас забрать: места'].forEach((label) => {
+    ['8 · Где забрать: изменение места', '9 · Где забрать: одно место'].forEach((label) => {
       openSample(label);
       const screenText = productScreen().textContent ?? '';
 
@@ -467,7 +543,7 @@ describe('Passenger request review states', () => {
   it('offers no place-name field: a landmark belongs in the ordinary note', () => {
     render(<CopyReviewPage />);
 
-    ['6 · Где вас забрать: карта', '7 · Где вас забрать: места'].forEach((label) => {
+    ['8 · Где забрать: изменение места', '9 · Где забрать: одно место'].forEach((label) => {
       openSample(label);
       const text = productScreen().textContent ?? '';
 
@@ -482,36 +558,91 @@ describe('Passenger request review states', () => {
     });
   });
 
-  it('treats the map as a nested screen of «Где вас забрать?», not a third step', () => {
+  it('keeps «Где вас забрать?» one screen with the map always on it', () => {
     render(<CopyReviewPage />);
 
-    openSample('6 · Где вас забрать: карта');
-    const mapHeading = within(productScreen()).getByRole('heading', { name: 'Где вас забрать?' });
-    expect(mapHeading).not.toBeNull();
-    // Leaving the nested screen is a confirming action, not a «Далее» of its own step.
-    expect(within(productScreen()).getByRole('button', { name: 'Подтвердить место' })).not.toBeNull();
-    expect(within(productScreen()).queryByRole('button', { name: 'Далее' })).toBeNull();
+    // Every state of the question is the same screen: same heading, same form chrome, same map.
+    ['7 · Где забрать: место не выбрано', '8 · Где забрать: изменение места',
+      '9 · Где забрать: одно место', '10 · Где забрать: три места'].forEach((label) => {
+      openSample(label);
+      const place = productScreen();
 
-    openSample('7 · Где вас забрать: места');
-    // The state after returning carries the same question, so both are one semantic screen.
-    expect(within(productScreen()).getByRole('heading', { level: 1, name: 'Где вас забрать?' })).not.toBeNull();
-    expect(within(productScreen()).getByRole('button', { name: 'Далее' })).not.toBeNull();
+      expect(within(place).getByRole('heading', { level: 1, name: 'Где вас забрать?' })).not.toBeNull();
+      expect(step()).toBe('place');
+      // A map screen: the map runs to the top, the working sheet rides over its lower edge.
+      expect(place.querySelectorAll('[class*="pickMapArea"]').length).toBe(1);
+      expect(place.querySelectorAll('[class*="pickSheet"]').length).toBe(1);
+      expect(place.querySelector('[data-picked-address]')).not.toBeNull();
+      expect(within(place).getAllByPlaceholderText('Адрес').length).toBe(1);
+      // The quiet way back sits over the map instead of a header bar, and still leads back.
+      expect(place.querySelector('[data-form-header]')).toBeNull();
+      expect(within(place).getByRole('button', { name: 'Назад' })).not.toBeNull();
+      // The address and the rule live in the sheet, in that order.
+      const sheet = place.querySelector('[class*="pickSheet"]')!;
+      const address = sheet.querySelector('[data-picked-address]')!;
+      const privacy = sheet.querySelector('[data-place-privacy]')!;
+      expect(address.compareDocumentPosition(privacy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
   });
 
-  it('shows the chosen address exactly once in each state of the place step', () => {
+  it('gives the map the upper part of the screen and the sheet its lower edge', () => {
     render(<CopyReviewPage />);
-    const address = 'Via Milano, 8, 88100 Catanzaro CZ';
+    openSample('9 · Где забрать: одно место');
+    const place = productScreen();
 
-    ['6 · Где вас забрать: карта', '7 · Где вас забрать: места'].forEach((label) => {
+    const map = place.querySelector('[class*="pickMapArea"]')!;
+    const sheet = place.querySelector('[class*="pickSheet"]')!;
+    // The map comes first and the search floats on top of it, not above it in the flow.
+    expect(map.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(map.querySelector('[class*="pickControls"]')).not.toBeNull();
+    expect(map.querySelector('[class*="pickHint"]')!.textContent)
+      .toBe('Введите адрес или передвиньте маркер на карте.');
+    expect(map.querySelectorAll('button[class*="pickPoint"]').length).toBe(3);
+    // Nothing about the choice sits outside those two blocks.
+    expect(sheet.contains(place.querySelector('[data-place-list]')!)).toBe(true);
+    expect(sheet.contains(place.querySelector('[data-place-add]')!)).toBe(true);
+  });
+
+  it('never navigates away to choose a place: adding one keeps the same screen', () => {
+    render(<CopyReviewPage />);
+    openSample('7 · Где забрать: место не выбрано');
+
+    expect(step()).toBe('place');
+    expect(productScreen().querySelectorAll('[data-place-card]').length).toBe(0);
+    // No «Далее» before the required place, and no step change on the way to getting one.
+    expect(within(productScreen()).queryByRole('button', { name: 'Далее' })).toBeNull();
+
+    press('Piazza Matteotti, 88100 Catanzaro CZ');
+    expect(step()).toBe('place');
+    press('Подтвердить место');
+    expect(step()).toBe('place');
+    expect(productScreen().querySelectorAll('[data-place-card]').length).toBe(1);
+    expect(within(productScreen()).getByRole('button', { name: 'Далее' })).not.toBeNull();
+
+    // Adding a second alternative also stays here: no screen change, one more card.
+    press('Добавить место');
+    expect(step()).toBe('place');
+    expect(productScreen().querySelectorAll('[data-place-card]').length).toBe(2);
+    expect(productScreen().querySelectorAll('[class*="pickMapArea"]').length).toBe(1);
+  });
+
+  it('shows the chosen address exactly once in each state of the place screen', () => {
+    render(<CopyReviewPage />);
+
+    // The marked address and the saved cards never repeat the same address twice.
+    ['7 · Где забрать: место не выбрано', '8 · Где забрать: изменение места',
+      '9 · Где забрать: одно место'].forEach((label) => {
       openSample(label);
       const text = productScreen().textContent ?? '';
-      expect(text.split(address).length - 1).toBe(1);
+      [...productScreen().querySelectorAll('[data-place-card] [class*="data"]')].forEach((card) => {
+        expect(text.split(card.textContent!).length - 1).toBe(1);
+      });
     });
 
     // Adding alternatives never repeats an address already shown.
-    openSample('7 · Где вас забрать: места');
-    fireEvent.click(within(productScreen()).getByRole('button', { name: 'Добавить место' }));
-    fireEvent.click(within(productScreen()).getByRole('button', { name: 'Добавить место' }));
+    openSample('9 · Где забрать: одно место');
+    addPlaceViaMap();
+    addPlaceViaMap();
     const shown = [...productScreen().querySelectorAll('[data-place-card]')]
       .map((card) => card.querySelector('[class*="data"]')!.textContent);
     expect(new Set(shown).size).toBe(shown.length);
@@ -520,7 +651,7 @@ describe('Passenger request review states', () => {
 
   it('keeps one required place and up to two alternatives, with a reason when the limit is reached', () => {
     render(<CopyReviewPage />);
-    openSample('7 · Где вас забрать: места');
+    openSample('9 · Где забрать: одно место');
     const cards = () => [...productScreen().querySelectorAll('[data-place-card]')];
     const add = () => within(productScreen()).queryByRole('button', { name: 'Добавить место' });
 
@@ -530,11 +661,11 @@ describe('Passenger request review states', () => {
     expect(within(cards()[0] as HTMLElement).queryByRole('button', { name: 'Убрать это место' })).toBeNull();
     expect(within(cards()[0] as HTMLElement).getByRole('button', { name: 'Изменить это место' })).not.toBeNull();
 
-    fireEvent.click(add()!);
+    addPlaceViaMap();
     expect(cards().length).toBe(2);
     expect(cards()[1].textContent).toContain('Ещё одно место встречи');
 
-    fireEvent.click(add()!);
+    addPlaceViaMap();
     expect(cards().length).toBe(3);
     expect(add()).toBeNull();
     expect(productScreen().querySelector('[data-place-limit]')!.textContent).toBe(
@@ -548,34 +679,50 @@ describe('Passenger request review states', () => {
 
   it('presents the places as alternatives and never as stops along a route', () => {
     render(<CopyReviewPage />);
-    openSample('7 · Где вас забрать: места');
+    openSample('9 · Где забрать: одно место');
     const list = () => productScreen().querySelector('[data-place-list]')!;
 
-    fireEvent.click(within(productScreen()).getByRole('button', { name: 'Добавить место' }));
-    fireEvent.click(within(productScreen()).getByRole('button', { name: 'Добавить место' }));
+    addPlaceViaMap();
+    addPlaceViaMap();
 
     // «или» between the cards, one separator fewer than the number of places.
     expect([...list().querySelectorAll('[data-place-or]')].map((node) => node.textContent)).toEqual([
       'или',
       'или',
     ]);
-    expect(productScreen().textContent).toContain(
-      'Можно указать до трёх мест. Водитель выберет одно из них — это не остановки по пути.',
-    );
+    // The labels and the «или» carry the meaning; the long explanation is gone and not replaced.
+    expect(list().textContent).toContain('Основное место встречи');
+    expect(list().textContent).toContain('Ещё одно место встречи');
 
     // Nothing numbers or orders the places: no ordered list, no route vocabulary.
     expect(list().querySelectorAll('ol').length).toBe(0);
     const text = productScreen().textContent ?? '';
     ['остановк', 'по пути заберёт', 'маршрут', 'сначала', 'затем', 'потом'].forEach((word) => {
-      const allowed = word === 'остановк' ? 1 : 0;
-      const found = text.toLowerCase().split(word).length - 1;
-      expect(found).toBe(allowed);
+      expect(text.toLowerCase().split(word).length - 1).toBe(0);
     });
+  });
+
+  it('says the three-place limit once, with no second explanation beside it', () => {
+    render(<CopyReviewPage />);
+    openSample('10 · Где забрать: три места');
+    const place = productScreen();
+
+    expect(place.querySelectorAll('[data-place-card]').length).toBe(3);
+    expect(place.querySelector('[data-place-limit]')!.textContent)
+      .toBe('Больше трёх мест указать нельзя.');
+    expect(place.querySelectorAll('[data-place-limit]').length).toBe(1);
+    // The longer duplicate is removed and nothing explanatory takes its place.
+    expect(place.textContent).not.toContain('Можно указать до трёх мест');
+    expect(place.textContent).not.toContain('Водитель выберет одно из них');
+    expect(place.textContent).not.toContain('не остановки по пути');
+    // At the limit the saving action is gone, replaced by the reason — never left disabled.
+    expect(within(place).queryByRole('button', { name: 'Добавить место' })).toBeNull();
+    expect([...place.querySelectorAll('button:disabled')].length).toBe(0);
   });
 
   it('groups passengers, children and the child seat on one screen', () => {
     render(<CopyReviewPage />);
-    openSample('8 · Просьба: сколько вас');
+    openSample('12 · Сколько вас: дети и кресло');
     const people = productScreen();
 
     expect(within(people).getByRole('heading', { level: 1, name: 'Сколько вас будет?' })).not.toBeNull();
@@ -594,7 +741,7 @@ describe('Passenger request review states', () => {
     expect(people.querySelectorAll('[data-child-seat]').length).toBe(1);
   });
 
-  it('has no review step and no public-versus-private screen anywhere in the subgroup', () => {
+  it('has no review step and no public-versus-private screen anywhere in the form', () => {
     render(<CopyReviewPage />);
 
     requestSamples.forEach(([label]) => {
@@ -604,10 +751,23 @@ describe('Passenger request review states', () => {
       ['Проверьте просьбу', 'Что увидят все', 'Что увидит', 'Проверьте сведения', 'Проверить'].forEach(
         (forbidden) => expect(text).not.toContain(forbidden),
       );
-      // Publication belongs to the next subgroup: no screen here offers it.
-      expect(within(productScreen()).queryByRole('button', { name: 'Опубликовать' })).toBeNull();
-      expect(text).not.toContain('Опубликовать');
     });
+  });
+
+  it('offers publication only on the last screen, never on one of the first three questions', () => {
+    render(<CopyReviewPage />);
+
+    requestSamples
+      .filter(([, anchor]) => !anchor.startsWith('request-final'))
+      .forEach(([label]) => {
+        openSample(label);
+        expect(within(productScreen()).queryByRole('button', { name: 'Опубликовать' })).toBeNull();
+        expect(productScreen().textContent).not.toContain('Опубликовать');
+      });
+
+    openSample('13 · Последние детали');
+    expect(within(productScreen()).getByRole('button', { name: 'Опубликовать' }).className)
+      .toContain('primaryButton');
   });
 
   it('shows one primary intent per request screen and no stepper or progress bar', () => {
@@ -625,33 +785,74 @@ describe('Passenger request review states', () => {
     });
   });
 
-  it('marks every reviewed string of the group as approved by the owner', () => {
+  it('marks every string of the whole passenger form as approved by the owner', () => {
     render(<CopyReviewPage />);
 
+    // Groups 2A (24 August) and 2B (26 August) together cover every string the form renders.
     requestSamples.forEach(([label]) => {
       openSample(label);
       const marks = sourceRows();
 
       expect(marks.length).toBeGreaterThan(0);
-      expect(new Set(marks)).toEqual(new Set(['Утверждено']));
+      expect(`${label}: ${[...new Set(marks)].join('/')}`).toBe(`${label}: Утверждено`);
     });
   });
 
-  it('carries no pending-review wording for a group the owner has already seen', () => {
+  it('never leaves a removed string on a screen', () => {
     render(<CopyReviewPage />);
-    openSample('5 · Просьба: когда');
 
-    // The shared legend still explains `Проект` for the group 1 rows that keep it; what must be
-    // gone is any claim that this group is still waiting to be seen.
+    requestSamples.forEach(([label]) => {
+      openSample(label);
+      const text = productScreen().textContent ?? '';
+
+      ['Хочу приехать к', 'Найти адрес', 'Можно указать до трёх мест'].forEach((gone) => {
+        expect(`${label}: ${text.includes(gone)}`).toBe(`${label}: false`);
+      });
+    });
+  });
+
+  it('marks the strings of «Последние детали» as approved on 26 August 2026', () => {
+    render(<CopyReviewPage />);
+
+    ['13 · Последние детали', '14 · Последние детали: заполнено'].forEach((label) => {
+      openSample(label);
+      const panel = screen.getByRole('complementary', { name: 'Источники формулировок на экране' });
+      const rows = [...panel.querySelectorAll('dt')].map((row) => row.firstChild?.textContent);
+      const marks = sourceRows();
+
+      [
+        'Последние детали',
+        'Нужна поездка обратно',
+        'Примечание (необязательно)',
+        'Короткое уточнение для водителя. Не пишите домашний адрес, телефон, email и ссылки.',
+        'Опубликовать',
+        'Изменить',
+        'Когда',
+        'Где вас забрать',
+        'Сколько вас',
+      ].forEach((text) => {
+        const at = rows.indexOf(text);
+        expect(`${text}: ${at >= 0 && marks[at] === 'Утверждено'}`).toBe(`${text}: true`);
+      });
+    });
+  });
+
+  it('names both review dates and claims nothing is still pending', () => {
+    render(<CopyReviewPage />);
+    openSample('5 · Когда: выбрана служба');
+
     const panel = screen.getByRole('complementary', { name: 'Источники формулировок на экране' });
     expect(panel.textContent).toContain('24 августа 2026');
-    expect(panel.textContent).not.toContain('ждёт просмотра');
+    expect(panel.textContent).toContain('26 августа 2026');
+    expect(panel.textContent).toContain('утверждены');
     expect(panel.textContent).not.toContain('ничего не утверждает');
+    expect(panel.textContent).not.toContain('ждут просмотра');
 
     // The simulated product screen has its own header, so pick the review chrome one.
     const header = screen.getAllByRole('banner').find((node) => !node.closest('[data-product-screen]'))!;
-    expect(header.textContent).not.toContain('ждёт просмотра');
     expect(header.textContent).toContain('просмотрены');
+    expect(header.textContent).toContain('Последние детали');
+    expect(header.textContent).not.toContain('ждут просмотра');
   });
 
   it('keeps the reviewed group 1 wording and marks untouched', () => {
@@ -663,6 +864,291 @@ describe('Passenger request review states', () => {
     expect(productScreen().textContent).toContain('2 предложения подвезти');
   });
 
+  /* ------------------------------------------------- one form, not ten static screens */
+
+  it('walks the four semantic screens forwards and back, in order and without a stepper', () => {
+    render(<CopyReviewPage />);
+    openSample('5 · Когда: выбрана служба');
+
+    expect(step()).toBe('when');
+    press('Далее');
+    expect(step()).toBe('place');
+    // The second question needs its one required answer before it offers to move on.
+    addPlaceViaMap();
+    press('Далее');
+    expect(step()).toBe('people');
+    press('Далее');
+    expect(step()).toBe('final');
+
+    press('Назад');
+    expect(step()).toBe('people');
+    press('Назад');
+    expect(step()).toBe('place');
+    press('Назад');
+    expect(step()).toBe('when');
+
+    // The first question has nothing before it, and no numbered wizard chrome appears anywhere.
+    press('Назад');
+    expect(step()).toBe('when');
+  });
+
+  it('keeps every answer while the person moves between the screens', () => {
+    render(<CopyReviewPage />);
+    openSample('5 · Когда: выбрана служба');
+
+    // An own date and time given on the first screen.
+    fireEvent.click(productScreen().querySelector('[data-custom-choice] input')!);
+    fireEvent.change(productScreen().querySelector('[data-custom-arrival] input')!, {
+      target: { value: '2026-08-29T18:30' },
+    });
+
+    press('Далее');
+    addPlaceViaMap();
+    press('Далее');
+    press('Всего пассажиров, включая детей: больше');
+    press('Из них детей: больше');
+    press('Далее');
+
+    // A note typed on the last screen.
+    fireEvent.change(productScreen().querySelector('[data-note-field] textarea')!, {
+      target: { value: 'у входа в библиотеку' },
+    });
+    fireEvent.click(within(productScreen()).getByRole('checkbox', { name: 'Нужна поездка обратно' }));
+
+    // Everything is still there after walking all the way back to the first question.
+    press('Назад');
+    press('Назад');
+    press('Назад');
+    expect(step()).toBe('when');
+    expect((productScreen().querySelector('[data-custom-arrival] input') as HTMLInputElement).value)
+      .toBe('2026-08-29T18:30');
+
+    press('Далее');
+    expect(productScreen().querySelectorAll('[data-place-card]').length).toBe(1);
+    press('Далее');
+    expect([...productScreen().querySelectorAll('output')].map((node) => node.textContent)).toEqual(['2', '1']);
+    press('Далее');
+    expect((productScreen().querySelector('[data-note-field] textarea') as HTMLTextAreaElement).value)
+      .toBe('у входа в библиотеку');
+    expect((productScreen().querySelector('[data-return-ride] input') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('asks for the first place before it offers to move on', () => {
+    render(<CopyReviewPage />);
+    openSample('7 · Где забрать: место не выбрано');
+    const empty = productScreen();
+
+    expect(within(empty).getByRole('heading', { level: 1, name: 'Где вас забрать?' })).not.toBeNull();
+    expect(empty.querySelectorAll('[data-place-card]').length).toBe(0);
+    expect(empty.querySelector('[data-place-privacy]')).not.toBeNull();
+
+    // No «Далее» sits disabled without a reason: the one intent is keeping the marked point.
+    expect(within(empty).queryByRole('button', { name: 'Далее' })).toBeNull();
+    expect(within(empty).queryByRole('button', { name: 'Добавить место' })).toBeNull();
+    const confirm = within(empty).getByRole('button', { name: 'Подтвердить место' });
+    expect(confirm.className).toContain('primaryButton');
+    expect([...empty.querySelectorAll('button:disabled')].length).toBe(0);
+
+    // With a place saved: «Далее» is the one large action, and adding an alternative moves into
+    // the main place card, under «Изменить это место».
+    press('Подтвердить место');
+    const actions = productScreen().querySelector('[class*="sheetActions"]') as HTMLElement;
+    const next = within(actions).getByRole('button', { name: 'Далее' });
+    expect(next.className).toContain('primaryButton');
+    expect(within(actions).queryByRole('button', { name: 'Добавить место' })).toBeNull();
+    expect(actions.querySelectorAll('button').length).toBe(1);
+
+    const card = productScreen().querySelector('[data-place-card]') as HTMLElement;
+    const change = within(card).getByRole('button', { name: 'Изменить это место' });
+    const add = within(card).getByRole('button', { name: 'Добавить место' });
+    expect(add.className).not.toContain('primaryButton');
+    expect(change.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('moves the marker on after a place is saved, so the next alternative is a new address', () => {
+    render(<CopyReviewPage />);
+    openSample('7 · Где забрать: место не выбрано');
+
+    expect(productScreen().querySelector('[data-picked-address]')!.textContent)
+      .toBe('Выбрано: Via Milano, 8, 88100 Catanzaro CZ');
+
+    press('Подтвердить место');
+    expect(productScreen().querySelector('[data-place-card]')!.textContent)
+      .toContain('Via Milano, 8, 88100 Catanzaro CZ');
+    // The marker no longer stands on an address the list already holds.
+    expect(productScreen().querySelector('[data-picked-address]')!.textContent)
+      .toBe('Выбрано: Piazza Matteotti, 88100 Catanzaro CZ');
+  });
+
+  it('changes a saved place on the same screen: «Изменить это место» → «Подтвердить место»', () => {
+    render(<CopyReviewPage />);
+    openSample('9 · Где забрать: одно место');
+
+    // Before: the action saves a new place, and no card is marked as being changed.
+    expect(within(productScreen()).getByRole('button', { name: 'Добавить место' })).not.toBeNull();
+    expect(productScreen().querySelectorAll('[data-place-editing]').length).toBe(0);
+
+    press('Изменить это место');
+    expect(step()).toBe('place');
+    // The card is marked, the marker moves onto it, and the action becomes the confirming one.
+    expect(productScreen().querySelectorAll('[data-place-editing]').length).toBe(1);
+    expect(within(productScreen()).queryByRole('button', { name: 'Добавить место' })).toBeNull();
+    expect(within(productScreen()).getByRole('button', { name: 'Подтвердить место' })).not.toBeNull();
+    expect(productScreen().querySelector('[data-picked-address]')!.textContent)
+      .toBe('Выбрано: Via Milano, 8, 88100 Catanzaro CZ');
+
+    press('Via Indipendenza, 21, 88100 Catanzaro CZ');
+    press('Подтвердить место');
+
+    // The place is replaced where it stood; nothing was added and no screen was left.
+    const cards = [...productScreen().querySelectorAll('[data-place-card]')];
+    expect(step()).toBe('place');
+    expect(cards.length).toBe(1);
+    expect(cards[0].textContent).toContain('Via Indipendenza, 21, 88100 Catanzaro CZ');
+    expect(cards[0].textContent).toContain('Основное место встречи');
+    expect(productScreen().querySelectorAll('[data-place-editing]').length).toBe(0);
+    expect(within(productScreen()).getByRole('button', { name: 'Добавить место' })).not.toBeNull();
+  });
+
+  it('lets the address search move the marker, as the hint under the map promises', () => {
+    render(<CopyReviewPage />);
+    openSample('9 · Где забрать: одно место');
+
+    fireEvent.change(within(productScreen()).getByPlaceholderText('Адрес'), {
+      target: { value: 'indipendenza' },
+    });
+    expect(step()).toBe('place');
+    expect(productScreen().querySelector('[data-picked-address]')!.textContent)
+      .toBe('Выбрано: Via Indipendenza, 21, 88100 Catanzaro CZ');
+  });
+
+  it('asks nothing about a child seat when the group has no children', () => {
+    render(<CopyReviewPage />);
+    openSample('11 · Сколько вас: без детей');
+    const people = productScreen();
+
+    expect([...people.querySelectorAll('output')].map((node) => node.textContent)).toEqual(['2', '0']);
+    expect(people.querySelectorAll('[data-child-seat]').length).toBe(0);
+    expect(people.textContent).not.toContain('Нужно детское кресло');
+  });
+
+  /* --------------------------------------------------- screen 4: «Последние детали» */
+
+  it('carries the return ride, the optional note and its warning on the last screen', () => {
+    render(<CopyReviewPage />);
+    openSample('13 · Последние детали');
+    const final = productScreen();
+
+    expect(within(final).getByRole('heading', { level: 1, name: 'Последние детали' })).not.toBeNull();
+    expect(within(final).getByRole('checkbox', { name: 'Нужна поездка обратно' })).not.toBeNull();
+    expect(final.querySelector('[data-note-field] span')!.textContent).toBe('Примечание (необязательно)');
+    expect(final.textContent).toContain(
+      'Короткое уточнение для водителя. Не пишите домашний адрес, телефон, email и ссылки.',
+    );
+
+    // The note is a place to write, not a one-line answer: it is the only multi-line field.
+    expect(final.querySelectorAll('textarea').length).toBe(1);
+  });
+
+  it('keeps the landmark in the ordinary note instead of a second address-like field', () => {
+    render(<CopyReviewPage />);
+    openSample('14 · Последние детали: заполнено');
+    const final = productScreen();
+
+    expect((final.querySelector('[data-note-field] textarea') as HTMLTextAreaElement).value)
+      .toBe('у входа в библиотеку');
+    expect(final.textContent).not.toContain('Как назвать это место');
+    expect(final.textContent).not.toContain('Подпись места');
+    expect((final.querySelector('[data-return-ride] input') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('summarises the answers compactly, without turning into a review screen', () => {
+    render(<CopyReviewPage />);
+    openSample('14 · Последние детали: заполнено');
+    const summary = productScreen().querySelector('[data-request-summary]') as HTMLElement;
+    const rows = [...summary.querySelectorAll('[data-summary-row]')];
+
+    expect(rows.map((row) => (row as HTMLElement).dataset.summarySection)).toEqual([
+      'Когда',
+      'Где вас забрать',
+      'Сколько вас',
+    ]);
+    expect(rows[0].textContent).toContain('Божественная литургия · воскресенье, 23 августа, 9:00');
+    expect(rows[1].textContent).toContain('Via Milano, 8, 88100 Catanzaro CZ');
+    expect(rows[1].textContent).toContain('Piazza Matteotti, 88100 Catanzaro CZ');
+    // Several places stay alternatives here too, exactly as on the place screen.
+    expect(rows[1].textContent).toContain('или');
+    expect(rows[2].textContent).toContain('3 пассажира, из них 1 ребёнок');
+    expect(rows[2].querySelector('[data-summary-child-seat]')!.textContent).toBe('Нужно детское кресло');
+
+    // A few quiet lines above the one primary action, never a screen of its own.
+    const publish = within(productScreen()).getByRole('button', { name: 'Опубликовать' });
+    expect(summary.compareDocumentPosition(publish) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(summary).getAllByRole('button').every((button) => button.className.includes('quietButton')))
+      .toBe(true);
+    expect(summary.querySelectorAll('h1, h2, h3, h4').length).toBe(0);
+  });
+
+  it('drops the child seat from the summary as soon as the group has no children', () => {
+    render(<CopyReviewPage />);
+    openSample('14 · Последние детали: заполнено');
+
+    fireEvent.click(within(productScreen()).getByRole('button', { name: 'Изменить: Сколько вас' }));
+    expect(step()).toBe('people');
+    press('Из них детей: меньше');
+    press('Далее');
+
+    const rows = [...productScreen().querySelectorAll('[data-summary-row]')];
+    expect(rows[2].textContent).toContain('3 пассажира');
+    expect(rows[2].textContent).not.toContain('из них');
+    expect(rows[2].querySelector('[data-summary-child-seat]')).toBeNull();
+  });
+
+  it('sends every quiet «Изменить» to the screen that owns the answer, and keeps the rest', () => {
+    render(<CopyReviewPage />);
+    openSample('14 · Последние детали: заполнено');
+
+    const jump = (name: string) =>
+      fireEvent.click(within(productScreen()).getByRole('button', { name }));
+
+    jump('Изменить: Когда');
+    expect(step()).toBe('when');
+    fireEvent.click(productScreen().querySelector('[data-custom-choice] input')!);
+    fireEvent.change(productScreen().querySelector('[data-custom-arrival] input')!, {
+      target: { value: '2026-08-26T18:00' },
+    });
+    press('Далее');
+    press('Далее');
+    press('Далее');
+
+    expect(step()).toBe('final');
+    const rows = [...productScreen().querySelectorAll('[data-summary-row]')];
+    expect(rows[0].textContent).toContain('среда, 26 августа, 18:00');
+    // Nothing else moved: the note, the return ride and the places are as they were.
+    expect((productScreen().querySelector('[data-note-field] textarea') as HTMLTextAreaElement).value)
+      .toBe('у входа в библиотеку');
+    expect(rows[1].textContent).toContain('Piazza Matteotti, 88100 Catanzaro CZ');
+    expect(rows[2].textContent).toContain('3 пассажира, из них 1 ребёнок');
+
+    jump('Изменить: Где вас забрать');
+    expect(step()).toBe('place');
+    expect(productScreen().querySelectorAll('[data-place-card]').length).toBe(2);
+  });
+
+  it('never builds a success or sign-in flow behind «Опубликовать»', () => {
+    render(<CopyReviewPage />);
+    openSample('14 · Последние детали: заполнено');
+
+    press('Опубликовать');
+    // Publication stays a condition outside this subgroup: the screen does not change and no
+    // account, contact check or confirmation appears in its place.
+    expect(step()).toBe('final');
+    const text = productScreen().textContent ?? '';
+    ['Опубликовано', 'Просьба опубликована', 'Войти', 'Создать аккаунт', 'Подтвердите телефон', 'Код'].forEach(
+      (forbidden) => expect(text).not.toContain(forbidden),
+    );
+  });
+
   it('changes no production passenger-flow route or component', () => {
     const groupStrings = [
       'Когда вам нужна поездка?',
@@ -671,6 +1157,9 @@ describe('Passenger request review states', () => {
       'Ещё одно место встречи',
       'Подтвердить место',
       'Больше трёх мест указать нельзя.',
+      'Последние детали',
+      'Короткое уточнение для водителя. Не пишите домашний адрес, телефон, email и ссылки.',
+      'Кратко о вашей просьбе',
     ];
 
     const roots = ['src/app', 'src/components', 'src/lib'];
