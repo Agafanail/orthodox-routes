@@ -36,13 +36,15 @@ const feature = {
 };
 
 describe('searchPlaces', () => {
-  it('asks for the documented endpoint and keeps only the fields the domain stores', async () => {
+  // A whole typed address belongs to the geocoding endpoint. Autocomplete is for partial input
+  // and, given a complete address, returns a differently named street in the same city.
+  it('asks the geocoding endpoint and keeps only the fields the domain stores', async () => {
     const calls = stubFetch(() => ({ body: { features: [feature], type: 'FeatureCollection' } }));
     const provider = createGeoapifyProvider(KEY);
 
     const results = await provider.searchPlaces('Via Roma', { near: { lat: 45.07, lng: 7.68 } });
 
-    expect(calls[0].origin + calls[0].pathname).toBe('https://api.geoapify.com/v1/geocode/autocomplete');
+    expect(calls[0].origin + calls[0].pathname).toBe('https://api.geoapify.com/v1/geocode/search');
     expect(calls[0].searchParams.get('text')).toBe('Via Roma');
     expect(calls[0].searchParams.get('bias')).toBe('proximity:7.68,45.07');
     expect(results).toEqual([{

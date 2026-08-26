@@ -98,8 +98,13 @@ function parseCandidate(value: unknown, index: number): PlaceCandidate | null {
 }
 
 export function createGeoapifyProvider(apiKey: string): GeoProvider {
+  /**
+   * The picker searches a whole address the person has finished typing, which is what the
+   * geocoding endpoint is for. Autocomplete is tuned for partial input and, on a complete
+   * address, will happily return a differently named street in the same city.
+   */
   function searchUrl(text: string, options: PlaceSearchOptions = {}) {
-    const url = new URL(SEARCH_ENDPOINT);
+    const url = new URL(GEOCODE_ENDPOINT);
     url.searchParams.set('text', text.slice(0, 200));
     url.searchParams.set('format', 'geojson');
     url.searchParams.set('limit', String(Math.min(Math.max(options.limit ?? 8, 1), 20)));
@@ -118,15 +123,15 @@ export function createGeoapifyProvider(apiKey: string): GeoProvider {
       // Each capability is checked separately. A credential refused everywhere points at the
       // key or its restrictions; one endpoint refused alone points at that endpoint.
       const checks: Record<string, URL> = {
-        autocomplete: searchUrl('Via Roma 1, Torino'),
-        geocode: (() => {
-          const url = new URL(GEOCODE_ENDPOINT);
+        autocomplete: (() => {
+          const url = new URL(SEARCH_ENDPOINT);
           url.searchParams.set('text', 'Via Roma 1, Torino');
           url.searchParams.set('format', 'geojson');
           url.searchParams.set('limit', '1');
           url.searchParams.set('apiKey', apiKey);
           return url;
         })(),
+        geocode: searchUrl('Via Roma 1, Torino'),
         routing: (() => {
           const url = new URL(ROUTING_ENDPOINT);
           url.searchParams.set('waypoints', '45.0703,7.6869|45.0200,7.6500');
@@ -148,7 +153,7 @@ export function createGeoapifyProvider(apiKey: string): GeoProvider {
             signal: controller.signal,
           });
           endpoints[name] = response.status;
-          if (name === 'autocomplete' && response.ok) {
+          if (name === 'geocode' && response.ok) {
             const payload = record(await response.json());
             const features = Array.isArray(payload?.features) ? payload.features : [];
             usableResults = features
@@ -164,9 +169,9 @@ export function createGeoapifyProvider(apiKey: string): GeoProvider {
 
       return {
         endpoints,
-        ok: endpoints.autocomplete === 200 && (usableResults ?? 0) > 0,
+        ok: endpoints.geocode === 200 && (usableResults ?? 0) > 0,
         results: usableResults,
-        status: endpoints.autocomplete,
+        status: endpoints.geocode,
       };
     },
 
