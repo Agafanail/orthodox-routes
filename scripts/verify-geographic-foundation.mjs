@@ -386,8 +386,22 @@ const publicPayload = JSON.stringify({ publicRequests, publicOccurrences, anonym
 for (const secret of ['Saved exact home entrance', 'Second exact meeting point', 'Exact driver departure']) {
   assert.equal(publicPayload.includes(secret), false, 'An exact address leaked into a public payload.');
 }
-for (const coordinate of ['45.0611', '7.6721', '45.0559', '7.6802', '45.0301', '7.6402']) {
-  assert.equal(publicPayload.includes(coordinate), false, 'An exact coordinate leaked into a public payload.');
+// Compared as numbers rather than as text. A public centre is published to five decimals and
+// an exact point is written here to four, so `45.06112` contains `45.0611` as a substring, and
+// a substring test would call that a leak. It is not one: the offset is a fixed distance in a
+// per-owner bearing, and a bearing that happens to run nearly due east leaves the latitude
+// almost unchanged while the point still moves the required hundreds of metres away. The
+// distance assertions above are what prove the privacy property; this proves that no exact
+// coordinate is published as a value.
+const publicNumbers = [];
+(function collect(value) {
+  if (typeof value === 'number') publicNumbers.push(value);
+  else if (Array.isArray(value)) value.forEach(collect);
+  else if (value && typeof value === 'object') Object.values(value).forEach(collect);
+})({ anonymousCatalog, publicOccurrences, publicRequests });
+for (const coordinate of [45.0611, 7.6721, 45.0559, 7.6802, 45.0301, 7.6402]) {
+  const leaked = publicNumbers.some((value) => Math.abs(value - coordinate) < 1e-9);
+  assert.equal(leaked, false, 'An exact coordinate leaked into a public payload.');
 }
 // No public route geometry exists as a concept anywhere in a public payload.
 for (const token of ['polyline', 'corridor', 'route_geometry', 'encodedpath', 'waypoint']) {

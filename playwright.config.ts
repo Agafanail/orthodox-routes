@@ -21,7 +21,11 @@ export default defineConfig({
     ...devices['Desktop Chrome'],
     baseURL: 'http://127.0.0.1:3000',
     screenshot: 'off',
-    trace: 'off',
+    // The retry is traced. This check has stalled for its whole budget on commits that changed
+    // nothing but a Markdown file, always inside the same step, and the timeout report names
+    // only where the clock ran out rather than what was waiting. A trace of the retry says
+    // which operation never returned, which is the one thing the logs cannot.
+    trace: 'on-first-retry',
     video: 'off',
   },
   webServer: {

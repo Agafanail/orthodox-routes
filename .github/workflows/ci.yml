@@ -164,6 +164,15 @@ jobs:
       - name: Run Core browser regression
         run: npm run test:e2e
 
+      - name: Keep the browser trace when the regression fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-browser-regression-trace
+          path: test-results/artifacts
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Stop local Core stack
         if: always()
         run: npm run auth:stop
