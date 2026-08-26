@@ -5,12 +5,11 @@ export default defineConfig({
   testMatch: '**/*.e2e.ts',
   fullyParallel: false,
   workers: 1,
-  // One retry on CI only. This check drives three real sign-ins and several full page loads
-  // against a freshly built server, and it has stalled once on a commit that changed nothing
-  // but a Markdown file, so a lone stall must not be reported as a broken agreement boundary.
-  // A failure that repeats is still a failure; locally there is no retry, so flakiness stays
-  // visible to whoever is working on it.
-  retries: process.env.CI ? 1 : 0,
+  // No retry, deliberately. The fixture is built once per run and its sign-in links are
+  // one-use, so a second attempt signs in with links the first attempt already spent and can
+  // only fail. A retry here would not rescue a flaky run; it would just append a misleading
+  // second failure to a real one.
+  retries: 0,
   timeout: 120_000,
   expect: { timeout: 15_000 },
   outputDir: 'test-results/artifacts',
@@ -21,11 +20,10 @@ export default defineConfig({
     ...devices['Desktop Chrome'],
     baseURL: 'http://127.0.0.1:3000',
     screenshot: 'off',
-    // The retry is traced. This check has stalled for its whole budget on commits that changed
-    // nothing but a Markdown file, always inside the same step, and the timeout report names
-    // only where the clock ran out rather than what was waiting. A trace of the retry says
-    // which operation never returned, which is the one thing the logs cannot.
-    trace: 'on-first-retry',
+    // A failing run keeps its trace. The timeout report names only where the clock ran out
+    // rather than what was waiting, and with no retry to trace instead, the failing attempt
+    // itself has to carry the evidence.
+    trace: 'retain-on-failure',
     video: 'off',
   },
   webServer: {
