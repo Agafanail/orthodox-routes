@@ -301,6 +301,8 @@ Each criterion checked against repository evidence rather than recollection. Thr
 
 The three open items share one cause: the staging database is two migrations behind, so the deployed branch cannot be exercised. That push is an owner action, as recorded above.
 
+That sentence was true on 23 August and is not true now. The migrations were applied, the credential was replaced, and the deployed branch has been exercised end to end. The current position is the audit dated 26 August above; this section is kept only for its record of how the provider failure was diagnosed.
+
 ### Original criteria
 
 Completion requires repository evidence that documentation matches the approved product decisions; Core transport, agreement, capacity, cancellation, restoration, and disclosure behavior remains intact; exact church and user geography is migration-backed and protected; the public approximation cannot expose an exact point through its centre; saved places work under a compliant storage model; maps work on the approved surfaces; route-aware deterministic quality matching enforces every approved hard condition; up to three passenger places are supported with explainable results; matching failure never breaks the ordinary board; confirmation and disclosure boundaries are correct; no public driver route corridor and no unnecessary route geometry exist; automated, database, browser, and privacy verification is clean; the owner's manual UX test has passed; Git history is coherent; `main` is pushed; every required GitHub Actions job and cleanup step is green; this file records final evidence; and no later roadmap phase was silently implemented.
