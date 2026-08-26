@@ -53,7 +53,7 @@ Explicitly excluded:
 | D | Location selection and map foundation | Complete | Commits `324d4b8`, `ada3b12`, `0039742`; CI `32614345866` green on all three jobs. Place field, picker flow with address search, tap-to-place correction, manual fallback, explicit location action, saved-place reuse, church catalog with universal search and `Рядом со мной`, catalog map, and the dedicated church location screen. Map imagery and address search run through the Geoapify adapter and activate as soon as the owner injects the keys |
 | E | Deterministic quality-matching engine | Complete | Migration `20260823170000_quality_matching.sql`; CI `32605335711` green; `test:matching` proves every hard condition, the detour rule, the best place among alternatives, block suppression, live recomputation, provider-failure degradation, and agreement independence |
 | F | Transport-board integration and matching UX | Complete | `Подходит` marker, `Подходящие мне` view, explainable detour line, and the ordinary-language unavailable message; Core responses, confirmation, capacity, cancellation, restoration, and disclosure preserved |
-| G | Full campaign verification, privacy audit, human UX gate, release | Awaiting the manual UX test | CI `33005358079` fully green on `dcfa7b4` across all four jobs, including the browser regression. The provider credential now answers on every endpoint, address search is verified across four countries on the deployment, matching is verified against live routing, and the privacy boundary is re-verified on the deployed anonymous page. Only the owner's own walkthrough remains |
+| G | Full campaign verification, privacy audit, human UX gate, release | Awaiting the manual UX test | CI green on `dcfa7b4` and `7ac39b1` across all four jobs three consecutive times — `33013941406`, `33014287897`, `33014589322` — including the browser regression that had been failing every other run. `dcfa7b4` is the last commit that changes code; anything after it changes documentation only. The provider credential now answers on every endpoint, address search is verified across four countries on the deployment, matching is verified against live routing, and the privacy boundary is re-verified on the deployed anonymous page. Only the owner's own walkthrough remains |
 
 **Current continuation:** the manual UX test, then the merge.
 
@@ -255,7 +255,7 @@ Supersedes the 23 August audit below, which is kept for its record of how the pr
 | Criterion | State | Evidence |
 | --- | --- | --- |
 | Documentation matches the approved product decisions | Closed | Unchanged since 23 August; IA §16.5 no longer promises an exact route and the review thread that raised it is resolved |
-| Core transport, agreement, capacity, cancellation, restoration, and disclosure behaviour intact | Closed | `test:transport`, `test:agreements`, and the browser regression all green in CI `33005358079`; `test:staging-core` passed on the deployed schema |
+| Core transport, agreement, capacity, cancellation, restoration, and disclosure behaviour intact | Closed | `test:transport`, `test:agreements`, and the browser regression all green in CI `33014589322`; `test:staging-core` passed on the deployed schema |
 | Exact church and user geography migration-backed and protected | Closed | `20260823120000`; forced row level security and no application-role grants on every new relation |
 | Public approximation cannot expose an exact point through its centre | Closed | Constraint `user_place_public_contains_exact`; the deployed anonymous page carries no coordinate at all |
 | Saved places under a compliant storage model | Closed | Open-licensed provider data; `ops.anonymize_expired_places` excludes `saved` rows |
@@ -266,7 +266,7 @@ Supersedes the 23 August audit below, which is kept for its record of how the pr
 | Matching failure never breaks the ordinary board | Closed | An unmeasured candidate is never a negative claim; observed live during the credential outage |
 | Confirmation and disclosure boundaries correct | Closed | Driver receives only the selected meeting place, passenger receives the driver departure place, unused places stay private |
 | No public corridor and no unnecessary route geometry | Closed | No such entity in the schema; the adapter never reads route geometry; `app.route_measurement` holds two integers per leg |
-| Automated, database, and privacy verification clean | Closed | CI `33005358079` green on `dcfa7b4`: `verify`, `database-foundation`, `local-auth`, and `core-browser-e2e` |
+| Automated, database, and privacy verification clean | Closed | CI `33014589322` green on `7ac39b1`: `verify`, `database-foundation`, `local-auth`, and `core-browser-e2e` |
 | Browser verification | Closed for everything measurable | Deployment walked as anonymous visitor and as signed-in passenger; payload boundaries, search, matching, and mobile layout all verified. Visual map painting is the manual gate |
 | Owner manual UX test passed | **Open** | The checklist is above; the walkthrough data and links are live |
 | `main` pushed, every required job green | **Open by design** | The branch is pushed and fully green; the merge waits on the owner's approval, as instructed |
