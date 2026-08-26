@@ -49,7 +49,13 @@ function user(data: CoreFixture, role: FixtureUser['role']) {
 async function signIn(page: Page, entry: FixtureUser, churchUrl: string) {
   await page.goto(entry.loginUrl);
   await page.getByRole('button', { name: 'Войти' }).click();
-  await page.waitForURL('http://127.0.0.1:3000/');
+  // Landing on the home page is what matters, not the exact spelling of the address. The
+  // sign-in link carries its one-use token in a URL fragment, and when that fragment survives
+  // the redirect the address is no longer the bare origin. Matching the whole string as text
+  // therefore waited for something that would never arrive, and because this wait inherits the
+  // test budget rather than the shorter assertion one, a single miss stalled the entire check
+  // for two minutes instead of failing. The bound keeps a genuine failure legible.
+  await page.waitForURL((url) => url.pathname === '/', { timeout: 20_000 });
   await page.goto(churchUrl);
   await expect(page.getByText(`Вы вошли как ${entry.name}.`)).toBeVisible();
 }
