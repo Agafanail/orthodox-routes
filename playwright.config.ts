@@ -5,7 +5,12 @@ export default defineConfig({
   testMatch: '**/*.e2e.ts',
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  // One retry on CI only. This check drives three real sign-ins and several full page loads
+  // against a freshly built server, and it has stalled once on a commit that changed nothing
+  // but a Markdown file, so a lone stall must not be reported as a broken agreement boundary.
+  // A failure that repeats is still a failure; locally there is no retry, so flakiness stays
+  // visible to whoever is working on it.
+  retries: process.env.CI ? 1 : 0,
   timeout: 120_000,
   expect: { timeout: 15_000 },
   outputDir: 'test-results/artifacts',
