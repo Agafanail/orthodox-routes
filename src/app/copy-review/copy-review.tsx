@@ -6,9 +6,17 @@ import styles from './copy-review.module.css';
 
 /**
  * Temporary isolated surface for the manual Russian copy review. Group 1 covers the church catalog,
- * church page, transport board and the empty church state. Group 2A covers the first four semantic
- * screens of the passenger request form after the owner decision of 22 August 2026 (Foundation 1.9,
- * IA §10.1): when, where to pick up, who is travelling, and the map selection behind the place.
+ * church page, transport board and the empty church state. Group 2 covers the passenger request form
+ * after the owner decision of 22 August 2026 (Foundation 1.9, IA §10.1): four semantic screens —
+ * when, where to pick up, who is travelling, and the final details. Group 2A (the first three
+ * semantic screens) was approved on 24 August 2026; group 2B — the fourth screen «Последние детали»,
+ * the final layout of «Где вас забрать?» and the corrections made on the assembled form — was
+ * approved on 26 August 2026.
+ *
+ * The request states are not ten steps: they are entry points into **one** interactive form that
+ * keeps its own answers in memory, so the owner can walk the real path — forward, back, edit an
+ * earlier answer — instead of reading ten static pictures. There is no persistence, no backend and
+ * no maps provider behind it.
  *
  * It renders the proposed wording of the UX Copy and Localization Foundation inside canonical Design
  * System V2 composition so the owner can judge the words in context. It is unlinked, it changes no
@@ -21,9 +29,15 @@ type SampleId =
   | 'board'
   | 'empty-church'
   | 'request-when'
+  | 'request-when-custom'
+  | 'request-place-empty'
   | 'request-map'
   | 'request-place'
-  | 'request-people';
+  | 'request-place-three'
+  | 'request-people'
+  | 'request-people-children'
+  | 'request-final'
+  | 'request-final-filled';
 
 type SourceMark = 'IA' | 'PS' | 'DS' | 'Решение' | 'Утверждено' | 'Проект';
 
@@ -38,9 +52,19 @@ type StringSource = {
   note?: string;
 };
 
-const samples: ReadonlyArray<{ id: SampleId; label: string; title: string; description: string }> = [
+type Sample = {
+  id: SampleId;
+  /** `church` — group 1; `request` — an entry point into the one interactive passenger form. */
+  group: 'church' | 'request';
+  label: string;
+  title: string;
+  description: string;
+};
+
+const samples: ReadonlyArray<Sample> = [
   {
     id: 'catalog',
+    group: 'church',
     label: '1 · Каталог храмов',
     title: 'Каталог храмов, заполненное состояние',
     description:
@@ -48,6 +72,7 @@ const samples: ReadonlyArray<{ id: SampleId; label: string; title: string; descr
   },
   {
     id: 'church',
+    group: 'church',
     label: '2 · Страница храма',
     title: 'Страница храма: сведения и расписание',
     description:
@@ -55,6 +80,7 @@ const samples: ReadonlyArray<{ id: SampleId; label: string; title: string; descr
   },
   {
     id: 'board',
+    group: 'church',
     label: '3 · Поездки храма',
     title: 'Транспортная доска того же храма',
     description:
@@ -62,6 +88,7 @@ const samples: ReadonlyArray<{ id: SampleId; label: string; title: string; descr
   },
   {
     id: 'empty-church',
+    group: 'church',
     label: '4 · Пустой храм',
     title: 'Храм без фотографии, расписания и поездок',
     description:
@@ -69,31 +96,83 @@ const samples: ReadonlyArray<{ id: SampleId; label: string; title: string; descr
   },
   {
     id: 'request-when',
-    label: '5 · Просьба: когда',
-    title: 'Просьба пассажира, экран 1: когда',
+    group: 'request',
+    label: '5 · Когда: выбрана служба',
+    title: 'Экран 1 «Когда вам нужна поездка?»: выбрана служба',
     description:
-      'Первый из четырёх смысловых экранов формы. Служба и собственные дата со временем — два способа ответить на один вопрос, поэтому они стоят рядом в одном списке выбора. Выбор на этом экране работает.',
+      'Первый из четырёх смысловых экранов формы. Служба и собственные дата со временем — два способа ответить на один вопрос, поэтому они стоят рядом в одном списке выбора. Отсюда можно пройти всю форму до конца: «Далее» ведёт вперёд, «Назад» возвращает, ответы сохраняются.',
+  },
+  {
+    id: 'request-when-custom',
+    group: 'request',
+    label: '6 · Когда: свои дата и время',
+    title: 'Экран 1 «Когда вам нужна поездка?»: собственные дата и время',
+    description:
+      'Тот же экран и тот же список: собственные дата и время — не отдельный шаг, а второй способ ответить на тот же вопрос. Поле «Хочу приехать к» раскрывается на месте, под выбранным вариантом. Выбранное время попадает в резюме на последнем экране.',
+  },
+  {
+    id: 'request-place-empty',
+    group: 'request',
+    label: '7 · Где забрать: место не выбрано',
+    title: 'Экран 2 «Где вас забрать?»: место ещё не выбрано',
+    description:
+      'Один смысловой экран, карта на нём видна всегда. Отдельных экранов «пусто → карта → выбранное место» больше нет: человек сразу видит карту, отмеченный адрес и способ сохранить его. Одно место обязательно, поэтому «Далее» здесь ещё нет, а «Добавить место» — единственное главное действие. Объяснение публичности сказано один раз, до выбора.',
   },
   {
     id: 'request-map',
-    label: '6 · Где вас забрать: карта',
-    title: 'Экран 2 «Где вас забрать?»: вложенная карта',
+    group: 'request',
+    label: '8 · Где забрать: изменение места',
+    title: 'Экран 2 «Где вас забрать?»: сохранённое место меняется на карте',
     description:
-      'Карта — вложенный экран второго смыслового экрана, а не отдельный шаг формы. Человек открывает её из «Где вас забрать?», выбирает место и возвращается на тот же экран. Отдельного поля «Как назвать это место» здесь нет: ориентир пишется в обычном необязательном примечании на последнем экране. Карта — детерминированное изображение для проверки слов и вёрстки, а не поставщик карт.',
+      'Тот же экран после нажатия «Изменить это место»: карточка подсвечена, маркер стоит на новом адресе, а действие под картой называется «Подтвердить место». Это состояние того же экрана, а не отдельный шаг — никуда не переходят и ниоткуда не возвращаются. Отдельного поля «Как назвать это место» нет: ориентир пишется в обычном примечании на последнем экране.',
   },
   {
     id: 'request-place',
-    label: '7 · Где вас забрать: места',
-    title: 'Экран 2 «Где вас забрать?»: возврат с карты, место сохранено',
+    group: 'request',
+    label: '9 · Где забрать: одно место',
+    title: 'Экран 2 «Где вас забрать?»: одно место сохранено',
     description:
-      'Тот же второй экран после возврата с карты. Это состояние одного шага, а не третий шаг: адрес показан один раз, рядом «Изменить это место», ниже «Добавить место». До трёх мест — альтернативы, а не остановки по пути: карточки разделены словом «или», подсказка говорит то же словами. Добавление и удаление на этом экране работают.',
+      'Тот же экран с одним сохранённым местом. Адрес показан один раз, рядом «Изменить это место»; маркер уже стоит на следующем свободном адресе, чтобы можно было сразу добавить второй вариант. Карта, отмеченный адрес и список мест видны одновременно.',
+  },
+  {
+    id: 'request-place-three',
+    group: 'request',
+    label: '10 · Где забрать: три места',
+    title: 'Экран 2 «Где вас забрать?»: три альтернативных места',
+    description:
+      'Предел из трёх мест. До трёх мест — альтернативы, а не остановки по пути: об этом говорят подписи «Ещё одно место встречи» и слово «или» между карточками. Вместо неактивной кнопки стоит одна короткая причина, почему больше добавить нельзя, — второго объясняющего текста рядом нет. Удаление здесь работает.',
   },
   {
     id: 'request-people',
-    label: '8 · Просьба: сколько вас',
-    title: 'Просьба пассажира, экран 3: сколько вас будет',
+    group: 'request',
+    label: '11 · Сколько вас: без детей',
+    title: 'Экран 3 «Сколько вас будет?»: только взрослые',
     description:
-      'Общее число пассажиров, число детей и детское кресло — один вопрос на одном экране. Кресло появляется, когда в группе есть дети (IA §47.6). Счётчики на этом экране работают.',
+      'Общее число пассажиров, число детей и детское кресло — один вопрос на одном экране. Детей нет, поэтому вопроса о кресле на экране тоже нет: его незачем задавать (IA §47.6).',
+  },
+  {
+    id: 'request-people-children',
+    group: 'request',
+    label: '12 · Сколько вас: дети и кресло',
+    title: 'Экран 3 «Сколько вас будет?»: дети и детское кресло',
+    description:
+      'Тот же экран, когда в группе есть дети: появляется вопрос о детском кресле и объяснение, кто за него отвечает (IA §2.3). Счётчики связаны — детей не может быть больше, чем пассажиров всего. Отсюда обе величины уходят в резюме последнего экрана.',
+  },
+  {
+    id: 'request-final',
+    group: 'request',
+    label: '13 · Последние детали',
+    title: 'Экран 4 «Последние детали»: обычное начало',
+    description:
+      'Четвёртый смысловой экран: обратная поездка, необязательное примечание, компактное резюме и «Опубликовать». Резюме — несколько строк рядом с кнопкой, а не отдельный экран проверки: заголовков «Проверьте просьбу» и «Что увидят все» здесь нет и не будет. Строки этого экрана — «Проект»: они ждут просмотра.',
+  },
+  {
+    id: 'request-final-filled',
+    group: 'request',
+    label: '14 · Последние детали: заполнено',
+    title: 'Экран 4 «Последние детали»: заполненная форма',
+    description:
+      'Тот же экран, когда форма пройдена целиком: нужна поездка обратно, в примечании написан ориентир «у входа в библиотеку» — именно для него отдельного поля названия места не делается, — а в резюме собраны время, два места, число пассажиров с детьми и потребность в кресле. Тихое «Изменить» возвращает к нужному экрану, ответы сохраняются. Вход и проверка контактов остаются условием публикации и в эту подгруппу не входят: кнопка здесь ничего не публикует.',
   },
 ];
 
@@ -156,10 +235,11 @@ const copy = {
 } as const;
 
 /**
- * Group 2A: the passenger request form. The owner reviewed these screens on 24 August 2026, so the
- * wording of the three semantic screens is approved and the source key marks it `Утверждено`. Keys
- * follow Foundation 4.5 and 4.4.2 so the owner compares the rendered screen with the master text
- * line by line. The last screen, «Последние детали», was not part of that review and is not here.
+ * The passenger request form. The owner reviewed the first three semantic screens on 24 August 2026
+ * and the rest of the form — «Последние детали», the final layout of the place screen and the
+ * corrections made on the assembled form — on 26 August 2026, so every string below is approved.
+ * Keys follow Foundation 4.5 and 4.4.2 so the owner compares the rendered screen with the master
+ * text line by line.
  */
 const requestCopy = {
   title: 'Нужна поездка',
@@ -171,7 +251,7 @@ const requestCopy = {
   whenCustom: 'Указать свои дату и время',
   whenCustomHint:
     'Если нужной службы нет в расписании, укажите дату и время, к которому нужно приехать.',
-  whenArrivalLabel: 'Хочу приехать к',
+  whenArrivalLabel: 'Дата и время',
   whenHorizon: 'Просьбу можно создать не больше чем на 8 недель вперёд.',
 
   placeTitle: 'Где вас забрать?',
@@ -180,14 +260,12 @@ const requestCopy = {
   placePrivacy:
     'Для вашей безопасности всем будет видна только примерная область. Точное место и контакты откроются только после договорённости.',
   placeAdd: 'Добавить место',
-  placeAlternativesHint:
-    'Можно указать до трёх мест. Водитель выберет одно из них — это не остановки по пути.',
   placeOr: 'или',
   placeLimit: 'Больше трёх мест указать нельзя.',
   placeChange: 'Изменить это место',
   placeRemove: 'Убрать это место',
 
-  mapSearch: 'Найти адрес',
+  mapSearch: 'Адрес',
   mapHint: 'Введите адрес или передвиньте маркер на карте.',
   mapConfirm: 'Подтвердить место',
 
@@ -197,7 +275,34 @@ const requestCopy = {
   peopleChildSeat: 'Нужно детское кресло',
   peopleChildSeatHint:
     'По умолчанию кресло обеспечивает взрослый, который едет с ребёнком. Водитель отдельно указывает, есть ли кресло у него.',
+
+  /*
+   * Screen 4, approved by the owner on 26 August 2026: the six keys below already stood in the
+   * master text of Foundation 4.5, the five summary keys are new and are added to the corpus by
+   * this work.
+   */
+  finalTitle: 'Последние детали',
+  finalReturn: 'Нужна поездка обратно',
+  finalNoteLabel: 'Примечание (необязательно)',
+  finalNoteHint:
+    'Короткое уточнение для водителя. Не пишите домашний адрес, телефон, email и ссылки.',
+  finalPublish: 'Опубликовать',
+
+  /*
+   * The compact summary: a few lines next to the button on the same screen, never a review screen
+   * (IA §10.1, decision 1.9 (23)). Its rows are named by the questions the person already answered,
+   * so the quiet «Изменить» leads back to a screen he recognizes. `summaryGroup` and `summaryEdit`
+   * are never seen: they are what assistive technology reads instead of four identical «Изменить».
+   */
+  summaryGroup: 'Кратко о вашей просьбе',
+  summaryWhen: 'Когда',
+  summaryPlace: 'Где вас забрать',
+  summaryPeople: 'Сколько вас',
+  edit: 'Изменить',
 } as const;
+
+/** The accessible name of a summary action: «Изменить» alone repeats four times without it. */
+const summaryEditName = (section: string) => `${requestCopy.edit}: ${section}`;
 
 type PluralForms = { one: string; few: string; many: string };
 
@@ -784,32 +889,7 @@ function EmptyChurchScreen({ textZoom }: { textZoom: boolean }) {
   );
 }
 
-/* ------------------------------------------ group 2A: the four passenger request form screens */
-
-/**
- * The form chrome of every request screen: a quiet way back and the name of what is being created.
- * There is no stepper, no progress bar and no numbered wizard. Neither IA §28.3 nor Design System V2
- * requires one, and this group exists to judge the words, not to introduce a navigation pattern.
- */
-function FormHeader() {
-  return (
-    <header className={styles.formHeader} data-form-header>
-      <button type="button" className={styles.quietButton}>{requestCopy.back}</button>
-      <p className={styles.formContext}>{requestCopy.title}</p>
-    </header>
-  );
-}
-
-/** One primary intent per screen, full width, at the end of the content (DS §5). */
-function FormFooter({ action }: { action: string }) {
-  return (
-    <div className={styles.formFooter}>
-      <button type="button" className={styles.primaryButton}>{action}</button>
-    </div>
-  );
-}
-
-/* --------------------------------------------------------- screen 5: when the passenger arrives */
+/* ------------------------- group 2: one interactive passenger request form (IA §10.1, §29.5) */
 
 /** Content fixture: the same church schedule the group 1 screens use, seen from inside the form. */
 const upcomingServices: ReadonlyArray<{ id: string; title: string; when: string }> = [
@@ -820,224 +900,165 @@ const upcomingServices: ReadonlyArray<{ id: string; title: string; when: string 
 ];
 
 /**
- * One question with two ways to answer it, so a service and an own date live in one radio group
- * (IA §10.1). Choosing the own date reveals the arrival field in place instead of opening a step.
+ * The addresses the deterministic map offers and where they sit inside the drawing. A real geocoder
+ * would return anything; the review needs the same three answers every time, so that the wording and
+ * the layout are what changes between two runs and nothing else.
  */
-function RequestWhenScreen({ textZoom }: { textZoom: boolean }) {
-  const [answer, setAnswer] = useState('liturgy-23');
-  const custom = answer === 'custom';
-
-  return (
-    <PhoneFrame label="Просьба пассажира: когда" textZoom={textZoom}>
-      <FormHeader />
-      <main className={styles.formContent}>
-        <p className={styles.formChurch}>Храм Покрова Пресвятой Богородицы в Catanzaro</p>
-        <h1 className={styles.pageTitle}>{requestCopy.whenTitle}</h1>
-
-        {/*
-          * No visible label above the list: the question in the heading already names what the list
-          * is for, and a second heading over the services would describe only four of the five
-          * options in the group. The legend keeps the question available to assistive technology.
-          */}
-        <fieldset className={styles.choiceGroup} data-when-choice>
-          <legend className={styles.srOnly}>{requestCopy.whenTitle}</legend>
-          {upcomingServices.map((service) => (
-            <label
-              key={service.id}
-              className={styles.choice}
-              data-choice-selected={answer === service.id ? '' : undefined}
-            >
-              <input
-                type="radio"
-                name="request-when"
-                checked={answer === service.id}
-                onChange={() => setAnswer(service.id)}
-              />
-              <span>
-                <strong>{service.title}</strong>
-                <span>{service.when}</span>
-              </span>
-            </label>
-          ))}
-
-          {/*
-            * The own date is the second way to answer the same question, not a separate step. The
-            * quiet «или» separates the two ways without turning either of them into a section.
-            */}
-          <p className={styles.choiceOr} data-when-or>{requestCopy.whenOr}</p>
-          <label className={styles.choice} data-choice-selected={custom ? '' : undefined} data-custom-choice>
-            <input
-              type="radio"
-              name="request-when"
-              checked={custom}
-              onChange={() => setAnswer('custom')}
-            />
-            <span>
-              <strong>{requestCopy.whenCustom}</strong>
-            </span>
-          </label>
-        </fieldset>
-
-        {custom && (
-          <div className={styles.revealed} data-custom-arrival>
-            <label className={styles.textField}>
-              <span>{requestCopy.whenArrivalLabel}</span>
-              <input type="datetime-local" defaultValue="2026-08-23T09:00" />
-            </label>
-            <p className={styles.fieldHint}>{requestCopy.whenCustomHint}</p>
-          </div>
-        )}
-
-        <p className={styles.fieldHint}>{requestCopy.whenHorizon}</p>
-        <FormFooter action={requestCopy.next} />
-      </main>
-    </PhoneFrame>
-  );
-}
-
-/* ------------------------------------------------------ screen 6: picking the place on the map */
-
-/**
- * A deterministic drawing, not a maps provider: the group reviews the words and the layout of the
- * place screen inside Design System V2, and introducing a real map here would review neither.
- */
-function PickMapArtwork() {
-  return (
-    <div className={styles.mapArtwork} role="img" aria-label="Схематичная карта выбора места">
-      <svg viewBox="0 0 390 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-        <path d="M-20 250 Q120 180 210 240 T410 190" className={styles.road} />
-        <path d="M120 -20 Q160 200 120 440" className={styles.roadMinor} />
-        <path d="M290 -20 Q260 210 320 440" className={styles.roadMinor} />
-      </svg>
-      {/*
-        * The pick map has its own label anchors: one grows down from the middle, one grows up from
-        * the bottom edge. Percentage-from-the-top anchors pushed the lower label out of the drawing
-        * once the reader enlarged text to 200 %.
-        */}
-      <span className={`${styles.mapLabel} ${styles.pickLabelOne}`}>Via Milano</span>
-      <span className={`${styles.mapLabel} ${styles.pickLabelTwo}`}>Corso Mazzini</span>
-    </div>
-  );
-}
-
-function RequestMapScreen({ textZoom }: { textZoom: boolean }) {
-  return (
-    <PhoneFrame label="Просьба пассажира: выбор места на карте" textZoom={textZoom}>
-      <div className={styles.pickMapArea}>
-        <PickMapArtwork />
-        <div className={styles.pickControls}>
-          <IconButton label={requestCopy.back} icon="back" />
-          <label className={styles.searchField}>
-            <Icon name="search" />
-            <span className={styles.srOnly}>{requestCopy.mapSearch}</span>
-            <input placeholder={requestCopy.mapSearch} defaultValue="" />
-          </label>
-        </div>
-        <p className={styles.pickHint}>{requestCopy.mapHint}</p>
-        {/* The marker the person drags. The public circle is not drawn here: it is not the choice. */}
-        <span className={styles.pickMarker} aria-hidden="true" />
-      </div>
-
-      {/*
-        * The sheet of the nested map screen. It carries the question of the step it belongs to, the
-        * address the marker resolved to, and the single confirming action. There is no separate
-        * field for naming the place: a landmark like «у входа в библиотеку» belongs in the ordinary
-        * optional note of the last screen, not in a second address-like field (IA §10.1).
-        */}
-      <div className={styles.pickSheet}>
-        <h1 className={styles.sectionTitle}>{requestCopy.placeTitle}</h1>
-        <p className={styles.data} data-picked-address>Выбрано: Via Milano, 8, 88100 Catanzaro CZ</p>
-        {/*
-         * The explanation of what becomes public stands before the person confirms the place, not
-         * before publication: it is useful only while the choice is still open (IA §10.4).
-         */}
-        <p className={styles.privacyNote} data-place-privacy>{requestCopy.placePrivacy}</p>
-        <button type="button" className={styles.primaryButton}>{requestCopy.mapConfirm}</button>
-      </div>
-    </PhoneFrame>
-  );
-}
-
-/* ------------------------------------------------- screen 7: the chosen place and alternatives */
-
-type ChosenPlace = { id: string; address: string };
-
-const firstPlace: ChosenPlace = { id: 'via-milano', address: 'Via Milano, 8, 88100 Catanzaro CZ' };
-
-const sparePlaces: ReadonlyArray<ChosenPlace> = [
-  { id: 'piazza-matteotti', address: 'Piazza Matteotti, 88100 Catanzaro CZ' },
-  { id: 'via-indipendenza', address: 'Via Indipendenza, 21, 88100 Catanzaro CZ' },
+const mapAddresses: ReadonlyArray<{ id: string; address: string; left: number; top: number }> = [
+  /*
+   * The pins live in the lower half of the drawing on purpose: the guidance card floats over the
+   * upper part and grows downwards as the reader enlarges text. Above 44 % a marker disappears
+   * behind that card at 200 %.
+   */
+  { id: 'via-milano', address: 'Via Milano, 8, 88100 Catanzaro CZ', left: 50, top: 58 },
+  { id: 'piazza-matteotti', address: 'Piazza Matteotti, 88100 Catanzaro CZ', left: 22, top: 76 },
+  { id: 'via-indipendenza', address: 'Via Indipendenza, 21, 88100 Catanzaro CZ', left: 78, top: 68 },
 ];
 
 const maxPlaces = 3;
 
+type ChosenPlace = { id: string; address: string };
+type RequestStep = 'when' | 'place' | 'people' | 'final';
+
+/** The four semantic screens in the order a person meets them. The map is not among them. */
+const stepOrder: ReadonlyArray<RequestStep> = ['when', 'place', 'people', 'final'];
+
 /**
- * The passenger's own form state, so the exact address is visible to its author. Nothing here is a
- * public representation: the public side of the same place is the approximate area (IA §6.1).
- *
- * Places are alternatives, never stops. Three things say so at once: the label of every additional
- * place, the word «или» between the cards, and the hint under «Добавить место». The list is a plain
- * container instead of an ordered list, so no numbering suggests a route.
+ * Everything the form knows. One object, held in memory by the form itself: moving between screens
+ * never rebuilds it, so an answer given on the first screen is still there on the fourth and still
+ * there after going back to change it. There is no storage, no draft on a server and no account
+ * behind this — the review needs the behaviour, not the plumbing.
  */
-function RequestPlaceScreen({ textZoom }: { textZoom: boolean }) {
-  const [places, setPlaces] = useState<ReadonlyArray<ChosenPlace>>([firstPlace]);
-  const full = places.length >= maxPlaces;
+type RequestState = {
+  step: RequestStep;
+  /**
+   * The map belongs to the place screen and is always on it, so there is nothing to open or close.
+   * `marker` is the address the marker stands on; `editing` names the saved place that marker is
+   * about to replace, or `null` when it is about to become a new one.
+   */
+  marker: string;
+  editing: string | null;
+  /** A service id, or `custom` when the person answers with an own date and time. */
+  when: string;
+  arrival: string;
+  places: ReadonlyArray<ChosenPlace>;
+  total: number;
+  childrenCount: number;
+  childSeat: boolean;
+  returnRide: boolean;
+  note: string;
+};
 
-  function addPlace() {
-    const next = sparePlaces.find((candidate) => !places.some((place) => place.id === candidate.id));
-    if (next) setPlaces([...places, next]);
-  }
+const blankRequest: RequestState = {
+  step: 'when',
+  marker: 'via-milano',
+  editing: null,
+  when: 'liturgy-23',
+  arrival: '2026-08-23T09:00',
+  places: [],
+  total: 1,
+  childrenCount: 0,
+  childSeat: false,
+  returnRide: false,
+  note: '',
+};
 
+const placeAt = (index: number): ChosenPlace => ({
+  id: mapAddresses[index].id,
+  address: mapAddresses[index].address,
+});
+
+/**
+ * Every review state is the same form with different answers already given — an entry point, not a
+ * step of its own. Ten static mock-ups would drift apart from each other by the second correction.
+ */
+const requestSeeds: Partial<Record<SampleId, Partial<RequestState>>> = {
+  'request-when': { step: 'when', when: 'liturgy-23' },
+  'request-when-custom': { step: 'when', when: 'custom' },
+  'request-place-empty': { step: 'place', places: [], marker: 'via-milano' },
+  /*
+   * The map is not a screen of its own any more, so this anchor is a state of the place screen:
+   * the person pressed «Изменить это место» and the marker now stands on the saved place, waiting
+   * to be confirmed. It is the only state in which the confirming action is visible.
+   */
+  'request-map': { step: 'place', places: [placeAt(0)], marker: 'piazza-matteotti', editing: 'via-milano' },
+  'request-place': { step: 'place', places: [placeAt(0)], marker: 'piazza-matteotti' },
+  'request-place-three': {
+    step: 'place',
+    places: [placeAt(0), placeAt(1), placeAt(2)],
+    marker: 'via-milano',
+  },
+  'request-people': { step: 'people', places: [placeAt(0)], total: 2, childrenCount: 0 },
+  'request-people-children': {
+    step: 'people',
+    places: [placeAt(0)],
+    total: 3,
+    childrenCount: 1,
+    childSeat: true,
+  },
+  'request-final': { step: 'final', places: [placeAt(0)], total: 1 },
+  'request-final-filled': {
+    step: 'final',
+    places: [placeAt(0), placeAt(1)],
+    total: 3,
+    childrenCount: 1,
+    childSeat: true,
+    returnRide: true,
+    note: 'у входа в библиотеку',
+  },
+};
+
+const monthsGenitive = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+];
+const weekdays = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+
+/**
+ * `2026-08-23T09:00` → «воскресенье, 23 августа, 9:00», the same shape the schedule uses, so the
+ * summary reads the same whichever of the two ways the person answered the first question.
+ */
+function formatArrival(value: string) {
+  const [date, time = '00:00'] = value.split('T');
+  const [year, month, day] = date.split('-').map(Number);
+  if (!year || !month || !day) return value;
+  const weekday = weekdays[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  return `${weekday}, ${day} ${monthsGenitive[month - 1]}, ${time.replace(/^0/, '')}`;
+}
+
+function whenSummary(state: RequestState) {
+  if (state.when === 'custom') return formatArrival(state.arrival);
+  const service = upcomingServices.find((item) => item.id === state.when);
+  return service ? `${service.title} · ${service.when}` : formatArrival(state.arrival);
+}
+
+function peopleSummary(state: RequestState) {
+  const passengers = pluralRu(state.total, passengersPlural);
+  return state.childrenCount > 0 ? `${passengers}, ${childrenOfThem(state.childrenCount)}` : passengers;
+}
+
+/**
+ * The form chrome of every request screen: a quiet way back and the name of what is being created.
+ * There is no stepper, no progress bar and no numbered wizard. Neither IA §28.3 nor Design System V2
+ * requires one, and this group exists to judge the words, not to introduce a navigation pattern.
+ */
+function FormHeader({ onBack }: { onBack: () => void }) {
   return (
-    <PhoneFrame label="Просьба пассажира: выбранные места встречи" textZoom={textZoom}>
-      <FormHeader />
-      <main className={styles.formContent}>
-        <h1 className={styles.pageTitle}>{requestCopy.placeTitle}</h1>
-        <p className={styles.privacyNote} data-place-privacy>{requestCopy.placePrivacy}</p>
-
-        <div className={styles.placeList} data-place-list>
-          {places.map((place, index) => (
-            <div key={place.id}>
-              {index > 0 && <p className={styles.placeOr} data-place-or>{requestCopy.placeOr}</p>}
-              <article className={`${styles.card} ${styles.placeCard}`} data-place-card>
-                <p className={styles.micro}>
-                  {index === 0 ? requestCopy.placePrimary : requestCopy.placeAlternative}
-                </p>
-                <p className={styles.data}>{place.address}</p>
-                <div className={styles.placeActions}>
-                  <button type="button" className={styles.quietButton}>{requestCopy.placeChange}</button>
-                  {index > 0 && (
-                    <button
-                      type="button"
-                      className={styles.quietButton}
-                      onClick={() => setPlaces(places.filter((item) => item.id !== place.id))}
-                    >
-                      {requestCopy.placeRemove}
-                    </button>
-                  )}
-                </div>
-              </article>
-            </div>
-          ))}
-        </div>
-
-        {/* The button never sits disabled without a reason next to it (IA §28.3). */}
-        {full ? (
-          <p className={styles.fieldHint} data-place-limit>{requestCopy.placeLimit}</p>
-        ) : (
-          <button type="button" className={styles.secondaryButton} onClick={addPlace} data-place-add>
-            {requestCopy.placeAdd}
-          </button>
-        )}
-        <p className={styles.fieldHint}>{requestCopy.placeAlternativesHint}</p>
-
-        <FormFooter action={requestCopy.next} />
-      </main>
-    </PhoneFrame>
+    <header className={styles.formHeader} data-form-header>
+      <button type="button" className={styles.quietButton} onClick={onBack}>{requestCopy.back}</button>
+      <p className={styles.formContext}>{requestCopy.title}</p>
+    </header>
   );
 }
 
-/* ---------------------------------------------------------- screen 8: who is travelling */
+/** One primary intent per screen, full width, at the end of the content (DS §5). */
+function FormFooter({ action, onAction }: { action: string; onAction: () => void }) {
+  return (
+    <div className={styles.formFooter}>
+      <button type="button" className={styles.primaryButton} onClick={onAction}>{action}</button>
+    </div>
+  );
+}
 
 /**
  * The value is an `output`, not a read-only input: a field a person cannot type into should not be
@@ -1080,54 +1101,638 @@ function Stepper({ label, value, min, max, onChange }: {
 }
 
 /**
- * One question, three fields. Splitting them into separate screens would follow the letter of «one
- * step — one question» and break its meaning: a person answers «сколько нас» once (IA §28.3).
- *
- * The child seat appears only when the group has children, because that is when the answer exists
- * (IA §47.6). Responsibility for the seat stays with the accompanying adult (IA §2.3).
+ * A deterministic drawing, not a maps provider: the group reviews the words and the layout of the
+ * place screen inside Design System V2, and introducing a real map here would review neither.
  */
-function RequestPeopleScreen({ textZoom }: { textZoom: boolean }) {
-  const [total, setTotal] = useState(2);
-  const [childrenCount, setChildrenCount] = useState(1);
-  const [childSeat, setChildSeat] = useState(true);
+function PickMapArtwork() {
+  return (
+    <div className={styles.mapArtwork} role="img" aria-label="Схематичная карта выбора места">
+      <svg viewBox="0 0 390 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <path d="M-20 250 Q120 180 210 240 T410 190" className={styles.road} />
+        <path d="M120 -20 Q160 200 120 440" className={styles.roadMinor} />
+        <path d="M290 -20 Q260 210 320 440" className={styles.roadMinor} />
+      </svg>
+      {/*
+        * The pick map has its own label anchors: one grows down from the middle, one grows up from
+        * the bottom edge. Percentage-from-the-top anchors pushed the lower label out of the drawing
+        * once the reader enlarged text to 200 %.
+        */}
+      <span className={`${styles.mapLabel} ${styles.pickLabelOne}`}>Via Milano</span>
+      <span className={`${styles.mapLabel} ${styles.pickLabelTwo}`}>Corso Mazzini</span>
+    </div>
+  );
+}
 
-  function changeTotal(next: number) {
-    setTotal(next);
-    if (childrenCount > next) setChildrenCount(next);
+/* ------------------------------------------------------------------------- the form itself */
+
+/**
+ * One component for the whole request. The review states differ only in the answers it starts with.
+ *
+ * Navigation is plainly linear, because the form is: «Далее» goes to the next of the four questions,
+ * «Назад» to the previous one, and the quiet «Изменить» of the summary jumps straight to the screen
+ * that owns the answer. Nothing is thrown away on the way: the state object outlives every move.
+ */
+function PassengerRequestForm({ seed, textZoom }: { seed: Partial<RequestState>; textZoom: boolean }) {
+  const [form, setForm] = useState<RequestState>({ ...blankRequest, ...seed });
+  const change = (patch: Partial<RequestState>) => setForm((current) => ({ ...current, ...patch }));
+
+  const index = stepOrder.indexOf(form.step);
+  const goTo = (step: RequestStep) => change({ step, editing: null });
+  const back = () => index > 0 && goTo(stepOrder[index - 1]);
+  const next = () => index < stepOrder.length - 1 && goTo(stepOrder[index + 1]);
+
+  /* ------------------------------------------------------------------ screen 1: when */
+
+  function whenScreen() {
+    const custom = form.when === 'custom';
+
+    return (
+      <>
+        <p className={styles.formChurch}>Храм Покрова Пресвятой Богородицы в Catanzaro</p>
+        <h1 className={styles.pageTitle}>{requestCopy.whenTitle}</h1>
+
+        {/*
+          * No visible label above the list: the question in the heading already names what the list
+          * is for, and a second heading over the services would describe only four of the five
+          * options in the group. The legend keeps the question available to assistive technology.
+          */}
+        <fieldset className={styles.choiceGroup} data-when-choice>
+          <legend className={styles.srOnly}>{requestCopy.whenTitle}</legend>
+          {upcomingServices.map((service) => (
+            <label
+              key={service.id}
+              className={styles.choice}
+              data-choice-selected={form.when === service.id ? '' : undefined}
+            >
+              <input
+                type="radio"
+                name="request-when"
+                checked={form.when === service.id}
+                onChange={() => change({ when: service.id })}
+              />
+              <span>
+                <strong>{service.title}</strong>
+                <span>{service.when}</span>
+              </span>
+            </label>
+          ))}
+
+          {/*
+            * The own date is the second way to answer the same question, not a separate step. The
+            * quiet «или» separates the two ways without turning either of them into a section.
+            */}
+          <p className={styles.choiceOr} data-when-or>{requestCopy.whenOr}</p>
+          <label className={styles.choice} data-choice-selected={custom ? '' : undefined} data-custom-choice>
+            <input
+              type="radio"
+              name="request-when"
+              checked={custom}
+              onChange={() => change({ when: 'custom' })}
+            />
+            <span>
+              <strong>{requestCopy.whenCustom}</strong>
+            </span>
+          </label>
+        </fieldset>
+
+        {custom && (
+          <div className={styles.revealed} data-custom-arrival>
+            <label className={styles.textField}>
+              <span>{requestCopy.whenArrivalLabel}</span>
+              <input
+                type="datetime-local"
+                value={form.arrival}
+                onChange={(event) => change({ arrival: event.target.value })}
+              />
+            </label>
+          </div>
+        )}
+
+        {/*
+         * One hint at a time, and it answers the question the person actually has. Before the own
+         * date is chosen that question is «а если моей службы тут нет»; once the date field is open
+         * it is «как далеко вперёд можно загадывать». Showing both at once made the horizon look
+         * like a rule about the list of services.
+         */}
+        <p className={styles.fieldHint} data-when-hint>
+          {custom ? requestCopy.whenHorizon : requestCopy.whenCustomHint}
+        </p>
+        <FormFooter action={requestCopy.next} onAction={next} />
+      </>
+    );
   }
 
-  return (
-    <PhoneFrame label="Просьба пассажира: сколько вас будет" textZoom={textZoom}>
-      <FormHeader />
-      <main className={styles.formContent}>
+  /* ------------------------------------------------ screen 2: where to pick up, map included */
+
+  const markerAt = () => mapAddresses.find((item) => item.id === form.marker) ?? mapAddresses[0];
+
+  const firstFree = (places: ReadonlyArray<ChosenPlace>) =>
+    mapAddresses.find((candidate) => !places.some((place) => place.id === candidate.id));
+
+  /**
+   * Saving the marked point. Adding a place and changing one are the same movement — a point on the
+   * map becomes one of the meeting places — so they share one implementation. Only the label of the
+   * action differs, because «добавить» and «изменить» are two different intents of the person.
+   *
+   * Afterwards the marker moves to a place that is still free, so the map is ready for the next
+   * alternative instead of standing on an address the list already holds.
+   */
+  function savePlace() {
+    const marker = markerAt();
+    const picked: ChosenPlace = { id: marker.id, address: marker.address };
+    const kept = form.places.filter((place) => place.id !== picked.id && place.id !== form.editing);
+    const at = form.editing
+      ? form.places.findIndex((place) => place.id === form.editing)
+      : kept.length;
+    const places = [...kept];
+    places.splice(Math.min(Math.max(at, 0), places.length), 0, picked);
+    const saved = places.slice(0, maxPlaces);
+    change({ places: saved, editing: null, marker: (firstFree(saved) ?? marker).id });
+  }
+
+  /** Typing an address moves the marker, exactly as the hint under the map promises. */
+  function searchAddress(query: string) {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return;
+    const found = mapAddresses.find((item) => item.address.toLowerCase().includes(normalized));
+    if (found) change({ marker: found.id });
+  }
+
+  /**
+   * One semantic screen, with the map always on it. There is no empty state that becomes a map that
+   * becomes a list: the person sees the map, the marked address, the places already saved and the
+   * way to add another, all at once (owner decision of 26 August 2026).
+   *
+   * Places stay alternatives, never stops: the label of every additional place and the word «или»
+   * between the cards say so, and the container is not an ordered list, so nothing numbers them.
+   */
+  function placeScreen() {
+    const chosen = form.places.length > 0;
+    const full = form.places.length >= maxPlaces;
+    const marker = markerAt();
+    /* Changing a saved place adds nothing, so the limit never blocks it. */
+    const canSave = Boolean(form.editing) || !full;
+
+    return (
+      <>
+        {/* The map takes the whole upper part: it is a map screen, not a field on a form screen. */}
+        <div className={styles.pickMapArea}>
+          <PickMapArtwork />
+          <div className={styles.pickControls}>
+            {/*
+             * The quiet way back to the previous question. It sits over the map beside the search
+             * instead of in a header bar, so the map keeps the full height of the screen.
+             */}
+            <button
+              type="button"
+              className={styles.iconButton}
+              aria-label={requestCopy.back}
+              onClick={back}
+            >
+              <Icon name="back" />
+            </button>
+            <label className={styles.searchField}>
+              <Icon name="search" />
+              <span className={styles.srOnly}>{requestCopy.mapSearch}</span>
+              <input
+                placeholder={requestCopy.mapSearch}
+                defaultValue=""
+                onChange={(event) => searchAddress(event.target.value)}
+              />
+            </label>
+          </div>
+          <p className={styles.pickHint}>{requestCopy.mapHint}</p>
+
+          {/*
+           * The place the marker stands on and the others it can be moved to. The public circle is
+           * not drawn: it is not what is being chosen (DS §8.2). The pin is small, the target
+           * around it is a full 44 px.
+           */}
+          <div className={styles.pickPoints} role="group" aria-label={requestCopy.mapHint}>
+            {mapAddresses.map((point) => (
+              <button
+                key={point.id}
+                type="button"
+                className={styles.pickPoint}
+                style={{ left: `${point.left}%`, top: `${point.top}%` }}
+                aria-label={point.address}
+                aria-pressed={point.id === marker.id}
+                onClick={() => change({ marker: point.id })}
+              >
+                <span
+                  className={point.id === marker.id ? styles.pickMarker : styles.pickSpare}
+                  aria-hidden="true"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/*
+         * The working sheet rides over the lower edge of the map: the question, the address the
+         * marker stands on, the rule about what becomes public, the saved places and the actions.
+         */}
+        <div className={styles.pickSheet} data-request-step="place">
+          <h1 className={styles.pageTitle}>{requestCopy.placeTitle}</h1>
+          <p className={styles.data} data-picked-address>Выбрано: {marker.address}</p>
+          {/*
+           * The explanation of what becomes public is said once on the screen, before the action it
+           * is about — never twice, and never as a step before publication (IA §10.4).
+           */}
+          <p className={styles.privacyNote} data-place-privacy>{requestCopy.placePrivacy}</p>
+
+        {chosen && (
+          <div className={styles.placeList} data-place-list>
+            {form.places.map((place, order) => (
+              <div key={place.id}>
+                {order > 0 && <p className={styles.placeOr} data-place-or>{requestCopy.placeOr}</p>}
+                <article
+                  className={`${styles.card} ${styles.placeCard}`}
+                  data-place-card
+                  data-place-editing={form.editing === place.id ? '' : undefined}
+                >
+                  <p className={styles.micro}>
+                    {order === 0 ? requestCopy.placePrimary : requestCopy.placeAlternative}
+                  </p>
+                  <p className={styles.data}>{place.address}</p>
+                  <div className={styles.placeActions}>
+                    <button
+                      type="button"
+                      className={styles.quietButton}
+                      onClick={() => change({ editing: place.id, marker: place.id })}
+                    >
+                      {requestCopy.placeChange}
+                    </button>
+                    {order > 0 && (
+                      <button
+                        type="button"
+                        className={styles.quietButton}
+                        onClick={() => {
+                          const left = form.places.filter((item) => item.id !== place.id);
+                          change({
+                            places: left,
+                            editing: form.editing === place.id ? null : form.editing,
+                            marker: (firstFree(left) ?? marker).id,
+                          });
+                        }}
+                      >
+                        {requestCopy.placeRemove}
+                      </button>
+                    )}
+                  </div>
+
+                  {/*
+                   * Adding an alternative belongs to the place it is an alternative to, so it sits
+                   * in the main card under «Изменить это место» — small and secondary, because it
+                   * is the rarer intent. The one large primary of the screen stays «Далее» below.
+                   * The reason for the limit replaces it in the same spot (IA §28.3).
+                   */}
+                  {order === 0 && !form.editing && (
+                    canSave ? (
+                      <button
+                        type="button"
+                        className={styles.cardAddPlace}
+                        onClick={savePlace}
+                        data-place-add
+                      >
+                        {requestCopy.placeAdd}
+                      </button>
+                    ) : (
+                      <p className={styles.fieldHint} data-place-limit>{requestCopy.placeLimit}</p>
+                    )
+                  )}
+                </article>
+              </div>
+            ))}
+          </div>
+        )}
+
+          {/*
+           * Before the first place there is one intent: mark a point and keep it. After it there are
+           * two — move on, which is the ordinary one and stays primary, and add another alternative,
+           * which is rarer and stays a smaller secondary. Neither of them leaves this screen: adding
+           * saves the marked point right here and moves the marker on to a still-free address.
+           *
+           * While a saved place is being changed the single intent is confirming that change, so the
+           * pair collapses back to one action. At three places the reason replaces the action rather
+           * than leaving it disabled (IA §28.3).
+           */}
+          <div className={styles.sheetActions}>
+            {form.editing ? (
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={savePlace}
+                data-place-add
+              >
+                {requestCopy.mapConfirm}
+              </button>
+            ) : chosen ? (
+              /* The only large action of the screen. Adding an alternative lives in the card. */
+              <button type="button" className={styles.primaryButton} onClick={next}>
+                {requestCopy.next}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={savePlace}
+                data-place-add
+              >
+                {requestCopy.mapConfirm}
+              </button>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  /* --------------------------------------------------------------- screen 3: who is travelling */
+
+  /**
+   * One question, three fields. Splitting them into separate screens would follow the letter of «one
+   * step — one question» and break its meaning: a person answers «сколько нас» once (IA §28.3).
+   *
+   * The child seat appears only when the group has children, because that is when the answer exists
+   * (IA §47.6). Responsibility for the seat stays with the accompanying adult (IA §2.3).
+   */
+  function peopleScreen() {
+    return (
+      <>
         <h1 className={styles.pageTitle}>{requestCopy.peopleTitle}</h1>
 
-        <Stepper label={requestCopy.peopleTotal} value={total} min={1} max={8} onChange={changeTotal} />
+        <Stepper
+          label={requestCopy.peopleTotal}
+          value={form.total}
+          min={1}
+          max={8}
+          onChange={(total) => change({ total, childrenCount: Math.min(form.childrenCount, total) })}
+        />
         <Stepper
           label={requestCopy.peopleChildren}
-          value={childrenCount}
+          value={form.childrenCount}
           min={0}
-          max={total}
-          onChange={setChildrenCount}
+          max={form.total}
+          onChange={(childrenCount) => change({ childrenCount })}
         />
 
-        {childrenCount > 0 && (
+        {form.childrenCount > 0 && (
           <div className={styles.revealed} data-child-seat>
             <label className={styles.checkboxField}>
-              <input type="checkbox" checked={childSeat} onChange={() => setChildSeat(!childSeat)} />
+              <input
+                type="checkbox"
+                checked={form.childSeat}
+                onChange={() => change({ childSeat: !form.childSeat })}
+              />
               <span>{requestCopy.peopleChildSeat}</span>
             </label>
             <p className={styles.fieldHint}>{requestCopy.peopleChildSeatHint}</p>
           </div>
         )}
 
-        <FormFooter action={requestCopy.next} />
+        <FormFooter action={requestCopy.next} onAction={next} />
+      </>
+    );
+  }
+
+  /* -------------------------------------------------------------- screen 4: the final details */
+
+  function summaryRow(section: string, target: RequestStep, body: React.ReactNode) {
+    return (
+      <div className={styles.summaryRow} data-summary-row data-summary-section={section}>
+        <div>
+          <p className={styles.summaryLabel}>{section}</p>
+          {body}
+        </div>
+        <button
+          type="button"
+          className={styles.quietButton}
+          aria-label={summaryEditName(section)}
+          onClick={() => goTo(target)}
+        >
+          {requestCopy.edit}
+        </button>
+      </div>
+    );
+  }
+
+  /**
+   * Return ride, an optional note, a compact summary, «Опубликовать» — in the order IA §10.1 lists
+   * them. The summary is a few lines beside the button on the same screen, not a review screen: no
+   * heading announces a check, and no «Что увидят все» block comes back under a new name
+   * (decisions 1.9 (15) and 1.9 (23)).
+   *
+   * «Опубликовать» is the intent to publish. Signing in and verifying contacts remain the condition
+   * of publication and belong to their own group, so nothing here pretends to publish anything.
+   */
+  function finalScreen() {
+    return (
+      <>
+        <h1 className={styles.pageTitle}>{requestCopy.finalTitle}</h1>
+
+        <div className={styles.revealed} data-return-ride>
+          <label className={styles.checkboxField}>
+            <input
+              type="checkbox"
+              checked={form.returnRide}
+              onChange={() => change({ returnRide: !form.returnRide })}
+            />
+            <span>{requestCopy.finalReturn}</span>
+          </label>
+        </div>
+
+        {/*
+         * The ordinary optional note is also where a landmark goes — «у входа в библиотеку». No
+         * second address-like field is created for it (decision 1.9 (20)). Its own short warning
+         * about what not to write stands under the field (IA §6.4).
+         */}
+        <label className={styles.noteField} data-note-field>
+          <span>{requestCopy.finalNoteLabel}</span>
+          <textarea
+            rows={3}
+            maxLength={200}
+            value={form.note}
+            onChange={(event) => change({ note: event.target.value })}
+          />
+        </label>
+        <p className={styles.fieldHint}>{requestCopy.finalNoteHint}</p>
+
+        <section
+          className={styles.summary}
+          data-request-summary
+          role="group"
+          aria-label={requestCopy.summaryGroup}
+        >
+          {summaryRow(requestCopy.summaryWhen, 'when', (
+            <p className={styles.summaryValue}>{whenSummary(form)}</p>
+          ))}
+          {summaryRow(requestCopy.summaryPlace, 'place', (
+            form.places.length > 0 ? (
+              <div>
+                {form.places.map((place, order) => (
+                  <p className={styles.summaryValue} key={place.id}>
+                    {order > 0 && <span className={styles.summaryOr}>{requestCopy.placeOr} </span>}
+                    {place.address}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className={styles.summaryValue}>—</p>
+            )
+          ))}
+          {summaryRow(requestCopy.summaryPeople, 'people', (
+            <>
+              <p className={styles.summaryValue}>{peopleSummary(form)}</p>
+              {/* The seat is a fact of the request only while the group has children (IA §47.6). */}
+              {form.childrenCount > 0 && form.childSeat && (
+                <p className={styles.summaryValue} data-summary-child-seat>
+                  {requestCopy.peopleChildSeat}
+                </p>
+              )}
+            </>
+          ))}
+        </section>
+
+        <FormFooter action={requestCopy.finalPublish} onAction={() => undefined} />
+      </>
+    );
+  }
+
+  /* ------------------------------------------------------------------------------- assembly */
+
+  const frameLabel: Record<RequestStep, string> = {
+    when: 'Просьба пассажира: когда',
+    place: 'Просьба пассажира: где вас забрать',
+    people: 'Просьба пассажира: сколько вас будет',
+    final: 'Просьба пассажира: последние детали',
+  };
+
+  /*
+   * «Где вас забрать?» is a map screen: the map runs to the top edge and the sheet rides over its
+   * lower part, so it carries its own quiet way back over the map instead of the header bar. It is
+   * still one screen of the same form — the back leads to the previous question, as everywhere.
+   */
+  if (form.step === 'place') {
+    return (
+      <PhoneFrame label={frameLabel.place} textZoom={textZoom}>
+        {placeScreen()}
+      </PhoneFrame>
+    );
+  }
+
+  return (
+    <PhoneFrame label={frameLabel[form.step]} textZoom={textZoom}>
+      <FormHeader onBack={back} />
+      <main className={styles.formContent} data-request-step={form.step}>
+        {form.step === 'when' && whenScreen()}
+        {form.step === 'people' && peopleScreen()}
+        {form.step === 'final' && finalScreen()}
       </main>
     </PhoneFrame>
   );
 }
 
 /* ------------------------------------------------------------------ review-only source key */
+
+/*
+ * The request states share one form, so they share the rows of the screen they open on. Repeating
+ * the same eleven rows in ten places would let two copies of one string drift apart.
+ */
+
+const whenRows: ReadonlyArray<StringSource> = [
+  { text: requestCopy.title, mark: 'Утверждено', note: 'копия 4.5; название того, что создаётся' },
+  { text: requestCopy.back, mark: 'Утверждено', note: 'DS §5, тихое действие' },
+  { text: requestCopy.whenTitle, mark: 'Утверждено', note: 'копия 4.5; один вопрос экрана' },
+  { text: requestCopy.whenOr, mark: 'Утверждено', note: 'тихий разделитель двух способов ответить' },
+  { text: requestCopy.whenCustom, mark: 'Утверждено', note: 'IA §10.1; второй способ ответить на тот же вопрос' },
+  { text: requestCopy.whenArrivalLabel, mark: 'Утверждено', note: 'заменяет «Хочу приехать к», решение владельца 26.08.2026' },
+  { text: requestCopy.whenCustomHint, mark: 'Утверждено', note: 'PS §7.2; теперь стоит до выбора своей даты' },
+  { text: requestCopy.whenHorizon, mark: 'Утверждено', note: 'IA §10.3; теперь стоит после выбора своей даты, вместо подсказки выше' },
+  { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5, одно главное действие' },
+];
+
+/*
+ * The map is part of this screen now, so the map strings are rows of it and there is no separate
+ * map key. What is on the screen depends only on how many places are already saved.
+ */
+const placeMapRows: ReadonlyArray<StringSource> = [
+  { text: requestCopy.placeTitle, mark: 'Утверждено', note: 'PS §8.1; один вопрос, один экран' },
+  { text: requestCopy.placePrivacy, mark: 'Утверждено', note: 'IA §10.4; сказано один раз на экране' },
+  { text: requestCopy.mapSearch, mark: 'Утверждено', note: 'заменяет «Найти адрес», решение владельца 26.08.2026' },
+  { text: 'Выбрано: {адрес}', mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.selected`' },
+  { text: requestCopy.mapHint, mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.hint`' },
+  { text: requestCopy.placeAdd, mark: 'Утверждено', note: 'решение 1.7 (6); сохраняет отмеченную точку' },
+];
+
+const placeEmptyRows: ReadonlyArray<StringSource> = placeMapRows;
+
+const mapRows: ReadonlyArray<StringSource> = [
+  ...placeMapRows.slice(0, 5),
+  { text: requestCopy.mapConfirm, mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.confirm`; при изменении сохранённого места вместо «Добавить место»' },
+  { text: requestCopy.placePrimary, mark: 'Утверждено', note: 'копия 4.5' },
+  { text: requestCopy.placeChange, mark: 'Утверждено', note: 'копия 4.5; переводит место на карту, никуда не уводя' },
+];
+
+const placeRows: ReadonlyArray<StringSource> = [
+  ...placeMapRows,
+  { text: requestCopy.placePrimary, mark: 'Утверждено', note: 'копия 4.5' },
+  { text: requestCopy.placeAlternative, mark: 'Утверждено', note: 'подпись второго и третьего места' },
+  { text: requestCopy.placeOr, mark: 'Утверждено', note: 'разделитель между карточками мест' },
+  { text: requestCopy.placeChange, mark: 'Утверждено', note: 'копия 4.5; переводит место на карту, никуда не уводя' },
+  { text: requestCopy.placeRemove, mark: 'Утверждено', note: 'копия 4.5; у основного места не показывается' },
+  { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5' },
+];
+
+/*
+ * At three places the reason replaces the action, and it is the only thing said about the limit:
+ * the longer «Можно указать до трёх мест…» is removed and not replaced (owner decision 26.08.2026).
+ */
+const placeFullRows: ReadonlyArray<StringSource> = [
+  ...placeMapRows.slice(0, 5),
+  { text: requestCopy.placeLimit, mark: 'Утверждено', note: 'причина вместо неактивной кнопки, IA §28.3; единственное объяснение предела' },
+  { text: requestCopy.placePrimary, mark: 'Утверждено', note: 'копия 4.5' },
+  { text: requestCopy.placeAlternative, mark: 'Утверждено', note: 'подпись второго и третьего места' },
+  { text: requestCopy.placeOr, mark: 'Утверждено', note: 'разделитель между карточками мест' },
+  { text: requestCopy.placeChange, mark: 'Утверждено', note: 'копия 4.5' },
+  { text: requestCopy.placeRemove, mark: 'Утверждено', note: 'копия 4.5' },
+  { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5' },
+];
+
+const peopleRows: ReadonlyArray<StringSource> = [
+  { text: requestCopy.peopleTitle, mark: 'Утверждено', note: 'копия 4.5; один вопрос, три поля' },
+  { text: requestCopy.peopleTotal, mark: 'Утверждено', note: 'IA §47.6' },
+  { text: requestCopy.peopleChildren, mark: 'Утверждено', note: 'IA §47.6' },
+  { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5' },
+];
+
+const peopleChildrenRows: ReadonlyArray<StringSource> = [
+  ...peopleRows.slice(0, 3),
+  { text: requestCopy.peopleChildSeat, mark: 'Утверждено', note: 'IA §2.3; появляется, когда есть дети' },
+  { text: requestCopy.peopleChildSeatHint, mark: 'Утверждено', note: 'IA §2.3, дословно' },
+  { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5' },
+];
+
+/*
+ * Screen 4, the subject of group 2B. The first six rows already stand in the master text of
+ * Foundation 4.5; the five rows of the compact summary are new and are added to the corpus by this
+ * work. The owner approved all of them on 26 August 2026.
+ */
+const finalRows: ReadonlyArray<StringSource> = [
+  { text: requestCopy.finalTitle, mark: 'Утверждено', note: 'копия 4.5, `request.step.final.title`' },
+  { text: requestCopy.finalReturn, mark: 'Утверждено', note: 'копия 4.5, `request.step.return`; IA §11.5' },
+  { text: requestCopy.finalNoteLabel, mark: 'Утверждено', note: 'копия 4.5, `request.step.note.label`; IA §10.1' },
+  { text: requestCopy.finalNoteHint, mark: 'Утверждено', note: 'копия 4.5, `request.step.note.hint`; IA §6.4' },
+  { text: requestCopy.summaryWhen, mark: 'Утверждено', note: 'новое: подпись строки резюме, отвечает вопросу экрана 1' },
+  { text: requestCopy.summaryPlace, mark: 'Утверждено', note: 'новое: подпись строки резюме, отвечает вопросу экрана 2' },
+  { text: requestCopy.summaryPeople, mark: 'Утверждено', note: 'новое: подпись строки резюме, отвечает вопросу экрана 3' },
+  { text: requestCopy.edit, mark: 'Утверждено', note: 'копия 4.5, `request.edit`; DS §5, тихое действие' },
+  { text: summaryEditName(requestCopy.summaryWhen), mark: 'Утверждено', note: 'новое: имя действия для вспомогательных технологий, на экране не видно' },
+  { text: requestCopy.summaryGroup, mark: 'Утверждено', note: 'новое: имя блока резюме для вспомогательных технологий, на экране не видно' },
+  { text: requestCopy.placeOr, mark: 'Утверждено', note: 'в резюме мест — та же строка, что на экране 2' },
+  { text: requestCopy.peopleChildSeat, mark: 'Утверждено', note: 'в резюме — та же строка, что на экране 3' },
+  { text: requestCopy.finalPublish, mark: 'Утверждено', note: 'копия 4.5, `request.publish`; IA §19.2; вход и проверка контактов — отдельная подгруппа' },
+];
 
 const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   catalog: [
@@ -1200,49 +1805,21 @@ const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   ],
 
   /*
-   * Group 2A, approved by the owner on 24 August 2026. The note next to a row still names where the
-   * wording came from; the mark records that the owner accepted it on the assembled screen.
+   * The passenger request form: the first three screens approved on 24 August 2026 (group 2A), the
+   * fourth screen and the corrections to the first three on 26 August 2026 (group 2B). The note
+   * next to a row still names where the wording came from; the mark records that the owner accepted
+   * it on the assembled screen.
    */
-  'request-when': [
-    { text: requestCopy.title, mark: 'Утверждено', note: 'копия 4.5; название того, что создаётся' },
-    { text: requestCopy.back, mark: 'Утверждено', note: 'DS §5, тихое действие' },
-    { text: requestCopy.whenTitle, mark: 'Утверждено', note: 'копия 4.5; один вопрос экрана' },
-    { text: requestCopy.whenOr, mark: 'Утверждено', note: 'тихий разделитель двух способов ответить' },
-    { text: requestCopy.whenCustom, mark: 'Утверждено', note: 'IA §10.1; второй способ ответить на тот же вопрос' },
-    { text: requestCopy.whenArrivalLabel, mark: 'Утверждено', note: 'PS §12.2; появляется при своей дате' },
-    { text: requestCopy.whenCustomHint, mark: 'Утверждено', note: 'PS §7.2, дословно' },
-    { text: requestCopy.whenHorizon, mark: 'Утверждено', note: 'IA §10.3, `request.limit.horizon`' },
-    { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5, одно главное действие' },
-  ],
-  'request-map': [
-    { text: requestCopy.placeTitle, mark: 'Утверждено', note: 'PS §8.1' },
-    { text: requestCopy.mapSearch, mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.search`' },
-    { text: requestCopy.mapHint, mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.hint`; сокращена решением владельца' },
-    { text: 'Выбрано: {адрес}', mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.selected`' },
-    { text: requestCopy.placePrivacy, mark: 'Утверждено', note: 'IA §10.4, до подтверждения места; правка владельца, ждёт повторного просмотра' },
-    { text: requestCopy.mapConfirm, mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.confirm`' },
-  ],
-  'request-place': [
-    { text: requestCopy.placeTitle, mark: 'Утверждено', note: 'PS §8.1; тот же вопрос после выбора' },
-    { text: requestCopy.placePrivacy, mark: 'Утверждено', note: 'IA §10.4; та же строка, что на карте, — второй формулировки рядом нет' },
-    { text: requestCopy.placePrimary, mark: 'Утверждено', note: 'копия 4.5' },
-    { text: requestCopy.placeAlternative, mark: 'Утверждено', note: 'новое: подпись второго и третьего места' },
-    { text: requestCopy.placeOr, mark: 'Утверждено', note: 'новое: разделитель между карточками мест' },
-    { text: requestCopy.placeChange, mark: 'Утверждено', note: 'копия 4.5' },
-    { text: requestCopy.placeRemove, mark: 'Утверждено', note: 'копия 4.5; у основного места не показывается' },
-    { text: requestCopy.placeAdd, mark: 'Утверждено', note: 'решение 1.7 (6): «Добавить ещё точку» не используется' },
-    { text: requestCopy.placeAlternativesHint, mark: 'Утверждено', note: 'IA §10.2, дословно' },
-    { text: requestCopy.placeLimit, mark: 'Утверждено', note: 'новое: причина вместо неактивной кнопки, IA §28.3' },
-    { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5' },
-  ],
-  'request-people': [
-    { text: requestCopy.peopleTitle, mark: 'Утверждено', note: 'копия 4.5; один вопрос, три поля' },
-    { text: requestCopy.peopleTotal, mark: 'Утверждено', note: 'IA §47.6' },
-    { text: requestCopy.peopleChildren, mark: 'Утверждено', note: 'IA §47.6' },
-    { text: requestCopy.peopleChildSeat, mark: 'Утверждено', note: 'IA §2.3; появляется, когда есть дети' },
-    { text: requestCopy.peopleChildSeatHint, mark: 'Утверждено', note: 'IA §2.3, дословно' },
-    { text: requestCopy.next, mark: 'Утверждено', note: 'DS §5' },
-  ],
+  'request-when': whenRows,
+  'request-when-custom': whenRows,
+  'request-place-empty': placeEmptyRows,
+  'request-map': mapRows,
+  'request-place': placeRows,
+  'request-place-three': placeFullRows,
+  'request-people': peopleRows,
+  'request-people-children': peopleChildrenRows,
+  'request-final': finalRows,
+  'request-final-filled': finalRows,
 };
 
 function SourcePanel({ sample }: { sample: SampleId }) {
@@ -1260,9 +1837,10 @@ function SourcePanel({ sample }: { sample: SampleId }) {
       </p>
       {sample.startsWith('request-') && (
         <p>
-          Экраны 5–8 — форма просьбы пассажира, просмотренная 24 августа 2026 года. Строки этих трёх
-          смысловых экранов утверждены; пометка рядом показывает, откуда взята формулировка. Экран
-          «Последние детали» в этот просмотр не входил и здесь не собран.
+          Состояния 5–14 — одна и та же форма просьбы пассажира с разными уже данными ответами, а не
+          десять отдельных экранов. Строки трёх первых смысловых экранов утверждены 24 августа
+          2026 года; экран «Последние детали», окончательная вёрстка «Где вас забрать?» и правки по
+          собранной форме утверждены 26 августа 2026 года.
         </p>
       )}
       <dl className={styles.sourceList}>
@@ -1305,45 +1883,62 @@ export function CopyReview() {
       case 'church': return <ChurchScreen textZoom={textZoom} />;
       case 'board': return <BoardScreen textZoom={textZoom} />;
       case 'empty-church': return <EmptyChurchScreen textZoom={textZoom} />;
-      case 'request-when': return <RequestWhenScreen textZoom={textZoom} />;
-      case 'request-map': return <RequestMapScreen textZoom={textZoom} />;
-      case 'request-place': return <RequestPlaceScreen textZoom={textZoom} />;
-      case 'request-people': return <RequestPeopleScreen textZoom={textZoom} />;
+      /*
+       * One form for all ten request states. The `key` restarts it when the owner picks another
+       * state, so an entry point always opens with the answers it promises; inside a state the form
+       * keeps everything the person has typed, forwards and backwards alike.
+       */
+      default:
+        return (
+          <PassengerRequestForm
+            key={sample}
+            seed={requestSeeds[sample] ?? {}}
+            textZoom={textZoom}
+          />
+        );
     }
   }
+
+  const choose = (group: Sample['group']) =>
+    samples.filter((item) => item.group === group).map((item) => (
+      <button
+        key={item.id}
+        type="button"
+        aria-pressed={sample === item.id}
+        onClick={() => setChosen(item.id)}
+      >
+        {item.label}
+      </button>
+    ));
 
   return (
     <div className={styles.reviewRoot}>
       <header className={styles.reviewHeader}>
-        <p>Временная поверхность проверки · группы 1 и 2A просмотрены</p>
-        <h1>Проверка русской копии: храм и первая половина просьбы пассажира</h1>
+        <p>Временная поверхность проверки · группы 1, 2A и 2B просмотрены</p>
+        <h1>Проверка русской копии: храм и просьба пассажира</h1>
         <p>
-          Мобильные экраны шириной 390 px. Экраны 1–4 — первая группа после правок владельца от
-          22 августа 2026 года. Экраны 5–8 — форма просьбы пассажира в новой структуре из четырёх
-          смысловых вопросов, без отдельного экрана проверки перед публикацией; просмотрены
-          24 августа 2026 года. Производственный интерфейс не изменён; поверхность существует
-          только для просмотра слов.
+          Мобильные экраны шириной 390 px. Состояния 1–4 — первая группа после правок владельца от
+          22 августа 2026 года. Состояния 5–14 — одна форма просьбы пассажира из четырёх смысловых
+          вопросов, без отдельного экрана проверки перед публикацией. Форму можно пройти целиком:
+          «Далее» и «Назад» работают, введённое сохраняется, «Изменить» в резюме возвращает к нужному
+          экрану. Строки трёх первых экранов просмотрены 24 августа 2026 года, экран «Последние
+          детали» и окончательная вёрстка «Где вас забрать?» — 26 августа 2026 года.
+          Производственный интерфейс не изменён; поверхность существует только для просмотра слов.
         </p>
       </header>
       <nav className={styles.reviewControls} aria-label="Выбор экрана проверки">
-        {samples.map((item) => (
+        <div>{choose('church')}</div>
+        <div>
+          {choose('request')}
           <button
-            key={item.id}
             type="button"
-            aria-pressed={sample === item.id}
-            onClick={() => setChosen(item.id)}
+            className={styles.zoomToggle}
+            aria-pressed={textZoom}
+            onClick={() => setTextZoom((current) => !current)}
           >
-            {item.label}
+            Текст 200 %
           </button>
-        ))}
-        <button
-          type="button"
-          className={styles.zoomToggle}
-          aria-pressed={textZoom}
-          onClick={() => setTextZoom((current) => !current)}
-        >
-          Текст 200 %
-        </button>
+        </div>
       </nav>
       <div className={styles.reviewStage} data-sample-id={sample} data-text-zoom={textZoom ? '200' : 'off'}>
         {screen()}
