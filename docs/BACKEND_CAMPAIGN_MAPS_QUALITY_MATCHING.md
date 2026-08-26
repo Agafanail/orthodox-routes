@@ -53,11 +53,11 @@ Explicitly excluded:
 | D | Location selection and map foundation | Complete | Commits `324d4b8`, `ada3b12`, `0039742`; CI `32614345866` green on all three jobs. Place field, picker flow with address search, tap-to-place correction, manual fallback, explicit location action, saved-place reuse, church catalog with universal search and `Рядом со мной`, catalog map, and the dedicated church location screen. Map imagery and address search run through the Geoapify adapter and activate as soon as the owner injects the keys |
 | E | Deterministic quality-matching engine | Complete | Migration `20260823170000_quality_matching.sql`; CI `32605335711` green; `test:matching` proves every hard condition, the detour rule, the best place among alternatives, block suppression, live recomputation, provider-failure degradation, and agreement independence |
 | F | Transport-board integration and matching UX | Complete | `Подходит` marker, `Подходящие мне` view, explainable detour line, and the ordinary-language unavailable message; Core responses, confirmation, capacity, cancellation, restoration, and disclosure preserved |
-| G | Full campaign verification, privacy audit, human UX gate, release | Awaiting the owner action | CI `32740756923` fully green on `3022e4b`, covering the clean migration replay, the representative upgrade, and every database suite. Local verification, browser verification, the privacy audit, the secret and excluded-concept scan, the matching re-audit, and the complete campaign diff review are done. Only the provider keys and the manual UX test remain |
+| G | Full campaign verification, privacy audit, human UX gate, release | Awaiting the manual UX test | CI `32992342069` fully green on `78717de` across all four jobs, including the browser regression. The provider credential now answers on every endpoint, address search is verified across four countries on the deployment, matching is verified against live routing, and the privacy boundary is re-verified on the deployed anonymous page. Only the owner's own walkthrough remains |
 
-**Current continuation:** one owner action, then the manual UX test.
+**Current continuation:** the manual UX test, then the merge.
 
-All code is written, including the vendor adapter and the map imagery. Nothing further can be built without an account that only the owner can create: the application needs a Geoapify API key injected through the hosting secret manager. Once the keys exist, address search, route measurement, and map imagery activate through configuration alone, with no further change. The manual UX test follows immediately after.
+Everything the agent can verify is verified. What remains is what no automated check can stand in for: a person looking at the maps and the wording on their own screen. The reason that is a genuine gate rather than a formality is recorded under *What the agent could not see* below.
 
 ### Verification completed so far
 
@@ -120,6 +120,47 @@ Two earlier pieces of advice were wrong and are corrected here. Suggesting the s
 
 The application behaves correctly throughout: it never shows a vendor name, a status code, or a technical cause, it never claims a ride does not match when it could not check, and the board, listings, and agreements keep working. That is the approved degradation, observed live.
 
+### Provider working end to end — 26 August 2026
+
+The owner replaced the server credential and the refusal ended. The readiness probe answers `autocomplete: 200`, `geocode: 200`, `routing: 200`, `ok: true`, and `npm run test:staging-maps` passes all seven assertions including the one that proves the provider accepts the server credential and returns a usable result.
+
+**Search was asking the wrong endpoint.** With the credential fixed, the four-country check showed a real defect: `Via Roma 1, Torino` came back as `Via Romagnano, 1`, a differently named street in the same city. The picker was calling `/v1/geocode/autocomplete`, which is tuned for partial input and, given a finished address, will confidently return a near-miss rather than nothing. A whole typed address belongs to `/v1/geocode/search`. Corrected in `7019503`; the probe's usable-result count rose from 1 to 4 on the same query, which is how the deploy was confirmed to have landed.
+
+**Four-country address check on the deployment.** Run through the real place picker as a signed-in synthetic passenger, biased towards a Turin church.
+
+| Country | Query | Result |
+| --- | --- | --- |
+| Italy, city | `Via Roma 1, Torino` | Street correct. The three offered candidates are metro-Turin comuni; central Torino `10121` is not ranked first, because proximity bias to the church outranks it |
+| Italy, small town | `Via Vittorio Veneto 3, Rivoli` | Exact, including the fuller street name |
+| USA, city | `1600 Pennsylvania Avenue NW` | Exact |
+| USA, small town | `112 Main Street, Woodstock, Vermont` | No exact match. Nearby Vermont addresses are offered alongside same-named streets in other states |
+| Belarus, city | `проспект Независимости 4, Минск` | Exact |
+| Belarus, rural | `Советская 12, Мир` | Exact |
+| Russia, city | `улица Арбат 20, Москва` | Exact |
+| Russia, small town | `улица Ленина 5, Суздаль` | Exact |
+
+Six of eight are exact. The two weaker cases both degrade into a list the person chooses from rather than a wrong answer imposed on them, and the picker's map lets them correct the point directly, which is the fallback the design already required.
+
+**Matching verified against live routing.** With the walkthrough fixture published, the board shows `Подходит · По пути · без заезда` with `Лучше всего подходит` and `Также подходит`, and the deliberately distant Rivoli place is correctly excluded. `app.route_measurement` held four legs from provider `geoapify` between 7889 and 32474 metres. No geometry was stored.
+
+**Privacy re-verified on the deployment.** The anonymous church page contains no exact address, no email, and no coordinate of any kind — not even an approximate circle centre; only the derived area names `Torino`, `Rivoli`, and `Moncalieri`, and no `Подходит` marker. The only phone-shaped string is the `+390000000000` placeholder in an input.
+
+**Probe stability.** Three probes fired back to back returned green, green, and one Render error page. The credential and the endpoints are sound; the free tier simply refuses rapid repeats. A single retry is the correct response, not a diagnosis.
+
+### Defects found and fixed while preparing the walkthrough
+
+- **The browser regression could never pass again.** Main's new Playwright check typed an exact place and a public area into two text inputs. This campaign deleted those inputs on purpose — a publisher now confirms a real place and the database derives the circle — so the test sat at a label that no longer exists until it timed out. Two commits had no CI at all while the pull request was conflicting, which is why it surfaced late. Fixed in `78717de`: the fixture saves one place per publisher and the test publishes through the real place field, taking its saved-place path because CI configures no provider. The privacy markers survive the move intact, because the exact address and the locality are exactly the two halves the assertions already depended on.
+- **The staging teardown had never once run to completion.** It deleted agreements and then the church, but requests, offers, responses, and condition snapshots restrict rather than cascade, so the church delete was always rejected and every run left its accounts behind; ten had accumulated. Fixed in `6e2a243`, which names each dependent record in order and leaves out route measurements and personal blocks because those genuinely do cascade.
+- **A spent sign-in link forced the data to be rebuilt.** `npm run staging:maps-fixture:links` now mints fresh one-use links against the identities already present and writes nothing, so a walkthrough can be paused and resumed without disturbing what is being tested.
+
+### What the agent could not see
+
+The maps could not be visually confirmed. The browser surface available to the agent runs with the tab hidden: `document.visibilityState` is `hidden` and zero animation frames elapse in 1.2 seconds. MapLibre draws through WebGL on the animation-frame loop, so without frames the style never finishes loading and nothing paints — `isStyleLoaded()` stays false and no marker element is ever created.
+
+Everything underneath the drawing was verified instead: the Geoapify style, its TileJSON, and its sprites all return 200 to the deployed page; the map container receives the church marker and the four approximate areas as props; the zoom controls, the attribution line, and the privacy sentence all render; and the picker's own map mounts with a working search beside it.
+
+What this means is narrow and worth stating plainly: the data reaching the maps is correct, and whether the basemap, the church pin, and the dashed and solid circles actually appear is the one thing only a person looking at a screen can answer. That is precisely what the manual gate is for, and it is why the gate was not quietly waived.
+
 ### Earlier staging state — superseded
 
 The owner created the Geoapify account, generated the two restricted keys, injected them into Render, and switched the staging service to deploy this campaign branch.
@@ -132,9 +173,24 @@ Applying it is an owner-controlled action here: the agent's attempt to write to 
 
 `npm run test:staging-maps` is ready for the moment the schema catches up. It is guarded to the exact staging project, writes nothing, prints no key, and currently fails on its first assertion with `expected '20260823120000', actual ''`, which is the intended detection of the missing migration.
 
-### Manual UX test
+### Manual UX test — open
 
-Opens as soon as the keys are in place. The checklist is limited to human-visible behavior: the catalog and its map, `Рядом со мной`, the church address opening the location screen, choosing and correcting a meeting place, the privacy sentence about the approximate area, publishing, the `Подходит` marker with its added-distance line, `Подходящие мне`, and what each side sees after a confirmed agreement.
+Synthetic walkthrough data is live on staging and stays until the owner says otherwise. Sign-in links are one-use; `npm run staging:maps-fixture:links` mints a fresh pair without touching the data. `npm run staging:maps-fixture:remove` clears everything afterwards.
+
+The checklist is limited to human-visible behaviour and is deliberately short. Ten steps, in order:
+
+1. **Catalog** — `/churches` shows the church, and the map below it draws.
+2. **Рядом со мной** — the button asks for permission and reorders by distance; refusing it leaves the list working.
+3. **Church address** — tapping it opens the location screen with a drawn map, the address, and nothing about a route.
+4. **External maps** — `Маршрут в Google Картах` and `Маршрут в Яндекс Картах` leave the application, and the line saying navigation happens outside it is present.
+5. **Choose a place** — `Попросить подвезти` → `Указать место`, search a real address, and confirm one from the list.
+6. **Correct a place** — tap the map to move the point, and check that the marker follows.
+7. **Privacy sentence** — the line promising that only an approximate area of about one kilometre is visible appears before publishing, not after.
+8. **Publish** — the request appears with an area name, never a street address.
+9. **Подходит** — sign in as the driver, publish a trip, and check the marker with its added distance and time, plus `Подходящие мне`.
+10. **An outsider** — open the church page signed out and confirm that no exact address, phone, or route is visible anywhere.
+
+Steps 1, 2, 3, 5, 6, and 9 are the ones the agent could not confirm visually; see *What the agent could not see*.
 
 For every completed checkpoint, replace its status with `Complete` and record the commit SHA plus the final green CI run. Update **Current continuation** to the next unfinished scope. Do not record synthetic research, pending CI as green, or external verification that did not occur.
 
@@ -190,7 +246,34 @@ Checkpoint completion, commits, pushes, green CI, ordinary technical uncertainty
 
 ## Final completion criteria
 
-### Final audit — 23 August 2026
+### Final audit — 26 August 2026
+
+Supersedes the 23 August audit below, which is kept for its record of how the provider failure was diagnosed. Every criterion is checked against repository or deployment evidence rather than recollection. One remains open, and it is the one the agent must not close.
+
+| Criterion | State | Evidence |
+| --- | --- | --- |
+| Documentation matches the approved product decisions | Closed | Unchanged since 23 August; IA §16.5 no longer promises an exact route and the review thread that raised it is resolved |
+| Core transport, agreement, capacity, cancellation, restoration, and disclosure behaviour intact | Closed | `test:transport`, `test:agreements`, and the browser regression all green in CI `32992342069`; `test:staging-core` passed on the deployed schema |
+| Exact church and user geography migration-backed and protected | Closed | `20260823120000`; forced row level security and no application-role grants on every new relation |
+| Public approximation cannot expose an exact point through its centre | Closed | Constraint `user_place_public_contains_exact`; the deployed anonymous page carries no coordinate at all |
+| Saved places under a compliant storage model | Closed | Open-licensed provider data; `ops.anonymize_expired_places` excludes `saved` rows |
+| Maps work on the approved surfaces | Closed for everything measurable | Style, TileJSON, and sprites return 200 to the deployed page; markers and areas reach the map as props; attribution and controls render; search and routing answer live. Visual painting is the manual gate |
+| Address search works across the required countries | Closed | Four-country check on the deployment: six of eight exact, two degrading into a choosable list rather than a wrong answer |
+| Deterministic matching enforces every approved hard condition | Closed | `test:matching` in CI, plus live confirmation against real Geoapify routing with the distant place correctly excluded |
+| Up to three passenger places with explainable results | Closed | `passenger_request_place_position between 1 and 3`; the smallest-detour place is marked and the alternatives stay visible |
+| Matching failure never breaks the ordinary board | Closed | An unmeasured candidate is never a negative claim; observed live during the credential outage |
+| Confirmation and disclosure boundaries correct | Closed | Driver receives only the selected meeting place, passenger receives the driver departure place, unused places stay private |
+| No public corridor and no unnecessary route geometry | Closed | No such entity in the schema; the adapter never reads route geometry; `app.route_measurement` holds two integers per leg |
+| Automated, database, and privacy verification clean | Closed | CI `32992342069` green on `78717de`: `verify`, `database-foundation`, `local-auth`, and `core-browser-e2e` |
+| Browser verification | Closed for everything measurable | Deployment walked as anonymous visitor and as signed-in passenger; payload boundaries, search, matching, and mobile layout all verified. Visual map painting is the manual gate |
+| Owner manual UX test passed | **Open** | The checklist is above; the walkthrough data and links are live |
+| `main` pushed, every required job green | **Open by design** | The branch is pushed and fully green; the merge waits on the owner's approval, as instructed |
+| This file records final evidence | Closed | This table, the checkpoint table, and the dated sections above |
+| No later roadmap phase silently implemented | Closed | No My Trips, Web Push, PWA, church administration, or schedule management in the diff |
+
+Both open rows are the same decision in two places: the owner walks the ten steps, and then the merge happens. Nothing else is outstanding.
+
+### Superseded audit — 23 August 2026
 
 Each criterion checked against repository evidence rather than recollection. Three remain open and none of them can be closed by the agent.
 
