@@ -3,7 +3,6 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
-import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { syntheticPlace } from './synthetic-geo.mjs';
 
@@ -43,14 +42,6 @@ function sql(container, statement) {
   if (result.status !== 0) fail(`Browser fixture SQL failed.\n${result.stderr}`);
 }
 
-function sqlValue(container, statement) {
-  const result = spawnSync('docker', [
-    'exec', '-i', container, 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At', '-f', '-',
-  ], { encoding: 'utf8', input: statement });
-  if (result.status !== 0) fail(`Browser fixture query failed.\n${result.stderr}`);
-  return result.stdout.trim();
-}
-
 async function rpc(client, name, args = {}) {
   const result = await client.schema('api').rpc(name, args);
   if (result.error) fail(`Browser fixture RPC ${name} failed: ${result.error.message}`);
@@ -62,6 +53,14 @@ const container = databaseContainer();
 const appOrigin = process.env.CORE_E2E_APP_ORIGIN?.trim() || 'http://127.0.0.1:3000';
 const suffix = `${Date.now()}-${process.pid}`;
 const markerSuffix = suffix.replace(/[0-9]/g, (digit) => String.fromCharCode(97 + Number(digit)));
+// Run-unique markers. Each exact address must stay invisible to anyone outside a confirmed
+// agreement; each locality becomes the derived public area name and must stay visible.
+const markers = {
+  driverExactOrigin: `Browser driver exact origin ${markerSuffix}`,
+  driverPublicArea: `Browser driver public area ${markerSuffix}`,
+  passengerExactPlace: `Browser passenger exact place ${markerSuffix}`,
+  passengerPublicArea: `Browser passenger public area ${markerSuffix}`,
+};
 const password = `Core-browser-${suffix}-Aa1!`;
 const phoneStem = String(Date.now()).slice(-8);
 const admin = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
@@ -118,52 +117,30 @@ sql(container, `
   where account_id in (${users.map((user) => `${sqlLiteral(user.id)}::uuid`).join(', ')});
 `);
 
-// Published synthetic geography so the browser check has a passenger with several meeting
-// places and a driver whose departure is genuinely on the way to the same church.
-const churchId = sqlValue(container, `select public_id from app.church where slug = 'pokrov-catanzaro';`);
-const arrival = new Date();
-arrival.setUTCDate(arrival.getUTCDate() + 7);
-arrival.setUTCHours(9, 0, 0, 0);
-const departure = new Date(arrival.getTime() - 60 * 60 * 1000);
+// Each publisher gets one saved place, so the browser check can publish through the real
+// place field without a map provider: the saved chips are the offline path through that field.
+// The exact address and the locality carry distinct run-unique markers. The locality becomes
+// the derived public area name, so one fixture proves both halves of the privacy boundary:
+// the locality must be publicly visible and the exact address must never be.
+const savedPlaces = {
+  driver: {
+    label: `Гараж ${markerSuffix}`,
+    place: syntheticPlace(38.8400, 16.5300, markers.driverExactOrigin, markers.driverPublicArea),
+  },
+  passenger: {
+    label: `Двор ${markerSuffix}`,
+    place: syntheticPlace(38.8600, 16.6100, markers.passengerExactPlace, markers.passengerPublicArea),
+  },
+};
 
-const passengerClient = createClient(url, publicKey, { auth: { persistSession: false } });
-await passengerClient.auth.signInWithPassword({ email: users[0].email, password });
-await rpc(passengerClient, 'publish_passenger_request', {
-  p_child_seat_required: false,
-  p_children_count: 0,
-  p_church_id: churchId,
-  p_client_key: randomUUID(),
-  p_desired_arrival_at: arrival.toISOString(),
-  p_places: [
-    // One place needs a noticeable detour and one only a small one, so the suggestion shows a
-    // real added distance and keeps the alternative visible.
-    syntheticPlace(38.8600, 16.6100, 'Via Sintetica 10, вход во двор', 'Catanzaro'),
-    syntheticPlace(38.8900, 16.5450, 'Piazza Sintetica 3, у фонтана', 'Catanzaro Lido'),
-  ],
-  p_public_note: 'Поедем вдвоём, без багажа.',
-  p_return_required: true,
-  p_service_occurrence_id: null,
-  p_timezone: 'Europe/Rome',
-  p_total_passengers: 2,
-});
-
-const driverClient = createClient(url, publicKey, { auth: { persistSession: false } });
-await driverClient.auth.signInWithPassword({ email: users[1].email, password });
-await rpc(driverClient, 'publish_driver_occurrence', {
-  p_arrival_at: arrival.toISOString(),
-  p_children_allowed: true,
-  p_church_id: churchId,
-  p_client_key: randomUUID(),
-  p_departure_at: departure.toISOString(),
-  p_driver_child_seat_available: true,
-  p_max_detour_km: 10,
-  p_origin: syntheticPlace(38.8400, 16.5300, 'Via Sintetica 88, у ворот', 'Catanzaro Lido'),
-  p_public_note: null,
-  p_return_available: true,
-  p_service_occurrence_id: null,
-  p_timezone: 'Europe/Rome',
-  p_total_seats: 3,
-});
+for (const user of users) {
+  const saved = savedPlaces[user.role];
+  if (!saved) continue;
+  const client = createClient(url, publicKey, { auth: { persistSession: false } });
+  const signedIn = await client.auth.signInWithPassword({ email: user.email, password });
+  if (signedIn.error) fail(`Could not sign in ${user.role} to save a place.`);
+  await rpc(client, 'save_place', { p_place: { ...saved.place, label: saved.label } });
+}
 
 for (const user of users) {
   const generated = await admin.auth.admin.generateLink({ type: 'magiclink', email: user.email });
@@ -177,11 +154,10 @@ for (const user of users) {
 const fixture = {
   api: { publicKey, url },
   churchUrl: `${appOrigin}/churches/pokrov-catanzaro`,
-  markers: {
-    driverExactOrigin: `Browser driver exact origin ${markerSuffix}`,
-    driverPublicArea: `Browser driver public area ${markerSuffix}`,
-    passengerExactPlace: `Browser passenger exact place ${markerSuffix}`,
-    passengerPublicArea: `Browser passenger public area ${markerSuffix}`,
+  markers,
+  savedPlaceLabels: {
+    driver: savedPlaces.driver.label,
+    passenger: savedPlaces.passenger.label,
   },
   users,
 };
