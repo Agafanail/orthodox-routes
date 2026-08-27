@@ -20,6 +20,7 @@ const calls = {
   markers: [] as { colour: string | undefined; lngLat: [number, number]; text: string }[],
   mapOptions: [] as Record<string, unknown>[],
   removed: 0,
+  workerUrls: [] as string[],
 };
 
 class FakeMap {
@@ -64,6 +65,7 @@ class FakeMarker {
 }
 
 vi.mock('maplibre-gl', () => ({
+  setWorkerUrl: (value: string) => { calls.workerUrls.push(value); },
   Map: FakeMap,
   Marker: FakeMarker,
   NavigationControl: class {},
@@ -96,6 +98,7 @@ beforeEach(() => {
   calls.markers = [];
   calls.mapOptions = [];
   calls.removed = 0;
+  calls.workerUrls = [];
 });
 
 afterEach(() => {
@@ -113,6 +116,17 @@ describe('InteractiveMap', () => {
     expect(style).toContain('apiKey=render-key');
     // Zoom and pan controls are what make the map interactive rather than a picture.
     expect(calls.addControl).toHaveLength(1);
+  });
+
+  // Regression. The bundler emits the tile-parsing worker as a lone static asset and leaves its
+  // own relative import unresolved, so the worker never starts and the map renders its frame,
+  // its controls, and its credit line over nothing at all. Pointing MapLibre at the published
+  // pair is the whole fix, and it has to happen before the map is constructed.
+  it('points the tile worker at the published pair before building the map', async () => {
+    render(<InteractiveMap ariaLabel="Карта" browserKey="render-key" center={church} />);
+
+    await waitFor(() => expect(calls.mapOptions).toHaveLength(1));
+    expect(calls.workerUrls).toEqual(['/maplibre/maplibre-gl-worker.mjs']);
   });
 
   it('draws markers and approximate areas once the style has loaded', async () => {

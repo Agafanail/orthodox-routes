@@ -232,6 +232,21 @@ assert.ok(churchHtml.includes('data-interactive-map'), 'The location screen must
 assert.ok(churchHtml.includes('data-external-maps'), 'The external navigation links must be offered.');
 assert.ok(churchHtml.includes('google.com/maps') && churchHtml.includes('yandex.ru/maps'));
 
+// A map that mounts is not yet a map that draws. Tile parsing happens in a module worker, and
+// the worker imports a sibling module by a relative address; if either is missing the browser
+// refuses the worker and the surface renders its frame, its controls, and its credit line over
+// nothing at all, silently. Both files must be served, as JavaScript, from one directory.
+const workerBase = '/maplibre';
+for (const file of ['maplibre-gl-worker.mjs', 'maplibre-gl-shared.mjs']) {
+  const response = await fetch(`${stagingAppOrigin}${workerBase}/${file}`);
+  assert.equal(response.status, 200, `The map worker file ${file} must be served.`);
+  const type = response.headers.get('content-type') ?? '';
+  assert.ok(
+    /javascript|ecmascript/i.test(type),
+    `The map worker file ${file} must be served as JavaScript, not as ${type || 'an unknown type'}.`,
+  );
+}
+
 // Exact private coordinates must not appear in anonymous HTML anywhere.
 for (const html of [catalogHtml, churchHtml]) {
   assert.equal(/data-exact-(lat|lng|point)/.test(html), false, 'Exact geography must not reach anonymous HTML.');
@@ -243,6 +258,7 @@ console.log('- the public catalog exposes exact church coordinates and optional 
 console.log('- public listings expose only approximate areas and carry no route geometry');
 console.log('- the matching reader, the route bridge, and saved places refuse an anonymous caller');
 console.log('- the deployed catalog and church location screens mount the interactive map with attribution');
+console.log('- the map tile worker and the module it imports are both served as JavaScript');
 console.log('- the provider accepted the server credential and returned a usable result');
 console.log('- no server credential and no exact geography reached anonymous HTML');
 

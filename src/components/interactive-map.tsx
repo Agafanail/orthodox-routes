@@ -49,6 +49,8 @@ const MARKER_COLOURS: Record<MapMarker['kind'], string> = {
 };
 
 const AREA_SOURCE = 'orthodox-routes-areas';
+/** Published by `scripts/copy-maplibre-worker.mjs` beside the module the worker imports. */
+const MAPLIBRE_WORKER_URL = '/maplibre/maplibre-gl-worker.mjs';
 
 export function InteractiveMap({
   areas = [],
@@ -84,8 +86,18 @@ export function InteractiveMap({
 
     (async () => {
       try {
-        const { Map: MapLibreMap, Marker, NavigationControl, Popup } = await import('maplibre-gl');
+        const {
+          Map: MapLibreMap, Marker, NavigationControl, Popup, setWorkerUrl,
+        } = await import('maplibre-gl');
         if (cancelled || !containerRef.current) return;
+
+        // MapLibre parses tiles in a module worker. Left to the bundler, that worker is emitted
+        // as a lone static asset while its own relative import is not, so the browser fetches an
+        // address that does not exist, refuses the reply because it is not JavaScript, and the
+        // worker never starts. Nothing reports an error: the container, the controls, and the
+        // credit line all appear, and the map stays completely empty. Pointing at the pair that
+        // `scripts/copy-maplibre-worker.mjs` publishes side by side makes the import resolve.
+        setWorkerUrl(MAPLIBRE_WORKER_URL);
 
         const instance = new MapLibreMap({
           attributionControl: { compact: true },
