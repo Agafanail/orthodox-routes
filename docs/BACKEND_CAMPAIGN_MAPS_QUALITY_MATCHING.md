@@ -155,13 +155,27 @@ Six of eight are exact. The two weaker cases both degrade into a list the person
 - **A privacy assertion was comparing coordinates as text.** `test:geography` reported that an exact coordinate had leaked into a public payload. It had not. A public centre is published to five decimals and the exact point is written to four, so `45.06112` contains `45.0611` as a substring. The offset runs a fixed distance along a per-owner bearing, and a bearing running nearly due east leaves the latitude almost unchanged while the point still moves the required hundreds of metres. The comparison is numeric now; the distance assertions that actually prove the privacy property were already correct and are untouched.
 - **A spent sign-in link forced the data to be rebuilt.** `npm run staging:maps-fixture:links` now mints fresh one-use links against the identities already present and writes nothing, so a walkthrough can be paused and resumed without disturbing what is being tested.
 
+### The blank map — 27 August 2026
+
+The owner's manual test failed: on the catalog and on the church location screen the map container, its controls, and its attribution all appeared, and the map itself was entirely empty. No basemap, no roads, no labels, no markers.
+
+**Cause.** MapLibre parses vector tiles in a module worker. The bundler emits that worker as a lone static asset under `_next/static/media`, but the worker's own `import './maplibre-gl-shared.mjs'` stays a relative address and no sibling by that name is emitted. The browser fetched `/_next/static/media/maplibre-gl-shared.mjs`, received a 404 page, refused it because it was not JavaScript, and the worker never started. Nothing surfaced as an error the application could catch, which is why it passed every automated check. It also explains the missing markers: those are added in MapLibre's `load` handler, and `load` never fires while no source can load.
+
+Everything on the provider side was healthy the entire time, which is what made this misleading. With the render credential and the staging origin, the style answered 200, its tile index answered 200, a real vector tile answered 200 with 244 KB of protobuf, and the sprites and glyphs answered 200. The credential was never the problem and no restriction was blocking anything.
+
+**Fix.** `scripts/copy-maplibre-worker.mjs` publishes the worker and every module it imports relatively into one directory under `public/maplibre`, and the map calls `setWorkerUrl` at that pair before constructing itself. The files are copied from the installed package at build time rather than committed, so they can never drift from the bundled version, and the script reads the worker's own imports rather than hard-coding a list, so an upgrade that splits it differently fails loudly in the build instead of silently in a browser.
+
+**Why verification missed it.** The staging check asserted that the surfaces *mounted* an interactive map, which they always did. It now additionally requires both worker files to be served, as JavaScript, from the deployment. A regression test asserts the worker URL is set before the map is built.
+
+**Confirmed after the fix:** the console error is gone on a fresh load, and constructing the worker from the deployed page now succeeds with its module graph resolved. **Not confirmed by the agent:** that the map visibly draws. The browser surface available here still runs hidden, and the alternative real-browser tool is not connected in this session, so pixels remain the owner's to check.
+
 ### What the agent could not see
 
 The maps could not be visually confirmed. The browser surface available to the agent runs with the tab hidden: `document.visibilityState` is `hidden` and zero animation frames elapse in 1.2 seconds. MapLibre draws through WebGL on the animation-frame loop, so without frames the style never finishes loading and nothing paints — `isStyleLoaded()` stays false and no marker element is ever created.
 
 Everything underneath the drawing was verified instead: the Geoapify style, its TileJSON, and its sprites all return 200 to the deployed page; the map container receives the church marker and the four approximate areas as props; the zoom controls, the attribution line, and the privacy sentence all render; and the picker's own map mounts with a working search beside it.
 
-What this means is narrow and worth stating plainly: the data reaching the maps is correct, and whether the basemap, the church pin, and the dashed and solid circles actually appear is the one thing only a person looking at a screen can answer. That is precisely what the manual gate is for, and it is why the gate was not quietly waived.
+**This reasoning was wrong, and the owner's manual test proved it.** Every map was completely empty — frame, zoom controls, and credit line drawn over nothing. Treating an unobservable surface as probably working, on the strength of the data behind it, is not verification; the correct reading of "I cannot see this" was "I do not know", and the section below records what was actually broken.
 
 ### Earlier staging state — superseded
 
