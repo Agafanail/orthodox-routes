@@ -167,7 +167,17 @@ Everything on the provider side was healthy the entire time, which is what made 
 
 **Why verification missed it.** The staging check asserted that the surfaces *mounted* an interactive map, which they always did. It now additionally requires both worker files to be served, as JavaScript, from the deployment. A regression test asserts the worker URL is set before the map is built.
 
-**Confirmed after the fix:** the console error is gone on a fresh load, and constructing the worker from the deployed page now succeeds with its module graph resolved. **Not confirmed by the agent:** that the map visibly draws. The browser surface available here still runs hidden, and the alternative real-browser tool is not connected in this session, so pixels remain the owner's to check.
+**Confirmed after the fix, visually, against the deployment.** The browser surface normally available to the agent runs hidden and never composites a frame, which is why it could say nothing either way. Driving headless Chromium through Playwright instead — a browser that does composite — produced the missing evidence on all three surfaces:
+
+| Surface | Tiles | Console errors | Markers | Result |
+| --- | --- | --- | --- | --- |
+| Catalog | 6 × 200 | none | 1 | Streets, labels, church pin, attribution |
+| Church location | 6 × 200 | none | 1 | Streets, POIs, church pin at Via Giuseppe Verdi |
+| Board map | 7 × 200 | none | 1 | Church pin plus all four approximate areas, three dashed meeting circles and one solid departure circle |
+
+The board map also carried the matching line `Подходит · По пути · без заезда`. Before the fix the same surfaces requested no tiles at all and created no marker.
+
+The lesson is recorded rather than the result alone: the agent's own browser could not answer this question, and the correct response to that was to reach for one that could, not to reason about what was probably happening behind the glass.
 
 ### What the agent could not see
 
