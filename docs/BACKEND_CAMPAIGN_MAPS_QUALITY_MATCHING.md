@@ -155,6 +155,24 @@ Six of eight are exact. The two weaker cases both degrade into a list the person
 - **A privacy assertion was comparing coordinates as text.** `test:geography` reported that an exact coordinate had leaked into a public payload. It had not. A public centre is published to five decimals and the exact point is written to four, so `45.06112` contains `45.0611` as a substring. The offset runs a fixed distance along a per-owner bearing, and a bearing running nearly due east leaves the latitude almost unchanged while the point still moves the required hundreds of metres. The comparison is numeric now; the distance assertions that actually prove the privacy property were already correct and are untouched.
 - **A spent sign-in link forced the data to be rebuilt.** `npm run staging:maps-fixture:links` now mints fresh one-use links against the identities already present and writes nothing, so a walkthrough can be paused and resumed without disturbing what is being tested.
 
+### Arrival measured after the pickup — 27 August 2026
+
+An approved product-rule change, found by the owner during manual testing. Previously a driver had to reach the church no later than the passenger's desired time, and the added minutes of the pickup detour were shown to people but decided nothing. Both halves were wrong in practice: a driver a minute late is still useful, and a driver whose own schedule looks ideal can become useless once the detour to collect this passenger is counted.
+
+Time compatibility is now judged on the arrival the passenger actually experiences:
+
+    effective arrival = the driver's planned church arrival + the added minutes for this meeting point
+
+and a meeting point is compatible when that falls no more than an hour before, and no more than half an hour after, the desired arrival. For a passenger wanting 10:55 the range is 09:55 to 11:25. Two people who chose the same service occurrence remain compatible by definition, untouched.
+
+**Per meeting point, not per pair.** Each place carries its own detour, so each is judged separately. A place is offered only if it satisfies both the driver's approved kilometres and this window; one place can fail on time while another passes, and only the passing ones appear. Ranking is unchanged: smallest added distance, then smallest added time.
+
+**Both stages kept.** The cheap SQL filter still runs before any provider call, but it can no longer decide time on its own, so it was narrowed to what it can still prove. A detour only ever delays a driver, so an occurrence already past the late edge can never return to the window and is still rejected for free. On the early side the detour is exactly what can rescue a driver, so the edge is pushed out by the longest detour that driver's own kilometre limit could take — deliberately generous, at five minutes per kilometre, since it only widens what gets measured and never decides anything. The final verdict is taken on the measured effective arrival.
+
+Migration `20260827090000_effective_arrival_matching.sql`. The window bounds live in named functions rather than inline literals, so the approved numbers are readable and testable in one place.
+
+**Documentation reconciled:** IA V2 §21 rule list, Product Scope §12.1 and §12.2 including the worked example, and the UX copy rule that called the minutes purely informational. No unrelated section was touched.
+
 ### The blank map — 27 August 2026
 
 The owner's manual test failed: on the catalog and on the church location screen the map container, its controls, and its attribution all appeared, and the map itself was entirely empty. No basemap, no roads, no labels, no markers.

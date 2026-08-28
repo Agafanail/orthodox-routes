@@ -360,42 +360,224 @@ assert.equal(
   'A driver who cannot take children is not a match for a group with a child.',
 );
 
-// The approved time rule: a driver arriving after the desired time is not a match.
-const lateOccurrence = await rpc(clients[1], 'publish_driver_occurrence', {
-  p_arrival_at: isoAfter(7, 9, 30),
-  p_children_allowed: true,
+// ------------------------------------------------------------------ the arrival window
+
+// Time compatibility is judged on the arrival the passenger actually experiences: the driver's
+// planned church arrival plus the minutes this particular pickup adds. The stand-in provider is
+// deterministic, so one probe reveals exactly how many seconds a pickup adds, and every boundary
+// below is then placed on the second rather than near it.
+const windowDesired = isoAfter(9, 10, 55);
+const windowPlace = syntheticPlace(45.0520, 7.6720, 'Exact window meeting place', 'Torino');
+const windowOrigin = { lat: 45.0200, lng: 7.6500 };
+let windowSeed = 0;
+
+async function publishWindowDriver(arrivalIso, seats = 4) {
+  windowSeed += 1;
+  const arrival = Date.parse(arrivalIso);
+  return rpc(clients[1], 'publish_driver_occurrence', {
+    p_arrival_at: arrivalIso,
+    p_children_allowed: true,
+    p_church_id: churchId,
+    p_client_key: randomUUID(),
+    p_departure_at: new Date(arrival - 60 * 60 * 1000).toISOString(),
+    p_driver_child_seat_available: true,
+    p_max_detour_km: 20,
+    p_origin: syntheticPlace(
+      windowOrigin.lat, windowOrigin.lng, `Exact window departure ${windowSeed}`, 'Moncalieri',
+    ),
+    p_public_note: null,
+    p_return_available: false,
+    p_service_occurrence_id: null,
+    p_timezone: 'UTC',
+    p_total_seats: seats,
+  });
+}
+
+const windowRequest = await rpc(clients[0], 'publish_passenger_request', {
+  p_child_seat_required: false,
+  p_children_count: 0,
   p_church_id: churchId,
   p_client_key: randomUUID(),
-  p_departure_at: isoAfter(7, 8, 30),
-  p_driver_child_seat_available: true,
-  p_max_detour_km: 20,
-  p_origin: syntheticPlace(45.0230, 7.6530, 'Exact late departure', 'Moncalieri'),
+  p_desired_arrival_at: windowDesired,
+  p_places: [windowPlace],
   p_public_note: null,
-  p_return_available: false,
+  p_return_required: false,
   p_service_occurrence_id: null,
   p_timezone: 'UTC',
-  p_total_seats: 4,
+  p_total_passengers: 1,
 });
-// A driver arriving more than an hour early is equally outside the rule.
-const earlyOccurrence = await rpc(clients[1], 'publish_driver_occurrence', {
-  p_arrival_at: isoAfter(7, 7, 30),
+
+// One safely-inside driver, only to learn the exact detour this pickup costs.
+const windowProbe = await publishWindowDriver(
+  new Date(Date.parse(windowDesired) - 20 * 60 * 1000).toISOString(),
+);
+await measureAllPendingLegs(worker);
+const probeMatch = (await rpc(clients[0], 'list_quality_matches', { p_church_id: churchId }))
+  .find((item) => item.request_id === windowRequest.request_id
+    && item.occurrence_id === windowProbe.occurrence_id);
+assert.ok(probeMatch, 'The probe driver must be measured before the boundaries are placed.');
+const windowAddedSeconds = probeMatch.places[0].added_duration_s;
+
+/** A driver whose church arrival, after this pickup, falls exactly `offsetSeconds` from desired. */
+async function driverEffectivelyAt(offsetSeconds) {
+  return publishWindowDriver(new Date(
+    Date.parse(windowDesired) + (offsetSeconds - windowAddedSeconds) * 1000,
+  ).toISOString());
+}
+
+const exactlyAnHourEarly = await driverEffectivelyAt(-60 * 60);
+const beyondAnHourEarly = await driverEffectivelyAt(-61 * 60);
+const exactlyHalfAnHourLate = await driverEffectivelyAt(30 * 60);
+const beyondHalfAnHourLate = await driverEffectivelyAt(31 * 60);
+const oneMinuteLate = await driverEffectivelyAt(60);
+await measureAllPendingLegs(worker);
+
+const windowMatches = await rpc(clients[0], 'list_quality_matches', { p_church_id: churchId });
+const offered = (occurrence) => windowMatches.some((item) => item.request_id === windowRequest.request_id
+  && item.occurrence_id === occurrence.occurrence_id);
+
+assert.equal(offered(exactlyAnHourEarly), true, 'Exactly an hour early is inside the window.');
+assert.equal(offered(beyondAnHourEarly), false, 'A minute more than an hour early is outside it.');
+assert.equal(offered(exactlyHalfAnHourLate), true, 'Exactly half an hour late is inside the window.');
+assert.equal(offered(beyondHalfAnHourLate), false, 'A minute more than half an hour late is outside it.');
+// The case the owner found: a driver a minute late is still useful. The previous rule refused it.
+assert.equal(offered(oneMinuteLate), true, 'Arriving one minute after the desired time still suits.');
+
+// ------------------------------------------------------------------ the detour decides the time
+
+// A driver whose own planned arrival sits comfortably inside the window, whose pickup detour
+// then pushes the arrival the passenger experiences past the late edge. The detour stays within
+// the approved kilometres throughout, so only the time can be what rejects it.
+const detourDesired = isoAfter(10, 10, 55);
+const nearWindowPlace = syntheticPlace(45.0520, 7.6721, 'Exact near window place', 'Torino');
+const farWindowPlace = syntheticPlace(45.0450, 7.5600, 'Exact far window place', 'Rivoli');
+const plannedInsideWindow = new Date(Date.parse(detourDesired) + 20 * 60 * 1000).toISOString();
+
+async function publishDetourDriver(arrivalIso) {
+  windowSeed += 1;
+  return rpc(clients[1], 'publish_driver_occurrence', {
+    p_arrival_at: arrivalIso,
+    p_children_allowed: true,
+    p_church_id: churchId,
+    p_client_key: randomUUID(),
+    p_departure_at: new Date(Date.parse(arrivalIso) - 60 * 60 * 1000).toISOString(),
+    p_driver_child_seat_available: true,
+    p_max_detour_km: 20,
+    p_origin: syntheticPlace(
+      windowOrigin.lat, windowOrigin.lng, `Exact detour departure ${windowSeed}`, 'Moncalieri',
+    ),
+    p_public_note: null,
+    p_return_available: false,
+    p_service_occurrence_id: null,
+    p_timezone: 'UTC',
+    p_total_seats: 4,
+  });
+}
+
+const farOnlyRequest = await rpc(clients[0], 'publish_passenger_request', {
+  p_child_seat_required: false,
+  p_children_count: 0,
+  p_church_id: churchId,
+  p_client_key: randomUUID(),
+  p_desired_arrival_at: detourDesired,
+  p_places: [farWindowPlace],
+  p_public_note: null,
+  p_return_required: false,
+  p_service_occurrence_id: null,
+  p_timezone: 'UTC',
+  p_total_passengers: 1,
+});
+const bothPlacesRequest = await rpc(clients[0], 'publish_passenger_request', {
+  p_child_seat_required: false,
+  p_children_count: 0,
+  p_church_id: churchId,
+  p_client_key: randomUUID(),
+  p_desired_arrival_at: detourDesired,
+  p_places: [nearWindowPlace, farWindowPlace],
+  p_public_note: null,
+  p_return_required: false,
+  p_service_occurrence_id: null,
+  p_timezone: 'UTC',
+  p_total_passengers: 1,
+});
+const pushedOutDriver = await publishDetourDriver(plannedInsideWindow);
+// The same far place, offered by a driver early enough that the detour still lands inside the
+// window. This is the control: it proves the far place is acceptable on kilometres, so the
+// rejection above can only have been the time.
+const earlyEnoughDriver = await publishDetourDriver(
+  new Date(Date.parse(detourDesired) - 30 * 60 * 1000).toISOString(),
+);
+await measureAllPendingLegs(worker);
+
+const detourMatches = await rpc(clients[0], 'list_quality_matches', { p_church_id: churchId });
+const detourMatch = (request, occurrence) => detourMatches.find((item) => item.request_id === request.request_id
+  && item.occurrence_id === occurrence.occurrence_id);
+
+assert.equal(
+  detourMatch(farOnlyRequest, pushedOutDriver),
+  undefined,
+  'A planned arrival inside the window is not a match when the pickup pushes it past the edge.',
+);
+assert.ok(
+  detourMatch(farOnlyRequest, earlyEnoughDriver),
+  'The same far place matches a driver early enough to absorb its detour, so kilometres were never the obstacle.',
+);
+
+// Where one place fails the window and another passes, only the passing one is offered.
+const mixed = detourMatch(bothPlacesRequest, pushedOutDriver);
+assert.ok(mixed, 'A place that still fits the window keeps the suggestion alive.');
+assert.deepEqual(
+  mixed.places.map((place) => place.public_area_label),
+  ['Torino'],
+  'Only the meeting point that fits the arrival window is offered.',
+);
+
+// ------------------------------------------------------------------ the same service
+
+// Two people who chose the same service occurrence are compatible in time by definition, and
+// the window never applies to them. This driver arrives three hours after the desired time.
+const serviceId = randomUUID();
+runSql(container, `
+  insert into app.service_occurrence (public_id, church_id, source_name, starts_at, timezone)
+  select ${sqlLiteral(serviceId)}, id, ${sqlLiteral(`Synthetic Liturgy ${suffix}`)},
+    ${sqlLiteral(isoAfter(11, 9))}::timestamptz, 'UTC'
+  from app.church where public_id = ${sqlLiteral(churchId)}::uuid;
+`);
+const serviceRequest = await rpc(clients[0], 'publish_passenger_request', {
+  p_child_seat_required: false,
+  p_children_count: 0,
+  p_church_id: churchId,
+  p_client_key: randomUUID(),
+  p_desired_arrival_at: isoAfter(11, 9),
+  p_places: [syntheticPlace(45.0521, 7.6722, 'Exact service meeting place', 'Torino')],
+  p_public_note: null,
+  p_return_required: false,
+  p_service_occurrence_id: serviceId,
+  p_timezone: 'UTC',
+  p_total_passengers: 1,
+});
+const serviceOccurrence = await rpc(clients[1], 'publish_driver_occurrence', {
+  p_arrival_at: isoAfter(11, 12),
   p_children_allowed: true,
   p_church_id: churchId,
   p_client_key: randomUUID(),
-  p_departure_at: isoAfter(7, 6, 30),
+  p_departure_at: isoAfter(11, 11),
   p_driver_child_seat_available: true,
   p_max_detour_km: 20,
-  p_origin: syntheticPlace(45.0240, 7.6540, 'Exact early departure', 'Moncalieri'),
+  p_origin: syntheticPlace(45.0201, 7.6501, 'Exact service departure', 'Moncalieri'),
   p_public_note: null,
   p_return_available: false,
-  p_service_occurrence_id: null,
+  p_service_occurrence_id: serviceId,
   p_timezone: 'UTC',
   p_total_seats: 4,
 });
 await measureAllPendingLegs(worker);
-const timeMatches = await rpc(clients[0], 'list_quality_matches', { p_church_id: churchId });
-assert.equal(timeMatches.some((item) => item.occurrence_id === lateOccurrence.occurrence_id), false);
-assert.equal(timeMatches.some((item) => item.occurrence_id === earlyOccurrence.occurrence_id), false);
+assert.ok(
+  (await rpc(clients[0], 'list_quality_matches', { p_church_id: churchId }))
+    .some((item) => item.request_id === serviceRequest.request_id
+      && item.occurrence_id === serviceOccurrence.occurrence_id),
+  'The same service occurrence stays compatible in time however far the clock times differ.',
+);
 
 // A mutual block removes the suggestion silently, in both directions.
 const blockedOccurrence = await rpc(clients[3], 'publish_driver_occurrence', {
