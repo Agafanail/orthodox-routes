@@ -449,6 +449,10 @@ assert.equal(offered(oneMinuteLate), true, 'Arriving one minute after the desire
 // then pushes the arrival the passenger experiences past the late edge. The detour stays within
 // the approved kilometres throughout, so only the time can be what rejects it.
 const detourDesired = isoAfter(10, 10, 55);
+// One person may hold only one active request per church per desired minute, so the two-place
+// variant asks for the minute after. The margins below are tens of minutes wide, so the offset
+// changes nothing the assertions depend on.
+const detourDesiredForBoth = isoAfter(10, 10, 56);
 const nearWindowPlace = syntheticPlace(45.0520, 7.6721, 'Exact near window place', 'Torino');
 const farWindowPlace = syntheticPlace(45.0450, 7.5600, 'Exact far window place', 'Rivoli');
 const plannedInsideWindow = new Date(Date.parse(detourDesired) + 20 * 60 * 1000).toISOString();
@@ -492,7 +496,7 @@ const bothPlacesRequest = await rpc(clients[0], 'publish_passenger_request', {
   p_children_count: 0,
   p_church_id: churchId,
   p_client_key: randomUUID(),
-  p_desired_arrival_at: detourDesired,
+  p_desired_arrival_at: detourDesiredForBoth,
   p_places: [nearWindowPlace, farWindowPlace],
   p_public_note: null,
   p_return_required: false,

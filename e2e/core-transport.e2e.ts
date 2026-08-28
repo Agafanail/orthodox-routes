@@ -70,7 +70,17 @@ async function captureApplicationPayloads(page: Page, action: () => Promise<void
       && (type === 'document' || type === 'fetch')
       && /(text\/html|text\/x-component|application\/json)/i.test(contentType)
     ) {
-      reads.push(response.text().catch(() => ''));
+      // Bounded on purpose. Some responses are still streaming when the step ends — a prefetch
+      // the page started and then abandoned — and their bodies never arrive at all. An
+      // unbounded read of one of those was what silently consumed the whole test budget and
+      // then blamed whichever unrelated call happened to be in flight at the timeout. Skipping
+      // such a body costs the check nothing: a body the browser never received is a body the
+      // page never rendered, and `page.content()` below is the authoritative snapshot of what
+      // the visitor actually got.
+      reads.push(Promise.race([
+        response.text().catch(() => ''),
+        new Promise<string>((resolve) => { setTimeout(() => resolve(''), 10_000); }),
+      ]));
     }
   };
   page.on('response', listener);
