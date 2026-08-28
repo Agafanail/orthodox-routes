@@ -539,7 +539,9 @@ assert.deepEqual(
 // ------------------------------------------------------------------ the same service
 
 // Two people who chose the same service occurrence are compatible in time by definition, and
-// the window never applies to them. This driver arrives three hours after the desired time.
+// the window never applies to them. Publishing enforces that both sides name the service's own
+// time, so the pair is created legitimately and the driver's clock is then moved three hours —
+// far outside anything the window would accept — to prove the window is not consulted at all.
 const serviceId = randomUUID();
 runSql(container, `
   insert into app.service_occurrence (public_id, church_id, source_name, starts_at, timezone)
@@ -561,11 +563,11 @@ const serviceRequest = await rpc(clients[0], 'publish_passenger_request', {
   p_total_passengers: 1,
 });
 const serviceOccurrence = await rpc(clients[1], 'publish_driver_occurrence', {
-  p_arrival_at: isoAfter(11, 12),
+  p_arrival_at: isoAfter(11, 9),
   p_children_allowed: true,
   p_church_id: churchId,
   p_client_key: randomUUID(),
-  p_departure_at: isoAfter(11, 11),
+  p_departure_at: isoAfter(11, 8),
   p_driver_child_seat_available: true,
   p_max_detour_km: 20,
   p_origin: syntheticPlace(45.0201, 7.6501, 'Exact service departure', 'Moncalieri'),
@@ -576,6 +578,17 @@ const serviceOccurrence = await rpc(clients[1], 'publish_driver_occurrence', {
   p_total_seats: 4,
 });
 await measureAllPendingLegs(worker);
+const sameServiceMatches = (await rpc(clients[0], 'list_quality_matches', { p_church_id: churchId }))
+  .some((item) => item.request_id === serviceRequest.request_id
+    && item.occurrence_id === serviceOccurrence.occurrence_id);
+assert.ok(sameServiceMatches, 'A shared service occurrence is a suggestion.');
+
+runSql(container, `
+  update app.driver_offer_occurrence
+  set arrival_at = arrival_at + interval '3 hours',
+      departure_at = departure_at + interval '3 hours'
+  where public_id = ${sqlLiteral(serviceOccurrence.occurrence_id)}::uuid;
+`);
 assert.ok(
   (await rpc(clients[0], 'list_quality_matches', { p_church_id: churchId }))
     .some((item) => item.request_id === serviceRequest.request_id
