@@ -223,7 +223,49 @@ const occurrence = await rpc(clients[1], 'publish_driver_occurrence', {
   p_total_seats: 3,
 });
 
+// Three more drivers, placed either side of the approved arrival window so the rule is visible
+// rather than merely described. The passenger wants 09:00 UTC, so the window runs from 08:00 to
+// 09:30 measured after the pickup detour, which on these short detours costs only a few minutes.
+async function publishTimedDriver(arrivalHour, arrivalMinute, note, origin) {
+  return rpc(clients[1], 'publish_driver_occurrence', {
+    p_arrival_at: isoAfter(7, arrivalHour, arrivalMinute),
+    p_children_allowed: true,
+    p_church_id: churchId,
+    p_client_key: randomUUID(),
+    p_departure_at: isoAfter(7, arrivalHour - 1, arrivalMinute),
+    p_driver_child_seat_available: true,
+    p_max_detour_km: 10,
+    p_origin: origin,
+    p_public_note: note,
+    p_return_available: false,
+    p_service_occurrence_id: null,
+    p_timezone: 'Europe/Rome',
+    p_total_seats: 3,
+  });
+}
+
+// Later than the passenger asked for, and still useful. The previous rule refused this outright.
+const slightlyLate = await publishTimedDriver(
+  9, 15, 'Проверка: приезжаю позже желаемого на 15 минут.',
+  syntheticPlace(45.0210, 7.6510, 'Via Torino 102, Moncalieri', 'Moncalieri'),
+);
+// Far enough past the desired time that the detour cannot bring it back inside.
+const tooLate = await publishTimedDriver(
+  9, 50, 'Проверка: приезжаю позже желаемого на 50 минут.',
+  syntheticPlace(45.0220, 7.6520, 'Via Torino 104, Moncalieri', 'Moncalieri'),
+);
+// Early beyond the hour the window allows.
+const tooEarly = await publishTimedDriver(
+  7, 30, 'Проверка: приезжаю на полтора часа раньше желаемого.',
+  syntheticPlace(45.0230, 7.6530, 'Via Torino 106, Moncalieri', 'Moncalieri'),
+);
+
 console.log('Synthetic staging walkthrough data is in place and will remain until removed.\n');
 console.log(`Просьба:   ${request.request_id}`);
-console.log(`Поездка:   ${occurrence.occurrence_id}`);
+console.log(`Поездка:   ${occurrence.occurrence_id}\n`);
+console.log('Проверка временного окна (пассажир хочет приехать к 11:00 по Риму):');
+console.log(`  ожидается «Подходит»       — вовремя           ${occurrence.occurrence_id}`);
+console.log(`  ожидается «Подходит»       — на 15 мин позже   ${slightlyLate.occurrence_id}`);
+console.log(`  ожидается БЕЗ метки        — на 50 мин позже   ${tooLate.occurrence_id}`);
+console.log(`  ожидается БЕЗ метки        — на 1,5 ч раньше   ${tooEarly.occurrence_id}\n`);
 await announce(identities);
