@@ -171,7 +171,17 @@ and a meeting point is compatible when that falls no more than an hour before, a
 
 Migration `20260827090000_effective_arrival_matching.sql`. The window bounds live in named functions rather than inline literals, so the approved numbers are readable and testable in one place.
 
-**Documentation reconciled:** IA V2 §21 rule list, Product Scope §12.1 and §12.2 including the worked example, and the UX copy rule that called the minutes purely informational. No unrelated section was touched.
+**Documentation reconciled:** IA V2 §21 rule list, Product Scope §12.1 and §12.2 including the worked example, and the UX copy rule that called the minutes purely informational. One source comment that repeated the old claim was corrected too. No unrelated section was touched.
+
+**Tests.** Eight boundary cases in `test:matching`, each placed on the second rather than near it: the stand-in provider is deterministic, so one probe reveals exactly what the pickup costs and every arrival is then constructed backwards from it. Exactly an hour early matches and a minute more does not; exactly half an hour late matches and a minute more does not; a driver one minute late matches, which the previous rule refused. A driver whose own planned arrival sits inside the window but whose detour pushes it past the late edge does not match, and the same far place matched by an earlier driver proves kilometres were never the obstacle. Where one place fails the window and another passes, only the passing one is offered. A shared service occurrence keeps its suggestion after its clock is moved three hours, proving the window is never consulted there.
+
+Two defects in the tests themselves surfaced and were fixed: one person may not hold two active requests for the same church in the same minute, and publishing requires both sides of a shared service to name the service's own time, so that pair is now created legitimately and shifted afterwards.
+
+**CI** `33166161094` green on `e676f51` across all four jobs.
+
+**The staging database is one migration behind, and that step is the owner's.** The agent's attempt to apply it was refused by the environment's safety classifier, which is the right outcome for a schema change to a live environment. Until `npx supabase db push --linked --yes` runs on this branch, staging still answers with the previous rule, so the manual check must follow it rather than precede it. The application itself needs no deploy for this change: the whole rule lives in SQL.
+
+**Walkthrough data.** The staging fixture now publishes three further drivers around one passenger, positioned either side of the window, and prints which of them should carry the mark.
 
 ### The blank map — 27 August 2026
 
