@@ -22,13 +22,14 @@
 -- candidate is measured for a slot it could never fill. The window bounds keep their named
 -- functions, because the approved numbers deserve one readable home.
 
--- The detour allowance existed only to stop the cheap filter discarding candidates that a
--- measurement might rescue on the early side. Nothing can rescue a stated time, so it goes.
-drop function if exists app.max_detour_duration(integer);
-
 drop function if exists api.list_quality_matches(uuid);
 drop view if exists app.quality_match_evaluated;
 drop view if exists app.quality_match_candidate;
+
+-- The detour allowance existed only to stop the cheap filter discarding candidates that a
+-- measurement might rescue on the early side. Nothing can rescue a stated time, so it goes —
+-- after the view that referenced it, which is what held it in place.
+drop function if exists app.max_detour_duration(integer);
 
 -- Every hard condition except the detour. Each one is deterministic and explainable; there is
 -- no score, no weighting, and no learned model anywhere in this file.
