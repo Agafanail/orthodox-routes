@@ -224,8 +224,9 @@ const occurrence = await rpc(clients[1], 'publish_driver_occurrence', {
 });
 
 // Three more drivers, placed either side of the approved arrival window so the rule is visible
-// rather than merely described. The passenger wants 09:00 UTC, so the window runs from 08:00 to
-// 09:30 measured after the pickup detour, which on these short detours costs only a few minutes.
+// rather than merely described. The passenger wants 09:00 UTC, so a driver is suited when the
+// arrival they state falls between 08:00 and 09:30. The pickup detour is not part of that
+// comparison; it only decides the kilometres and the approximate minutes shown alongside.
 async function publishTimedDriver(arrivalHour, arrivalMinute, note, origin) {
   return rpc(clients[1], 'publish_driver_occurrence', {
     p_arrival_at: isoAfter(7, arrivalHour, arrivalMinute),

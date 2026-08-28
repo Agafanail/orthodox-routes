@@ -155,7 +155,23 @@ Six of eight are exact. The two weaker cases both degrade into a list the person
 - **A privacy assertion was comparing coordinates as text.** `test:geography` reported that an exact coordinate had leaked into a public payload. It had not. A public centre is published to five decimals and the exact point is written to four, so `45.06112` contains `45.0611` as a substring. The offset runs a fixed distance along a per-owner bearing, and a bearing running nearly due east leaves the latitude almost unchanged while the point still moves the required hundreds of metres. The comparison is numeric now; the distance assertions that actually prove the privacy property were already correct and are untouched.
 - **A spent sign-in link forced the data to be rebuilt.** `npm run staging:maps-fixture:links` now mints fresh one-use links against the identities already present and writes nothing, so a walkthrough can be paused and resumed without disturbing what is being tested.
 
-### Arrival measured after the pickup — 27 August 2026
+### Arrival compared as stated — 28 August 2026
+
+The owner withdrew the effective-arrival rule below one day after approving it, and the reasoning is worth keeping. A stated arrival is a target the driver commits to. A driver who needs longer to collect someone leaves earlier; adding the pickup to their stated time treated that target as though it were a departure, which it is not.
+
+The approved rule is now a direct comparison of two stated times: the driver suits the passenger when the arrival they stated falls from sixty minutes before to thirty minutes after the desired arrival, inclusive. A passenger wanting 12:30 is suited by a driver stating 11:40 and not by one stating 13:30. The same service occurrence remains compatible by definition.
+
+The widened late edge survives from the withdrawn change, and it is the part that mattered: the original rule refused any driver arriving even a minute after the desired time.
+
+Road measurement keeps its other two jobs untouched — it decides whether a pickup fits the driver's approved kilometres, and it supplies the approximate minutes shown to people. Those minutes explain and decide nothing.
+
+**The SQL got simpler, not more complex.** Time is settled once again entirely by the cheap filter, before any provider call, so no candidate is ever measured for a slot it could not fill. The per-place time verdict, the effective-arrival column, and the detour-duration allowance that existed only to keep the prefilter honest are all gone. Migration `20260828090000_stated_arrival_matching.sql`; the window bounds keep their named functions.
+
+**Tests.** Five boundary cases on the stated time, each on the second: exactly an hour early matches and a second more does not; exactly half an hour late matches and a second more does not; a minute late matches. A sixth case guards the inverse — a pickup costing many minutes still matches while its kilometres fit and the stated arrival is inside the window — so the minutes cannot quietly become a condition again. The shared service occurrence keeps its suggestion after its clock is moved three hours.
+
+**Documentation** was returned to this rule in the same three places it had been changed, and the source comment with it.
+
+### Superseded — arrival measured after the pickup — 27 August 2026
 
 An approved product-rule change, found by the owner during manual testing. Previously a driver had to reach the church no later than the passenger's desired time, and the added minutes of the pickup detour were shown to people but decided nothing. Both halves were wrong in practice: a driver a minute late is still useful, and a driver whose own schedule looks ideal can become useless once the detour to collect this passenger is counted.
 

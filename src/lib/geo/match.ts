@@ -108,12 +108,7 @@ export function addedKilometres(addedDistanceM: number) {
   return addedDistanceM < 1000 ? Math.round((addedDistanceM / 1000) * 10) / 10 : Math.round(addedDistanceM / 1000);
 }
 
-/**
- * Rounds added minutes for display. The number shown is an estimate, which is why the wording
- * around it always says "примерно"; the exact value does take part in the decision, because it
- * moves the arrival the passenger would actually experience into or out of the approved window.
- * That comparison happens in SQL, never here.
- */
+/** Rounds added minutes. They are informational and never decide a match on their own. */
 export function addedMinutes(addedDurationS: number) {
   return Math.max(0, Math.round(addedDurationS / 60));
 }
