@@ -171,6 +171,10 @@ Road measurement keeps its other two jobs untouched — it decides whether a pic
 
 **Documentation** was returned to this rule in the same three places it had been changed, and the source comment with it.
 
+**CI** `33217590482` green on `d0029ec` across all four jobs, including the clean migration replay from empty over both new migrations. One defect surfaced on the way: a view records a dependency on every function its definition calls, so the detour allowance could not be dropped before the view that referenced it.
+
+**Staging carries two pending migrations**, `20260827090000` and `20260828090000`. Applying both in order is correct and intended — the second withdraws what the first introduced, and the history stays honest about that. The step remains the owner's, since the environment's safety classifier refuses a schema change to a live database from here. The application needs no deploy: the rule lives entirely in SQL.
+
 ### Superseded — arrival measured after the pickup — 27 August 2026
 
 An approved product-rule change, found by the owner during manual testing. Previously a driver had to reach the church no later than the passenger's desired time, and the added minutes of the pickup detour were shown to people but decided nothing. Both halves were wrong in practice: a driver a minute late is still useful, and a driver whose own schedule looks ideal can become useless once the detour to collect this passenger is counted.
