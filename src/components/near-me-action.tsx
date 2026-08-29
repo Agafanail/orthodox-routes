@@ -12,10 +12,23 @@ import { coarseLocation } from '@/lib/geo/church';
  * before it is used, which is precise enough to sort a catalog and keeps an exact position out
  * of request URLs and ordinary server logs.
  */
+/**
+ * How uncertain a position may be and still sort a catalog.
+ *
+ * The browser reports its own uncertainty in metres. A position derived from the network rather
+ * than from satellites can be hundreds of kilometres out — far enough to land in another
+ * country — and it arrives looking exactly like a good one. Sorting churches by such a position
+ * would quietly present a wrong answer as a fact, so past this radius the position is reported
+ * back to the person instead of being used. Nothing is corrected or guessed here: the only
+ * numbers this component ever touches are the ones the browser supplied.
+ */
+const USABLE_ACCURACY_M = 25_000;
+
 export function NearMeAction({ query }: { query: string }) {
   const router = useRouter();
   const [locating, setLocating] = useState(false);
   const [refused, setRefused] = useState(false);
+  const [vagueKm, setVagueKm] = useState<number | null>(null);
 
   function locate() {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -24,9 +37,15 @@ export function NearMeAction({ query }: { query: string }) {
     }
     setLocating(true);
     setRefused(false);
+    setVagueKm(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocating(false);
+        const { accuracy } = position.coords;
+        if (Number.isFinite(accuracy) && accuracy > USABLE_ACCURACY_M) {
+          setVagueKm(Math.round(accuracy / 1000));
+          return;
+        }
         const coarse = coarseLocation(position.coords.latitude, position.coords.longitude);
         if (!coarse) {
           setRefused(true);
@@ -40,7 +59,10 @@ export function NearMeAction({ query }: { query: string }) {
         setLocating(false);
         setRefused(true);
       },
-      { enableHighAccuracy: false, maximumAge: 300000, timeout: 15000 },
+      // Ask for the best fix the device can give, and ask for it now. The previous settings
+      // accepted a cached position up to five minutes old and told the browser that a rough one
+      // would do, which invites the network-derived answer that can be a country out.
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
     );
   }
 
@@ -57,6 +79,13 @@ export function NearMeAction({ query }: { query: string }) {
       {refused ? (
         <span className="text-sm text-stone-600" data-near-me-refused>
           Не удалось определить местоположение. Найдите храм по названию или городу.
+        </span>
+      ) : null}
+      {vagueKm !== null ? (
+        <span className="text-sm text-stone-600" data-near-me-vague>
+          Браузер определил ваше местоположение слишком приблизительно — с точностью около
+          {' '}{vagueKm} км. Сортировать храмы по такому ответу нельзя. Найдите храм по названию
+          или городу, а точность геолокации проверьте в настройках браузера и системы.
         </span>
       ) : null}
     </span>

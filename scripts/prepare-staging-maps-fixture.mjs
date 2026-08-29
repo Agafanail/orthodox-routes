@@ -77,10 +77,10 @@ async function rpc(client, name, args = {}) {
   return null;
 }
 
-function isoAfter(days, hour) {
+function isoAfter(days, hour, minute = 0) {
   const value = new Date();
   value.setUTCDate(value.getUTCDate() + days);
-  value.setUTCHours(hour, 0, 0, 0);
+  value.setUTCHours(hour, minute, 0, 0);
   return value.toISOString();
 }
 
@@ -131,12 +131,43 @@ if (process.argv.includes('--links-only')) {
   process.exit(0);
 }
 
-// Turin, so the synthetic geography is coherent and the detour numbers are believable.
-const church = { lat: 45.0703, lng: 7.6869 };
+// Catanzaro, which is where the bundled reference data already places this parish and where
+// the owner actually is. Every coordinate below was read back from the map provider before it
+// was written here, so each displayed address describes the point it is stored against.
 // The church page still resolves its slug against the bundled reference churches, so the
 // walkthrough reuses one of those slugs rather than inventing a new one.
-const churchSlug = 'pokrov-catanzaro';
 const churchId = randomUUID();
+
+/**
+ * Four published churches at plainly different distances, so «Рядом со мной» can be judged by
+ * eye rather than taken on trust. Distances are from the walkthrough church in Catanzaro.
+ *
+ * Only the first two have a page of their own: the church screen still resolves its slug against
+ * the bundled reference data, which carries exactly these two. The other two exist to be ordered
+ * in the catalog, and the summary below says so.
+ */
+const catalogChurches = [
+  {
+    slug: 'pokrov-catanzaro', id: churchId, name: 'Покровский храм (проверка)',
+    address: 'Piazza Giacomo Matteotti, 1, 88100 Катандзаро CZ, Италия',
+    locality: 'Катандзаро', lat: 38.9098, lng: 16.5877, note: 'сам храм проверки',
+  },
+  {
+    slug: 'lamezia-terme-proverka', id: randomUUID(), name: 'Никольский храм (проверка)',
+    address: 'Via Salvatore Miceli, 338, 88046 Nicastro - Sambiase CZ, Италия',
+    locality: 'Ламеция-Терме', lat: 38.9658, lng: 16.3097, note: 'около 25 км, только каталог',
+  },
+  {
+    slug: 'cosenza-proverka', id: randomUUID(), name: 'Троицкий храм (проверка)',
+    address: 'Piazza Undici Settembre, 3, 87100 Козенца CS, Италия',
+    locality: 'Козенца', lat: 39.2983, lng: 16.2539, note: 'около 52 км, только каталог',
+  },
+  {
+    slug: 'st-nicholas-bari', id: randomUUID(), name: 'Saint Nicholas Parish (проверка)',
+    address: 'Via Giuseppe Capruzzi, 128, 70125 Бари BA, Италия',
+    locality: 'Бари', lat: 41.1171, lng: 16.8719, note: 'около 247 км',
+  },
+];
 
 const identities = [
   { email: `${fixtureTag}-passenger-${suffix}@example.test`, name: 'Анна (проверка)', phone: `+390${phoneStem}1` },
@@ -174,11 +205,12 @@ runSql(`
   ) on conflict do nothing;
   insert into app.church (
     public_id, slug, official_name, address_display, locality, country_code, timezone, status, location
-  ) values (
-    ${sqlLiteral(churchId)}::uuid, ${sqlLiteral(churchSlug)},
-    'Покровский храм (проверка)', 'Via Giuseppe Verdi 12, Torino', 'Torino', 'IT', 'Europe/Rome', 'published',
-    extensions.st_setsrid(extensions.st_makepoint(${church.lng}, ${church.lat}), 4326)::extensions.geography
-  );
+  ) values
+  ${catalogChurches.map((item) => `(
+    ${sqlLiteral(item.id)}::uuid, ${sqlLiteral(item.slug)}, ${sqlLiteral(item.name)},
+    ${sqlLiteral(item.address)}, ${sqlLiteral(item.locality)}, 'IT', 'Europe/Rome', 'published',
+    extensions.st_setsrid(extensions.st_makepoint(${item.lng}, ${item.lat}), 4326)::extensions.geography
+  )`).join(', ')};
   update private.account_contact set phone_verified_at = now()
   where account_id in (${identities.map((identity) => `${sqlLiteral(identity.id)}::uuid`).join(', ')});
 `);
@@ -196,9 +228,9 @@ const request = await rpc(clients[0], 'publish_passenger_request', {
   p_client_key: randomUUID(),
   p_desired_arrival_at: arrivalAt,
   p_places: [
-    syntheticPlace(45.0500, 7.6700, 'Corso Vittorio Emanuele II 45, Torino', 'Torino'),
-    syntheticPlace(45.0400, 7.6600, 'Piazza Carducci 3, Torino', 'Torino'),
-    syntheticPlace(45.0450, 7.5600, 'Via Roma 8, Rivoli', 'Rivoli'),
+    syntheticPlace(38.8900, 16.5880, 'Via Louise Gariano, 27, 88100 Катандзаро', 'Катандзаро'),
+    syntheticPlace(38.8700, 16.5900, 'Contrada Mula, 4, 88100 Катандзаро', 'Катандзаро'),
+    syntheticPlace(38.9000, 16.4500, '88025 Майда CZ', 'Майда'),
   ],
   p_public_note: null,
   p_return_required: true,
@@ -215,7 +247,7 @@ const occurrence = await rpc(clients[1], 'publish_driver_occurrence', {
   p_departure_at: isoAfter(7, 8),
   p_driver_child_seat_available: true,
   p_max_detour_km: 5,
-  p_origin: syntheticPlace(45.0200, 7.6500, 'Via Torino 100, Moncalieri', 'Moncalieri'),
+  p_origin: syntheticPlace(38.8400, 16.5900, 'Viale Europa, 29, 88021 Катандзаро', 'Катандзаро-Лидо'),
   p_public_note: null,
   p_return_available: true,
   p_service_occurrence_id: null,
@@ -248,17 +280,17 @@ async function publishTimedDriver(arrivalHour, arrivalMinute, note, origin) {
 // Later than the passenger asked for, and still useful. The previous rule refused this outright.
 const slightlyLate = await publishTimedDriver(
   9, 15, 'Проверка: приезжаю позже желаемого на 15 минут.',
-  syntheticPlace(45.0210, 7.6510, 'Via Torino 102, Moncalieri', 'Moncalieri'),
+  syntheticPlace(38.8401, 16.5901, 'Viale Europa, 29, 88021 Катандзаро', 'Катандзаро-Лидо'),
 );
 // Far enough past the desired time that the detour cannot bring it back inside.
 const tooLate = await publishTimedDriver(
   9, 50, 'Проверка: приезжаю позже желаемого на 50 минут.',
-  syntheticPlace(45.0220, 7.6520, 'Via Torino 104, Moncalieri', 'Moncalieri'),
+  syntheticPlace(38.8402, 16.5902, 'Viale Europa, 29, 88021 Катандзаро', 'Катандзаро-Лидо'),
 );
 // Early beyond the hour the window allows.
 const tooEarly = await publishTimedDriver(
   7, 30, 'Проверка: приезжаю на полтора часа раньше желаемого.',
-  syntheticPlace(45.0230, 7.6530, 'Via Torino 106, Moncalieri', 'Moncalieri'),
+  syntheticPlace(38.8403, 16.5903, 'Viale Europa, 29, 88021 Катандзаро', 'Катандзаро-Лидо'),
 );
 
 console.log('Synthetic staging walkthrough data is in place and will remain until removed.\n');
@@ -269,4 +301,11 @@ console.log(`  ожидается «Подходит»       — вовремя 
 console.log(`  ожидается «Подходит»       — на 15 мин позже   ${slightlyLate.occurrence_id}`);
 console.log(`  ожидается БЕЗ метки        — на 50 мин позже   ${tooLate.occurrence_id}`);
 console.log(`  ожидается БЕЗ метки        — на 1,5 ч раньше   ${tooEarly.occurrence_id}\n`);
+console.log('Храмы в каталоге, от ближайшего к дальнему (расстояния от Катандзаро):');
+for (const item of catalogChurches) {
+  console.log(`  ${item.locality.padEnd(16)} ${item.note}`);
+}
+console.log('  У «Ламеции» и «Козенцы» своей страницы пока нет: экран храма ещё берёт данные');
+console.log('  из встроенного справочника, где есть только Катандзаро и Бари. В каталоге они');
+console.log('  участвуют в сортировке полноценно.\n');
 await announce(identities);

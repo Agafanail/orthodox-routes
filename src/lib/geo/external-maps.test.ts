@@ -28,9 +28,27 @@ describe('externalRouteLinks', () => {
     // No origin is sent: Orthodox Routes never asks for a location to build this link.
     expect(googleUrl.searchParams.get('origin')).toBeNull();
 
+    // Yandex documents `rtext` as both ends of a route, `lat,lon~lat,lon`. Half of one was not
+    // a route at all: it opened a generic map in an unrelated region. Building the real thing
+    // would mean learning where the person is, so the church is opened as a place instead and
+    // Yandex offers its own route action from the location it already has.
     const yandexUrl = new URL(yandex.href);
-    expect(yandexUrl.searchParams.get('rtext')).toBe('~45.070300,7.686900');
-    expect(yandexUrl.searchParams.get('rtt')).toBe('auto');
+    expect(yandexUrl.searchParams.get('rtext')).toBeNull();
+    // Yandex orders these longitude first, unlike `rtext`. Reversing them lands elsewhere.
+    expect(yandexUrl.searchParams.get('whatshere[point]')).toBe('7.686900,45.070300');
+    expect(yandexUrl.searchParams.get('ll')).toBe('7.686900,45.070300');
+    expect(yandexUrl.searchParams.get('pt')).toBe('7.686900,45.070300');
+  });
+
+  it('never carries anything about the person asking', () => {
+    for (const link of externalRouteLinks({ point })) {
+      const url = new URL(link.href);
+      for (const forbidden of ['origin', 'from', 'saddr', 'rtext', 'myloc']) {
+        // The one exception is Google's own destination-only form, which has no origin either.
+        if (forbidden === 'rtext' && link.id === 'google') continue;
+        expect(url.searchParams.get(forbidden)).toBeNull();
+      }
+    }
   });
 });
 
