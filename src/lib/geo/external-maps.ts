@@ -87,6 +87,6 @@ export function externalRouteLinks(target: ExternalMapTarget): ExternalMapLink[]
 
   return [
     { href: google.toString(), id: 'google', title: 'Маршрут в Google Картах' },
-    { href: yandex.toString(), id: 'yandex', title: 'Маршрут в Яндекс Картах' },
+    { href: yandex.toString(), id: 'yandex', title: 'Открыть в Яндекс Картах' },
   ];
 }
