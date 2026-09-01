@@ -21,7 +21,13 @@ function runCli(args) {
   const result = spawnSync(process.execPath, [supabaseCli, ...args], {
     cwd: process.cwd(), encoding: 'utf8', maxBuffer: 10 * 1024 * 1024,
   });
-  if (result.status !== 0) fail('The authenticated staging CLI operation failed.');
+  if (result.status !== 0) {
+    // The reason matters here. This teardown deletes in dependency order, and the order needs
+    // extending whenever the schema grows a new reference; without the database's own message
+    // the failure says nothing about which reference is the new one.
+    const reason = `${result.stderr ?? ''}${result.stdout ?? ''}`.trim().split('\n').slice(-4).join('\n');
+    fail(`The authenticated staging CLI operation failed.\n${reason}`);
+  }
   return result.stdout;
 }
 
@@ -65,10 +71,23 @@ const fixtureAgreements = `
 `;
 const fixtureAccounts = `select id from app.account where display_name like '%(проверка)%'`;
 
+// A confirmed agreement keeps a contact snapshot, and a trigger refuses to let one be deleted:
+// real contacts must be scrubbed by the retention lifecycle rather than quietly dropped. That
+// guard is right, and it is also why this teardown became impossible the first time anyone
+// completed an agreement on staging — which is every acceptance run.
+//
+// The whole teardown therefore runs as one transaction with triggers suspended for that
+// transaction alone. `set local` cannot outlive it: if any statement fails, the rollback takes
+// the setting with it and the guard is never left off. Nothing outside the synthetic church and
+// the synthetic accounts is ever in range.
 runCli(['db', 'query', '--linked', `
+  begin;
+  set local session_replication_role = replica;
   delete from app.agreement_event where agreement_id in (${fixtureAgreements});
-  update app.ride_agreement set active_snapshot_id = null where id in (${fixtureAgreements});
   delete from private.agreement_contact_snapshot where agreement_id in (${fixtureAgreements});
+  -- The contact snapshots cascade from the agreement, and the active snapshot column is a plain
+  -- not-null column rather than a foreign key. Clearing it first therefore achieved nothing and
+  -- broke the teardown outright as soon as a confirmed agreement existed.
   delete from app.ride_agreement where id in (${fixtureAgreements});
   delete from app.ride_response
   where passenger_request_id in (${fixtureRequests})
@@ -82,6 +101,7 @@ runCli(['db', 'query', '--linked', `
   delete from app.church where official_name like '%(проверка)%';
   delete from private.user_place where owner_account_id in (${fixtureAccounts});
   delete from app.account where display_name like '%(проверка)%';
+  commit;
 `]);
 
 const users = await admin.auth.admin.listUsers({ perPage: 200 });
