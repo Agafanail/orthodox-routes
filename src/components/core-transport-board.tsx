@@ -225,6 +225,65 @@ function MatchBadge({ match }: { match?: QualityMatch }) {
   </p>;
 }
 
+/**
+ * The ride this driver should be offered for one request, already decided by matching.
+ *
+ * Matching returns its suggestions in the approved order — smallest added distance first, then
+ * smallest added time — so the first one that is still an active ride of theirs is the best one.
+ * A ride that does not match is never returned, so nothing unsuitable is ever filled in for them.
+ */
+function suggestedOffer(
+  matches: QualityMatch[],
+  activeOccurrences: { occurrenceId: string }[],
+  requestId: string,
+) {
+  const match = matches.find((item) => item.requestId === requestId
+    && item.currentRole === 'driver'
+    && activeOccurrences.some((occurrence) => occurrence.occurrenceId === item.occurrenceId));
+  if (!match) return null;
+  const place = match.places.find((item) => item.best) ?? match.places[0];
+  if (!place) return null;
+  return {
+    occurrenceId: match.occurrenceId,
+    placeId: place.placeId,
+    placeLabel: place.publicAreaLabel,
+    rideLabel: `${date(match.arrivalAt, match.timezone)} · ${detourSummary(match)}`,
+  };
+}
+
+/**
+ * What the offer actually commits to, shown before anyone confirms it.
+ *
+ * Every value here is already public on the board: an approximate departure area, a time, seats,
+ * the return and detour conditions, and the matching explanation. Nothing protected appears —
+ * no exact address, no coordinate, no contact — because none of that is disclosed until both
+ * sides have confirmed. Without this the passenger had to go back to the board and hunt for the
+ * driver's listing in order to know what they were agreeing to.
+ */
+function OfferConditions({ match, offer, place, timezone }: {
+  match?: QualityMatch;
+  offer?: CoreTransportData['driverOccurrences'][number];
+  place?: string;
+  timezone: string;
+}) {
+  if (!offer) return null;
+  return <div className="mt-2 rounded border border-stone-200 bg-white p-3 text-sm" data-offer-conditions>
+    <p><span className="font-semibold">Выезжает примерно из:</span> {offer.publicOriginArea}</p>
+    <p><span className="font-semibold">Прибытие:</span> {date(offer.arrivalAt, offer.timezone || timezone)}</p>
+    {place ? <p><span className="font-semibold">Место встречи:</span> {place}</p> : null}
+    {match ? <p className="font-semibold text-amber-900">{detourSummary(match)}</p> : null}
+    <details className="mt-2">
+      <summary className="cursor-pointer font-semibold text-amber-800">Подробнее</summary>
+      <p className="mt-1">Свободных мест: {offer.availableSeats}.</p>
+      <p>Готов на крюк до {offer.maxDetourKm} км.</p>
+      <p>{offer.returnAvailable ? 'Возможна обратная дорога.' : 'Обратной дороги нет.'}</p>
+      <p>{offer.childrenAllowed ? 'Можно с детьми.' : 'Без детей.'} {offer.driverChildSeatAvailable ? 'Есть детское кресло.' : ''}</p>
+      {offer.publicNote ? <p className="mt-1">{offer.publicNote}</p> : null}
+      <p className="mt-1 text-stone-600">Точное место отправления и контакт открываются только после того, как вы оба подтвердите поездку.</p>
+    </details>
+  </div>;
+}
+
 function actionHidden(slug: string) {
   return <><input name="church_slug" type="hidden" value={slug} /><input name="client_key" type="hidden" value={randomUUID()} /></>;
 }
@@ -245,6 +304,11 @@ export function CoreTransportBoard(props: Props) {
   const matchedOccurrences = props.showMatchesOnly
     ? props.driverOccurrences.filter((offer) => matchesOccurrence(matches, offer.occurrenceId))
     : props.driverOccurrences;
+  // Responses that are waiting on this person specifically, in either direction.
+  const awaitingDecision = props.responses.filter((response) => (
+    (response.status === 'await_passenger' && response.currentRole === 'passenger')
+    || (response.status === 'await_driver' && response.currentRole === 'driver')
+  ));
   const places: PlaceContext = {
     browserKey: props.mapBrowserKey,
     mapAvailable: props.mapAvailable,
@@ -263,6 +327,27 @@ export function CoreTransportBoard(props: Props) {
       )}
       {props.signedIn && !eligible ? <p className="mt-2 text-sm text-amber-900">Сервер пока не разрешает участие: завершите недостающие проверки через сохранённое действие.</p> : null}
       {!props.signedIn ? <Link className="mt-3 inline-block font-semibold text-amber-800" href="/auth">Войти</Link> : null}
+      {/*
+        Someone is waiting on this person's answer. It sits at the top of the participation block
+        because a reply that is easy to miss is the same as no reply: the responses themselves
+        live further down the page, past the boards, where nobody looks unless they already know
+        something is there.
+      */}
+      {awaitingDecision.length > 0 ? <ul className="mt-3 grid gap-2" data-awaiting-decision>
+        {awaitingDecision.map((response) => (
+          <li className="rounded-lg border border-amber-300 bg-amber-50 p-4" key={response.responseId}>
+            <p className="font-semibold text-amber-900">
+              {response.currentRole === 'passenger'
+                ? `${response.driverName} предложил вас подвезти`
+                : `${response.passengerName} просит вас подвезти`}
+            </p>
+            <p className="mt-1 text-sm text-stone-700">Нужен ваш ответ.</p>
+            <Link className="mt-2 inline-flex min-h-11 items-center font-semibold text-amber-800" href="#ride-responses">
+              Посмотреть и решить
+            </Link>
+          </li>
+        ))}
+      </ul> : null}
     </div>
 
     <div className="grid gap-4 lg:grid-cols-3">
@@ -325,13 +410,37 @@ export function CoreTransportBoard(props: Props) {
             {request.publicNote ? <p className="mt-1 text-sm">{request.publicNote}</p> : null}
             {eligible && activeOccurrences.length > 0 && !props.responses.some((response) => (
               response.requestId === request.requestId && ['await_driver', 'await_passenger'].includes(response.status)
-            )) ? <form action={submitDriverResponseAction} className="mt-3 grid gap-2 rounded border border-stone-200 p-3">
-              {actionHidden(props.church.slug)}<input name="request_id" type="hidden" value={request.requestId} />
-              <label>Ваша поездка<select name="occurrence_id">{activeOccurrences.map((item) => <option key={item.occurrenceId} value={item.occurrenceId}>{date(props.driverOccurrences.find((offer) => offer.occurrenceId === item.occurrenceId)?.arrivalAt ?? '', props.church.timezone)} · {item.availableSeats} мест</option>)}</select></label>
-              <label>Место<select name="place_id">{request.placeOptions.map((place) => <option key={place.placeId} value={place.placeId}>{place.publicAreaLabel}</option>)}</select></label>
-              <label>Сколько пассажиров<input defaultValue={Math.min(request.passengerCount, activeOccurrences[0].availableSeats)} max={55} min={1} name="passenger_count" type="number" /></label>
-              <button className="font-semibold text-amber-800" type="submit">Предложить поездку</button>
-            </form> : null}
+            )) ? (() => {
+              // Matching has already worked out which of this driver's rides suits this request,
+              // and in what order, so asking them to find it again in a list is asking twice.
+              // The suggestion is only ever a ride that actually matches; when none does, the
+              // list stays open and nothing is chosen for them.
+              const suggestion = suggestedOffer(matches, activeOccurrences, request.requestId);
+              const seats = suggestion
+                ? activeOccurrences.find((item) => item.occurrenceId === suggestion.occurrenceId)?.availableSeats
+                : activeOccurrences[0].availableSeats;
+              const rides = activeOccurrences.map((item) => <option key={item.occurrenceId} value={item.occurrenceId}>
+                {date(props.driverOccurrences.find((offer) => offer.occurrenceId === item.occurrenceId)?.arrivalAt ?? '', props.church.timezone)} · {item.availableSeats} мест
+              </option>);
+              const places = request.placeOptions.map((place) => <option key={place.placeId} value={place.placeId}>{place.publicAreaLabel}</option>);
+              return <form action={submitDriverResponseAction} className="mt-3 grid gap-2 rounded border border-stone-200 p-3" data-driver-response>
+                {actionHidden(props.church.slug)}<input name="request_id" type="hidden" value={request.requestId} />
+                {suggestion ? <div className="grid gap-1" data-suggested-offer>
+                  <p>Ваша поездка: <span className="font-semibold">{suggestion.rideLabel}</span></p>
+                  <details>
+                    <summary className="cursor-pointer text-sm font-semibold text-amber-800">Изменить</summary>
+                    <label className="mt-2 grid gap-1">Ваша поездка<select defaultValue={suggestion.occurrenceId} name="occurrence_id">{rides}</select></label>
+                    <label className="mt-2 grid gap-1">Место<select defaultValue={suggestion.placeId} name="place_id">{places}</select></label>
+                  </details>
+                  <p className="text-sm text-stone-600">Место встречи: {suggestion.placeLabel}</p>
+                </div> : <>
+                  <label>Ваша поездка<select name="occurrence_id">{rides}</select></label>
+                  <label>Место<select name="place_id">{places}</select></label>
+                </>}
+                <label>Сколько пассажиров<input defaultValue={Math.min(request.passengerCount, seats ?? request.passengerCount)} max={55} min={1} name="passenger_count" type="number" /></label>
+                <button className="font-semibold text-amber-800" type="submit">Предложить поездку</button>
+              </form>;
+            })() : null}
             {(!eligible || activeOccurrences.length === 0) && !props.responses.some((response) => (
               response.requestId === request.requestId && ['await_driver', 'await_passenger'].includes(response.status)
             )) ? <details className="mt-3 rounded border border-stone-200 p-3">
@@ -401,12 +510,18 @@ export function CoreTransportBoard(props: Props) {
       </div>
     </section> : null}
 
-    {props.responses.length > 0 ? <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+    {props.responses.length > 0 ? <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm" id="ride-responses">
       <h2 className="text-xl font-bold">Ответы</h2>
       <div className="mt-4 space-y-3">{props.responses.map((response) => {
         const request = props.passengerRequests.find((item) => item.requestId === response.requestId);
         return <article className="rounded bg-stone-50 p-4" key={response.responseId}>
           <p className="font-semibold">{response.passengerName} ↔ {response.driverName}</p><p>{response.offeredPassengerCount} мест · {stateLabel(response.status)}</p>
+          {['await_driver', 'await_passenger'].includes(response.status) ? <OfferConditions
+            match={matches.find((item) => item.occurrenceId === response.occurrenceId && item.requestId === response.requestId)}
+            offer={props.driverOccurrences.find((item) => item.occurrenceId === response.occurrenceId)}
+            place={response.selectedPlace?.publicAreaLabel}
+            timezone={props.church.timezone}
+          /> : null}
           {response.status === 'await_driver' && response.currentRole === 'driver' && request ? <div className="mt-2 flex flex-wrap gap-3">
             <form action={answerPassengerResponseAction} className="flex flex-wrap gap-2">{actionHidden(props.church.slug)}<input name="response_id" type="hidden" value={response.responseId} />
               <select name="place_id">{request.placeOptions.map((place) => <option key={place.placeId} value={place.placeId}>{place.publicAreaLabel}</option>)}</select><input defaultValue={response.offeredPassengerCount} max={55} min={1} name="passenger_count" type="number" /><button className="font-semibold text-amber-900" type="submit">Предложить условия</button>
