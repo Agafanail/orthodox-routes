@@ -1,5 +1,5 @@
 import type { CoreChurch, CoreDriverOccurrence, CorePassengerRequest } from '@/lib/core-transport/types';
-import type { MapArea, MapMarker } from '@/lib/geo/map-style';
+import { AREA_COLOURS, AREA_TITLES, type MapArea, type MapMarker } from '@/lib/geo/map-style';
 import { InteractiveMap } from './interactive-map';
 
 /**
@@ -74,10 +74,26 @@ export function BoardMap({
           markers={markers}
           unavailableText="Карта сейчас недоступна. Список объявлений работает как обычно."
         />
+        <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm" data-board-map-legend>
+          {(['meeting', 'departure'] as const).map((kind) => (
+            <li className="flex items-center gap-2" key={kind}>
+              <span
+                aria-hidden
+                className="inline-block h-4 w-4 rounded-full border-2"
+                style={{
+                  backgroundColor: `${AREA_COLOURS[kind]}26`,
+                  borderColor: AREA_COLOURS[kind],
+                  borderStyle: kind === 'meeting' ? 'dashed' : 'solid',
+                }}
+              />
+              {AREA_TITLES[kind]}
+            </li>
+          ))}
+        </ul>
         <p className="mt-2 text-sm text-stone-600" data-board-map-privacy>
-          Показаны точное место храма и примерные области радиусом около 1 км: пунктиром — места
-          встречи пассажиров, сплошной линией — места отправления водителей. Точные места видны
-          только тем, с кем человек договорился. Маршрут поездки не показывается.
+          Показаны точное место храма и примерные области радиусом около 1 км. Нажмите на область,
+          чтобы увидеть, чья она. Точные места видны только тем, с кем человек договорился.
+          Маршрут поездки не показывается.
         </p>
       </div>
     </details>

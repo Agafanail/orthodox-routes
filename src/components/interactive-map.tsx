@@ -8,6 +8,8 @@ import {
   boundsOf,
   geoapifyStyleUrl,
   isPointBounds,
+  AREA_COLOURS,
+  AREA_TITLES,
   GEOAPIFY_MAP_ATTRIBUTION,
   type MapArea,
   type MapMarker,
@@ -113,24 +115,56 @@ export function InteractiveMap({
 
         instance.on('load', () => {
           instance.addSource(AREA_SOURCE, { data: areasToGeoJson(areas), type: 'geojson' });
+          // Colour carries the difference between a passenger and a driver, because that is what
+          // a person reads without being told. The dashed and solid outlines carry it a second
+          // time, so the map still answers the question for anyone who does not see these two
+          // hues apart.
+          const byKind = (
+            meeting: string,
+            departure: string,
+          ): import('maplibre-gl').ExpressionSpecification => [
+            'case', ['==', ['get', 'kind'], 'meeting'], meeting, departure,
+          ];
           instance.addLayer({
             id: `${AREA_SOURCE}-fill`,
-            paint: { 'fill-color': '#b45309', 'fill-opacity': 0.15 },
+            paint: {
+              'fill-color': byKind(AREA_COLOURS.meeting, AREA_COLOURS.departure),
+              'fill-opacity': 0.15,
+            },
             source: AREA_SOURCE,
             type: 'fill',
           });
           instance.addLayer({
             id: `${AREA_SOURCE}-line`,
             paint: {
-              'line-color': '#b45309',
-              // A passenger area is dashed and a departure area is solid, so the two types are
-              // distinguishable without relying on colour.
+              'line-color': byKind(AREA_COLOURS.meeting, AREA_COLOURS.departure),
               'line-dasharray': ['case', ['==', ['get', 'kind'], 'meeting'], ['literal', [2, 2]], ['literal', [1, 0]]],
               'line-width': 2,
             },
             source: AREA_SOURCE,
             type: 'line',
           });
+
+          // Tapping an area says which kind it is. Only on a map for looking at: where the map
+          // is for choosing a point, a tap already means something else. The popup repeats what
+          // the card beside it already shows — a name and an approximate area — and never an
+          // exact place or a route.
+          if (!selectRef.current) {
+            instance.on('click', `${AREA_SOURCE}-fill`, (event) => {
+              const feature = event.features?.[0];
+              const kind = feature?.properties?.kind === 'meeting' ? 'meeting' : 'departure';
+              const label = typeof feature?.properties?.label === 'string' ? feature.properties.label : '';
+              new Popup({ closeButton: true })
+                .setLngLat(event.lngLat)
+                .setText(label ? `${AREA_TITLES[kind]} · ${label}` : AREA_TITLES[kind])
+                .addTo(instance);
+            });
+            for (const [event, cursor] of [['mouseenter', 'pointer'], ['mouseleave', '']] as const) {
+              instance.on(event, `${AREA_SOURCE}-fill`, () => {
+                instance.getCanvas().style.cursor = cursor;
+              });
+            }
+          }
 
           for (const marker of markers) {
             const pin = new Marker({ color: MARKER_COLOURS[marker.kind] })

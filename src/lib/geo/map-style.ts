@@ -35,8 +35,28 @@ export type MapArea = Coordinate & {
   id: string;
   radiusM: number;
   label: string;
-  /** A passenger meeting area and a driver departure area differ by outline, not by colour. */
+  /**
+   * A passenger meeting area and a driver departure area differ by colour *and* by outline.
+   * Colour is what makes the difference legible at a glance; the dashed and solid outlines keep
+   * it legible for anyone who does not distinguish these two hues.
+   */
   kind: 'meeting' | 'departure';
+};
+
+/**
+ * One source of truth for the two area colours, shared by the map layers and the legend beside
+ * them. Blue and amber are chosen because they stay distinguishable under the common forms of
+ * colour blindness, where a red and green pair would not.
+ */
+export const AREA_COLOURS: Record<MapArea['kind'], string> = {
+  departure: '#b45309',
+  meeting: '#1d4ed8',
+};
+
+/** What each kind of area is, in the words used on the board itself. */
+export const AREA_TITLES: Record<MapArea['kind'], string> = {
+  departure: 'Поездка водителя',
+  meeting: 'Запрос пассажира',
 };
 
 const EARTH_RADIUS_M = 6371008.8;
