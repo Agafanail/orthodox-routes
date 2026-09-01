@@ -109,6 +109,7 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'agreement_id', agreement.public_id,
     'status', agreement.status,
+    'current_role', case when actor.id = agreement.passenger_account_id then 'passenger' else 'driver' end,
     'request_id', request.public_id,
     'occurrence_id', occurrence.public_id,
     'passenger_name', passenger.display_name,
