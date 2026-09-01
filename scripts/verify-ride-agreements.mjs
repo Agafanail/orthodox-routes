@@ -476,13 +476,11 @@ assert.equal((await rpc(clients[0], 'restore_passenger_request', {
 
 // The moment has passed. Nothing is republished, whoever ends it.
 const tooLate = await arrangedRide(isoAfter(10, 9), 'Passed');
+// Only the request is aged. The rule turns on the time the passenger asked to arrive, and
+// moving the ride as well would trip the guard that ties contact visibility to its arrival.
 runSql(container, `
   update app.passenger_request set desired_arrival_at = clock_timestamp() - interval '1 hour'
   where public_id = ${sqlLiteral(tooLate.request.request_id)}::uuid;
-  update app.driver_offer_occurrence
-  set departure_at = clock_timestamp() - interval '2 hours',
-      arrival_at = clock_timestamp() - interval '1 hour'
-  where public_id = ${sqlLiteral(tooLate.occurrence.occurrence_id)}::uuid;
 `);
 await rpc(clients[3], 'cancel_ride_agreement', {
   p_agreement_id: tooLate.agreement.agreement_id, p_client_key: randomUUID(),
