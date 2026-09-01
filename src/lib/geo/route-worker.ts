@@ -1,4 +1,4 @@
-import { GeoProviderUnavailableError, type GeoProvider } from './provider';
+import { RouteNotAvailableError, type GeoProvider } from './provider';
 import type { Coordinate } from './types';
 
 /**
@@ -74,11 +74,14 @@ export async function measurePendingLegs(
       );
       measured += 1;
     } catch (error) {
-      // A provider outage stops this run without turning an unmeasured candidate into a
+      // A leg the provider cannot route — a point with no road near it — is skipped, and the
+      // run carries on. It is a fact about that one place, not about the provider, and letting
+      // it stop the run left every suggestion at the church unchecked because of a single
+      // unreachable meeting point. The place stays unmeasured, which already means "not
+      // established" and never "does not match".
+      if (error instanceof RouteNotAvailableError) continue;
+      // A genuine outage does stop the run, without turning an unmeasured candidate into a
       // negative claim. The board and every existing agreement keep working.
-      if (error instanceof GeoProviderUnavailableError) {
-        return { measured, providerUnavailable: true };
-      }
       return { measured, providerUnavailable: true };
     }
   }

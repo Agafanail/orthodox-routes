@@ -1,5 +1,6 @@
 import {
   GeoProviderUnavailableError,
+  RouteNotAvailableError,
   type GeoProvider,
   type GeoProviderProbe,
   type PlaceSearchOptions,
@@ -46,8 +47,23 @@ function finite(value: unknown) {
 }
 
 /**
- * Runs one request with a bounded timeout. Any failure becomes the ordinary unavailable error,
- * so a provider outage can never surface a vendor message or a status code to a parishioner.
+ * True when a status means "the provider is fine, but it cannot answer this question".
+ *
+ * A refusal of the request itself is permanent for these coordinates: the commonest case is a
+ * point with no road near it, which Geoapify answers with 400. Retrying changes nothing, and it
+ * says nothing about the provider's health, so it must not be reported as an outage. The
+ * statuses that do mean trouble are excluded: a rejected credential, a forbidden call, and a
+ * rate limit are all conditions that affect every other request too.
+ */
+function refusesThisRequest(status: number) {
+  return status >= 400 && status < 500 && ![401, 403, 408, 429].includes(status);
+}
+
+/**
+ * Runs one request with a bounded timeout. A failure becomes the ordinary unavailable error, so
+ * a provider outage can never surface a vendor message or a status code to a parishioner — with
+ * one exception: a request the provider refuses outright is reported separately, so one
+ * unanswerable question does not masquerade as the provider being down.
  */
 async function requestJson(url: URL, signal?: AbortSignal): Promise<unknown> {
   const controller = new AbortController();
@@ -60,9 +76,11 @@ async function requestJson(url: URL, signal?: AbortSignal): Promise<unknown> {
       headers: { Accept: 'application/json' },
       signal: controller.signal,
     });
+    if (refusesThisRequest(response.status)) throw new RouteNotAvailableError();
     if (!response.ok) throw new GeoProviderUnavailableError();
     return await response.json();
-  } catch {
+  } catch (error) {
+    if (error instanceof RouteNotAvailableError) throw error;
     throw new GeoProviderUnavailableError();
   } finally {
     clearTimeout(timeout);

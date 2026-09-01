@@ -71,6 +71,22 @@ export class GeoProviderUnavailableError extends Error {
   }
 }
 
+/**
+ * Raised when the provider is working but cannot answer this particular question — most often a
+ * point with no road near it, which no retry will change.
+ *
+ * This is deliberately not an outage. A single unroutable meeting place must not stop the other
+ * places from being measured, and must not tell everyone at that church that their suggestions
+ * could not be checked. The place simply stays unmeasured, which already means "not
+ * established" and never "does not match".
+ */
+export class RouteNotAvailableError extends Error {
+  constructor(message = 'This route cannot be measured.') {
+    super(message);
+    this.name = 'RouteNotAvailableError';
+  }
+}
+
 export type GeoProviderConfig = {
   provider: string;
   /**

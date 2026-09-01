@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeGeoProvider } from './fake-provider';
-import { GeoProviderUnavailableError, type GeoProvider } from './provider';
+import { GeoProviderUnavailableError, RouteNotAvailableError, type GeoProvider } from './provider';
 import { measurePendingLegs, parsePendingLegs, type PendingLeg, type RouteWorkerGateway } from './route-worker';
 
 const church = { lat: 45.0703, lng: 7.6869 };
@@ -50,6 +50,31 @@ describe('measurePendingLegs', () => {
 
     expect(result).toEqual({ measured: 0, providerUnavailable: true });
     expect(recorded).toEqual([]);
+  });
+
+  // The defect the owner's acceptance test found. One meeting place sat away from any road, the
+  // provider refused that single route, and the run stopped and reported an outage — so nobody
+  // at that church got a suggestion, including pairs whose own legs were perfectly routable.
+  it('skips a leg the provider cannot route and keeps measuring the rest', async () => {
+    const unroutable = { lat: 38.9, lng: 16.45 };
+    const { gateway: value, recorded } = gateway([
+      leg({ via: unroutable, viaPlaceId: 'unroutable' }),
+      leg(),
+      leg({ via, viaPlaceId: 'x' }),
+    ]);
+    const provider: GeoProvider = {
+      ...createFakeGeoProvider(),
+      name: 'refusing-fake',
+      async measureRoute(request) {
+        if (request.via?.lng === unroutable.lng) throw new RouteNotAvailableError();
+        return createFakeGeoProvider().measureRoute(request);
+      },
+    };
+
+    const result = await measurePendingLegs(value, provider);
+
+    expect(result).toEqual({ measured: 2, providerUnavailable: false });
+    expect(recorded.map((entry) => entry.leg.viaPlaceId)).toEqual([null, 'x']);
   });
 
   it('treats an unexpected provider error the same way', async () => {

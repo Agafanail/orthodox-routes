@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createGeoapifyProvider } from './geoapify';
-import { GeoProviderUnavailableError } from './provider';
+import { GeoProviderUnavailableError, RouteNotAvailableError } from './provider';
 
 const KEY = 'test-key-never-real';
 
-function stubFetch(handler: (url: URL) => { ok?: boolean; body?: unknown } | Promise<never>) {
+function stubFetch(handler: (url: URL) => { ok?: boolean; status?: number; body?: unknown } | Promise<never>) {
   const calls: URL[] = [];
   vi.stubGlobal('fetch', async (input: URL | string) => {
     const url = new URL(String(input));
@@ -12,7 +12,8 @@ function stubFetch(handler: (url: URL) => { ok?: boolean; body?: unknown } | Pro
     const result = await handler(url);
     return {
       json: async () => result.body,
-      ok: result.ok ?? true,
+      ok: result.ok ?? (result.status === undefined || result.status < 400),
+      status: result.status ?? 200,
     } as Response;
   });
   return calls;
@@ -135,6 +136,30 @@ describe('measureRoute', () => {
       destination: { lat: 45.07, lng: 7.68 },
       origin: { lat: 45.02, lng: 7.65 },
     })).rejects.toThrow(GeoProviderUnavailableError);
+  });
+});
+
+describe('a request the provider refuses', () => {
+  // A point with no road near it is answered with 400. That says nothing about the provider's
+  // health, and reporting it as an outage stopped matching for a whole church.
+  it('is reported apart from an outage, so one bad point does not stop the rest', async () => {
+    stubFetch(() => ({ body: { message: 'No suitable edges near location' }, status: 400 }));
+    await expect(createGeoapifyProvider(KEY).measureRoute({
+      destination: { lat: 38.9098, lng: 16.5877 },
+      origin: { lat: 38.84, lng: 16.59 },
+      via: { lat: 38.9, lng: 16.45 },
+    })).rejects.toThrow(RouteNotAvailableError);
+  });
+
+  // A rejected credential or a rate limit is a real outage and must keep stopping the run.
+  it('still calls a refused credential and a rate limit an outage', async () => {
+    for (const status of [401, 403, 429, 500]) {
+      stubFetch(() => ({ body: {}, status }));
+      await expect(createGeoapifyProvider(KEY).measureRoute({
+        destination: { lat: 38.9098, lng: 16.5877 },
+        origin: { lat: 38.84, lng: 16.59 },
+      })).rejects.toThrow(GeoProviderUnavailableError);
+    }
   });
 });
 

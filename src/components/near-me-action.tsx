@@ -27,16 +27,18 @@ const USABLE_ACCURACY_M = 25_000;
 export function NearMeAction({ query }: { query: string }) {
   const router = useRouter();
   const [locating, setLocating] = useState(false);
-  const [refused, setRefused] = useState(false);
+  // Distinguishes a refusal the person can undo themselves from every other reason, because the
+  // two need different advice. Nothing about how the position is obtained changes.
+  const [failure, setFailure] = useState<'denied' | 'unavailable' | null>(null);
   const [vagueKm, setVagueKm] = useState<number | null>(null);
 
   function locate() {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setRefused(true);
+      setFailure('unavailable');
       return;
     }
     setLocating(true);
-    setRefused(false);
+    setFailure(null);
     setVagueKm(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -48,16 +50,16 @@ export function NearMeAction({ query }: { query: string }) {
         }
         const coarse = coarseLocation(position.coords.latitude, position.coords.longitude);
         if (!coarse) {
-          setRefused(true);
+          setFailure('unavailable');
           return;
         }
         const parameters = new URLSearchParams({ lat: String(coarse.lat), lng: String(coarse.lng) });
         if (query.length > 0) parameters.set('q', query);
         router.push(`/churches?${parameters.toString()}`);
       },
-      () => {
+      (error) => {
         setLocating(false);
-        setRefused(true);
+        setFailure(error.code === error.PERMISSION_DENIED ? 'denied' : 'unavailable');
       },
       // Ask for the best fix the device can give, and ask for it now. The previous settings
       // accepted a cached position up to five minutes old and told the browser that a rough one
@@ -76,9 +78,11 @@ export function NearMeAction({ query }: { query: string }) {
       >
         Рядом со мной
       </button>
-      {refused ? (
-        <span className="text-sm text-stone-600" data-near-me-refused>
-          Не удалось определить местоположение. Найдите храм по названию или городу.
+      {failure ? (
+        <span className="text-sm text-stone-600" data-near-me-refused={failure}>
+          {failure === 'denied'
+            ? 'Доступ к местоположению запрещён. Разрешите его в настройках браузера или найдите храм по названию или городу.'
+            : 'Не удалось определить местоположение. Найдите храм по названию или городу.'}
         </span>
       ) : null}
       {vagueKm !== null ? (
