@@ -96,6 +96,8 @@ export type CoreAgreement = {
   scheduledArrivalAt: string;
   timezone: string;
   contactAvailable: boolean;
+  /** Which side ended it, so the other side can be told what happened. */
+  cancelledByRole?: 'passenger' | 'driver';
 };
 
 export type CoreEligibility = {

@@ -208,9 +208,11 @@ export function parseCoreAgreements(value: unknown): CoreAgreement[] {
     if (!agreementId || !status || !requestId || !occurrenceId || !passengerName || !driverName
       || confirmedPassengerCount === null || !scheduledArrivalAt || !timezone || contactAvailable === null
       || (currentRole !== 'passenger' && currentRole !== 'driver')) return [];
+    const cancelledByRole = item?.cancelled_by_role;
     return [{
       agreementId, status, currentRole, requestId, occurrenceId, passengerName,
       driverName, confirmedPassengerCount, scheduledArrivalAt, timezone, contactAvailable,
+      ...(cancelledByRole === 'passenger' || cancelledByRole === 'driver' ? { cancelledByRole } : {}),
     }];
   });
 }

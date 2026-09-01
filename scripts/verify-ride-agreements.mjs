@@ -406,20 +406,91 @@ const secondResponse = await rpc(clients[3], 'submit_driver_response', {
   p_offered_passenger_count: 1, p_place_id: await placeId(secondRequest.request_id),
   p_request_id: secondRequest.request_id,
 });
+const secondCancelKey = randomUUID();
 const secondAgreement = await rpc(clients[1], 'confirm_ride_response', {
   p_client_key: randomUUID(), p_response_id: secondResponse.response_id,
 });
 assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
   .some((request) => request.request_id === secondRequest.request_id), false);
+// The driver withdraws while the ride is still ahead, so the passenger's own request goes back
+// on the board without them having to do anything: they may not have seen the withdrawal at all.
 await rpc(clients[3], 'cancel_ride_agreement', {
   p_agreement_id: secondAgreement.agreement_id, p_client_key: randomUUID(),
 });
-assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'restore');
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'active');
 assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
-  .some((request) => request.request_id === secondRequest.request_id), false);
-assert.equal((await rpc(clients[1], 'restore_passenger_request', {
+  .some((request) => request.request_id === secondRequest.request_id), true,
+'A driver withdrawal puts the passenger request back on the public board.');
+// The original request is restored, never duplicated.
+assert.equal(runSql(container, `select count(*) from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), '1');
+// Cancelling again changes nothing: the same key replays, a new key is refused, and neither
+// returns capacity twice or restores the request a second time.
+assert.deepEqual(await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: secondAgreement.agreement_id, p_client_key: secondCancelKey,
+}), await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: secondAgreement.agreement_id, p_client_key: secondCancelKey,
+}));
+await expectRpcFailure(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: secondAgreement.agreement_id, p_client_key: randomUUID(),
+});
+assert.equal(runSql(container, `select status from app.ride_agreement where public_id = ${sqlLiteral(secondAgreement.agreement_id)}::uuid;`), 'cancelled',
+'A cancelled agreement never returns to confirmed.');
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'active');
+// The projection says which side ended it, which is what lets the passenger be told.
+assert.equal(runSql(container, `select cancelled_by_account_id = driver_account_id from app.ride_agreement where public_id = ${sqlLiteral(secondAgreement.agreement_id)}::uuid;`), 't');
+// Already published, so there is nothing left to restore by hand.
+await expectRpcFailure(clients[1], 'restore_passenger_request', {
   p_client_key: randomUUID(), p_request_id: secondRequest.request_id,
+});
+
+// ---------------------------------------------------------------- who cancelled decides
+
+/** Publishes a request, an occurrence, and confirms an agreement between them. */
+async function arrangedRide(arrivalAt, label) {
+  const request = await publishRequest(clients[0], arrivalAt, 1, label);
+  const occurrence = await publishOccurrence(arrivalAt, 3, label);
+  const response = await rpc(clients[3], 'submit_driver_response', {
+    p_client_key: randomUUID(), p_occurrence_id: occurrence.occurrence_id,
+    p_offered_passenger_count: 1, p_place_id: await placeId(request.request_id),
+    p_request_id: request.request_id,
+  });
+  const agreement = await rpc(clients[0], 'confirm_ride_response', {
+    p_client_key: randomUUID(), p_response_id: response.response_id,
+  });
+  return { agreement, occurrence, request };
+}
+
+const requestStatus = (requestId) => runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(requestId)}::uuid;`);
+
+// The passenger withdraws. They said they no longer need the ride, so nothing is assumed for
+// them: the request stays closed and their own «Опубликовать снова» remains the only way back.
+const byPassenger = await arrangedRide(isoAfter(9, 9), 'Withdrawn');
+await rpc(clients[0], 'cancel_ride_agreement', {
+  p_agreement_id: byPassenger.agreement.agreement_id, p_client_key: randomUUID(),
+});
+assert.equal(requestStatus(byPassenger.request.request_id), 'restore',
+  'A passenger who cancels keeps their request closed until they publish it again.');
+assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
+  .some((request) => request.request_id === byPassenger.request.request_id), false);
+assert.equal((await rpc(clients[0], 'restore_passenger_request', {
+  p_client_key: randomUUID(), p_request_id: byPassenger.request.request_id,
 })).status, 'active');
+
+// The moment has passed. Nothing is republished, whoever ends it.
+const tooLate = await arrangedRide(isoAfter(10, 9), 'Passed');
+runSql(container, `
+  update app.passenger_request set desired_arrival_at = clock_timestamp() - interval '1 hour'
+  where public_id = ${sqlLiteral(tooLate.request.request_id)}::uuid;
+  update app.driver_offer_occurrence set arrival_at = clock_timestamp() - interval '1 hour'
+  where public_id = ${sqlLiteral(tooLate.occurrence.occurrence_id)}::uuid;
+`);
+await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: tooLate.agreement.agreement_id, p_client_key: randomUUID(),
+});
+assert.equal(requestStatus(tooLate.request.request_id), 'expired',
+  'A ride whose time has passed is never republished, even when the driver cancels.');
+assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
+  .some((request) => request.request_id === tooLate.request.request_id), false);
 
 const passengerResponse = await rpc(clients[1], 'submit_passenger_response', {
   p_client_key: randomUUID(), p_occurrence_id: secondOccurrence.occurrence_id,

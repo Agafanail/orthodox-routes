@@ -304,6 +304,19 @@ export function CoreTransportBoard(props: Props) {
   const matchedOccurrences = props.showMatchesOnly
     ? props.driverOccurrences.filter((offer) => matchesOccurrence(matches, offer.occurrenceId))
     : props.driverOccurrences;
+  /*
+   * A driver withdrew and the passenger's own request went back on the board by itself. They may
+   * not have seen the withdrawal at all, so the page has to say both halves plainly: it ended,
+   * and you are published again. It stops being shown once that request is closed or arranged
+   * anew, so it never becomes permanent furniture.
+   */
+  const republished = props.agreements.filter((agreement) => agreement.status === 'cancelled'
+    && agreement.currentRole === 'passenger'
+    && agreement.cancelledByRole === 'driver'
+    && props.ownedRequests.some((request) => request.requestId === agreement.requestId
+      && ['active', 'partial'].includes(request.status))
+    && !props.agreements.some((other) => other.requestId === agreement.requestId
+      && other.status === 'confirmed'));
   // Responses that are waiting on this person specifically, in either direction.
   const awaitingDecision = props.responses.filter((response) => (
     (response.status === 'await_passenger' && response.currentRole === 'passenger')
@@ -333,6 +346,15 @@ export function CoreTransportBoard(props: Props) {
         live further down the page, past the boards, where nobody looks unless they already know
         something is there.
       */}
+      {republished.length > 0 ? <ul className="mt-3 grid gap-2" data-republished>
+        {republished.map((agreement) => (
+          <li className="rounded-lg border border-amber-300 bg-amber-50 p-4" key={agreement.agreementId}>
+            <p className="font-semibold text-amber-900">
+              {agreement.driverName} отменил договорённость. Ваша просьба снова опубликована.
+            </p>
+          </li>
+        ))}
+      </ul> : null}
       {awaitingDecision.length > 0 ? <ul className="mt-3 grid gap-2" data-awaiting-decision>
         {awaitingDecision.map((response) => (
           <li className="rounded-lg border border-amber-300 bg-amber-50 p-4" key={response.responseId}>
