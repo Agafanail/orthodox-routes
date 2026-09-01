@@ -217,6 +217,22 @@ Two defects in the tests themselves surfaced and were fixed: one person may not 
 
 **Walkthrough data.** The staging fixture now publishes three further drivers around one passenger, positioned either side of the window, and prints which of them should carry the mark.
 
+### The arranging flow, walked end to end — 1 September 2026
+
+Three things the owner hit taking Иван through to Анна, all in the board and none of them touching a rule.
+
+**The driver was asked to choose twice.** Matching already knows which of their rides suits a request and in what order, yet the form made them find it again in a list. The suitable ride and its meeting place are now filled in, with «Изменить» beside them. Only a ride that actually matches is ever filled in; where none does, the list stays open and nothing is chosen for them.
+
+**A reply could be missed.** It sat below both boards, where nobody looks unless they already know it is there. A waiting reply now appears at the top of the participation block in plain words — «Иван предложил вас подвезти» — saying an answer is needed and leading to it.
+
+**The passenger was asked to agree blind.** The response card offered two names, a seat count and two buttons, so knowing what the ride actually was meant going back to the board and hunting for the driver's listing. It now carries the approximate departure area, the arrival, the meeting place and the detour explanation, with seats, detour limit, return and children behind «Подробнее». Every value is already public on the board.
+
+**Privacy, verified in both directions on the deployment.** Before confirmation the passenger's page contains no exact address, no coordinate and no contact, and the card says plainly that those open only once both sides confirm. After confirmation the passenger sees the driver's exact departure place and contact; the driver sees the one selected meeting place and contact, and none of the passenger's other exact places.
+
+Commit `fc3b35d`, CI green on all four jobs.
+
+**A tooling defect surfaced with it.** The staging teardown stopped working the moment anyone confirmed an agreement — that is, after every acceptance run. It cleared the agreement's active snapshot column, which is not null and not a foreign key, so the clearing both failed and achieved nothing; behind that sat a trigger refusing to let a contact snapshot be deleted at all, because real contacts must be scrubbed by the retention lifecycle rather than dropped. The guard is right and stays. The teardown now runs as one transaction with triggers suspended for that transaction alone, so a failure rolls the setting back with everything else. The CLI helper also prints the database's own message now: both defects cost a diagnosis each purely because the script failed silently. Commit `593f7ff`.
+
 ### One unroutable place silenced a whole church — 1 September 2026
 
 The owner's acceptance test found no ride marked suitable and the suggestions view reporting that nothing could be checked, while the ordinary board worked normally.
