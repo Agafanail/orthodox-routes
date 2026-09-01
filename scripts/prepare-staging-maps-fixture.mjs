@@ -230,7 +230,11 @@ const request = await rpc(clients[0], 'publish_passenger_request', {
   p_places: [
     syntheticPlace(38.8900, 16.5880, 'Via Louise Gariano, 27, 88100 Катандзаро', 'Катандзаро'),
     syntheticPlace(38.8700, 16.5900, 'Contrada Mula, 4, 88100 Катандзаро', 'Катандзаро'),
-    syntheticPlace(38.9000, 16.4500, '88025 Майда CZ', 'Майда'),
+    // The far place, on a real coastal road east of the driver's departure. Its detour is about
+    // twenty kilometres against limits of five and ten, so it is refused by the kilometre rule
+    // itself. The point it replaced stood away from any road, which no route can reach, so it
+    // was refused as unmeasurable and proved nothing about the limit.
+    syntheticPlace(38.8800, 16.7200, 'Viale Ruggero, 15, 88050 Селлия-Марина', 'Селлия-Марина'),
   ],
   p_public_note: null,
   p_return_required: true,
