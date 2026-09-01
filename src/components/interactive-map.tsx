@@ -69,6 +69,7 @@ export function InteractiveMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<unknown>(null);
   const markerRefs = useRef<unknown[]>([]);
+  const areaPopupRef = useRef<{ remove: () => void } | null>(null);
   const selectRef = useRef(onSelect);
   const [failed, setFailed] = useState(false);
 
@@ -154,7 +155,10 @@ export function InteractiveMap({
               const feature = event.features?.[0];
               const kind = feature?.properties?.kind === 'meeting' ? 'meeting' : 'departure';
               const label = typeof feature?.properties?.label === 'string' ? feature.properties.label : '';
-              new Popup({ closeButton: true })
+              areaPopupRef.current?.remove();
+              // `closeOnClick` would let the very click that opens this popup close it again, so
+              // the popup is dismissed by its own button or by opening another one instead.
+              areaPopupRef.current = new Popup({ closeButton: true, closeOnClick: false })
                 .setLngLat(event.lngLat)
                 .setText(label ? `${AREA_TITLES[kind]} · ${label}` : AREA_TITLES[kind])
                 .addTo(instance);
@@ -201,6 +205,8 @@ export function InteractiveMap({
         (instance as { remove: () => void }).remove();
       }
       markerRefs.current = [];
+      areaPopupRef.current?.remove();
+      areaPopupRef.current = null;
       map?.remove();
       mapRef.current = null;
     };
