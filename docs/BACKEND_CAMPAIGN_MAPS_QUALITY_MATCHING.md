@@ -217,6 +217,18 @@ Two defects in the tests themselves surfaced and were fixed: one person may not 
 
 **Walkthrough data.** The staging fixture now publishes three further drivers around one passenger, positioned either side of the window, and prints which of them should carry the mark.
 
+### Who cancels decides what happens next — 1 September 2026
+
+An approved rule change from the final walkthrough. Every cancellation used to leave the passenger's request waiting for them to press «Опубликовать снова». That is right when the passenger cancelled — they said they no longer need the ride. It is wrong when the driver cancelled: the passenger still needs to reach the church, may not have noticed the withdrawal, and every hour the request sits closed is an hour other drivers cannot offer to help.
+
+A driver's withdrawal now republishes the existing request itself, and that covers cancelling one agreement, cancelling a whole ride, and stopping a schedule — all three are the driver pulling out. A passenger's own cancellation is unchanged. Nothing is republished once the desired arrival has passed, using the expiry the domain already had. Migration `20260901090000_republish_when_the_driver_cancels.sql`.
+
+The projection now reports which side ended an agreement, which is the only way the passenger can be told plainly what happened: «Иван отменил договорённость. Ваша просьба снова опубликована.» at the top of the participation block.
+
+**Verified on the deployment, both directions.** Driver cancels: the agreement is cancelled, contacts and exact places close, the passenger sees the message, the request is back on the public board, and no «Опубликовать снова» is offered because there is nothing left to restore. Passenger cancels: the agreement is cancelled, contacts close, no message appears, the request stays off the board, and «Опубликовать снова» is there. After two complete arrange-and-cancel cycles the database holds **one** request and two agreements, both cancelled — nothing duplicated and nothing returned to confirmed.
+
+**Three mistakes of mine on the way, all caught by CI.** Rebuilding the agreements projection from the migration that first created it dropped a field a later migration had added, which broke every agreement everywhere; the lesson is to rewrite a function from its latest definition, not its first. An idempotency check replayed a cancellation with a different key, which cannot replay anything. And ageing a ride to test the passed-time rule tripped an unrelated guard tying contact visibility to the ride's arrival — only the request needed ageing.
+
 ### The arranging flow, walked end to end — 1 September 2026
 
 Three things the owner hit taking Иван through to Анна, all in the board and none of them touching a rule.
