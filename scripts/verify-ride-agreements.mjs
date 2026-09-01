@@ -479,7 +479,9 @@ const tooLate = await arrangedRide(isoAfter(10, 9), 'Passed');
 runSql(container, `
   update app.passenger_request set desired_arrival_at = clock_timestamp() - interval '1 hour'
   where public_id = ${sqlLiteral(tooLate.request.request_id)}::uuid;
-  update app.driver_offer_occurrence set arrival_at = clock_timestamp() - interval '1 hour'
+  update app.driver_offer_occurrence
+  set departure_at = clock_timestamp() - interval '2 hours',
+      arrival_at = clock_timestamp() - interval '1 hour'
   where public_id = ${sqlLiteral(tooLate.occurrence.occurrence_id)}::uuid;
 `);
 await rpc(clients[3], 'cancel_ride_agreement', {
