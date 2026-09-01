@@ -414,8 +414,8 @@ assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_
   .some((request) => request.request_id === secondRequest.request_id), false);
 // The driver withdraws while the ride is still ahead, so the passenger's own request goes back
 // on the board without them having to do anything: they may not have seen the withdrawal at all.
-await rpc(clients[3], 'cancel_ride_agreement', {
-  p_agreement_id: secondAgreement.agreement_id, p_client_key: randomUUID(),
+const secondCancelled = await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: secondAgreement.agreement_id, p_client_key: secondCancelKey,
 });
 assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'active');
 assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
@@ -423,13 +423,11 @@ assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_
 'A driver withdrawal puts the passenger request back on the public board.');
 // The original request is restored, never duplicated.
 assert.equal(runSql(container, `select count(*) from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), '1');
-// Cancelling again changes nothing: the same key replays, a new key is refused, and neither
-// returns capacity twice or restores the request a second time.
+// Cancelling again changes nothing. The same key replays the stored result rather than acting
+// a second time, and a fresh key is refused outright because the agreement is already cancelled.
 assert.deepEqual(await rpc(clients[3], 'cancel_ride_agreement', {
   p_agreement_id: secondAgreement.agreement_id, p_client_key: secondCancelKey,
-}), await rpc(clients[3], 'cancel_ride_agreement', {
-  p_agreement_id: secondAgreement.agreement_id, p_client_key: secondCancelKey,
-}));
+}), secondCancelled);
 await expectRpcFailure(clients[3], 'cancel_ride_agreement', {
   p_agreement_id: secondAgreement.agreement_id, p_client_key: randomUUID(),
 });
