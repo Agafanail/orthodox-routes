@@ -217,6 +217,20 @@ Two defects in the tests themselves surfaced and were fixed: one person may not 
 
 **Walkthrough data.** The staging fixture now publishes three further drivers around one passenger, positioned either side of the window, and prints which of them should carry the mark.
 
+### One unroutable place silenced a whole church — 1 September 2026
+
+The owner's acceptance test found no ride marked suitable and the suggestions view reporting that nothing could be checked, while the ordinary board worked normally.
+
+**Cause.** One of the passenger's meeting places stands away from any road, and Geoapify answers such a route with `400 No suitable edges near location`. The adapter treated every unsuccessful reply as an outage, and the worker stopped the entire run at the first one. Two legs of eight were measured, no pair completed, and so nobody at that church received a suggestion — including pairs whose own legs routed perfectly. Neither the credential, the migrations, nor the configuration were involved: the database rule had been admitting exactly the right two of four drivers the whole time.
+
+**Fix.** A refusal to answer one question is now told apart from the provider being unwell. A 4xx that is not a rejected credential, a forbidden call, a timeout, or a rate limit means no answer exists for these coordinates, which no retry changes; that leg is skipped and the run carries on. The place stays unmeasured, which already means "not established" and never "does not match", so no rule is weakened and no error is hidden. A genuine outage still stops the run.
+
+**Confirmed on the deployment** as the passenger: 09:30 unmarked, 11:00 and 11:15 marked `Подходит · +2 км · примерно +4 мин`, 11:50 unmarked; the far place is not among those offered; the ordinary board still lists the unsuitable rides; and `Подходящие мне` shows exactly the two suitable ones. Commit `7c7b200`, CI green on all four jobs.
+
+**Also in this pass.** Refusing the browser location now says so in words a person can act on, while every other reason keeps the general message; how the position is obtained is unchanged. The desktop browser occasionally reporting a position in another country is an environment fault and was deliberately not worked around.
+
+**Known limitation.** The unroutable leg is retried on each board view, one wasted provider call per visit. A negative cache would need a schema change and was left out of this scoped fix.
+
 ### The blank map — 27 August 2026
 
 The owner's manual test failed: on the catalog and on the church location screen the map container, its controls, and its attribution all appeared, and the map itself was entirely empty. No basemap, no roads, no labels, no markers.
