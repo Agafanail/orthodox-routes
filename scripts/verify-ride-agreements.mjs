@@ -509,7 +509,8 @@ const bulkCancelled = await rpc(clients[3], 'cancel_driver_occurrence', {
 });
 assert.equal(bulkCancelled.cancelled_agreements, 1);
 assert.equal(await rpc(clients[1], 'get_agreement_contacts', { p_agreement_id: passengerAgreement.agreement_id }), null);
-assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'restore');
+// Cancelling the whole ride is the driver withdrawing, so the passenger goes back on the board.
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'active');
 
 const concurrencyArrival = isoAfter(9, 11);
 const concurrencyRequestA = await publishRequest(clients[0], concurrencyArrival, 1, 'Concurrent Alpha');
@@ -617,7 +618,8 @@ const stoppedSeries = await rpc(clients[3], 'stop_driver_series', {
 assert.equal(stoppedSeries.cancelled_occurrences, 1);
 assert.equal(stoppedSeries.cancelled_agreements, 1);
 assert.equal(await rpc(clients[0], 'get_agreement_contacts', { p_agreement_id: seriesAgreement.agreement_id }), null);
-assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(seriesRequest.request_id)}::uuid;`), 'restore');
+// Stopping the schedule is the same withdrawal, so the same republication follows.
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(seriesRequest.request_id)}::uuid;`), 'active');
 
 const lifecycle = JSON.parse(runSql(container, `select ops.expire_transport_items(now() + interval '60 days');`));
 assert.ok(lifecycle.responses >= 1);
