@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
 type FixtureUser = {
   role: 'passenger' | 'driver' | 'other';
@@ -19,8 +19,22 @@ type CoreFixture = {
     passengerExactPlace: string;
     passengerPublicArea: string;
   };
+  savedPlaceLabels: { driver: string; passenger: string };
   users: FixtureUser[];
 };
+
+/**
+ * Chooses a place through the real place field.
+ *
+ * The field offers a saved place and a provider-backed search. The browser check runs with no
+ * map provider configured, so it takes the saved-place path deliberately: that is the offline
+ * half of the field, and it is what a returning parishioner uses anyway.
+ */
+async function chooseSavedPlace(form: Locator, label: string) {
+  const field = form.locator('[data-place-field]');
+  await field.getByRole('button', { name: label, exact: true }).click();
+  await expect(field.locator('[data-place-list] li').filter({ hasText: label })).toHaveCount(1);
+}
 
 function fixture(): CoreFixture {
   return JSON.parse(readFileSync(resolve('test-results/core-e2e-fixture.json'), 'utf8')) as CoreFixture;
@@ -35,7 +49,13 @@ function user(data: CoreFixture, role: FixtureUser['role']) {
 async function signIn(page: Page, entry: FixtureUser, churchUrl: string) {
   await page.goto(entry.loginUrl);
   await page.getByRole('button', { name: 'Войти' }).click();
-  await page.waitForURL('http://127.0.0.1:3000/');
+  // Landing on the home page is what matters, not the exact spelling of the address. The
+  // sign-in link carries its one-use token in a URL fragment, and when that fragment survives
+  // the redirect the address is no longer the bare origin. Matching the whole string as text
+  // therefore waited for something that would never arrive, and because this wait inherits the
+  // test budget rather than the shorter assertion one, a single miss stalled the entire check
+  // for two minutes instead of failing. The bound keeps a genuine failure legible.
+  await page.waitForURL((url) => url.pathname === '/', { timeout: 20_000 });
   await page.goto(churchUrl);
   await expect(page.getByText(`Вы вошли как ${entry.name}.`)).toBeVisible();
 }
@@ -50,7 +70,17 @@ async function captureApplicationPayloads(page: Page, action: () => Promise<void
       && (type === 'document' || type === 'fetch')
       && /(text\/html|text\/x-component|application\/json)/i.test(contentType)
     ) {
-      reads.push(response.text().catch(() => ''));
+      // Bounded on purpose. Some responses are still streaming when the step ends — a prefetch
+      // the page started and then abandoned — and their bodies never arrive at all. An
+      // unbounded read of one of those was what silently consumed the whole test budget and
+      // then blamed whichever unrelated call happened to be in flight at the timeout. Skipping
+      // such a body costs the check nothing: a body the browser never received is a body the
+      // page never rendered, and `page.content()` below is the authoritative snapshot of what
+      // the visitor actually got.
+      reads.push(Promise.race([
+        response.text().catch(() => ''),
+        new Promise<string>((resolve) => { setTimeout(() => resolve(''), 10_000); }),
+      ]));
     }
   };
   page.on('response', listener);
@@ -145,8 +175,7 @@ test('protects the Core agreement boundary across real isolated browser sessions
       const passengerForm = passengerDetails.locator('form');
       await passengerDetails.locator('summary').click();
       await passengerForm.getByLabel('Желаемое прибытие').fill(localDateTime(49));
-      await passengerForm.getByLabel('Точное место встречи').fill(data.markers.passengerExactPlace);
-      await passengerForm.getByLabel('Район для публичной карточки').fill(data.markers.passengerPublicArea);
+      await chooseSavedPlace(passengerForm, data.savedPlaceLabels.passenger);
       await passengerForm.getByRole('button', { name: 'Опубликовать запрос', exact: true }).click();
       await expect(passengerPage.getByRole('status')).toHaveText('Запрос опубликован.');
 
@@ -157,8 +186,7 @@ test('protects the Core agreement boundary across real isolated browser sessions
       await driverDetails.locator('summary').click();
       await driverForm.getByLabel('Выезд', { exact: true }).fill(localDateTime(48));
       await driverForm.getByLabel('Прибытие', { exact: true }).fill(localDateTime(49));
-      await driverForm.getByLabel('Точное место выезда').fill(data.markers.driverExactOrigin);
-      await driverForm.getByLabel('Район выезда для публичной карточки').fill(data.markers.driverPublicArea);
+      await chooseSavedPlace(driverForm, data.savedPlaceLabels.driver);
       await driverForm.getByRole('button', { name: 'Опубликовать поездку', exact: true }).click();
       await expect(driverPage.getByRole('status')).toHaveText('Предложение поездки опубликовано.');
     });

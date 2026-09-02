@@ -11,3 +11,6 @@ pnpm-debug.log*
 .agents/
 playwright-report/
 test-results/
+
+# Published from node_modules at build time so the worker and the module it imports stay a matched pair.
+/public/maplibre/

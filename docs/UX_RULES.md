@@ -8,7 +8,7 @@
 
 This summary prevents prototype details below from being mistaken for approved future behavior; IA V2 remains normative:
 
-- Public user locations are approximate 1 km areas, and public driver routes are protected approximate corridors. Exact meeting/departure places, the necessary exact route segment, phone, and email are available only to participants after mutual confirmation and only for the approved limited period.
+- Public user locations and public driver departure locations are approximate 1 km areas. There is no public driver route line or corridor. Exact meeting places, the driver's exact departure place, phone, and email are available only to participants after mutual confirmation and only for the approved limited period.
 - A response is an **«Отклик»**. Pending, counteroffer, declined, withdrawn, expired, and stale are response states. A **«Договорённость»** begins only after both sides confirm the same conditions; its states are defined separately in IA V2 sections 13 and 48.4–48.5.
 - Registration is contextual: the visitor fills the useful action first, then verifies email through a one-time link, verifies the phone through SMS, declares age 18+, accepts the Terms, returns to review, and explicitly publishes or sends. There is no competing email-code login.
 - Passenger and driver transport data includes structured child and child-seat fields. Repeat travel with the same person sends a new response for one dated occurrence and creates a new agreement only after confirmation; it never reserves permanent capacity.

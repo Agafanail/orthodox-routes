@@ -11,7 +11,7 @@ Roadmap separates the isolated browser demo and implemented local Core slice fro
 - The code, tests, and README describe what is implemented now.
 - `PROJECT_SPEC_V0_1.md`, `DATA_MODEL.md`, `UX_RULES.md`, and `PROJECT_MAP.md` remain explicitly labelled prototype or legacy references and cannot override Product Scope or IA V2.
 - Information architecture is complete at the approved-document level. Empirical card sorting and tree testing remain future validation work recorded in IA V2, not invented research results; they do not block Design System V2 approval.
-- **Design System V2** is canonical and approved, and **Backend and integration architecture** is complete and approved. The active phase is **Core multi-user platform**. The isolated `/design-preview` reference artifact now carries twelve V2 control screens, including the approved transport-board ride map; production adoption remains separate Phase 10 work. Phase approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
+- **Design System V2** is canonical and approved, and **Backend and integration architecture** is complete and approved. The **Core multi-user platform** phase is complete. The **Maps and quality matching** phase is complete, recorded in [BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md](BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md); no later phase is authorized or started. The isolated `/design-preview` reference artifact now carries twelve V2 control screens, including the approved transport-board ride map; production adoption remains separate Phase 10 work. Phase approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
 - Maps are part of the required first full version, even though they are not part of the current mock.
 - Product-scope approval does not authorize implementing all phases in one change.
 
@@ -55,7 +55,7 @@ Roadmap separates the isolated browser demo and implemented local Core slice fro
 - Human-language driver-offer UI with trip-specific origin, numeric maximum detour, 1–55 seat selection, blur/touched validation, human cancellation copy, and static-plus-browser-local church counters.
 - Role-labelled passenger/driver page actions, origin-to-church offers with numeric maximum detour, shared compact service/date selection, and an intentional no-schedule church scenario.
 
-The isolated synthetic-only Supabase staging project and HTTPS deployment run the committed Core migrations, the configured RPC board, readiness checks, and guarded remote multi-user smoke verification. Staging Auth has an owner-configured Resend SMTP sender; real Gmail delivery, explicit link confirmation, SSR session persistence, and current-device sign-out are confirmed, with Spam placement tracked separately. Bird is the owner-approved SMS provider; its staging variables are injected only through the hosting secret manager, and the application-owned flow has confirmed provider acceptance, handset receipt, and OTP verification. The repository still has no production backend access, push delivery, production Terms/Privacy text, Firebase, Google Maps, Telegram, payments, WhatsApp API, or admin features. The contextual flow is connected from passenger/driver input through verified-email claim, account materialization, adult declaration, phone challenge, Terms acceptance, explicit final review, and idempotent publication. Local browser and remote API/web verification use synthetic legal and eligible-account fixtures; production participation remains correctly gated until current production legal content and separately authorized production infrastructure exist. The configured church transport board is cut over to the server-owned transport, response, agreement, capacity, cancellation, restoration, and disclosure RPCs with no `localStorage` fallback or dual write.
+The isolated synthetic-only Supabase staging project and HTTPS deployment run the committed Core migrations, the configured RPC board, readiness checks, and guarded remote multi-user smoke verification. Staging Auth has an owner-configured Resend SMTP sender; real Gmail delivery, explicit link confirmation, SSR session persistence, and current-device sign-out are confirmed, with Spam placement tracked separately. Bird is the owner-approved SMS provider; its staging variables are injected only through the hosting secret manager, and the application-owned flow has confirmed provider acceptance, handset receipt, and OTP verification. Geoapify is the owner-approved map provider for tiles, address search, and route measurement; Google Maps and Yandex Maps remain outbound links only. The repository still has no production backend access, push delivery, production Terms/Privacy text, Firebase, Telegram, payments, WhatsApp API, or admin features. The contextual flow is connected from passenger/driver input through verified-email claim, account materialization, adult declaration, phone challenge, Terms acceptance, explicit final review, and idempotent publication. Local browser and remote API/web verification use synthetic legal and eligible-account fixtures; production participation remains correctly gated until current production legal content and separately authorized production infrastructure exist. The configured church transport board is cut over to the server-owned transport, response, agreement, capacity, cancellation, restoration, and disclosure RPCs with no `localStorage` fallback or dual write.
 
 ## Development sequence
 
@@ -99,14 +99,17 @@ The target data model and target project diagrams are approved architecture arti
 - Keep contacts unavailable to anonymous users and unconfirmed counterparties — completed for the implemented Core agreement boundary.
 - Support contextual registration from the action the visitor was already performing — completed for requests, offers, and responses with an explicit final send.
 
-The complete Core campaign passed its final local, migration, security/privacy, isolated-staging, provider, and GitHub Actions release gates. The next Maps/quality-matching phase has not started and requires separate explicit authorization.
+The complete Core campaign passed its final local, migration, security/privacy, isolated-staging, provider, and GitHub Actions release gates. The Maps and quality-matching phase is complete and merged, with its own release gates passed and the owner's manual acceptance test signed off.
 
-### 5. Maps and quality matching
+### 5. Maps and quality matching — complete
 
-- Add the church directory map and address-based church creation.
-- Add protected exact driver departure points, up to three passenger meeting points, and driver routes, exposing only approved approximate public representations before mutual confirmation.
-- Implement route-aware matching with seat, church, service/date, one-hour time compatibility, detour, direction, and active-status rules.
-- Send suggestions only for quality matches; suggestions never confirm a ride automatically.
+- Use Geoapify as the only embedded map and geospatial provider, rendered with MapLibre GL; Google and Yandex remain outbound navigation links only.
+- Add the church catalog map with universal search and an explicit `Рядом со мной` action, and the dedicated church location screen opened from the exact public address.
+- Add the reusable address/place-first location picker with map confirmation, marker correction, manual placement fallback, and reusable saved places.
+- Add protected exact church and user coordinates, up to three passenger meeting points, one driver departure point, and stable off-centre approximate public areas exposed identically to anonymous visitors and authenticated non-participants.
+- Implement deterministic route-aware quality matching with church, active-state, block, whole-group seat, child and child-seat, and detour-distance rules. Time is compatible when both sides chose the same service, or when the arrival the driver stated falls from sixty minutes before to thirty minutes after the passenger's desired arrival (amended 28 August 2026; the added minutes of a pickup explain a suggestion and never decide it).
+- Show suggestions as an explainable `Подходит` marker and a `Подходящие мне` view; suggestions never confirm a ride, never restrict the ordinary board, and never show a score.
+- Do not create public driver route corridors, persisted provider route geometry, a separate direction rule, route optimization, or pgRouting.
 
 ### 6. My Trips, notifications, profile, and PWA
 
@@ -156,7 +159,7 @@ Open to real users only when the Product Scope and IA V2 readiness criteria are 
 ## Required before real users
 
 - Backend, authentication, server-side authorization, and cross-device persistence.
-- Maps, geocoding, routing, protected exact data, approximate public areas/corridors, and quality matching.
+- Maps, geocoding, routing, protected exact data, stable approximate public areas, and quality matching.
 - Complete driver, passenger, confirmation, contact-disclosure, capacity, and cancellation flows.
 - My Trips, profile, and real in-app, email, and Web Push notifications.
 - Installable PWA behavior.

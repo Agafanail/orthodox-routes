@@ -1539,23 +1539,22 @@
 }
 
 /*
- * Driver offer: tapered corridor — narrow at the public church, wide at the private origin.
- * The outline uses non-scaling-stroke so its weight stays in screen pixels instead of growing with
- * the larger desktop field; selection is carried by fill and colour rather than by a heavy border.
+ * Driver offer: the approximate departure area. Same circle family as a passenger area, separated
+ * by a solid outline and its own label rather than by colour alone. There is no public route line
+ * or corridor: the driver never promised to follow a provider-computed road. The outline uses
+ * non-scaling-stroke so its weight stays in screen pixels instead of growing with the larger
+ * desktop field; selection is carried by fill and colour rather than by a heavy border.
  */
-.corridorShape {
+.departureAreaShape {
   fill: var(--or-map-radius-bg);
   stroke: var(--or-map-radius-border);
-  stroke-dasharray: 5 4;
-  stroke-linejoin: round;
   stroke-width: 1.25;
   vector-effect: non-scaling-stroke;
 }
 
-.corridorShape[data-selected='true'] {
+.departureAreaShape[data-selected='true'] {
   fill: var(--or-primary-pale);
   stroke: var(--or-primary);
-  stroke-dasharray: none;
   stroke-width: 2;
 }
 
@@ -1689,23 +1688,20 @@
 }
 
 .legendArea,
-.legendCorridor {
+.legendDepartureArea {
   flex: 0 0 auto;
-  border: 1px dashed var(--or-map-radius-border);
+  width: 16px;
+  height: 16px;
+  border-radius: var(--or-radius-pill);
   background: var(--or-map-radius-bg);
 }
 
 .legendArea {
-  width: 16px;
-  height: 16px;
-  border-radius: var(--or-radius-pill);
+  border: 1px dashed var(--or-map-radius-border);
 }
 
-.legendCorridor {
-  width: 24px;
-  height: 14px;
-  border-radius: var(--or-radius-pill);
-  clip-path: polygon(0 0, 100% 38%, 100% 62%, 0 100%);
+.legendDepartureArea {
+  border: 1px solid var(--or-map-radius-border);
 }
 
 .detailSheet {

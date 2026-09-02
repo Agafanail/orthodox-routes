@@ -5,6 +5,10 @@ export default defineConfig({
   testMatch: '**/*.e2e.ts',
   fullyParallel: false,
   workers: 1,
+  // No retry, deliberately. The fixture is built once per run and its sign-in links are
+  // one-use, so a second attempt signs in with links the first attempt already spent and can
+  // only fail. A retry here would not rescue a flaky run; it would just append a misleading
+  // second failure to a real one.
   retries: 0,
   timeout: 120_000,
   expect: { timeout: 15_000 },
@@ -14,9 +18,18 @@ export default defineConfig({
   reporter: process.env.CI ? [['line']] : [['list']],
   use: {
     ...devices['Desktop Chrome'],
+    // Playwright leaves both of these unbounded by default, so a single slow navigation or
+    // click quietly consumes the whole test budget and the timeout then blames whichever
+    // unrelated call happened to be in flight when the clock ran out. Bounding them makes a
+    // stall name itself.
+    actionTimeout: 20_000,
+    navigationTimeout: 30_000,
     baseURL: 'http://127.0.0.1:3000',
     screenshot: 'off',
-    trace: 'off',
+    // A failing run keeps its trace. The timeout report names only where the clock ran out
+    // rather than what was waiting, and with no retry to trace instead, the failing attempt
+    // itself has to carry the evidence.
+    trace: 'retain-on-failure',
     video: 'off',
   },
   webServer: {

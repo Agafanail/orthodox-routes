@@ -71,8 +71,8 @@ jobs:
       - name: Rebuild database from migrations
         run: npm run db:reset
 
-      - name: Verify representative Core upgrade
-        run: npm run test:core-upgrade
+      - name: Verify representative Maps upgrade
+        run: npm run test:maps-upgrade
 
       - name: Stop local Core stack
         if: always()
@@ -122,6 +122,12 @@ jobs:
       - name: Verify ride agreements and disclosure
         run: npm run test:agreements
 
+      - name: Verify geographic foundation and privacy boundary
+        run: npm run test:geography
+
+      - name: Verify deterministic quality matching
+        run: npm run test:matching
+
       - name: Stop local Auth
         if: always()
         run: npm run auth:stop
@@ -157,6 +163,15 @@ jobs:
 
       - name: Run Core browser regression
         run: npm run test:e2e
+
+      - name: Keep the browser trace when the regression fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-browser-regression-trace
+          path: test-results/artifacts
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Stop local Core stack
         if: always()

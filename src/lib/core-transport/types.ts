@@ -1,3 +1,6 @@
+import type { QualityMatch } from '@/lib/geo/match';
+import type { PublicPlace, SavedPlace } from '@/lib/geo/types';
+
 export type CoreChurch = {
   churchId: string;
   slug: string;
@@ -6,12 +9,13 @@ export type CoreChurch = {
   locality: string;
   countryCode: string;
   timezone: string;
+  /** The church location is public and exact; it is absent only before the Maps migration. */
+  lat?: number;
+  lng?: number;
 };
 
-export type CorePlaceOption = {
-  placeId: string;
-  publicAreaLabel: string;
-};
+/** A place as an anonymous visitor sees it: an approximate area, never an exact point. */
+export type CorePlaceOption = PublicPlace;
 
 export type CorePassengerRequest = {
   requestId: string;
@@ -42,6 +46,7 @@ export type CoreDriverOccurrence = {
   returnAvailable: boolean;
   publicNote?: string;
   publicOriginArea: string;
+  originArea?: CorePlaceOption;
 };
 
 export type CoreOwnedRequest = {
@@ -91,6 +96,8 @@ export type CoreAgreement = {
   scheduledArrivalAt: string;
   timezone: string;
   contactAvailable: boolean;
+  /** Which side ended it, so the other side can be told what happened. */
+  cancelledByRole?: 'passenger' | 'driver';
 };
 
 export type CoreEligibility = {
@@ -100,12 +107,28 @@ export type CoreEligibility = {
   currentTermsAccepted: boolean;
 };
 
+export type CoreExactPlace = {
+  placeId: string;
+  exactAddress: string;
+  locality?: string;
+  countryCode?: string;
+  lat?: number;
+  lng?: number;
+};
+
+/**
+ * What a confirmed participant receives. The driver learns the one meeting place selected for
+ * this agreement, the passenger learns the driver's exact departure place, and neither learns
+ * the passenger's unused places.
+ */
 export type CoreDisclosure = {
   agreementId: string;
   counterpartyName: string;
   email: string;
   phone: string;
   exactMeetingLabel: string;
+  meetingPlace?: CoreExactPlace;
+  departurePlace?: CoreExactPlace;
   visibleUntil: string;
 };
 
@@ -122,4 +145,20 @@ export type CoreTransportData = {
   eligibility?: CoreEligibility;
   disclosure?: CoreDisclosure;
   signedIn: boolean;
+  /** Whether the browser may render map imagery for place selection. */
+  mapAvailable: boolean;
+  /** Render-only provider key; it carries no search or routing rights. */
+  mapBrowserKey: string | null;
+  savedPlaces: SavedPlace[];
+  /**
+   * Suggestions for the current user. They are a recommendation only: the board stays the
+   * primary experience and never hides a listing because matching did not name it.
+   */
+  qualityMatches: QualityMatch[];
+  /**
+   * False when suggestions could not be established at all. The board then simply makes no
+   * claim; only the explicit suggestions view says so in one ordinary sentence.
+   */
+  matchingAvailable: boolean;
+  showMatchesOnly: boolean;
 };

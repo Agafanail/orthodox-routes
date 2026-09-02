@@ -432,7 +432,7 @@ flowchart LR
 
     subgraph PUBLIC["Public trust boundary — target"]
         VISITOR["Anonymous visitor"]
-        PUB["Public safe projections<br/>churches, schedules, active cards,<br/>approximate areas and corridors"]
+        PUB["Public safe projections<br/>churches, schedules, active cards,<br/>approximate areas only"]
     end
 
     subgraph TARGET["Application trust boundary — target production"]
@@ -452,7 +452,7 @@ flowchart LR
     subgraph EXTERNAL["External provider trust boundaries"]
         RESEND["Resend email"]
         BIRD["Bird SMS candidate"]
-        GOOGLE["Google Maps / Routes / Translation"]
+        GEO["Geoapify: tiles, geocoding, routing"]
         PUSH["Browser push services"]
         SENTRY["Sentry EU errors"]
         B2["Backblaze B2 encrypted backups"]
@@ -464,7 +464,7 @@ flowchart LR
     BROWSER --> NEXT
     NEXT -. "minimum required payload" .-> RESEND
     NEXT -. "verification only" .-> BIRD
-    NEXT -. "temporary validation" .-> GOOGLE
+    NEXT -. "temporary validation" .-> GEO
     NEXT -. "generic safe payload" .-> PUSH
     NEXT -. "scrubbed technical errors" .-> SENTRY
     OPS -. "encrypted export" .-> B2

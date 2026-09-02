@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
+import { haversineMetres, syntheticPlace as place } from './synthetic-geo.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 
@@ -143,7 +144,7 @@ await expectRpcFailure(clients[2], 'publish_passenger_request', {
   p_church_id: randomUUID(),
   p_client_key: randomUUID(),
   p_desired_arrival_at: isoAfter(7, 9),
-  p_places: [{ exact_label: 'Hidden other place', public_area_label: 'Other area' }],
+  p_places: [place(45.07, 7.68, 'Hidden other place', 'Other Locality')],
   p_public_note: null,
   p_return_required: false,
   p_service_occurrence_id: null,
@@ -162,10 +163,11 @@ const serviceId = randomUUID();
 const serviceTime = isoAfter(7, 9);
 runSql(container, `
   insert into app.church (
-    public_id, slug, official_name, address_display, locality, country_code, timezone, status
+    public_id, slug, official_name, address_display, locality, country_code, timezone, status, location
   ) values (
     ${sqlLiteral(churchId)}, ${sqlLiteral(`transport-test-${suffix}`)}, 'Synthetic Transport Church',
-    'Synthetic public church address', 'Test Locality', 'IT', 'UTC', 'published'
+    'Synthetic public church address', 'Test Locality', 'IT', 'UTC', 'published',
+    extensions.st_setsrid(extensions.st_makepoint(7.6869, 45.0703), 4326)::extensions.geography
   );
   insert into app.service_occurrence (public_id, church_id, source_name, starts_at, timezone)
   select ${sqlLiteral(serviceId)}, id, 'Synthetic Liturgy', ${sqlLiteral(serviceTime)}::timestamptz, 'UTC'
@@ -180,8 +182,8 @@ const requestArgs = {
   p_client_key: requestKey,
   p_desired_arrival_at: serviceTime,
   p_places: [
-    { exact_label: 'Exact private entrance A', public_area_label: 'North district' },
-    { exact_label: 'Exact private entrance B', public_area_label: 'Central district' },
+    place(45.0703, 7.6869, 'Exact private entrance A', 'North district'),
+    place(45.0611, 7.6721, 'Exact private entrance B', 'Central district'),
   ],
   p_public_note: 'Folding wheelchair',
   p_return_required: true,
@@ -210,10 +212,9 @@ const occurrenceArgs = {
   p_client_key: occurrenceKey,
   p_departure_at: isoAfter(7, 8),
   p_driver_child_seat_available: true,
-  p_exact_origin_label: 'Exact private driver origin',
   p_max_detour_km: 5,
+  p_origin: place(45.0402, 7.6605, 'Exact private driver origin', 'South district'),
   p_public_note: 'Room for a folded stroller',
-  p_public_origin_area: 'South district',
   p_return_available: true,
   p_service_occurrence_id: serviceId,
   p_timezone: 'UTC',
@@ -233,12 +234,11 @@ const series = await rpc(clients[1], 'publish_driver_series', {
   p_client_key: randomUUID(),
   p_driver_child_seat_available: false,
   p_ends_on: endDate,
-  p_exact_origin_label: 'Exact repeated driver origin',
   p_local_arrival_time: '10:00:00',
   p_local_departure_time: '09:00:00',
   p_max_detour_km: 2,
+  p_origin: place(45.0555, 7.6202, 'Exact repeated driver origin', 'West district'),
   p_public_note: null,
-  p_public_origin_area: 'West district',
   p_return_available: false,
   p_starts_on: startDate,
   p_timezone: 'UTC',
@@ -251,9 +251,20 @@ assert.equal(series.occurrence_count, 2);
 const publicRequests = await rpc(anonymous, 'list_active_passenger_requests');
 const publicRequest = publicRequests.find((item) => item.request_id === request.request_id);
 assert.ok(publicRequest);
-assert.deepEqual(publicRequest.place_options.map((place) => place.public_area_label), ['North district', 'Central district']);
-assert.equal(publicRequest.place_options.every((place) => /^[0-9a-f-]{36}$/.test(place.place_id)), true);
+assert.deepEqual(publicRequest.place_options.map((option) => option.public_area_label), ['North district', 'Central district']);
+assert.equal(publicRequest.place_options.every((option) => /^[0-9a-f-]{36}$/.test(option.place_id)), true);
 assert.equal(JSON.stringify(publicRequest).includes('Exact private'), false);
+
+// The public area is a circle whose centre is deliberately not the exact point.
+const publicAreas = publicRequest.place_options.map((option) => option.public_area);
+assert.equal(publicAreas.every((area) => area.radius_m === 1000), true);
+assert.equal(publicAreas.every((area) => typeof area.lat === 'number' && typeof area.lng === 'number'), true);
+for (const [index, exact] of [[45.0703, 7.6869], [45.0611, 7.6721]].entries()) {
+  const area = publicAreas[index];
+  const metres = haversineMetres(exact[0], exact[1], area.lat, area.lng);
+  assert.ok(metres > 100, 'The public centre must not sit on the exact point.');
+  assert.ok(metres < 1000, 'The exact point must remain inside the public area.');
+}
 assert.equal(JSON.stringify(publicRequest).includes(identities[0].phone), false);
 assert.equal(JSON.stringify(publicRequest).includes(identities[0].email), false);
 
@@ -261,12 +272,22 @@ const publicOccurrences = await rpc(anonymous, 'list_active_driver_occurrences',
 const publicOccurrence = publicOccurrences.find((item) => item.occurrence_id === occurrence.occurrence_id);
 assert.ok(publicOccurrence);
 assert.equal(publicOccurrence.public_origin_area, 'South district');
+assert.equal(publicOccurrence.origin_area.public_area.radius_m, 1000);
+assert.ok(
+  haversineMetres(45.0402, 7.6605, publicOccurrence.origin_area.public_area.lat, publicOccurrence.origin_area.public_area.lng) > 100,
+  'The public departure centre must not sit on the exact departure point.',
+);
 assert.equal(JSON.stringify(publicOccurrence).includes('Exact private'), false);
+// No public route geometry exists anywhere in an anonymous driver projection.
+for (const key of ['route', 'corridor', 'polyline', 'geometry', 'path']) {
+  assert.equal(JSON.stringify(publicOccurrence).toLowerCase().includes(key), false);
+}
 assert.equal(JSON.stringify(publicOccurrence).includes(identities[1].phone), false);
 
 const passengerOwned = await rpc(clients[0], 'current_transport_items');
 assert.equal(passengerOwned.passenger_requests.length, 1);
-assert.equal(passengerOwned.passenger_requests[0].places[0].exact_label, 'Exact private entrance A');
+assert.equal(passengerOwned.passenger_requests[0].places[0].exact_address, 'Exact private entrance A');
+assert.equal(passengerOwned.passenger_requests[0].places[0].exact_point.lat, 45.0703);
 assert.equal(passengerOwned.driver_occurrences.length, 0);
 const otherOwned = await rpc(clients[2], 'current_transport_items');
 assert.deepEqual(otherOwned.passenger_requests, []);

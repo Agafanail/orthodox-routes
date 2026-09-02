@@ -54,7 +54,7 @@ Core phone ownership remains application-owned and database-authoritative. The N
 
 Run these checks before declaring staging usable:
 
-1. locally run `npm ci`, `npm test`, `npm run lint`, `npm run build`, `npm run db:reset`, `npm run test:core-upgrade`, and all focused backend verification scripts;
+1. locally run `npm ci`, `npm test`, `npm run lint`, `npm run build`, `npm run db:reset`, `npm run test:maps-upgrade`, and all focused backend verification scripts;
 2. confirm the remote migration job applied the same migration filenames and recorded its immutable commit SHA;
 3. require `GET /api/readiness` to return HTTP 200 with only `{ "scope": "core-application", "status": "ready" }`; HTTP 503 means required server/public configuration is incomplete or the committed safe Core RPC boundary is unavailable;
 4. load an unconfigured deployment and confirm only the isolated demo board is available;

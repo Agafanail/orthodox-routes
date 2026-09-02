@@ -205,7 +205,7 @@ function RideCard({ ride, showType = true, actionVariant = 'secondary', distance
   showType?: boolean;
   /** Primary only where the user has already selected this one ride and no other primary competes. */
   actionVariant?: 'secondary' | 'primary';
-  /** Rounded distance to the public area or corridor; shown only where a location is available. */
+  /** Rounded distance to the public approximate area; shown only where a location is available. */
   distance?: string;
 }) {
   return (
@@ -276,20 +276,18 @@ function GroupHeading({ id, title, subtitle, onOpenMap }: { id: string; title: s
 
 /* ---------------------------------------------------------------- ride map */
 
-type Point = readonly [number, number];
-
 /**
  * Map objects live in a 0–100 square field. A passenger request is one or more approximate public
- * areas; a driver offer is an approximate direction corridor. Neither carries exact private data.
+ * meeting areas; a driver offer is one approximate public departure area. There is no public route
+ * line or corridor, because the driver never promised to follow a provider-computed road. Neither
+ * object carries exact private data.
  */
 type MapObject = {
   id: string;
   rideId: string;
-  kind: 'area' | 'corridor';
+  kind: 'area' | 'departureArea';
   x: number;
   y: number;
-  origin?: Point;
-  tip?: Point;
   place?: { index: number; total: number };
 };
 
@@ -299,48 +297,23 @@ const areaRadius = 7;
 
 /**
  * The same field renders about 60% larger on desktop, so identical unit sizes read far heavier
- * there. Markers and corridors carry their own desktop values, keeping the intended order:
+ * there. Markers carry their own desktop values, keeping the intended order:
  * selected ride → other rides → church → user location → base map.
  */
 const fieldScale = {
-  mobile: { church: 1, userRing: 4.2, userDot: 2, corridorWide: 7, corridorNarrow: 1.5 },
-  desktop: { church: 0.72, userRing: 2.8, userDot: 1.3, corridorWide: 4.2, corridorNarrow: 1.2 },
+  mobile: { church: 1, userRing: 4.2, userDot: 2 },
+  desktop: { church: 0.72, userRing: 2.8, userDot: 1.3 },
 } as const;
 
-/**
- * A corridor is a ribbon tapering towards the church: narrow where the destination is public, wide
- * where the departure point must stay imprecise. Both edges bow the same way, so it reads as an
- * approximate direction rather than a street-by-street route.
- */
-function corridorPath(origin: Point, tip: Point, wide: number, narrow: number) {
-  const [ox, oy] = origin;
-  const [tx, ty] = tip;
-  const length = Math.hypot(tx - ox, ty - oy) || 1;
-  const perpendicularX = -(ty - oy) / length;
-  const perpendicularY = (tx - ox) / length;
-  const bow = 3.4;
-  const at = (x: number, y: number, offset: number): Point => [x + perpendicularX * offset, y + perpendicularY * offset];
-  const format = ([x, y]: Point) => `${x.toFixed(2)} ${y.toFixed(2)}`;
-  const control = (a: Point, b: Point) => at((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, -bow);
-
-  const tipLeft = at(tx, ty, -narrow);
-  const originLeft = at(ox, oy, -wide);
-  const originRight = at(ox, oy, wide);
-  const tipRight = at(tx, ty, narrow);
-
-  return `M ${format(tipLeft)} Q ${format(control(tipLeft, originLeft))} ${format(originLeft)}`
-    + ` L ${format(originRight)} Q ${format(control(originRight, tipRight))} ${format(tipRight)} Z`;
-}
-
 const mapObjects: ReadonlyArray<MapObject> = [
-  { id: 'offer-lido-corridor', rideId: 'offer-lido', kind: 'corridor', x: 27, y: 66, origin: [12, 78], tip: [46, 50] },
-  { id: 'offer-siano-corridor', rideId: 'offer-siano', kind: 'corridor', x: 74, y: 27, origin: [90, 16], tip: [58, 40] },
+  { id: 'offer-lido-departure', rideId: 'offer-lido', kind: 'departureArea', x: 16, y: 74 },
+  { id: 'offer-siano-departure', rideId: 'offer-siano', kind: 'departureArea', x: 84, y: 20 },
   { id: 'request-matera-area-1', rideId: 'request-matera', kind: 'area', x: 26, y: 42, place: { index: 1, total: 2 } },
   { id: 'request-matera-area-2', rideId: 'request-matera', kind: 'area', x: 40, y: 70, place: { index: 2, total: 2 } },
   { id: 'request-centro-area', rideId: 'request-centro', kind: 'area', x: 74, y: 60 },
 ];
 
-/** Rounded values against the public area or corridor only, never against hidden exact geometry. */
+/** Rounded values against the public approximate area only, never against hidden exact geometry. */
 const approximateDistances: Record<string, string> = {
   'offer-lido': '≈6 км от вас',
   'offer-siano': '≈23 км от вас',
@@ -356,14 +329,14 @@ const cityLabels = [
 ] as const;
 
 function objectLabel(ride: Ride, object: MapObject) {
-  if (object.kind === 'corridor') return `${ride.type} · ${ride.title} · примерное направление`;
+  if (object.kind === 'departureArea') return `${ride.type} · ${ride.title} · примерная область отправления`;
   if (object.place) return `${ride.type} · ${ride.title} · примерная область, место ${object.place.index} из ${object.place.total}`;
   return `${ride.type} · ${ride.title} · примерная область`;
 }
 
 function privacyLine(ride: Ride, areaCount: number) {
   if (ride.type === 'Есть места') {
-    return 'Показано примерное направление к храму. Точка отправления, точный маршрут и остановки не публикуются.';
+    return 'Показана примерная область отправления радиусом 1 км. Точное место отправления видит только тот, с кем водитель договорится, а маршрут поездки не публикуется.';
   }
   if (areaCount > 1) {
     return `Показаны ${areaCount} примерные области радиусом 1 км — это возможные места встречи одной просьбы. Точное место видит только тот, с кем пассажир договорится.`;
@@ -395,13 +368,15 @@ function MapShapes({ objects, selectedRideId, located, desktop }: {
 
   return (
     <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      {objects.filter((object) => object.kind === 'corridor').map((object) => (
-        <path
+      {objects.filter((object) => object.kind === 'departureArea').map((object) => (
+        <circle
           key={object.id}
-          className={styles.corridorShape}
-          d={corridorPath(object.origin!, object.tip!, scale.corridorWide, scale.corridorNarrow)}
-          data-map-shape="corridor"
+          className={styles.departureAreaShape}
+          cx={object.x}
+          cy={object.y}
+          data-map-shape="departure-area"
           data-selected={object.rideId === selectedRideId || undefined}
+          r={areaRadius}
         />
       ))}
       {objects.filter((object) => object.kind === 'area').map((object) => (
@@ -436,7 +411,7 @@ function MapTargets({ objects, selectedRideId, onSelect }: {
         const ride = rides.find((candidate) => candidate.id === object.rideId);
         if (!ride) return null;
         const selected = ride.id === selectedRideId;
-        const pillOffset = object.kind === 'area' ? areaRadius + 5 : 8;
+        const pillOffset = areaRadius + 5;
         return (
           <span key={object.id} className={styles.fieldTarget}>
             <button
@@ -487,7 +462,7 @@ function RideMap({ desktop, filter, onFilterChange, onBack }: {
         <IconButton label="Назад к доске поездок" icon="back" onClick={onBack} />
         <div>
           <strong>{groupTitle}</strong>
-          <small>Поездки этой службы · примерные области и направления</small>
+          <small>Поездки этой службы · примерные области</small>
         </div>
       </header>
 
@@ -518,7 +493,7 @@ function RideMap({ desktop, filter, onFilterChange, onBack }: {
 
       {located && (
         <p className={styles.noticeLine} data-location-note>
-          Расстояния примерные: они считаются до публичной области или направления, а не до точного места.
+          Расстояния примерные: они считаются до публичной области, а не до точного места.
         </p>
       )}
 
@@ -535,8 +510,8 @@ function RideMap({ desktop, filter, onFilterChange, onBack }: {
             <Icon name="map" />Показать, где я
           </button>
           <div className={styles.legend} role="note" aria-label="Условные обозначения">
-            <span><span className={styles.legendArea} aria-hidden="true" />Круг — примерная область пассажира</span>
-            <span><span className={styles.legendCorridor} aria-hidden="true" />Полоса — примерное направление водителя</span>
+            <span><span className={styles.legendArea} aria-hidden="true" />Пунктирный круг — примерная область пассажира</span>
+            <span><span className={styles.legendDepartureArea} aria-hidden="true" />Сплошной круг — примерная область отправления водителя</span>
           </div>
         </div>
 

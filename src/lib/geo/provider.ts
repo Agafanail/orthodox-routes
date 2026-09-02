@@ -1,0 +1,126 @@
+import type { Coordinate, PlaceCandidate, RouteMeasurement } from './types';
+
+/**
+ * The application-owned boundary to a map provider.
+ *
+ * Only three capabilities are needed, and each is deliberately narrow so that selecting or
+ * replacing a vendor is configuration rather than redesign:
+ *
+ * - `searchPlaces` turns text into candidate places the user can confirm;
+ * - `measureRoute` returns road distance and duration and nothing else — no geometry is
+ *   returned to the domain and none is stored, because the driver never promised to follow a
+ *   provider-computed road;
+ * - the browser map surface, which is a rendering concern rather than part of this contract.
+ *
+ * No vendor payload is ever persisted. The database stores only the coordinate the user
+ * confirmed and the application-derived approximation of it.
+ */
+export type GeoProvider = {
+  readonly name: string;
+  searchPlaces(query: string, options?: PlaceSearchOptions): Promise<PlaceCandidate[]>;
+  measureRoute(request: RouteRequest): Promise<RouteMeasurement>;
+  /**
+   * One deliberately boring search used only by the readiness endpoint.
+   *
+   * Ordinary calls hide every provider detail from the person using the application, which is
+   * right for them and useless during deployment: a missing credential, a rejected one, and a
+   * blocked network all look the same. This reports the coarse outcome and the HTTP status so
+   * an operator can tell those apart. It returns no address, no key, and no response body.
+   */
+  probe(): Promise<GeoProviderProbe>;
+};
+
+export type GeoProviderProbe = {
+  ok: boolean;
+  /** The provider's HTTP status, or null when the request never completed. */
+  status: number | null;
+  /** How many candidates a known-good query returned, so an empty answer is distinguishable. */
+  results: number | null;
+  /**
+   * The status of each capability the application actually uses, so a refusal that applies to
+   * one endpoint is not mistaken for a broken credential. A key restricted by origin fails
+   * everywhere; an endpoint the plan does not cover fails alone.
+   */
+  endpoints?: Record<string, number | null>;
+};
+
+export type PlaceSearchOptions = {
+  /** Optional bias so results near the church the user is looking at come first. */
+  near?: Coordinate;
+  language?: string;
+  limit?: number;
+  signal?: AbortSignal;
+};
+
+export type RouteRequest = {
+  origin: Coordinate;
+  destination: Coordinate;
+  /** The candidate passenger meeting point, when measuring a detour rather than a baseline. */
+  via?: Coordinate;
+  signal?: AbortSignal;
+};
+
+/**
+ * Raised when no provider is configured, or when a configured provider cannot answer right now.
+ * Matching treats this as "not established", never as "does not match".
+ */
+export class GeoProviderUnavailableError extends Error {
+  constructor(message = 'The map provider is unavailable.') {
+    super(message);
+    this.name = 'GeoProviderUnavailableError';
+  }
+}
+
+/**
+ * Raised when the provider is working but cannot answer this particular question — most often a
+ * point with no road near it, which no retry will change.
+ *
+ * This is deliberately not an outage. A single unroutable meeting place must not stop the other
+ * places from being measured, and must not tell everyone at that church that their suggestions
+ * could not be checked. The place simply stays unmeasured, which already means "not
+ * established" and never "does not match".
+ */
+export class RouteNotAvailableError extends Error {
+  constructor(message = 'This route cannot be measured.') {
+    super(message);
+    this.name = 'RouteNotAvailableError';
+  }
+}
+
+export type GeoProviderConfig = {
+  provider: string;
+  /**
+   * Used only on the server, for address search and route measurement. It is a different
+   * credential from the render key, restricted by allowed IP address at the provider, and it
+   * must never be exposed to a browser.
+   */
+  serverKey: string;
+};
+
+/**
+ * Reads the server-side provider configuration. Keys live only in the hosting secret manager;
+ * none is committed, printed, or logged. Absent configuration is a normal state that the
+ * application degrades around rather than an error to surface to a parishioner.
+ */
+export function getGeoProviderConfig(
+  environment: Record<string, string | undefined> = process.env,
+): GeoProviderConfig | null {
+  const provider = environment.ORTHODOX_ROUTES_MAP_PROVIDER?.trim();
+  const serverKey = environment.ORTHODOX_ROUTES_MAP_SERVER_KEY?.trim();
+  if (!provider || !serverKey) return null;
+  return { provider, serverKey };
+}
+
+/**
+ * True when the browser may render an interactive map surface.
+ *
+ * The render credential is deliberately separate from the server credential. It is exposed to
+ * the browser by necessity — map tiles are fetched by the page — so at the provider it is
+ * restricted to this application's domains and to map rendering alone. It can therefore not be
+ * used to spend address searches or route calculations even if someone copies it out of a page.
+ */
+export function hasBrowserMapConfiguration(
+  environment: Record<string, string | undefined> = process.env,
+) {
+  return Boolean(environment.NEXT_PUBLIC_ORTHODOX_ROUTES_MAP_RENDER_KEY?.trim());
+}

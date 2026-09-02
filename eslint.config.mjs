@@ -11,6 +11,8 @@ export default defineConfig([
     ".playwright-cli/**",
     "out/**",
     "build/**",
+    // Published from node_modules at build time, not written here.
+    "public/maplibre/**",
     "next-env.d.ts",
   ]),
 ]);

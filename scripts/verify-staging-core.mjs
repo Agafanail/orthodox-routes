@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
+import { syntheticPlace } from './synthetic-geo.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 const projectRefPath = fileURLToPath(new URL('../supabase/.temp/project-ref', import.meta.url));
@@ -172,10 +173,11 @@ try {
     set phone_verified_at = now()
     where account_id in (${identities.map((identity) => `${sqlLiteral(identity.id)}::uuid`).join(', ')});
     insert into app.church (
-      public_id, slug, official_name, address_display, locality, country_code, timezone, status
+      public_id, slug, official_name, address_display, locality, country_code, timezone, status, location
     ) values (
       ${sqlLiteral(churchId)}::uuid, 'pokrov-catanzaro',
-      'Synthetic Staging Church', 'Synthetic staging address', 'Test Locality', 'IT', 'UTC', 'published'
+      'Synthetic Staging Church', 'Synthetic staging address', 'Test Locality', 'IT', 'UTC', 'published',
+      extensions.st_setsrid(extensions.st_makepoint(7.6869, 45.0703), 4326)::extensions.geography
     );
   `);
 
@@ -188,7 +190,7 @@ try {
     p_church_id: churchId,
     p_client_key: randomUUID(),
     p_desired_arrival_at: arrivalAt,
-    p_places: [{ exact_label: 'Synthetic exact passenger place', public_area_label: 'Passenger test area' }],
+    p_places: [syntheticPlace(45.0611, 7.6721, 'Synthetic exact passenger place', 'Passenger test area')],
     p_public_note: null,
     p_return_required: false,
     p_service_occurrence_id: null,
@@ -202,10 +204,9 @@ try {
     p_client_key: randomUUID(),
     p_departure_at: isoAfter(7, 9),
     p_driver_child_seat_available: false,
-    p_exact_origin_label: 'Synthetic exact driver place',
+    p_origin: syntheticPlace(45.0301, 7.6402, 'Synthetic exact driver place', 'Driver test area'),
     p_max_detour_km: 5,
     p_public_note: null,
-    p_public_origin_area: 'Driver test area',
     p_return_available: false,
     p_service_occurrence_id: null,
     p_timezone: 'UTC',

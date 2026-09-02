@@ -103,7 +103,7 @@ The protected `private.contextual_registration_profile` keeps display name, norm
 
 The first transport migration materializes the canonical source side of the domain: a minimal church/service reference subset, passenger requests with one to three protected places, bounded regular driver series, and independent date-specific occurrences. Every protected mutation derives the actor from Auth, rechecks current participation eligibility, uses an actor-scoped idempotency key, and writes only through hardened functions. Base tables have forced RLS and no application-role grants. Anonymous projections omit account IDs, contacts, and exact labels; the authenticated private projection returns exact labels only for the current owner.
 
-Until the explicitly later Maps phase, `private.user_place` contains bounded protected exact and public-area labels but no coordinate, provider, radius, or route claim. This is a compatible non-map Core representation, not a substitute for the approved 1 km stable area, protected coordinates, `driver_route_input`, public corridor, PostGIS indexes, or quality matching. Browser-local prototype records are neither imported nor trusted. Responses, condition snapshots, agreements, capacity, cancellation, restoration, disclosure, lifecycle anonymization, and the configured Core application cutover are implemented through protected functions. The application requests contacts and exact meeting data only after an explicit participant action.
+Until the explicitly later Maps phase, `private.user_place` contains bounded protected exact and public-area labels but no coordinate, provider, radius, or route claim. This is a compatible non-map Core representation, not a substitute for the approved 1 km stable area, protected coordinates, PostGIS indexes, or quality matching. The Maps campaign replaces it through a safe compatible migration. Browser-local prototype records are neither imported nor trusted. Responses, condition snapshots, agreements, capacity, cancellation, restoration, disclosure, lifecycle anonymization, and the configured Core application cutover are implemented through protected functions. The application requests contacts and exact meeting data only after an explicit participant action.
 
 ### 4.7 `private.recovery_case`
 
@@ -173,6 +173,7 @@ Stores church, opaque Storage object key for cleaned master, prepared variant ma
 | `id` | PK UUID |
 | `owner_account_id` | FK; required |
 | `exact_location` | `geography(Point, 4326)`; required |
+| `saved` | Boolean; a saved place lives until its owner deletes it and is independent of completed-ride exact-data retention |
 | `normalized_address` | Optional, protected |
 | `user_label` | Optional, validated against contacts/exact-address leakage |
 | `source_kind` | `user_pin`, `user_confirmed_geocode`, `place_selection` |
@@ -182,24 +183,22 @@ Stores church, opaque Storage object key for cleaned master, prepared variant ma
 | `approximation_version`, `offset_seed_ref` | Required for stability/migration |
 | `retention_due_at` | Nullable lifecycle hook |
 
-Check or protected creation logic guarantees the exact point lies within the public circle. The `api` public projection selects `public_center` and radius only.
+Check or protected creation logic guarantees the exact point lies within the public circle. The public centre is deliberately not the exact point and must not allow the exact point to be inferred from repeated regeneration. The `api` public projection selects `public_center` and radius only.
 
-### 6.2 `private.driver_route_input`
+### 6.2 No stored route geometry
 
-Stores occurrence/series owner, exact origin place, application-owned intermediate localities/landmarks, optional user-confirmed route inputs, private route-validation metadata, version, and retention due time. It does not permanently store Google route geometry. Participant access and exact-data cleanup are governed by the linked occurrence/agreement deadlines.
+There is no `driver_route_input` entity, no `public_route_corridor` entity, and no persisted provider route polyline. A public driver route is not a product concept, so no table represents one. The driver's public geography is only the stable approximate departure area derived from `private.user_place`.
 
-### 6.3 `app.public_route_corridor`
+Route calls are transient calculation steps. Where a derived match cache is technically justified it stores only privacy-safe derived facts — source entity and version identifiers, the selected compatible passenger place reference, verdict, added distance, added estimated time, and calculation timestamp/version — and never provider geometry.
 
-Stores occurrence or series reference, application-owned simplified corridor geometry, approximation algorithm version, input version, created time, and stale flag. It must be reproducible from application-owned inputs and must not be a derivative of stored Google route geometry.
-
-### 6.4 Spatial indexes
+### 6.3 Spatial indexes
 
 - GiST on `church.location`.
 - GiST on `user_place.exact_location` in the protected schema.
 - GiST on `user_place.public_center` only where safe public proximity queries require it.
-- GiST on `public_route_corridor.geometry`.
 - Partial indexes limit active churches, requests, and occurrences.
 - Exact-location joins never back a public view.
+- pgRouting, a self-hosted street graph, and a second database are excluded.
 
 ## 7. Passenger requests
 
@@ -244,7 +243,7 @@ Check constraints enforce an approved seat upper bound, non-negative detour from
 | `author_account_id`, `church_id` | Required denormalized FKs checked against series/source |
 | `service_occurrence_id` | Optional FK |
 | `departure_at`, `arrival_at`, `timezone` | Concrete date-specific values |
-| `route_input_id`, `public_corridor_id` | Protected/public geography references |
+| `origin_place_id` | Protected FK to the driver's exact departure place; public projections expose only its approximate area |
 | `total_seats` | Positive integer within approved bound |
 | `confirmed_seats` | Non-negative; default 0; check `confirmed_seats <= total_seats` |
 | `max_detour_km` | Non-negative approved value |
@@ -293,7 +292,8 @@ Immutable structured fields capture church, occurrence/date, service/custom time
 | `driver_account_id`, `passenger_account_id` | Required distinct FKs |
 | `confirmed_passenger_count` | Positive; immutable |
 | `active_snapshot_id` | Required FK to immutable accepted conditions |
-| `selected_exact_place_id` | Protected FK; authorized only through participant function |
+| `selected_exact_place_id` | Protected FK to the one passenger place chosen for this agreement; authorized only through the participant function. The passenger's other places are never disclosed |
+| `driver_origin_place_id` | Protected FK to the driver's exact departure place; disclosed to the confirmed passenger through the same participant function |
 | `status` | `confirmed`, `change_pending`, `cancelled`, `completed`, `outcome`, `no_outcome`, `archived` |
 | `contact_visible_until`, `exact_data_delete_due_at` | Required lifecycle values after confirmation |
 | `confirmed_at`, `cancelled_at`, `completed_at`, `archived_at` | Lifecycle timestamps |
@@ -502,7 +502,7 @@ The `api` schema exposes purpose-built projections rather than base tables:
 
 - `api.published_church` and schedule projection;
 - `api.active_passenger_request` with safe name/counts, time, structured conditions, and approximate areas only;
-- `api.active_driver_occurrence` with safe name, capacity, structured conditions, approximate area/corridor only;
+- `api.active_driver_occurrence` with safe name, capacity, structured conditions, and the approximate departure area only;
 - `api.safe_completed_activity` with aggregate non-sensitive fields only;
 - account-owned lists without counterparty protected fields;
 - participant agreement summary, with a separate contact-disclosure function.
@@ -522,7 +522,7 @@ Creation or state transitions set policy codes and `retention_due_at` values rat
 - deleted-account anonymization;
 - backup deletion-ledger reapplication.
 
-Participant access to exact meeting locations, protected route data, and disclosed contact snapshots ends immediately on cancellation or no later than 30 days after the scheduled ride time. The applicable exact geodata is then deleted or irreversibly anonymized under the approved retention policy. A separately restricted legal hold for an already existing dispute may preserve only necessary evidence; it does not extend participant access or create a generic retention period.
+Participant access to the disclosed exact locations and contact snapshots ends immediately on cancellation or no later than 30 days after the scheduled ride time. The applicable exact ride geodata is then deleted or irreversibly anonymized under the approved retention policy. A user's own saved place is governed by the separate saved-place rule and lives until its owner deletes it; ride-disclosure expiry never silently removes it. A separately restricted legal hold for an already existing dispute may preserve only necessary evidence; it does not extend participant access or create a generic retention period.
 
 ## 21. Backup and restore relationships
 
@@ -563,7 +563,7 @@ Before the remaining executable target domain migrations are written, owner/lega
 - technical upper bounds for passenger counts, seats, note lengths, and detour values;
 - protective delay and verification policy for email replacement while the previously verified phone remains available;
 - remaining retention-policy values within the approved 30-day maximum, including the short cancelled-data cleanup period and dispute-scoped legal holds;
-- Google Maps Content versus application-owned/user-confirmed data boundary;
+- provider content versus application-owned and user-confirmed data boundary, resolved in favour of open-licensed Geoapify data;
 - phone verification provider coverage and fallback;
 - the remaining exposed schema/function list and complete RLS matrix beyond the implemented account/eligibility boundary;
 - backup encryption/key custody and deletion-ledger protection;

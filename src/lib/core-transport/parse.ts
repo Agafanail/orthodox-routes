@@ -1,9 +1,11 @@
+import { parsePublicPlace } from '@/lib/geo/place';
 import type {
   CoreAgreement,
   CoreChurch,
   CoreDriverOccurrence,
   CoreDisclosure,
   CoreEligibility,
+  CoreExactPlace,
   CoreOwnedOccurrence,
   CoreOwnedRequest,
   CoreOwnedSeries,
@@ -23,10 +25,26 @@ function number(value: unknown) { return typeof value === 'number' && Number.isI
 function boolean(value: unknown) { return typeof value === 'boolean' ? value : null; }
 
 function place(value: unknown): CorePlaceOption | null {
+  return parsePublicPlace(value);
+}
+
+/** An exact place is present only inside a participant-authorized disclosure response. */
+function exactPlace(value: unknown): CoreExactPlace | undefined {
   const item = record(value);
   const placeId = string(item?.place_id);
-  const publicAreaLabel = string(item?.public_area_label);
-  return placeId && publicAreaLabel ? { placeId, publicAreaLabel } : null;
+  const exactAddress = string(item?.exact_address);
+  if (!placeId || !exactAddress) return undefined;
+  const point = record(item?.exact_point);
+  const lat = typeof point?.lat === 'number' ? point.lat : undefined;
+  const lng = typeof point?.lng === 'number' ? point.lng : undefined;
+  return {
+    exactAddress,
+    placeId,
+    ...(string(item?.locality) ? { locality: string(item?.locality) as string } : {}),
+    ...(string(item?.country_code) ? { countryCode: string(item?.country_code) as string } : {}),
+    ...(lat === undefined ? {} : { lat }),
+    ...(lng === undefined ? {} : { lng }),
+  };
 }
 
 export function parseCoreChurch(value: unknown): CoreChurch | null {
@@ -38,8 +56,20 @@ export function parseCoreChurch(value: unknown): CoreChurch | null {
   const locality = string(item?.locality);
   const countryCode = string(item?.country_code);
   const timezone = string(item?.timezone);
+  const lat = typeof item?.lat === 'number' ? item.lat : undefined;
+  const lng = typeof item?.lng === 'number' ? item.lng : undefined;
   return churchId && slug && officialName && address && locality && countryCode && timezone
-    ? { churchId, slug, officialName, address, locality, countryCode, timezone }
+    ? {
+      address,
+      churchId,
+      countryCode,
+      locality,
+      officialName,
+      slug,
+      timezone,
+      ...(lat === undefined ? {} : { lat }),
+      ...(lng === undefined ? {} : { lng }),
+    }
     : null;
 }
 
@@ -93,6 +123,7 @@ export function parseCoreDriverOccurrences(value: unknown): CoreDriverOccurrence
       occurrenceId, seriesId: string(item?.series_id) ?? undefined, churchId, authorName,
       departureAt, arrivalAt, timezone, availableSeats, maxDetourKm, childrenAllowed,
       driverChildSeatAvailable, returnAvailable, publicOriginArea,
+      originArea: place(item?.origin_area) ?? undefined,
       publicNote: string(item?.public_note) ?? undefined,
     }];
   });
@@ -177,9 +208,11 @@ export function parseCoreAgreements(value: unknown): CoreAgreement[] {
     if (!agreementId || !status || !requestId || !occurrenceId || !passengerName || !driverName
       || confirmedPassengerCount === null || !scheduledArrivalAt || !timezone || contactAvailable === null
       || (currentRole !== 'passenger' && currentRole !== 'driver')) return [];
+    const cancelledByRole = item?.cancelled_by_role;
     return [{
       agreementId, status, currentRole, requestId, occurrenceId, passengerName,
       driverName, confirmedPassengerCount, scheduledArrivalAt, timezone, contactAvailable,
+      ...(cancelledByRole === 'passenger' || cancelledByRole === 'driver' ? { cancelledByRole } : {}),
     }];
   });
 }
@@ -216,7 +249,20 @@ export function parseCoreDisclosure(
   const visibleUntil = string(contacts?.visible_until);
   return contactAgreementId === agreementId && placeAgreementId === agreementId
     && counterpartyName && email && phone && exactMeetingLabel && visibleUntil
-    ? { agreementId, counterpartyName, email, phone, exactMeetingLabel, visibleUntil }
+    ? {
+      agreementId,
+      counterpartyName,
+      email,
+      exactMeetingLabel,
+      phone,
+      visibleUntil,
+      ...(exactPlace(placeValueRecord?.meeting_place)
+        ? { meetingPlace: exactPlace(placeValueRecord?.meeting_place) }
+        : {}),
+      ...(exactPlace(placeValueRecord?.departure_place)
+        ? { departurePlace: exactPlace(placeValueRecord?.departure_place) }
+        : {}),
+    }
     : undefined;
 }
 

@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
+import { syntheticPlace } from './synthetic-geo.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 
@@ -52,6 +53,14 @@ const container = databaseContainer();
 const appOrigin = process.env.CORE_E2E_APP_ORIGIN?.trim() || 'http://127.0.0.1:3000';
 const suffix = `${Date.now()}-${process.pid}`;
 const markerSuffix = suffix.replace(/[0-9]/g, (digit) => String.fromCharCode(97 + Number(digit)));
+// Run-unique markers. Each exact address must stay invisible to anyone outside a confirmed
+// agreement; each locality becomes the derived public area name and must stay visible.
+const markers = {
+  driverExactOrigin: `Browser driver exact origin ${markerSuffix}`,
+  driverPublicArea: `Browser driver public area ${markerSuffix}`,
+  passengerExactPlace: `Browser passenger exact place ${markerSuffix}`,
+  passengerPublicArea: `Browser passenger public area ${markerSuffix}`,
+};
 const password = `Core-browser-${suffix}-Aa1!`;
 const phoneStem = String(Date.now()).slice(-8);
 const admin = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
@@ -69,17 +78,26 @@ sql(container, `
     'published', repeat('e', 64)
   );
   insert into app.church (
-    slug, official_name, address_display, locality, country_code, timezone, status
+    slug, official_name, address_display, locality, country_code, timezone, status, location
   ) values (
     'pokrov-catanzaro', 'Храм Покрова Пресвятой Богородицы',
-    'Via browser fixture 1', 'Catanzaro', 'IT', 'Europe/Rome', 'published'
+    'Via browser fixture 1', 'Catanzaro', 'IT', 'Europe/Rome', 'published',
+    extensions.st_setsrid(extensions.st_makepoint(16.5960, 38.9098), 4326)::extensions.geography
   ) on conflict (slug) do update set
     official_name = excluded.official_name,
     address_display = excluded.address_display,
     locality = excluded.locality,
     country_code = excluded.country_code,
     timezone = excluded.timezone,
-    status = excluded.status;
+    status = excluded.status,
+    location = excluded.location;
+  insert into app.church (
+    slug, official_name, address_display, locality, country_code, timezone, status, location
+  ) values (
+    'browser-far-church', 'Храм святителя Николая',
+    'Via browser fixture 2', 'Palermo', 'IT', 'Europe/Rome', 'published',
+    extensions.st_setsrid(extensions.st_makepoint(13.3614, 38.1157), 4326)::extensions.geography
+  ) on conflict (slug) do update set location = excluded.location, status = excluded.status;
 `);
 
 for (const user of users) {
@@ -99,6 +117,31 @@ sql(container, `
   where account_id in (${users.map((user) => `${sqlLiteral(user.id)}::uuid`).join(', ')});
 `);
 
+// Each publisher gets one saved place, so the browser check can publish through the real
+// place field without a map provider: the saved chips are the offline path through that field.
+// The exact address and the locality carry distinct run-unique markers. The locality becomes
+// the derived public area name, so one fixture proves both halves of the privacy boundary:
+// the locality must be publicly visible and the exact address must never be.
+const savedPlaces = {
+  driver: {
+    label: `Гараж ${markerSuffix}`,
+    place: syntheticPlace(38.8400, 16.5300, markers.driverExactOrigin, markers.driverPublicArea),
+  },
+  passenger: {
+    label: `Двор ${markerSuffix}`,
+    place: syntheticPlace(38.8600, 16.6100, markers.passengerExactPlace, markers.passengerPublicArea),
+  },
+};
+
+for (const user of users) {
+  const saved = savedPlaces[user.role];
+  if (!saved) continue;
+  const client = createClient(url, publicKey, { auth: { persistSession: false } });
+  const signedIn = await client.auth.signInWithPassword({ email: user.email, password });
+  if (signedIn.error) fail(`Could not sign in ${user.role} to save a place.`);
+  await rpc(client, 'save_place', { p_place: { ...saved.place, label: saved.label } });
+}
+
 for (const user of users) {
   const generated = await admin.auth.admin.generateLink({ type: 'magiclink', email: user.email });
   const tokenHash = generated.data?.properties?.hashed_token;
@@ -107,14 +150,14 @@ for (const user of users) {
   delete user.id;
 }
 
+
 const fixture = {
   api: { publicKey, url },
   churchUrl: `${appOrigin}/churches/pokrov-catanzaro`,
-  markers: {
-    driverExactOrigin: `Browser driver exact origin ${markerSuffix}`,
-    driverPublicArea: `Browser driver public area ${markerSuffix}`,
-    passengerExactPlace: `Browser passenger exact place ${markerSuffix}`,
-    passengerPublicArea: `Browser passenger public area ${markerSuffix}`,
+  markers,
+  savedPlaceLabels: {
+    driver: savedPlaces.driver.label,
+    passenger: savedPlaces.passenger.label,
   },
   users,
 };

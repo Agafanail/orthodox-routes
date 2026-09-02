@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { beginContextualRegistrationAction } from '@/app/contextual-registration/actions';
 import { zonedLocalDateTimeToIso } from '@/lib/core-transport/time';
+import { parsePlaceInputList, placeToRpcInput } from '@/lib/geo/place';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -78,17 +79,17 @@ function passengerInput(form: FormData) {
   const passengerCount = integer(form, 'passenger_count', 1, 55);
   const childrenCount = integer(form, 'children_count', 0, 55);
   const publicNote = optionalField(form, 'public_note', 300);
-  const exactLabel = field(form, 'exact_label', 300);
-  const publicAreaLabel = field(form, 'public_area_label', 120);
+  // Up to three alternative meeting places, each already confirmed by the person on the map.
+  const places = parsePlaceInputList(form.get('places'), 3);
   if (!churchId || !timezone || !desiredArrivalAt || passengerCount === null
     || childrenCount === null || childrenCount > passengerCount || publicNote === null
-    || !exactLabel || !publicAreaLabel) return null;
+    || !places) return null;
   const childSeatRequired = checked(form, 'child_seat_required');
   if (childrenCount === 0 && childSeatRequired) return null;
   return {
     churchId, timezone, desiredArrivalAt, passengerCount, childrenCount,
     childSeatRequired, returnRequired: checked(form, 'return_required'), publicNote,
-    places: [{ exact_label: exactLabel, public_area_label: publicAreaLabel }],
+    places,
   };
 }
 
@@ -98,17 +99,16 @@ function driverBaseInput(form: FormData) {
   const seatsAvailable = integer(form, 'seats_available', 1, 55);
   const maxDetourKm = integer(form, 'max_detour_km', 0, 20);
   const publicNote = optionalField(form, 'public_note', 300);
-  const exactOriginLabel = field(form, 'exact_origin_label', 300);
-  const publicOriginArea = field(form, 'public_origin_area', 120);
+  const origins = parsePlaceInputList(form.get('origin'), 1);
   const childrenAllowed = checked(form, 'children_allowed');
   const driverChildSeatAvailable = checked(form, 'driver_child_seat_available');
   if (!churchId || !timezone || seatsAvailable === null || maxDetourKm === null
     || ![0, 2, 5, 10, 15, 20].includes(maxDetourKm) || publicNote === null
-    || !exactOriginLabel || !publicOriginArea || (!childrenAllowed && driverChildSeatAvailable)) return null;
+    || !origins || (!childrenAllowed && driverChildSeatAvailable)) return null;
   return {
     churchId, timezone, seatsAvailable, maxDetourKm, childrenAllowed,
     driverChildSeatAvailable, returnAvailable: checked(form, 'return_available'),
-    publicNote, exactOriginLabel, publicOriginArea,
+    publicNote, origin: origins[0],
   };
 }
 
@@ -146,7 +146,8 @@ function passengerArgs(input: NonNullable<ReturnType<typeof passengerInput>>, cl
     p_desired_arrival_at: input.desiredArrivalAt, p_timezone: input.timezone,
     p_total_passengers: input.passengerCount, p_children_count: input.childrenCount,
     p_child_seat_required: input.childSeatRequired, p_return_required: input.returnRequired,
-    p_public_note: input.publicNote, p_places: input.places, p_client_key: clientKey,
+    p_public_note: input.publicNote, p_places: input.places.map(placeToRpcInput),
+    p_client_key: clientKey,
   };
 }
 
@@ -157,8 +158,7 @@ function occurrenceArgs(input: NonNullable<ReturnType<typeof occurrenceInput>>, 
     p_total_seats: input.seatsAvailable, p_max_detour_km: input.maxDetourKm,
     p_children_allowed: input.childrenAllowed, p_driver_child_seat_available: input.driverChildSeatAvailable,
     p_return_available: input.returnAvailable, p_public_note: input.publicNote,
-    p_exact_origin_label: input.exactOriginLabel, p_public_origin_area: input.publicOriginArea,
-    p_client_key: clientKey,
+    p_origin: placeToRpcInput(input.origin), p_client_key: clientKey,
   };
 }
 
@@ -170,8 +170,7 @@ function seriesArgs(input: NonNullable<ReturnType<typeof seriesInput>>, clientKe
     p_total_seats: input.seatsAvailable, p_max_detour_km: input.maxDetourKm,
     p_children_allowed: input.childrenAllowed, p_driver_child_seat_available: input.driverChildSeatAvailable,
     p_return_available: input.returnAvailable, p_public_note: input.publicNote,
-    p_exact_origin_label: input.exactOriginLabel, p_public_origin_area: input.publicOriginArea,
-    p_client_key: clientKey,
+    p_origin: placeToRpcInput(input.origin), p_client_key: clientKey,
   };
 }
 
@@ -215,7 +214,6 @@ export async function startPassengerContextualAction(form: FormData) {
   if (!input) finish(form, 'invalid-input');
   await startContextual(form, 'passenger_request', {
     ...input,
-    places: input.places.map((place) => ({ exactLabel: place.exact_label, publicAreaLabel: place.public_area_label })),
     churchName: field(form, 'church_name', 200),
     churchSlug: field(form, 'church_slug', 100),
   });
@@ -268,7 +266,6 @@ export async function startPassengerResponseContextualAction(form: FormData) {
   if (!input || !occurrenceId) finish(form, 'invalid-input');
   await startContextual(form, 'ride_response', {
     ...input,
-    places: input.places.map((place) => ({ exactLabel: place.exact_label, publicAreaLabel: place.public_area_label })),
     churchName: field(form, 'church_name', 200), churchSlug: field(form, 'church_slug', 100),
     occurrenceId, responseDirection: 'passenger_to_driver',
     targetName: field(form, 'target_name', 80), targetSummary: field(form, 'target_summary', 240),

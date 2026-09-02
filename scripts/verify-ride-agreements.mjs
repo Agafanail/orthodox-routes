@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
+import { syntheticPlace } from './synthetic-geo.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 
@@ -146,12 +147,21 @@ runSql(container, `
 const churchId = randomUUID();
 runSql(container, `
   insert into app.church (
-    public_id, slug, official_name, address_display, locality, country_code, timezone, status
+    public_id, slug, official_name, address_display, locality, country_code, timezone, status, location
   ) values (
     ${sqlLiteral(churchId)}::uuid, ${sqlLiteral(`agreement-test-${suffix}`)}, 'Synthetic Agreement Church',
-    'Synthetic public church address', 'Test Locality', 'IT', 'UTC', 'published'
+    'Synthetic public church address', 'Test Locality', 'IT', 'UTC', 'published',
+    extensions.st_setsrid(extensions.st_makepoint(7.6869, 45.0703), 4326)::extensions.geography
   );
 `);
+
+// Distinct synthetic labels must land on distinct synthetic points so that each derived public
+// area is its own circle.
+function labelOffset(label) {
+  let total = 0;
+  for (const character of label) total += character.codePointAt(0);
+  return (total % 40) / 1000;
+}
 
 async function publishRequest(client, arrivalAt, passengers, label) {
   return rpc(client, 'publish_passenger_request', {
@@ -160,7 +170,7 @@ async function publishRequest(client, arrivalAt, passengers, label) {
     p_church_id: churchId,
     p_client_key: randomUUID(),
     p_desired_arrival_at: arrivalAt,
-    p_places: [{ exact_label: `Exact ${label}`, public_area_label: `${label} district` }],
+    p_places: [syntheticPlace(45.052 + labelOffset(label), 7.664 + labelOffset(label), `Exact ${label}`, `${label} district`)],
     p_public_note: null,
     p_return_required: false,
     p_service_occurrence_id: null,
@@ -178,10 +188,9 @@ async function publishOccurrence(arrivalAt, seats, label) {
     p_client_key: randomUUID(),
     p_departure_at: departure,
     p_driver_child_seat_available: true,
-    p_exact_origin_label: `Exact driver origin ${label}`,
     p_max_detour_km: 5,
+    p_origin: syntheticPlace(45.031 + labelOffset(label), 7.641 + labelOffset(label), `Exact driver origin ${label}`, `${label} origin district`),
     p_public_note: null,
-    p_public_origin_area: `${label} origin district`,
     p_return_available: false,
     p_service_occurrence_id: null,
     p_timezone: 'UTC',
@@ -242,7 +251,7 @@ const contextualPassengerResponseArgs = {
   p_child_seat_required: false, p_children_count: 0, p_church_id: churchId,
   p_client_key: contextualResponseDraftId, p_desired_arrival_at: firstArrival,
   p_occurrence_id: firstOccurrence.occurrence_id,
-  p_places: [{ exact_label: 'Exact contextual passenger', public_area_label: 'Context passenger district' }],
+  p_places: [syntheticPlace(45.0481, 7.6591, 'Exact contextual passenger', 'Context passenger district')],
   p_public_note: null, p_return_required: false, p_service_occurrence_id: null,
   p_timezone: 'UTC', p_total_passengers: 1,
 };
@@ -281,10 +290,11 @@ const wrapperRequest = await publishRequest(clients[1], firstArrival, 1, 'Wrappe
 const contextualDriverResponse = await rpc(clients[3], 'publish_contextual_driver_response', {
   p_arrival_at: firstArrival, p_children_allowed: false, p_church_id: churchId,
   p_client_key: randomUUID(), p_departure_at: new Date(new Date(firstArrival).getTime() - 3600000).toISOString(),
-  p_driver_child_seat_available: false, p_exact_origin_label: 'Exact contextual driver',
+  p_driver_child_seat_available: false,
   p_max_detour_km: 5, p_offered_passenger_count: 1,
   p_place_id: await placeId(wrapperRequest.request_id), p_public_note: null,
-  p_public_origin_area: 'Context driver district', p_request_id: wrapperRequest.request_id,
+  p_origin: syntheticPlace(45.0288, 7.6372, 'Exact contextual driver', 'Context driver district'),
+  p_request_id: wrapperRequest.request_id,
   p_return_available: false, p_service_occurrence_id: null, p_timezone: 'UTC', p_total_seats: 1,
 });
 assert.equal(contextualDriverResponse.status, 'await_passenger');
@@ -296,7 +306,7 @@ const requestCountBeforeFailedWrapper = runSql(container, `select count(*) from 
 await expectRpcFailure(clients[2], 'publish_contextual_passenger_response', {
   p_child_seat_required: false, p_children_count: 0, p_church_id: churchId,
   p_client_key: randomUUID(), p_desired_arrival_at: firstArrival, p_occurrence_id: randomUUID(),
-  p_places: [{ exact_label: 'Must roll back', public_area_label: 'Rollback district' }],
+  p_places: [syntheticPlace(45.0455, 7.6512, 'Must roll back', 'Rollback district')],
   p_public_note: null, p_return_required: false, p_service_occurrence_id: null,
   p_timezone: 'UTC', p_total_passengers: 1,
 });
@@ -315,6 +325,7 @@ const passengerResponses = await rpc(clients[0], 'current_ride_responses');
 assert.equal(passengerResponses[0].response_id, firstResponse.response_id);
 assert.equal(passengerResponses[0].current_role, 'passenger');
 assert.equal(passengerResponses[0].selected_place.public_area_label, 'Alpha district');
+assert.equal(passengerResponses[0].selected_place.public_area.radius_m, 1000);
 assert.equal(JSON.stringify(passengerResponses).includes('Exact Alpha'), false);
 assert.equal(JSON.stringify(passengerResponses).includes(identities[3].phone), false);
 assert.deepEqual(await rpc(clients[4], 'current_ride_responses'), []);
@@ -337,7 +348,15 @@ assert.equal(passengerContact.phone, identities[3].phone);
 const driverContact = await rpc(clients[3], 'get_agreement_contacts', { p_agreement_id: firstAgreement.agreement_id });
 assert.equal(driverContact.email, identities[0].email);
 assert.equal(driverContact.phone, identities[0].phone);
-assert.equal((await rpc(clients[0], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id })).exact_meeting_label, 'Exact Alpha');
+// Disclosure boundary: the driver receives the one selected meeting place, the passenger
+// receives the driver's exact departure place, and neither receives anything else.
+const passengerDisclosure = await rpc(clients[0], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id });
+assert.equal(passengerDisclosure.exact_meeting_label, 'Exact Alpha');
+assert.equal(passengerDisclosure.meeting_place.exact_address, 'Exact Alpha');
+assert.equal(passengerDisclosure.departure_place.exact_address, 'Exact driver origin first');
+assert.equal(typeof passengerDisclosure.departure_place.exact_point.lat, 'number');
+assert.equal(typeof passengerDisclosure.meeting_place.exact_point.lng, 'number');
+assert.equal(await rpc(clients[4], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id }), null);
 assert.equal((await rpc(clients[3], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id })).exact_meeting_label, 'Exact Alpha');
 assert.equal(await rpc(clients[4], 'get_agreement_contacts', { p_agreement_id: firstAgreement.agreement_id }), null);
 assert.equal(await rpc(clients[4], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id }), null);
@@ -387,20 +406,89 @@ const secondResponse = await rpc(clients[3], 'submit_driver_response', {
   p_offered_passenger_count: 1, p_place_id: await placeId(secondRequest.request_id),
   p_request_id: secondRequest.request_id,
 });
+const secondCancelKey = randomUUID();
 const secondAgreement = await rpc(clients[1], 'confirm_ride_response', {
   p_client_key: randomUUID(), p_response_id: secondResponse.response_id,
 });
 assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
   .some((request) => request.request_id === secondRequest.request_id), false);
-await rpc(clients[3], 'cancel_ride_agreement', {
+// The driver withdraws while the ride is still ahead, so the passenger's own request goes back
+// on the board without them having to do anything: they may not have seen the withdrawal at all.
+const secondCancelled = await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: secondAgreement.agreement_id, p_client_key: secondCancelKey,
+});
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'active');
+assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
+  .some((request) => request.request_id === secondRequest.request_id), true,
+'A driver withdrawal puts the passenger request back on the public board.');
+// The original request is restored, never duplicated.
+assert.equal(runSql(container, `select count(*) from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), '1');
+// Cancelling again changes nothing. The same key replays the stored result rather than acting
+// a second time, and a fresh key is refused outright because the agreement is already cancelled.
+assert.deepEqual(await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: secondAgreement.agreement_id, p_client_key: secondCancelKey,
+}), secondCancelled);
+await expectRpcFailure(clients[3], 'cancel_ride_agreement', {
   p_agreement_id: secondAgreement.agreement_id, p_client_key: randomUUID(),
 });
-assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'restore');
-assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
-  .some((request) => request.request_id === secondRequest.request_id), false);
-assert.equal((await rpc(clients[1], 'restore_passenger_request', {
+assert.equal(runSql(container, `select status from app.ride_agreement where public_id = ${sqlLiteral(secondAgreement.agreement_id)}::uuid;`), 'cancelled',
+'A cancelled agreement never returns to confirmed.');
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'active');
+// The projection says which side ended it, which is what lets the passenger be told.
+assert.equal(runSql(container, `select cancelled_by_account_id = driver_account_id from app.ride_agreement where public_id = ${sqlLiteral(secondAgreement.agreement_id)}::uuid;`), 't');
+// Already published, so there is nothing left to restore by hand.
+await expectRpcFailure(clients[1], 'restore_passenger_request', {
   p_client_key: randomUUID(), p_request_id: secondRequest.request_id,
+});
+
+// ---------------------------------------------------------------- who cancelled decides
+
+/** Publishes a request, an occurrence, and confirms an agreement between them. */
+async function arrangedRide(arrivalAt, label) {
+  const request = await publishRequest(clients[0], arrivalAt, 1, label);
+  const occurrence = await publishOccurrence(arrivalAt, 3, label);
+  const response = await rpc(clients[3], 'submit_driver_response', {
+    p_client_key: randomUUID(), p_occurrence_id: occurrence.occurrence_id,
+    p_offered_passenger_count: 1, p_place_id: await placeId(request.request_id),
+    p_request_id: request.request_id,
+  });
+  const agreement = await rpc(clients[0], 'confirm_ride_response', {
+    p_client_key: randomUUID(), p_response_id: response.response_id,
+  });
+  return { agreement, occurrence, request };
+}
+
+const requestStatus = (requestId) => runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(requestId)}::uuid;`);
+
+// The passenger withdraws. They said they no longer need the ride, so nothing is assumed for
+// them: the request stays closed and their own «Опубликовать снова» remains the only way back.
+const byPassenger = await arrangedRide(isoAfter(9, 9), 'Withdrawn');
+await rpc(clients[0], 'cancel_ride_agreement', {
+  p_agreement_id: byPassenger.agreement.agreement_id, p_client_key: randomUUID(),
+});
+assert.equal(requestStatus(byPassenger.request.request_id), 'restore',
+  'A passenger who cancels keeps their request closed until they publish it again.');
+assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
+  .some((request) => request.request_id === byPassenger.request.request_id), false);
+assert.equal((await rpc(clients[0], 'restore_passenger_request', {
+  p_client_key: randomUUID(), p_request_id: byPassenger.request.request_id,
 })).status, 'active');
+
+// The moment has passed. Nothing is republished, whoever ends it.
+const tooLate = await arrangedRide(isoAfter(10, 9), 'Passed');
+// Only the request is aged. The rule turns on the time the passenger asked to arrive, and
+// moving the ride as well would trip the guard that ties contact visibility to its arrival.
+runSql(container, `
+  update app.passenger_request set desired_arrival_at = clock_timestamp() - interval '1 hour'
+  where public_id = ${sqlLiteral(tooLate.request.request_id)}::uuid;
+`);
+await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: tooLate.agreement.agreement_id, p_client_key: randomUUID(),
+});
+assert.equal(requestStatus(tooLate.request.request_id), 'expired',
+  'A ride whose time has passed is never republished, even when the driver cancels.');
+assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
+  .some((request) => request.request_id === tooLate.request.request_id), false);
 
 const passengerResponse = await rpc(clients[1], 'submit_passenger_response', {
   p_client_key: randomUUID(), p_occurrence_id: secondOccurrence.occurrence_id,
@@ -421,7 +509,8 @@ const bulkCancelled = await rpc(clients[3], 'cancel_driver_occurrence', {
 });
 assert.equal(bulkCancelled.cancelled_agreements, 1);
 assert.equal(await rpc(clients[1], 'get_agreement_contacts', { p_agreement_id: passengerAgreement.agreement_id }), null);
-assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'restore');
+// Cancelling the whole ride is the driver withdrawing, so the passenger goes back on the board.
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'active');
 
 const concurrencyArrival = isoAfter(9, 11);
 const concurrencyRequestA = await publishRequest(clients[0], concurrencyArrival, 1, 'Concurrent Alpha');
@@ -503,12 +592,11 @@ const seriesOffer = await rpc(clients[3], 'publish_driver_series', {
   p_client_key: randomUUID(),
   p_driver_child_seat_available: true,
   p_ends_on: seriesDate,
-  p_exact_origin_label: 'Exact series lifecycle origin',
+  p_origin: syntheticPlace(45.0201, 7.6288, 'Exact series lifecycle origin', 'Series lifecycle district'),
   p_local_arrival_time: '13:00:00',
   p_local_departure_time: '12:00:00',
   p_max_detour_km: 5,
   p_public_note: null,
-  p_public_origin_area: 'Series lifecycle district',
   p_return_available: false,
   p_starts_on: seriesDate,
   p_timezone: 'UTC',
@@ -530,7 +618,8 @@ const stoppedSeries = await rpc(clients[3], 'stop_driver_series', {
 assert.equal(stoppedSeries.cancelled_occurrences, 1);
 assert.equal(stoppedSeries.cancelled_agreements, 1);
 assert.equal(await rpc(clients[0], 'get_agreement_contacts', { p_agreement_id: seriesAgreement.agreement_id }), null);
-assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(seriesRequest.request_id)}::uuid;`), 'restore');
+// Stopping the schedule is the same withdrawal, so the same republication follows.
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(seriesRequest.request_id)}::uuid;`), 'active');
 
 const lifecycle = JSON.parse(runSql(container, `select ops.expire_transport_items(now() + interval '60 days');`));
 assert.ok(lifecycle.responses >= 1);

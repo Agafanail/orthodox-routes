@@ -23,6 +23,13 @@ import {
   getChurchTrips,
   mockChurches,
 } from '@/lib/mockData';
+import { parseQualityMatches } from '@/lib/geo/match';
+import { parseSavedPlaces } from '@/lib/geo/place';
+import { hasBrowserMapConfiguration } from '@/lib/geo/provider';
+import { getBrowserMapKey, resolveGeoProvider } from '@/lib/geo/provider-factory';
+import { createRouteWorkerGateway } from '@/lib/geo/route-gateway';
+import { measurePendingLegs } from '@/lib/geo/route-worker';
+import { createPrivilegedSupabaseClient } from '@/lib/supabase/server-privileged';
 import { getPublicSupabaseConfig, hasPublicSupabaseConfigurationIntent } from '@/lib/supabase/config';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { CoreChurch } from '@/lib/core-transport/types';
@@ -37,6 +44,27 @@ export function generateStaticParams() {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Fills the road measurements this church still needs, then reports whether matching could be
+ * established at all. The database has already applied every cheap condition, so a billed call
+ * only ever happens for a pair that is otherwise a match, and the work is bounded per render.
+ *
+ * A failure here is never surfaced as "does not match": the caller only learns that nothing
+ * could be established, which the board translates into silence and the suggestions view into
+ * one short ordinary-language line.
+ */
+async function establishQualityMatches(churchId: string) {
+  const provider = resolveGeoProvider();
+  if (!provider) return { available: false };
+  const privileged = createPrivilegedSupabaseClient();
+  if (!privileged) return { available: false };
+  const result = await measurePendingLegs(createRouteWorkerGateway(privileged), provider, {
+    churchId,
+    limit: 8,
+  });
+  return { available: !result.providerUnavailable };
+}
 
 export default async function ChurchPage({ params, searchParams }: PageProps) {
   await connection();
@@ -85,17 +113,30 @@ export default async function ChurchPage({ params, searchParams }: PageProps) {
           let owned = parseCoreOwnedItems(null);
           let responses: ReturnType<typeof parseCoreResponses> = [];
           let agreements: ReturnType<typeof parseCoreAgreements> = [];
+          let savedPlaces: ReturnType<typeof parseSavedPlaces> = [];
+          let qualityMatches: ReturnType<typeof parseQualityMatches> = [];
+          let matchingAvailable = false;
           if (signedIn) {
-            const [accountResult, ownedResult, responsesResult, agreementsResult] = await Promise.all([
+            const [accountResult, ownedResult, responsesResult, agreementsResult, savedResult] = await Promise.all([
               supabase.schema('api').rpc('current_account'),
               supabase.schema('api').rpc('current_transport_items'),
               supabase.schema('api').rpc('current_ride_responses'),
               supabase.schema('api').rpc('current_ride_agreements'),
+              supabase.schema('api').rpc('list_saved_places'),
             ]);
             account = accountResult.error ? null : asRecord(accountResult.data);
             owned = ownedResult.error ? owned : parseCoreOwnedItems(ownedResult.data);
             responses = responsesResult.error ? [] : parseCoreResponses(responsesResult.data);
             agreements = agreementsResult.error ? [] : parseCoreAgreements(agreementsResult.data);
+            savedPlaces = savedResult.error ? [] : parseSavedPlaces(savedResult.data);
+
+            const established = await establishQualityMatches(coreChurch.churchId);
+            matchingAvailable = established.available;
+            if (matchingAvailable) {
+              const matchesResult = await supabase.schema('api')
+                .rpc('list_quality_matches', { p_church_id: coreChurch.churchId });
+              qualityMatches = matchesResult.error ? [] : parseQualityMatches(matchesResult.data);
+            }
           }
           let disclosure;
           if (reveal && agreements.some((agreement) => agreement.agreementId === reveal && agreement.contactAvailable)) {
@@ -112,11 +153,17 @@ export default async function ChurchPage({ params, searchParams }: PageProps) {
             disclosure={disclosure}
             driverOccurrences={parseCoreDriverOccurrences(occurrencesResult.data)}
             eligibility={parseCoreEligibility(account?.eligibility)}
+            mapAvailable={hasBrowserMapConfiguration()}
+            mapBrowserKey={getBrowserMapKey()}
+            matchingAvailable={matchingAvailable}
             ownedOccurrences={owned.ownedOccurrences}
             ownedRequests={owned.ownedRequests}
             ownedSeries={owned.ownedSeries}
             passengerRequests={parseCorePassengerRequests(requestsResult.data)}
+            qualityMatches={qualityMatches}
             responses={responses}
+            savedPlaces={savedPlaces}
+            showMatchesOnly={typeof query.view === 'string' && query.view === 'matches'}
             signedIn={signedIn}
             status={status}
           />;
@@ -155,7 +202,16 @@ export default async function ChurchPage({ params, searchParams }: PageProps) {
               </div>
               <div className="rounded-lg bg-stone-100 p-4">
                 <dt className="font-semibold">Адрес</dt>
-                <dd className="mt-1 text-stone-700">{coreChurchForHeader?.address ?? church.address}</dd>
+                <dd className="mt-1">
+                  {/* The exact address stays visible and is itself the way to the map screen. */}
+                  <Link
+                    aria-label={`Показать храм на карте: ${coreChurchForHeader?.address ?? church.address}`}
+                    className="text-stone-700 underline decoration-stone-400 underline-offset-4"
+                    href={`/churches/${slug}/location`}
+                  >
+                    {coreChurchForHeader?.address ?? church.address}
+                  </Link>
+                </dd>
               </div>
             </dl>
           </div>
