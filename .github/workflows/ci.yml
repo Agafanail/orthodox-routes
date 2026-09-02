@@ -122,6 +122,9 @@ jobs:
       - name: Verify ride agreements and disclosure
         run: npm run test:agreements
 
+      - name: Verify account-scoped My Trips read model
+        run: npm run test:my-trips
+
       - name: Verify geographic foundation and privacy boundary
         run: npm run test:geography
 

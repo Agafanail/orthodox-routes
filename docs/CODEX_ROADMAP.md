@@ -11,7 +11,7 @@ Roadmap separates the isolated browser demo and implemented local Core slice fro
 - The code, tests, and README describe what is implemented now.
 - `PROJECT_SPEC_V0_1.md`, `DATA_MODEL.md`, `UX_RULES.md`, and `PROJECT_MAP.md` remain explicitly labelled prototype or legacy references and cannot override Product Scope or IA V2.
 - Information architecture is complete at the approved-document level. Empirical card sorting and tree testing remain future validation work recorded in IA V2, not invented research results; they do not block Design System V2 approval.
-- **Design System V2** is canonical and approved, and **Backend and integration architecture** is complete and approved. The **Core multi-user platform** phase is complete. The **Maps and quality matching** phase is complete, recorded in [BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md](BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md); no later phase is authorized or started. The isolated `/design-preview` reference artifact now carries twelve V2 control screens, including the approved transport-board ride map; production adoption remains separate Phase 10 work. Phase approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
+- **Design System V2** is canonical and approved, and **Backend and integration architecture** is complete and approved. The **Core multi-user platform** phase is complete. The **Maps and quality matching** phase is complete, recorded in [BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md](BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md). Phase 6 has started only with the account-scoped `My Trips` backend read projection; its UI, notifications, profile, and PWA work remain unimplemented. The isolated `/design-preview` reference artifact now carries twelve V2 control screens, including the approved transport-board ride map; production adoption remains separate Phase 10 work. Phase approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
 - Maps are part of the required first full version, even though they are not part of the current mock.
 - Product-scope approval does not authorize implementing all phases in one change.
 
@@ -113,7 +113,8 @@ The complete Core campaign passed its final local, migration, security/privacy, 
 
 ### 6. My Trips, notifications, profile, and PWA
 
-- Implement `My Trips` with its approved IA V2 sections and agreement history, the in-app notification history, and the lightweight profile with notification settings.
+- The protected account-scoped `My Trips` read projection is implemented over the existing transport domain, with the four approved IA V2 sections, cross-church context, passenger participation, aggregated driver occurrences, and no protected disclosure data. The route and UI remain unimplemented.
+- Implement the remaining `My Trips` route and interface, the in-app notification history, and the lightweight profile with notification settings.
 - Preserve church-management entry points without treating church administration as part of personal trips.
 - Implement durable in-app notifications, transactional email, and Web Push.
 - Follow the IA V2 PWA guidance: provide iPhone installation guidance before Web Push; on Android, use the system installation prompt when supported and otherwise provide browser-specific guidance; keep installation and push permission separate; request push only after a useful user action; and continue important messages by email while push is unavailable.
