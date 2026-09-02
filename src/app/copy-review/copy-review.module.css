@@ -1572,3 +1572,154 @@
   color: var(--or-text-secondary);
   font-weight: var(--or-weight-regular);
 }
+
+/* =============================== group 3: the driver offer, four semantic screens (IA §11.1) */
+
+/*
+ * How often, at the top of «Когда вы едете?». Two mutually exclusive words that qualify everything
+ * below them, so they read as one control rather than as two cards: the selected half uses the one
+ * approved treatment — `primary-pale` with a `primary` border — and nothing else (DS §6).
+ */
+.segmented {
+  display: flex;
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  margin: var(--or-space-6) 0 0;
+  padding: 0;
+}
+
+.segment {
+  display: flex;
+  min-height: var(--or-target-min);
+  flex: 1 1 50%;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(var(--or-radius-control) - 1px);
+  color: var(--or-control-text);
+  cursor: pointer;
+  padding: var(--or-space-2) var(--or-space-3);
+  font-size: var(--or-size-secondary);
+  font-weight: var(--or-weight-medium);
+  text-align: center;
+}
+
+.segment + .segment {
+  border-left: 1px solid var(--or-border);
+}
+
+.segment[data-choice-selected] {
+  background: var(--or-primary-pale);
+  box-shadow: inset 0 0 0 1px var(--or-primary);
+  color: var(--or-text);
+  font-weight: var(--or-weight-semibold);
+}
+
+/* The radio itself carries the state; the visible control is the whole half of the pair. */
+.segment input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+/*
+ * Weekdays of a recurring trip: seven compact toggles in one row at the ordinary size, wrapping
+ * onto a second one at 200 %, with the visual box small and the interactive target never below
+ * 44 px (DS §11, DESIGN_DECISIONS 17).
+ */
+.dayToggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--or-space-2);
+  margin-top: var(--or-space-3);
+}
+
+.dayToggle {
+  display: inline-grid;
+  min-width: var(--or-target-min);
+  min-height: var(--or-target-min);
+  flex: 1 1 var(--or-target-min);
+  place-items: center;
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  color: var(--or-control-text);
+  cursor: pointer;
+  padding: 0 var(--or-space-2);
+  font-size: var(--or-size-secondary);
+  font-weight: var(--or-weight-medium);
+  text-align: center;
+}
+
+.dayToggle[aria-pressed='true'] {
+  border-color: var(--or-primary);
+  background: var(--or-primary-pale);
+  color: var(--or-text);
+  font-weight: var(--or-weight-semibold);
+}
+
+/* Two dates are one answer, so they stand together and the period is repeated in words below. */
+.periodFields {
+  display: grid;
+  gap: var(--or-space-4);
+  margin-top: var(--or-space-4);
+}
+
+.periodFields .textField {
+  margin: 0;
+}
+
+.periodFields + .data {
+  margin-top: var(--or-space-3);
+  color: var(--or-text-secondary);
+}
+
+/*
+ * The detour list. It is one short answer among many, so it takes the shape of an ordinary field
+ * and not six buttons filling a screen: the native control keeps the keyboard behaviour and the
+ * 44 px target without a second selection language (DS §4, §6, §11).
+ */
+.textField select {
+  display: block;
+  width: 100%;
+  min-height: var(--or-height-field);
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  color: var(--or-text);
+  font: inherit;
+  padding: 0 var(--or-space-3);
+}
+
+/*
+ * The exact route, drawn over the same map as the marker once the place is chosen. It is one
+ * screen, so the route is a layer of that map and never a picture of its own.
+ */
+.routeOverlay {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.routeLine {
+  fill: none;
+  stroke: var(--or-primary);
+  stroke-width: 4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.routeStart {
+  fill: var(--or-surface);
+  stroke: var(--or-primary);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+/* «Изменить место» sits under the address it changes, quiet and aligned with it (DS §5). */
+.pickSheet .quietButton {
+  margin-left: calc(-1 * var(--or-space-4));
+}
