@@ -270,6 +270,64 @@ async function arrangeRide(passengerIndex, church, arrivalAt, label, passengers 
   return { agreement, occurrence, request, response };
 }
 
+async function historicalRide(passengerIndex, church, arrivalAt, label, elapsedInterval) {
+  const request = await publishRequest(passengerIndex, church, arrivalAt, `${label}_REQUEST`);
+  const occurrence = await publishOccurrence(church, arrivalAt, `${label}_OFFER`, 1);
+  const response = { response_id: randomUUID() };
+  const agreement = { agreement_id: randomUUID() };
+  // The owner-only fixture represents already confirmed historical data with genuinely past
+  // dates. Build its immutable snapshot after ageing the sources, retaining every constraint and
+  // trigger. The application does not gain a way to publish or confirm a past trip.
+  runSql(container, `
+    do $$
+    declare
+      fixture_request_id uuid;
+      fixture_occurrence_id uuid;
+      fixture_place_id uuid;
+      fixture_snapshot_id uuid;
+      fixture_response_id uuid;
+      fixture_arrival_at timestamptz := now() - ${sqlLiteral(elapsedInterval)}::interval;
+    begin
+      update app.passenger_request
+      set desired_arrival_at = fixture_arrival_at, status = 'fulfilled', remaining_passengers = 0
+      where public_id = ${sqlLiteral(request.request_id)}::uuid
+      returning id into fixture_request_id;
+      update app.driver_offer_occurrence
+      set departure_at = fixture_arrival_at - interval '1 hour', arrival_at = fixture_arrival_at,
+        status = 'full', confirmed_seats = 1
+      where public_id = ${sqlLiteral(occurrence.occurrence_id)}::uuid
+      returning id into fixture_occurrence_id;
+      select link.user_place_id into fixture_place_id
+      from app.passenger_request_place as link where link.request_id = fixture_request_id
+      order by link.position limit 1;
+      fixture_snapshot_id := app.create_ride_snapshot(fixture_request_id, fixture_occurrence_id, fixture_place_id, 1);
+      insert into app.ride_response (
+        public_id, direction, passenger_account_id, driver_account_id, passenger_request_id,
+        driver_occurrence_id, selected_request_place_id, offered_passenger_count,
+        conditions_snapshot_id, status, expires_at, created_at, updated_at, responded_at
+      ) values (
+        ${sqlLiteral(response.response_id)}::uuid, 'driver_to_passenger',
+        ${sqlLiteral(identities[passengerIndex].id)}::uuid, ${sqlLiteral(identities[3].id)}::uuid,
+        fixture_request_id, fixture_occurrence_id, fixture_place_id, 1, fixture_snapshot_id,
+        'accepted', fixture_arrival_at, fixture_arrival_at - interval '1 day',
+        fixture_arrival_at - interval '1 day', fixture_arrival_at - interval '1 day'
+      ) returning id into fixture_response_id;
+      insert into app.ride_agreement (
+        public_id, response_id, driver_occurrence_id, passenger_request_id, driver_account_id,
+        passenger_account_id, confirmed_passenger_count, active_snapshot_id, selected_exact_place_id,
+        contact_visible_until, exact_data_delete_due_at, confirmed_at
+      ) values (
+        ${sqlLiteral(agreement.agreement_id)}::uuid, fixture_response_id, fixture_occurrence_id, fixture_request_id,
+        ${sqlLiteral(identities[3].id)}::uuid, ${sqlLiteral(identities[passengerIndex].id)}::uuid,
+        1, fixture_snapshot_id, fixture_place_id, fixture_arrival_at + interval '30 days',
+        fixture_arrival_at + interval '30 days', fixture_arrival_at - interval '1 day'
+      );
+    end;
+    $$;
+  `);
+  return { agreement, occurrence, request, response };
+}
+
 const listingRequest = await publishRequest(0, churches[0], isoAfter(20, 8), 'LISTING');
 
 const passengerDecisionRequest = await publishRequest(0, churches[0], isoAfter(21, 9), 'PASSENGER_DECISION');
@@ -319,24 +377,13 @@ await rpc(clients[3], 'cancel_ride_agreement', {
   p_agreement_id: cancelledRide.agreement.agreement_id, p_client_key: randomUUID(),
 });
 
-const completedRide = await arrangeRide(0, churches[0], isoAfter(27, 15), 'COMPLETED');
-const noOutcomeRide = await arrangeRide(1, churches[0], isoAfter(28, 16), 'NO_OUTCOME');
-const archivedRide = await arrangeRide(2, churches[1], isoAfter(29, 17), 'ARCHIVED');
-runSql(container, `
-  update app.ride_agreement set status = 'completed', completed_at = now() - interval '1 hour'
-  where public_id = ${sqlLiteral(completedRide.agreement.agreement_id)}::uuid;
-  update app.ride_agreement set status = 'no_outcome', completed_at = now() - interval '8 days'
-  where public_id = ${sqlLiteral(noOutcomeRide.agreement.agreement_id)}::uuid;
-  update app.ride_agreement set status = 'archived', completed_at = now() - interval '31 days',
-    archived_at = now()
-  where public_id = ${sqlLiteral(archivedRide.agreement.agreement_id)}::uuid;
-  update app.driver_offer_occurrence set status = 'completed', closed_at = now(), updated_at = now()
-  where public_id in (
-    ${sqlLiteral(completedRide.occurrence.occurrence_id)}::uuid,
-    ${sqlLiteral(noOutcomeRide.occurrence.occurrence_id)}::uuid,
-    ${sqlLiteral(archivedRide.occurrence.occurrence_id)}::uuid
-  );
-`);
+const completedRide = await historicalRide(0, churches[0], isoAfter(27, 15), 'COMPLETED', '1 hour');
+const noOutcomeRide = await historicalRide(1, churches[0], isoAfter(28, 16), 'NO_OUTCOME', '8 days');
+const archivedRide = await historicalRide(2, churches[1], isoAfter(29, 17), 'ARCHIVED', '31 days');
+const historyLifecycle = JSON.parse(runSql(container, 'select ops.expire_transport_items();'));
+assert.ok(historyLifecycle.completed_agreements >= 3);
+assert.ok(historyLifecycle.no_outcome_agreements >= 2);
+assert.ok(historyLifecycle.archived_agreements >= 1);
 
 const listingOccurrence = await publishOccurrence(churches[0], isoAfter(30, 18), 'LISTING');
 const seriesDate = isoAfter(31, 19).slice(0, 10);
@@ -359,6 +406,37 @@ const listingSeries = await rpc(clients[3], 'publish_driver_series', {
   p_weekdays: [seriesDay],
 });
 
+const withdrawnRequest = await publishRequest(0, churches[0], isoAfter(33, 11), 'WITHDRAWN');
+const withdrawnOccurrence = await publishOccurrence(churches[0], isoAfter(33, 11), 'WITHDRAWN');
+const withdrawnResponse = await rpc(clients[0], 'submit_passenger_response', {
+  p_client_key: randomUUID(), p_occurrence_id: withdrawnOccurrence.occurrence_id,
+  p_request_id: withdrawnRequest.request_id,
+});
+await rpc(clients[0], 'withdraw_ride_response', {
+  p_client_key: randomUUID(), p_response_id: withdrawnResponse.response_id,
+});
+
+// Two real offers compete for one seat. The second confirmation becomes stale through the
+// existing capacity check rather than assigning a terminal response state directly.
+const staleOccurrence = await publishOccurrence(churches[0], isoAfter(34, 12), 'STALE', 1);
+const staleResponses = [];
+for (const passengerIndex of [0, 1]) {
+  const request = await publishRequest(passengerIndex, churches[0], isoAfter(34, 12), `STALE_${passengerIndex}`);
+  staleResponses.push(await rpc(clients[3], 'submit_driver_response', {
+    p_client_key: randomUUID(), p_occurrence_id: staleOccurrence.occurrence_id,
+    p_offered_passenger_count: 1,
+    p_place_id: await requestPlaceId(churches[0], request.request_id),
+    p_request_id: request.request_id,
+  }));
+}
+await rpc(clients[1], 'confirm_ride_response', {
+  p_client_key: randomUUID(), p_response_id: staleResponses[1].response_id,
+});
+const staleResult = await rpc(clients[0], 'confirm_ride_response', {
+  p_client_key: randomUUID(), p_response_id: staleResponses[0].response_id,
+});
+assert.equal(staleResult.status, 'stale');
+
 const anonymousResult = await callRpc(anonymous, 'current_my_trips');
 assert.ok(anonymousResult.error, 'Anonymous My Trips access unexpectedly succeeded.');
 
@@ -380,6 +458,13 @@ const changePending = itemById(passengerTrips, 'upcoming', changePendingRide.agr
 assert.equal(changePending.status, 'change_pending');
 assert.equal(changePending.action_required, false);
 assert.equal(itemById(passengerTrips, 'history', declinedResponse.response_id).status, 'declined');
+for (const [responseId, status] of [
+  [withdrawnResponse.response_id, 'withdrawn'], [staleResponses[0].response_id, 'stale'],
+]) {
+  const item = itemById(passengerTrips, 'history', responseId);
+  assert.equal(item.status, status);
+  assert.equal(item.action_required, false);
+}
 const cancelled = itemById(passengerTrips, 'history', cancelledRide.agreement.agreement_id);
 assert.equal(cancelled.status, 'cancelled');
 assert.equal(cancelled.cancelled_by_role, 'driver');
@@ -397,6 +482,14 @@ const thirdPassengerTrips = await rpc(clients[2], 'current_my_trips');
 assertProjectionShape(thirdPassengerTrips);
 assert.equal(itemById(thirdPassengerTrips, 'upcoming', confirmedRide.agreement.agreement_id).status, 'confirmed');
 assert.equal(itemById(thirdPassengerTrips, 'history', archivedRide.agreement.agreement_id).status, 'archived');
+for (const [payload, ride] of [
+  [passengerTrips, completedRide], [secondPassengerTrips, noOutcomeRide],
+  [thirdPassengerTrips, archivedRide],
+]) {
+  const historicalItem = itemById(payload, 'history', ride.agreement.agreement_id);
+  assert.ok(new Date(historicalItem.scheduled_at).getTime() < Date.now());
+  assert.equal(historicalItem.action_required, false);
+}
 
 const driverTrips = await rpc(clients[3], 'current_my_trips');
 assertProjectionShape(driverTrips);
@@ -429,11 +522,140 @@ assert.equal(driverTopLevelIds.has(aggregateResponseA.response_id), false);
 assert.equal(driverTopLevelIds.has(aggregateResponseB.response_id), false);
 assert.equal(driverTopLevelIds.has(confirmedRide.agreement.agreement_id), false);
 
+// A passenger requests the whole group; the driver can still answer with a partial offer.
+// All creation, counteroffer, and confirmation steps use the existing protected mutation RPCs.
+const partialRequest = await publishRequest(0, churches[0], isoAfter(32, 10), 'PARTIAL_COUNTEROFFER', 3);
+const partialOccurrence = await publishOccurrence(churches[0], isoAfter(32, 10), 'PARTIAL_COUNTEROFFER', 2);
+const partialResponse = await rpc(clients[0], 'submit_passenger_response', {
+  p_client_key: randomUUID(), p_occurrence_id: partialOccurrence.occurrence_id,
+  p_request_id: partialRequest.request_id,
+});
+const partialDriverTrips = await rpc(clients[3], 'current_my_trips');
+assertProjectionShape(partialDriverTrips);
+const partialDriverItem = itemById(partialDriverTrips, 'needs_response', partialOccurrence.occurrence_id);
+assert.ok(partialDriverItem, 'A group larger than the available seats still needs a driver decision.');
+assert.equal(partialDriverItem.action_required, true);
+assert.equal(partialDriverItem.counts.available_seats, 2);
+assert.equal(partialDriverItem.counts.action_required_count, 1);
+assert.equal(partialDriverItem.children.responses[0].offered_passenger_count, 3);
+assert.equal(partialDriverItem.children.responses[0].action_required, true);
+const partialCounteroffer = await rpc(clients[3], 'answer_passenger_response', {
+  p_accept: true, p_client_key: randomUUID(), p_offered_passenger_count: 2,
+  p_place_id: await requestPlaceId(churches[0], partialRequest.request_id),
+  p_response_id: partialResponse.response_id,
+});
+assert.equal(partialCounteroffer.status, 'await_passenger');
+const partialPassengerTrips = await rpc(clients[0], 'current_my_trips');
+assertProjectionShape(partialPassengerTrips);
+const partialPassengerItem = itemById(partialPassengerTrips, 'needs_response', partialResponse.response_id);
+assert.equal(partialPassengerItem.action_required, true);
+assert.equal(partialPassengerItem.counts.offered_passenger_count, 2);
+const partialAgreement = await rpc(clients[0], 'confirm_ride_response', {
+  p_client_key: randomUUID(), p_response_id: partialResponse.response_id,
+});
+assert.equal(partialAgreement.status, 'confirmed');
+assert.equal(partialAgreement.confirmed_passenger_count, 2);
+assert.equal(runSql(container, `
+  select status || ':' || remaining_passengers::text from app.passenger_request
+  where public_id = ${sqlLiteral(partialRequest.request_id)}::uuid;
+`), 'partial:1');
+
+// Age only the relevant synthetic timestamps, not the stored lifecycle states. This models the
+// interval before cleanup and verifies that reading never performs lifecycle writes itself.
+const elapsedPayloads = [];
+function responseLifecycleState(responseId) {
+  return runSql(container, `
+    select jsonb_build_array(
+      response.status, response.expires_at, response.updated_at, response.responded_at,
+      request.status, request.desired_arrival_at, request.updated_at, request.closed_at,
+      occurrence.status, occurrence.arrival_at, occurrence.updated_at, occurrence.closed_at
+    )
+    from app.ride_response as response
+    join app.passenger_request as request on request.id = response.passenger_request_id
+    join app.driver_offer_occurrence as occurrence on occurrence.id = response.driver_occurrence_id
+    where response.public_id = ${sqlLiteral(responseId)}::uuid;
+  `);
+}
+
+async function assertElapsedResponse(passengerIndex, responseId, occurrenceId, storedStatus,
+  driverSection, pendingCount, actionCount) {
+  const beforeRead = responseLifecycleState(responseId);
+  const passenger = await rpc(clients[passengerIndex], 'current_my_trips');
+  const driver = await rpc(clients[3], 'current_my_trips');
+  assertProjectionShape(passenger);
+  assertProjectionShape(driver);
+  const passengerItem = itemById(passenger, 'history', responseId);
+  assert.ok(passengerItem, 'An elapsed response must be history before lifecycle cleanup.');
+  assert.equal(passengerItem.status, storedStatus);
+  assert.equal(passengerItem.action_required, false);
+  const driverItem = itemById(driver, driverSection, occurrenceId);
+  assert.ok(driverItem);
+  assert.equal(driverItem.action_required, actionCount > 0);
+  assert.equal(driverItem.counts.pending_response_count, pendingCount);
+  assert.equal(driverItem.counts.action_required_count, actionCount);
+  const child = driverItem.children.responses.find((response) => response.object_id === responseId);
+  assert.equal(child.status, storedStatus);
+  assert.equal(child.action_required, false);
+  assert.equal(responseLifecycleState(responseId), beforeRead, 'The read RPC changed lifecycle state.');
+  elapsedPayloads.push(passenger, driver);
+}
+
+runSql(container, `
+  update app.ride_response set expires_at = now() - interval '1 minute'
+  where public_id = ${sqlLiteral(passengerDecisionResponse.response_id)}::uuid;
+`);
+await assertElapsedResponse(0, passengerDecisionResponse.response_id,
+  passengerDecisionOccurrence.occurrence_id, 'await_passenger', 'listings', 0, 0);
+
+runSql(container, `
+  update app.ride_response set expires_at = now() - interval '1 minute'
+  where public_id = ${sqlLiteral(aggregateResponseA.response_id)}::uuid;
+`);
+await assertElapsedResponse(0, aggregateResponseA.response_id,
+  aggregateOccurrence.occurrence_id, 'await_driver', 'needs_response', 1, 1);
+
+// A still-future response deadline cannot keep an already elapsed trip actionable.
+runSql(container, `
+  update app.ride_response set expires_at = now() + interval '1 day'
+  where public_id = ${sqlLiteral(passengerDecisionResponse.response_id)}::uuid;
+  update app.passenger_request set desired_arrival_at = now() - interval '1 minute'
+  where public_id = ${sqlLiteral(passengerDecisionRequest.request_id)}::uuid;
+`);
+await assertElapsedResponse(0, passengerDecisionResponse.response_id,
+  passengerDecisionOccurrence.occurrence_id, 'await_passenger', 'listings', 0, 0);
+
+runSql(container, `
+  update app.driver_offer_occurrence
+  set departure_at = now() - interval '2 hours', arrival_at = now() - interval '1 hour'
+  where public_id = ${sqlLiteral(aggregateOccurrence.occurrence_id)}::uuid;
+`);
+await assertElapsedResponse(1, aggregateResponseB.response_id,
+  aggregateOccurrence.occurrence_id, 'await_driver', 'history', 0, 0);
+
+// Cleanup is a separate explicit operation. The same read projection then exposes the real
+// terminal status without restoring an action or duplicating the response across sections.
+runSql(container, `
+  update app.ride_response set expires_at = now() - interval '1 minute'
+  where public_id in (
+    ${sqlLiteral(passengerDecisionResponse.response_id)}::uuid,
+    ${sqlLiteral(aggregateResponseB.response_id)}::uuid
+  );
+`);
+const elapsedLifecycle = JSON.parse(runSql(container, 'select ops.expire_transport_items();'));
+assert.ok(elapsedLifecycle.responses >= 3);
+await assertElapsedResponse(0, passengerDecisionResponse.response_id,
+  passengerDecisionOccurrence.occurrence_id, 'expired', 'listings', 0, 0);
+await assertElapsedResponse(0, aggregateResponseA.response_id,
+  aggregateOccurrence.occurrence_id, 'expired', 'history', 0, 0);
+await assertElapsedResponse(1, aggregateResponseB.response_id,
+  aggregateOccurrence.occurrence_id, 'expired', 'history', 0, 0);
+
 const forbiddenValues = [
   ...identities.flatMap((identity) => [identity.email, identity.phone]),
   'MY_TRIPS_EXACT_', 'MY_TRIPS_NOTE_', 'Synthetic public church address',
 ];
-for (const payload of [passengerTrips, secondPassengerTrips, thirdPassengerTrips, driverTrips]) {
+for (const payload of [passengerTrips, secondPassengerTrips, thirdPassengerTrips, driverTrips,
+  partialDriverTrips, partialPassengerTrips, ...elapsedPayloads]) {
   assertNoProtectedPayload(payload, forbiddenValues);
 }
 

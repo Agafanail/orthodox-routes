@@ -2,6 +2,8 @@
 -- It deliberately adds no lifecycle or mutation workflow. In particular, the current schema can
 -- store change_pending but cannot identify which participant must answer a proposed change, so
 -- those agreements stay upcoming without claiming that the current actor must act.
+-- Read-time response expiry removes pending actions before lifecycle cleanup without changing
+-- stored statuses. Driver responses may offer fewer seats than the passenger initially requested.
 
 create index passenger_request_author_timeline
   on app.passenger_request (author_account_id, desired_arrival_at desc);
@@ -26,14 +28,15 @@ as $$
     select
       response.driver_occurrence_id,
       count(*) filter (where response.status <> 'accepted')::integer as response_count,
-      count(*) filter (where response.status in ('await_driver', 'await_passenger'))::integer as pending_response_count,
+      count(*) filter (where response.status in ('await_driver', 'await_passenger')
+        and timing.is_future)::integer as pending_response_count,
       count(*) filter (where
         response.status = 'await_driver'
-        and response.expires_at > current_timestamp
+        and timing.is_future
         and request.status in ('active', 'partial')
+        and request.remaining_passengers > 0
         and occurrence.status = 'active'
-        and occurrence.arrival_at > current_timestamp
-        and occurrence.total_seats - occurrence.confirmed_seats >= response.offered_passenger_count
+        and occurrence.total_seats > occurrence.confirmed_seats
       )::integer as action_required_count,
       coalesce(jsonb_agg(jsonb_build_object(
         'object_id', response.public_id,
@@ -41,11 +44,11 @@ as $$
         'current_role', 'driver',
         'status', response.status,
         'action_required', response.status = 'await_driver'
-          and response.expires_at > current_timestamp
+          and timing.is_future
           and request.status in ('active', 'partial')
+          and request.remaining_passengers > 0
           and occurrence.status = 'active'
-          and occurrence.arrival_at > current_timestamp
-          and occurrence.total_seats - occurrence.confirmed_seats >= response.offered_passenger_count,
+          and occurrence.total_seats > occurrence.confirmed_seats,
         'direction', response.direction,
         'counterparty_name', passenger.display_name,
         'offered_passenger_count', response.offered_passenger_count,
@@ -56,6 +59,11 @@ as $$
     join app.account as passenger on passenger.id = response.passenger_account_id
     join app.passenger_request as request on request.id = response.passenger_request_id
     join app.driver_offer_occurrence as occurrence on occurrence.id = response.driver_occurrence_id
+    join app.ride_condition_snapshot as snapshot on snapshot.id = response.conditions_snapshot_id
+    cross join lateral (
+      select least(response.expires_at, snapshot.scheduled_arrival_at,
+        request.desired_arrival_at, occurrence.arrival_at) > current_timestamp as is_future
+    ) as timing
     cross join actor
     where response.driver_account_id = actor.id
     group by response.driver_occurrence_id
@@ -132,7 +140,8 @@ as $$
   passenger_response_items as (
     select
       case
-        when response.status in ('declined', 'withdrawn', 'expired', 'stale') then 'history'
+        when response.status in ('declined', 'withdrawn', 'expired', 'stale')
+          or not timing.is_future then 'history'
         when response.status = 'await_passenger' then 'needs_response'
         else 'listings'
       end as primary_section,
@@ -143,13 +152,14 @@ as $$
         'object_id', response.public_id,
         'object_kind', 'ride_response',
         'primary_section', case
-          when response.status in ('declined', 'withdrawn', 'expired', 'stale') then 'history'
+          when response.status in ('declined', 'withdrawn', 'expired', 'stale')
+            or not timing.is_future then 'history'
           when response.status = 'await_passenger' then 'needs_response'
           else 'listings'
         end,
         'current_role', 'passenger',
         'status', response.status,
-        'action_required', response.status = 'await_passenger',
+        'action_required', response.status = 'await_passenger' and timing.is_future,
         'scheduled_at', snapshot.scheduled_arrival_at,
         'timezone', snapshot.timezone,
         'church', jsonb_build_object(
@@ -174,6 +184,10 @@ as $$
     join app.driver_offer_occurrence as occurrence on occurrence.id = response.driver_occurrence_id
     join app.church as church on church.id = snapshot.church_id
     join app.account as driver on driver.id = response.driver_account_id
+    cross join lateral (
+      select least(response.expires_at, snapshot.scheduled_arrival_at,
+        request.desired_arrival_at, occurrence.arrival_at) > current_timestamp as is_future
+    ) as timing
     cross join actor
     where response.passenger_account_id = actor.id
       and response.status <> 'accepted'
