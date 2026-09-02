@@ -13,6 +13,11 @@ import styles from './copy-review.module.css';
  * the final layout of «Где вас забрать?» and the corrections made on the assembled form — was
  * approved on 26 August 2026.
  *
+ * Group 3 covers the driver offer «Могу подвезти». After the owner decisions of 27 and 28 August
+ * 2026 it is four semantic screens — when, where from, the details of the trip, and a review that
+ * only shows — replacing the eleven steps the first assembly reproduced from IA §11.1. No driver
+ * string is approved yet.
+ *
  * The request states are not ten steps: they are entry points into **one** interactive form that
  * keeps its own answers in memory, so the owner can walk the real path — forward, back, edit an
  * earlier answer — instead of reading ten static pictures. There is no persistence, no backend and
@@ -37,7 +42,17 @@ type SampleId =
   | 'request-people'
   | 'request-people-children'
   | 'request-final'
-  | 'request-final-filled';
+  | 'request-final-filled'
+  | 'offer-when'
+  | 'offer-when-custom'
+  | 'offer-when-recurring'
+  | 'offer-where-empty'
+  | 'offer-where'
+  | 'offer-seats'
+  | 'offer-seats-children'
+  | 'offer-final'
+  | 'offer-final-filled'
+  | 'offer-final-recurring';
 
 type SourceMark = 'IA' | 'PS' | 'DS' | 'Решение' | 'Утверждено' | 'Проект';
 
@@ -54,8 +69,11 @@ type StringSource = {
 
 type Sample = {
   id: SampleId;
-  /** `church` — group 1; `request` — an entry point into the one interactive passenger form. */
-  group: 'church' | 'request';
+  /**
+   * `church` — group 1; `request` — an entry point into the one interactive passenger form;
+   * `offer` — an entry point into the one interactive driver form (group 3, not yet reviewed).
+   */
+  group: 'church' | 'request' | 'offer';
   label: string;
   title: string;
   description: string;
@@ -173,6 +191,94 @@ const samples: ReadonlyArray<Sample> = [
     title: 'Экран 4 «Последние детали»: заполненная форма',
     description:
       'Тот же экран, когда форма пройдена целиком: нужна поездка обратно, в примечании написан ориентир «у входа в библиотеку» — именно для него отдельного поля названия места не делается, — а в резюме собраны время, два места, число пассажиров с детьми и потребность в кресле. Тихое «Изменить» возвращает к нужному экрану, ответы сохраняются. Вход и проверка контактов остаются условием публикации и в эту подгруппу не входят: кнопка здесь ничего не публикует.',
+  },
+
+
+  /*
+   * Group 3: the driver offer, restructured on the owner decision of 27 August 2026 into four
+   * semantic screens — when, where from, how many seats, the final details. The former eleven-step
+   * sequence of IA §11.1 is gone, and so are the separate «Как часто вы ездите?», «Ваш маршрут до
+   * храма» and «Проверьте поездку» screens. Every string is still a proposal: none is approved.
+   */
+  {
+    id: 'offer-when',
+    group: 'offer',
+    label: '15 · Когда: разовая, служба',
+    title: 'Экран 1 «Когда вы едете?»: разовая поездка к службе',
+    description:
+      'Первый из четырёх смысловых экранов формы водителя. Разовая или регулярная — не отдельный экран, а первый ответ на тот же вопрос «когда», поэтому переключатель стоит вверху этого экрана. Отсюда можно пройти всю форму до конца: «Далее» ведёт вперёд, «Назад» возвращает, ответы сохраняются.',
+  },
+  {
+    id: 'offer-when-custom',
+    group: 'offer',
+    label: '16 · Когда: свои дата и время',
+    title: 'Экран 1 «Когда вы едете?»: собственные дата и время',
+    description:
+      'Тот же экран и тот же список: собственные дата и время — второй способ ответить на тот же вопрос. Указывается время прибытия к храму, а не выезда: время выезда предлагается на экране 2, где уже известна дорога.',
+  },
+  {
+    id: 'offer-when-recurring',
+    group: 'offer',
+    label: '17 · Когда: регулярная поездка',
+    title: 'Экран 1 «Когда вы едете?»: регулярная поездка, дни и период',
+    description:
+      'Тот же экран после выбора регулярной поездки: службы показываются недельным временем («по воскресеньям, 9:00»), а не одной датой, и под ними раскрываются дни недели и период. Раньше это был отдельный экран, на котором конкретная дата с прошлого шага уже ничего не значила.',
+  },
+  {
+    id: 'offer-where-empty',
+    group: 'offer',
+    label: '18 · Откуда: выбор места',
+    title: 'Экран 2 «Откуда вы едете?»: место отправления ещё не выбрано',
+    description:
+      'Режим выбора места: карта, поле адреса, короткая инструкция и одна тихая строка о публичности. Больше на экране ничего нет — маршрут и допустимое отклонение зависят от места и появятся вместе с ним. Отдельной выделенной панели приватности больше нет: правило сказано одним предложением.',
+  },
+  {
+    id: 'offer-where',
+    group: 'offer',
+    label: '19 · Откуда: место выбрано',
+    title: 'Экран 2 «Откуда вы едете?»: место выбрано, маршрут и отклонение',
+    description:
+      'Тот же экран после подтверждения места: поле адреса и инструкция убраны, адрес показан один раз, на карте нарисован маршрут, под ней — одна строка о дороге и компактный список допустимого отклонения. Времени выезда здесь больше нет: сопоставление поездок его не использует. «Изменить место» возвращает этот же экран в режим выбора.',
+  },
+  {
+    id: 'offer-seats',
+    group: 'offer',
+    label: '20 · Детали поездки: без детей',
+    title: 'Экран 3 «Детали поездки»: без детей',
+    description:
+      'Все оставшиеся изменяемые сведения о поездке на одном экране: свободные места, дети, детское кресло, обратная поездка и необязательное примечание. Водитель не может везти детей, поэтому вопроса о кресле здесь нет.',
+  },
+  {
+    id: 'offer-seats-children',
+    group: 'offer',
+    label: '21 · Детали поездки: дети и примечание',
+    title: 'Экран 3 «Детали поездки»: дети, кресло, обратная поездка и примечание',
+    description:
+      'Тот же экран, когда водитель может везти детей: появляется вопрос о кресле и объяснение, кто отвечает за правила перевозки (IA §2.3). Предупреждение о примечании стоит подсказкой внутри самого поля, а не текстом под ним.',
+  },
+  {
+    id: 'offer-final',
+    group: 'offer',
+    label: '22 · Проверьте поездку',
+    title: 'Экран 4 «Проверьте поездку»: обычное начало',
+    description:
+      'Экран только для проверки: новых вопросов здесь не задаётся. Пять строк резюме — когда, откуда, места и дети, обратно, примечание — с тихим «Изменить» и одно главное действие. Публичной картинки и повторного объяснения приватности здесь нет.',
+  },
+  {
+    id: 'offer-final-filled',
+    group: 'offer',
+    label: '23 · Проверьте поездку: заполнено',
+    title: 'Экран 4 «Проверьте поездку»: разовая поездка, форма пройдена целиком',
+    description:
+      'Тот же экран, когда форма пройдена: в резюме собраны служба, место отправления с допустимым отклонением, места и дети, обратная поездка и примечание. Тихое «Изменить» возвращает к нужному экрану, ответы сохраняются. Вход и проверка контактов остаются условием публикации и в эту группу не входят: кнопка ничего не публикует.',
+  },
+  {
+    id: 'offer-final-recurring',
+    group: 'offer',
+    label: '24 · Проверьте поездку: регулярная',
+    title: 'Экран 4 «Проверьте поездку»: регулярная поездка',
+    description:
+      'То же резюме для регулярной поездки: в строке «Когда» появляются дни недели и период, и рядом стоит напоминание, что каждая дата серии остаётся отдельной поездкой с отдельными местами (IA §11.3).',
   },
 ];
 
@@ -892,11 +998,20 @@ function EmptyChurchScreen({ textZoom }: { textZoom: boolean }) {
 /* ------------------------- group 2: one interactive passenger request form (IA §10.1, §29.5) */
 
 /** Content fixture: the same church schedule the group 1 screens use, seen from inside the form. */
-const upcomingServices: ReadonlyArray<{ id: string; title: string; when: string }> = [
-  { id: 'vigil-22', title: 'Всенощное бдение', when: 'суббота, 22 августа, 18:00' },
-  { id: 'liturgy-23', title: 'Божественная литургия', when: 'воскресенье, 23 августа, 9:00' },
-  { id: 'moleben-26', title: 'Молебен с акафистом', when: 'среда, 26 августа, 18:00' },
-  { id: 'vigil-29', title: 'Всенощное бдение', when: 'суббота, 29 августа, 18:00' },
+const upcomingServices: ReadonlyArray<{
+  id: string;
+  title: string;
+  when: string;
+  /**
+   * The same service seen by a driver who goes every week. A recurring trip has no single date, so
+   * naming one there would be wrong; the weekly slot is what the answer actually is.
+   */
+  weekly: string;
+}> = [
+  { id: 'vigil-22', title: 'Всенощное бдение', when: 'суббота, 22 августа, 18:00', weekly: 'по субботам, 18:00' },
+  { id: 'liturgy-23', title: 'Божественная литургия', when: 'воскресенье, 23 августа, 9:00', weekly: 'по воскресеньям, 9:00' },
+  { id: 'moleben-26', title: 'Молебен с акафистом', when: 'среда, 26 августа, 18:00', weekly: 'по средам, 18:00' },
+  { id: 'vigil-29', title: 'Всенощное бдение', when: 'суббота, 29 августа, 18:00', weekly: 'по субботам, 18:00' },
 ];
 
 /**
@@ -1042,11 +1157,15 @@ function peopleSummary(state: RequestState) {
  * There is no stepper, no progress bar and no numbered wizard. Neither IA §28.3 nor Design System V2
  * requires one, and this group exists to judge the words, not to introduce a navigation pattern.
  */
-function FormHeader({ onBack }: { onBack: () => void }) {
+function FormHeader({ context, backLabel, onBack }: {
+  context: string;
+  backLabel: string;
+  onBack: () => void;
+}) {
   return (
     <header className={styles.formHeader} data-form-header>
-      <button type="button" className={styles.quietButton} onClick={onBack}>{requestCopy.back}</button>
-      <p className={styles.formContext}>{requestCopy.title}</p>
+      <button type="button" className={styles.quietButton} onClick={onBack}>{backLabel}</button>
+      <p className={styles.formContext}>{context}</p>
     </header>
   );
 }
@@ -1065,16 +1184,18 @@ function FormFooter({ action, onAction }: { action: string; onAction: () => void
  * focusable and should not offer a text cursor. The two buttons carry the whole interaction, and
  * each of them names the field it changes, so the pair works without seeing the label (IA §28.1).
  */
-function Stepper({ label, value, min, max, onChange }: {
+function Stepper({ label, value, min, max, labelHidden = false, onChange }: {
   label: string;
   value: number;
   min: number;
   max: number;
+  /** Set when the heading of the screen already asks the question the label would repeat. */
+  labelHidden?: boolean;
   onChange: (next: number) => void;
 }) {
   return (
     <div className={styles.stepper} data-stepper role="group" aria-label={label}>
-      <p className={styles.fieldLabel}>{label}</p>
+      <p className={labelHidden ? styles.srOnly : styles.fieldLabel}>{label}</p>
       <div>
         <button
           type="button"
@@ -1623,7 +1744,7 @@ function PassengerRequestForm({ seed, textZoom }: { seed: Partial<RequestState>;
 
   return (
     <PhoneFrame label={frameLabel[form.step]} textZoom={textZoom}>
-      <FormHeader onBack={back} />
+      <FormHeader context={requestCopy.title} backLabel={requestCopy.back} onBack={back} />
       <main className={styles.formContent} data-request-step={form.step}>
         {form.step === 'when' && whenScreen()}
         {form.step === 'people' && peopleScreen()}
@@ -1632,6 +1753,760 @@ function PassengerRequestForm({ seed, textZoom }: { seed: Partial<RequestState>;
     </PhoneFrame>
   );
 }
+
+/* -------------------------- group 3: one interactive driver offer form (IA §11.1, §29.5) */
+
+/**
+ * The wording of the driver offer. Nothing here is approved: the group exists precisely so the
+ * owner can read these words on the assembled screens first.
+ *
+ * The form is four semantic screens (owner decision of 27 August 2026), simplified again on
+ * 28 August 2026: screen 2 keeps only what a person decides about the place, screen 3 collects
+ * every remaining editable detail of the trip, and screen 4 only shows what was answered.
+ */
+const offerCopy = {
+  title: 'Могу подвезти',
+  back: 'Назад',
+  next: 'Далее',
+
+  whenTitle: 'Когда вы едете?',
+  whenOneTime: 'Разовая поездка',
+  whenRecurring: 'Регулярная поездка',
+  whenRecurringHint:
+    'Регулярная поездка создаётся не больше чем на 8 недель. Каждая дата остаётся отдельной поездкой с отдельными местами.',
+  whenOr: 'или',
+  whenCustom: 'Указать свои дату и время',
+  whenCustomRecurring: 'Указать своё время',
+  whenArrivalLabel: 'Когда нужно быть у храма',
+  whenArrivalTimeLabel: 'Время у храма',
+  daysTitle: 'По каким дням вы ездите',
+  daysFrom: 'Первая поездка',
+  daysTo: 'Последняя поездка',
+
+  whereTitle: 'Откуда вы едете?',
+  wherePrivacy:
+    'Всем будет видна только примерная область отправления — точный адрес откроется после договорённости.',
+  mapSearch: 'Адрес',
+  mapHint: 'Введите адрес или передвиньте маркер на карте.',
+  mapConfirm: 'Подтвердить место',
+  whereChange: 'Изменить место',
+  detourLabel: 'Допустимое отклонение от маршрута',
+  detourNone: 'Только по маршруту',
+
+  detailsTitle: 'Детали поездки',
+  seatsLabel: 'Свободные места',
+  childrenLabel: 'Дети',
+  childrenYes: 'Могу везти детей',
+  childrenNo: 'Не могу везти детей',
+  childSeatYes: 'У меня есть подходящее детское кресло',
+  childSeatHint:
+    'Правила перевозки детей в вашей стране соблюдаете вы сами. Мы их не проверяем.',
+  detailsReturn: 'Могу подвезти обратно',
+  noteLabel: 'Примечание',
+  notePlaceholder: 'Не указывайте цену, телефон, email, ссылки и точный адрес',
+
+  reviewTitle: 'Проверьте поездку',
+  publish: 'Опубликовать',
+
+  summaryGroup: 'Кратко о вашей поездке',
+  summaryWhen: 'Когда',
+  summaryWhere: 'Откуда',
+  summarySeats: 'Места и дети',
+  summaryReturn: 'Обратно',
+  summaryNote: 'Примечание',
+  returnNo: 'Не могу подвезти обратно',
+  empty: '—',
+  edit: 'Изменить',
+} as const;
+
+const offerSummaryEditName = (section: string) => `${offerCopy.edit}: ${section}`;
+
+const detourKm = (km: number) => `До ${km} км`;
+const offerPeriod = (from: string, to: string) => `С ${from} по ${to}`;
+const offerSeatsValue = (seats: number) => pluralRu(seats, seatsFreePlural);
+
+/** The church the whole review surface is set in, seen from inside the driver form. */
+const offerChurch = 'Храм Покрова Пресвятой Богородицы в Catanzaro';
+
+/** Detour distances offered for the review. Product Scope fixes the unit, not the ladder. */
+const detourChoices: ReadonlyArray<number> = [0, 2, 5, 10, 15, 20];
+
+const weekdayChoices: ReadonlyArray<{ id: string; short: string; full: string }> = [
+  { id: 'mon', short: 'Пн', full: 'понедельник' },
+  { id: 'tue', short: 'Вт', full: 'вторник' },
+  { id: 'wed', short: 'Ср', full: 'среда' },
+  { id: 'thu', short: 'Чт', full: 'четверг' },
+  { id: 'fri', short: 'Пт', full: 'пятница' },
+  { id: 'sat', short: 'Сб', full: 'суббота' },
+  { id: 'sun', short: 'Вс', full: 'воскресенье' },
+];
+
+type OfferStep = 'when' | 'where' | 'details' | 'review';
+
+/** The four semantic screens in the order a person meets them. The map is not among them. */
+const offerStepOrder: ReadonlyArray<OfferStep> = ['when', 'where', 'details', 'review'];
+
+type OfferState = {
+  step: OfferStep;
+  kind: 'one-time' | 'recurring';
+  /** A service id, or `custom` when the driver answers with an own date and time. */
+  when: string;
+  arrivalDate: string;
+  arrivalTime: string;
+  days: ReadonlyArray<string>;
+  from: string;
+  to: string;
+  /**
+   * The address the marker stands on. `departure` is the one the driver has confirmed; while it is
+   * `null` the screen is in its place-selection mode, and «Изменить место» puts it back there.
+   */
+  marker: string;
+  departure: string | null;
+  detour: number;
+  seats: number;
+  children: boolean;
+  childSeat: boolean;
+  returnRide: boolean;
+  note: string;
+};
+
+const blankOffer: OfferState = {
+  step: 'when',
+  kind: 'one-time',
+  when: 'liturgy-23',
+  arrivalDate: '2026-08-23',
+  arrivalTime: '09:00',
+  days: ['sun'],
+  from: '2026-08-30',
+  to: '2026-10-25',
+  marker: 'via-milano',
+  departure: null,
+  detour: 5,
+  seats: 3,
+  children: true,
+  childSeat: false,
+  returnRide: false,
+  note: '',
+};
+
+/** The note the filled states carry: a real driver clarification, without price or contacts. */
+const offerNoteSample = 'Выезжаю от площади, подожду пять минут у входа.';
+
+/** The answers a driver who has walked screens 1–3 would already have given. */
+const offerFilled: Partial<OfferState> = {
+  departure: 'via-milano',
+  marker: 'via-milano',
+  detour: 5,
+  seats: 3,
+  children: true,
+  childSeat: true,
+  returnRide: true,
+  note: offerNoteSample,
+};
+
+/**
+ * Ten entry points into the same form. Each one opens the screen it names with the answers a person
+ * would already have given by then, so the owner reads every screen in a realistic state and can
+ * still walk forwards and backwards from any of them.
+ */
+const offerSeeds: Partial<Record<SampleId, Partial<OfferState>>> = {
+  'offer-when': { step: 'when', kind: 'one-time', when: 'liturgy-23' },
+  'offer-when-custom': { step: 'when', kind: 'one-time', when: 'custom' },
+  'offer-when-recurring': { step: 'when', kind: 'recurring', when: 'liturgy-23', days: ['sun'] },
+  'offer-where-empty': { step: 'where', departure: null, marker: 'via-milano' },
+  'offer-where': { step: 'where', departure: 'via-milano', marker: 'via-milano', detour: 5 },
+  'offer-seats': { step: 'details', departure: 'via-milano', seats: 3, children: false },
+  'offer-seats-children': {
+    step: 'details',
+    departure: 'via-milano',
+    seats: 3,
+    children: true,
+    childSeat: true,
+    returnRide: true,
+    note: offerNoteSample,
+  },
+  'offer-final': { step: 'review', departure: 'via-milano' },
+  'offer-final-filled': { step: 'review', kind: 'one-time', when: 'liturgy-23', ...offerFilled },
+  'offer-final-recurring': {
+    step: 'review',
+    kind: 'recurring',
+    when: 'liturgy-23',
+    days: ['sat', 'sun'],
+    ...offerFilled,
+  },
+};
+
+/** `2026-08-30` → «30 августа», the shape the period line and the schedule already use. */
+function formatDay(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return value;
+  return `${day} ${monthsGenitive[month - 1]}`;
+}
+
+const offerService = (state: OfferState) =>
+  upcomingServices.find((item) => item.id === state.when);
+
+const offerDaysSummary = (state: OfferState) =>
+  weekdayChoices
+    .filter((day) => state.days.includes(day.id))
+    .map((day) => day.full)
+    .join(', ');
+
+/**
+ * The «когда» answer as the summary of screen 4 states it. A one-time trip has a date; a recurring
+ * one has weekdays and a period, because that is what it actually is.
+ */
+function offerWhenSummary(state: OfferState) {
+  const service = offerService(state);
+  if (state.kind === 'recurring') {
+    const head = service ? `${service.title} · ${service.weekly}` : state.arrivalTime;
+    return `${head} · ${offerDaysSummary(state)}`;
+  }
+  if (service) return `${service.title} · ${service.when}`;
+  return formatArrival(`${state.arrivalDate}T${state.arrivalTime}`);
+}
+
+/**
+ * The exact route the driver builds, drawn from the departure marker to the church over the same
+ * map. There is no maps provider behind it — the group reviews the words and the composition.
+ */
+function OfferRouteOverlay() {
+  return (
+    <svg
+      className={styles.routeOverlay}
+      viewBox="0 0 390 420"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden="true"
+    >
+      <path d="M196 244 Q250 200 268 150 T322 74" className={styles.routeLine} />
+      <circle cx="196" cy="244" r="7" className={styles.routeStart} />
+    </svg>
+  );
+}
+
+/* --------------------------------------------------------------------------- the form itself */
+
+/**
+ * One component for the whole driver offer. The ten review states differ only in the answers it
+ * starts with, so a correction to a screen reaches every state that shows it.
+ *
+ * Navigation is plainly linear, because the form is: «Далее» goes to the next of the four
+ * questions, «Назад» to the previous one, and the quiet «Изменить» of the review jumps straight to
+ * the screen that owns the answer. The state object outlives every move.
+ */
+function DriverOfferForm({ seed, textZoom }: { seed: Partial<OfferState>; textZoom: boolean }) {
+  const [form, setForm] = useState<OfferState>({ ...blankOffer, ...seed });
+  const change = (patch: Partial<OfferState>) => setForm((current) => ({ ...current, ...patch }));
+
+  const index = offerStepOrder.indexOf(form.step);
+  const goTo = (step: OfferStep) => change({ step });
+  const back = () => index > 0 && goTo(offerStepOrder[index - 1]);
+  const next = () => index < offerStepOrder.length - 1 && goTo(offerStepOrder[index + 1]);
+
+  /* ------------------------------------------------------------------ screen 1: when */
+
+  /**
+   * One question with two halves inside it: how often, and when exactly. Driving every week is not
+   * a separate decision a person makes on a screen of its own — it is the first half of saying when
+   * they go, and the second half reads differently depending on it.
+   */
+  function whenScreen() {
+    const recurring = form.kind === 'recurring';
+    const custom = form.when === 'custom';
+
+    const toggleDay = (id: string) =>
+      change({
+        days: form.days.includes(id)
+          ? form.days.filter((day) => day !== id)
+          : weekdayChoices
+            .filter((day) => day.id === id || form.days.includes(day.id))
+            .map((day) => day.id),
+      });
+
+    return (
+      <>
+        <p className={styles.formChurch}>{offerChurch}</p>
+        <h1 className={styles.pageTitle}>{offerCopy.whenTitle}</h1>
+
+        {/* How often, at the top of the same screen: two words, not a screen of their own. */}
+        <fieldset className={styles.segmented} data-offer-kind>
+          <legend className={styles.srOnly}>{offerCopy.whenTitle}</legend>
+          {([['one-time', offerCopy.whenOneTime], ['recurring', offerCopy.whenRecurring]] as const).map(
+            ([id, label]) => (
+              <label
+                key={id}
+                className={styles.segment}
+                data-choice-selected={form.kind === id ? '' : undefined}
+              >
+                <input
+                  type="radio"
+                  name="offer-kind"
+                  checked={form.kind === id}
+                  onChange={() => change({ kind: id })}
+                />
+                <span>{label}</span>
+              </label>
+            ),
+          )}
+        </fieldset>
+
+        {recurring && <p className={styles.fieldHint} data-offer-kind-hint>{offerCopy.whenRecurringHint}</p>}
+
+        {/*
+         * The services. A one-time trip names a date, a series names the weekly slot: a driver who
+         * goes every week has no single date, and printing one there made the question about
+         * weekdays below contradict the answer just given.
+         */}
+        <fieldset className={styles.choiceGroup} data-offer-when>
+          <legend className={styles.srOnly}>{offerCopy.whenTitle}</legend>
+          {upcomingServices.map((service) => (
+            <label
+              key={service.id}
+              className={styles.choice}
+              data-choice-selected={form.when === service.id ? '' : undefined}
+            >
+              <input
+                type="radio"
+                name="offer-when"
+                checked={form.when === service.id}
+                onChange={() => change({ when: service.id })}
+              />
+              <span>
+                <strong>{service.title}</strong>
+                <span>{recurring ? service.weekly : service.when}</span>
+              </span>
+            </label>
+          ))}
+
+          <p className={styles.choiceOr}>{offerCopy.whenOr}</p>
+          <label className={styles.choice} data-choice-selected={custom ? '' : undefined}>
+            <input
+              type="radio"
+              name="offer-when"
+              checked={custom}
+              onChange={() => change({ when: 'custom' })}
+            />
+            <span>
+              <strong>{recurring ? offerCopy.whenCustomRecurring : offerCopy.whenCustom}</strong>
+            </span>
+          </label>
+        </fieldset>
+
+        {/*
+         * The own answer, in the shape the trip actually has: a date and a time for one trip, only
+         * a time for a series, whose dates come from the weekdays and the period below.
+         */}
+        {custom && (
+          <div className={styles.revealed} data-offer-arrival>
+            {recurring ? (
+              <label className={styles.textField}>
+                <span>{offerCopy.whenArrivalTimeLabel}</span>
+                <input
+                  type="time"
+                  value={form.arrivalTime}
+                  onChange={(event) => change({ arrivalTime: event.target.value })}
+                />
+              </label>
+            ) : (
+              <label className={styles.textField}>
+                <span>{offerCopy.whenArrivalLabel}</span>
+                <input
+                  type="datetime-local"
+                  value={`${form.arrivalDate}T${form.arrivalTime}`}
+                  onChange={(event) => {
+                    const [date, time = form.arrivalTime] = event.target.value.split('T');
+                    change({ arrivalDate: date || form.arrivalDate, arrivalTime: time });
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        )}
+
+        {/* Weekdays and the period belong to the same question and stay on the same screen. */}
+        {recurring && (
+          <div className={styles.revealed} data-offer-series>
+            <p className={styles.fieldLabel}>{offerCopy.daysTitle}</p>
+            <div className={styles.dayToggles} role="group" aria-label={offerCopy.daysTitle} data-offer-days>
+              {weekdayChoices.map((day) => (
+                <button
+                  key={day.id}
+                  type="button"
+                  className={styles.dayToggle}
+                  aria-pressed={form.days.includes(day.id)}
+                  aria-label={day.full}
+                  onClick={() => toggleDay(day.id)}
+                >
+                  {day.short}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.periodFields}>
+              <label className={styles.textField}>
+                <span>{offerCopy.daysFrom}</span>
+                <input type="date" value={form.from} onChange={(event) => change({ from: event.target.value })} />
+              </label>
+              <label className={styles.textField}>
+                <span>{offerCopy.daysTo}</span>
+                <input type="date" value={form.to} onChange={(event) => change({ to: event.target.value })} />
+              </label>
+            </div>
+            <p className={styles.data} data-offer-period>
+              {offerPeriod(formatDay(form.from), formatDay(form.to))}
+            </p>
+          </div>
+        )}
+
+        <FormFooter action={offerCopy.next} onAction={next} />
+      </>
+    );
+  }
+
+  /* ------------------------------------------------------- screen 2: where from, map included */
+
+  const markerAt = () => mapAddresses.find((item) => item.id === form.marker) ?? mapAddresses[0];
+  const departureAt = () => mapAddresses.find((item) => item.id === form.departure) ?? null;
+
+  function searchAddress(query: string) {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return;
+    const found = mapAddresses.find((item) => item.address.toLowerCase().includes(normalized));
+    if (found) change({ marker: found.id });
+  }
+
+  /**
+   * One semantic screen with the map always on it, in two modes of the same screen.
+   *
+   * Choosing: the map, the address field, one short instruction and one quiet line about what
+   * becomes public. Nothing else, because everything else depends on the place.
+   *
+   * Chosen: the field and the instruction are gone — they have done their work — the address stands
+   * once, the route is drawn on the map, and the two things the driver still decides are the detour
+   * and whether to pick the place again.
+   */
+  function whereScreen() {
+    const marker = markerAt();
+    const saved = departureAt();
+
+    return (
+      <>
+        <div className={styles.pickMapArea}>
+          <PickMapArtwork />
+          {saved && <OfferRouteOverlay />}
+          <div className={styles.pickControls}>
+            <button type="button" className={styles.iconButton} aria-label={offerCopy.back} onClick={back}>
+              <Icon name="back" />
+            </button>
+            {/* The search belongs to choosing a place, so it leaves with that mode. */}
+            {!saved && (
+              <label className={styles.searchField}>
+                <Icon name="search" />
+                <span className={styles.srOnly}>{offerCopy.mapSearch}</span>
+                <input
+                  placeholder={offerCopy.mapSearch}
+                  defaultValue=""
+                  onChange={(event) => searchAddress(event.target.value)}
+                />
+              </label>
+            )}
+          </div>
+          {!saved && <p className={styles.pickHint}>{offerCopy.mapHint}</p>}
+
+          {/* Points are movable only while a place is being chosen. */}
+          {!saved && (
+            <div className={styles.pickPoints} role="group" aria-label={offerCopy.mapHint}>
+              {mapAddresses.map((point) => (
+                <button
+                  key={point.id}
+                  type="button"
+                  className={styles.pickPoint}
+                  style={{ left: `${point.left}%`, top: `${point.top}%` }}
+                  aria-label={point.address}
+                  aria-pressed={point.id === marker.id}
+                  onClick={() => change({ marker: point.id })}
+                >
+                  <span
+                    className={point.id === marker.id ? styles.pickMarker : styles.pickSpare}
+                    aria-hidden="true"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className={styles.pickSheet} data-offer-step="where">
+          <h1 className={styles.pageTitle}>{offerCopy.whereTitle}</h1>
+
+          {saved ? (
+            <>
+              {/* The address, once. The label above it would only repeat the question. */}
+              <p className={styles.data} data-offer-address>{saved.address}</p>
+              <button
+                type="button"
+                className={styles.quietButton}
+                data-offer-change-place
+                onClick={() => change({ departure: null })}
+              >
+                {offerCopy.whereChange}
+              </button>
+
+              {/*
+               * The detour is one short answer among many, so it is a compact list and not six
+               * buttons taking a screenful (DS §4).
+               */}
+              <label className={styles.textField} data-offer-detour>
+                <span>{offerCopy.detourLabel}</span>
+                <select
+                  value={form.detour}
+                  onChange={(event) => change({ detour: Number(event.target.value) })}
+                >
+                  {detourChoices.map((km) => (
+                    <option key={km} value={km}>
+                      {km === 0 ? offerCopy.detourNone : detourKm(km)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className={styles.sheetActions}>
+                <button type="button" className={styles.primaryButton} onClick={next}>
+                  {offerCopy.next}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className={styles.data} data-offer-marker>{marker.address}</p>
+              {/*
+               * The rule about what becomes public, said once and quietly, where the driver decides
+               * the place. It is a sentence, not a panel: a highlighted block made a short rule look
+               * like a warning about something going wrong (IA §11.6).
+               */}
+              <p className={styles.fieldHint} data-offer-privacy>{offerCopy.wherePrivacy}</p>
+
+              {/* One place is required, so before it there is one intent and no «Далее». */}
+              <div className={styles.sheetActions}>
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  data-offer-confirm
+                  onClick={() => change({ departure: marker.id })}
+                >
+                  {offerCopy.mapConfirm}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  /* --------------------------------------------------------- screen 3: the details of the trip */
+
+  /**
+   * Everything about the trip a person still edits, on one screen: how many people fit, whether
+   * children are among them, whether there is a seat, whether the driver comes back and anything
+   * short worth adding. The child seat appears only when children do (IA §2.3).
+   */
+  function detailsScreen() {
+    return (
+      <>
+        <h1 className={styles.pageTitle}>{offerCopy.detailsTitle}</h1>
+
+        <Stepper
+          label={offerCopy.seatsLabel}
+          value={form.seats}
+          min={1}
+          max={8}
+          onChange={(seats) => change({ seats })}
+        />
+
+        <fieldset className={styles.choiceGroup} data-offer-children>
+          <legend className={styles.fieldLabel}>{offerCopy.childrenLabel}</legend>
+          {([[true, offerCopy.childrenYes], [false, offerCopy.childrenNo]] as const).map(([able, label]) => (
+            <label
+              key={label}
+              className={styles.choice}
+              data-choice-selected={form.children === able ? '' : undefined}
+            >
+              <input
+                type="radio"
+                name="offer-children"
+                checked={form.children === able}
+                onChange={() => change({ children: able, childSeat: able && form.childSeat })}
+              />
+              <span><strong>{label}</strong></span>
+            </label>
+          ))}
+        </fieldset>
+
+        {form.children && (
+          <div className={styles.revealed} data-offer-child-seat>
+            <label className={styles.checkboxField}>
+              <input
+                type="checkbox"
+                checked={form.childSeat}
+                onChange={() => change({ childSeat: !form.childSeat })}
+              />
+              <span>{offerCopy.childSeatYes}</span>
+            </label>
+            <p className={styles.fieldHint}>{offerCopy.childSeatHint}</p>
+          </div>
+        )}
+
+        <div className={styles.revealed} data-offer-return>
+          <label className={styles.checkboxField}>
+            <input
+              type="checkbox"
+              checked={form.returnRide}
+              onChange={() => change({ returnRide: !form.returnRide })}
+            />
+            <span>{offerCopy.detailsReturn}</span>
+          </label>
+        </div>
+
+        {/*
+         * The warning about what not to write stands inside the field, where the person is about to
+         * write it, instead of as a paragraph under it that is read after the fact (IA §6.4).
+         */}
+        <label className={styles.noteField} data-offer-note>
+          <span>{offerCopy.noteLabel}</span>
+          <textarea
+            rows={3}
+            maxLength={200}
+            placeholder={offerCopy.notePlaceholder}
+            value={form.note}
+            onChange={(event) => change({ note: event.target.value })}
+          />
+        </label>
+
+        <FormFooter action={offerCopy.next} onAction={next} />
+      </>
+    );
+  }
+
+  /* ---------------------------------------------------------------- screen 4: check the trip */
+
+  function summaryRow(section: string, target: OfferStep, body: React.ReactNode) {
+    return (
+      <div className={styles.summaryRow} data-summary-row data-summary-section={section}>
+        <div>
+          <p className={styles.summaryLabel}>{section}</p>
+          {body}
+        </div>
+        <button
+          type="button"
+          className={styles.quietButton}
+          aria-label={offerSummaryEditName(section)}
+          onClick={() => goTo(target)}
+        >
+          {offerCopy.edit}
+        </button>
+      </div>
+    );
+  }
+
+  /**
+   * A screen that only shows. No question is asked here, nothing is entered here, and the privacy
+   * rule is not repeated here — it was said on screen 2, where the place is chosen. Five rows, a
+   * quiet «Изменить» beside each of them, and one action.
+   */
+  function reviewScreen() {
+    const saved = departureAt();
+
+    return (
+      <>
+        <h1 className={styles.pageTitle}>{offerCopy.reviewTitle}</h1>
+
+        <section
+          className={styles.summary}
+          data-offer-summary
+          role="group"
+          aria-label={offerCopy.summaryGroup}
+        >
+          {summaryRow(offerCopy.summaryWhen, 'when', (
+            <>
+              <p className={styles.summaryValue}>{offerWhenSummary(form)}</p>
+              {/* The rule about a series is said on screen 1, where the series is chosen. */}
+              {form.kind === 'recurring' && (
+                <p className={styles.summaryValue}>
+                  {offerPeriod(formatDay(form.from), formatDay(form.to))}
+                </p>
+              )}
+            </>
+          ))}
+          {summaryRow(offerCopy.summaryWhere, 'where', (
+            <>
+              <p className={styles.summaryValue}>{saved ? saved.address : offerCopy.empty}</p>
+              <p className={styles.summaryValue}>
+                {form.detour === 0 ? offerCopy.detourNone : detourKm(form.detour)}
+              </p>
+            </>
+          ))}
+          {summaryRow(offerCopy.summarySeats, 'details', (
+            <>
+              <p className={styles.summaryValue}>{offerSeatsValue(form.seats)}</p>
+              <p className={styles.summaryValue}>
+                {form.children ? offerCopy.childrenYes : offerCopy.childrenNo}
+              </p>
+              {form.children && form.childSeat && (
+                <p className={styles.summaryValue} data-offer-summary-seat>{offerCopy.childSeatYes}</p>
+              )}
+            </>
+          ))}
+          {summaryRow(offerCopy.summaryReturn, 'details', (
+            <p className={styles.summaryValue}>
+              {form.returnRide ? offerCopy.detailsReturn : offerCopy.returnNo}
+            </p>
+          ))}
+          {summaryRow(offerCopy.summaryNote, 'details', (
+            <p className={styles.summaryValue} data-offer-summary-note>
+              {form.note.trim() === '' ? offerCopy.empty : form.note}
+            </p>
+          ))}
+        </section>
+
+        <FormFooter action={offerCopy.publish} onAction={() => undefined} />
+      </>
+    );
+  }
+
+  /* ------------------------------------------------------------------------------- assembly */
+
+  const frameLabel: Record<OfferStep, string> = {
+    when: 'Предложение водителя: когда',
+    where: 'Предложение водителя: откуда вы едете',
+    details: 'Предложение водителя: детали поездки',
+    review: 'Предложение водителя: проверьте поездку',
+  };
+
+  /*
+   * «Откуда вы едете?» is a map screen: the map runs to the top edge and the sheet rides over its
+   * lower part, so it carries its own quiet way back over the map instead of the header bar.
+   */
+  if (form.step === 'where') {
+    return (
+      <PhoneFrame label={frameLabel.where} textZoom={textZoom}>
+        {whereScreen()}
+      </PhoneFrame>
+    );
+  }
+
+  return (
+    <PhoneFrame label={frameLabel[form.step]} textZoom={textZoom}>
+      <FormHeader context={offerCopy.title} backLabel={offerCopy.back} onBack={back} />
+      <main className={styles.formContent} data-offer-step={form.step}>
+        {form.step === 'when' && whenScreen()}
+        {form.step === 'details' && detailsScreen()}
+        {form.step === 'review' && reviewScreen()}
+      </main>
+    </PhoneFrame>
+  );
+}
+
 
 /* ------------------------------------------------------------------ review-only source key */
 
@@ -1734,6 +2609,114 @@ const finalRows: ReadonlyArray<StringSource> = [
   { text: requestCopy.finalPublish, mark: 'Утверждено', note: 'копия 4.5, `request.publish`; IA §19.2; вход и проверка контактов — отдельная подгруппа' },
 ];
 
+/*
+ * The driver offer: four semantic screens (owner decision of 27 August 2026), simplified on
+ * 28 and 29 August, and approved by the owner on 2 September 2026. `Утверждено` records that the
+ * owner accepted the wording on the assembled screen; the note beside a row still names where the
+ * wording came from. `IA`, `PS` and `DS` mark text an approved document already fixes.
+ *
+ * The screens share one form, so they share the rows of the screen they open on: repeating the
+ * same rows in ten places would let two copies of one string drift apart.
+ */
+const offerChrome: ReadonlyArray<StringSource> = [
+  { text: offerCopy.title, mark: 'IA', note: 'IA §9; название того, что создаётся' },
+  { text: offerCopy.back, mark: 'DS', note: 'DS §5, тихое действие' },
+  { text: offerCopy.next, mark: 'DS', note: 'DS §5, одно главное действие' },
+];
+
+const offerWhenRows: ReadonlyArray<StringSource> = [
+  ...offerChrome,
+  { text: offerCopy.whenTitle, mark: 'Утверждено', note: 'новое: заголовок экрана 1; заменяет «Как часто вы ездите?» и заголовок бывшего шага 2' },
+  { text: offerCopy.whenOneTime, mark: 'IA', note: 'IA §11.2; переключатель вверху экрана 1, а не отдельный экран' },
+  { text: offerCopy.whenRecurring, mark: 'IA', note: 'IA §11.3' },
+  { text: offerCopy.whenOr, mark: 'Утверждено', note: 'тихий разделитель двух способов ответить, как в просьбе пассажира' },
+  { text: offerCopy.whenCustom, mark: 'Утверждено', note: 'формулировка взята из формы пассажира и здесь ещё не проверена' },
+  { text: offerCopy.whenArrivalLabel, mark: 'Утверждено', note: 'новое: называет, что водитель указывает время у храма; времени выезда форма больше не собирает' },
+];
+
+const offerWhenCustomRows: ReadonlyArray<StringSource> = offerWhenRows;
+
+const offerWhenRecurringRows: ReadonlyArray<StringSource> = [
+  ...offerWhenRows.slice(0, 6),
+  { text: offerCopy.whenRecurringHint, mark: 'IA', note: 'IA §11.3; показывается только после выбора регулярной поездки' },
+  { text: '{служба} · по воскресеньям, 9:00', mark: 'Утверждено', note: 'новое: у регулярной поездки служба называется недельным временем, а не одной датой' },
+  { text: offerCopy.whenCustomRecurring, mark: 'Утверждено', note: 'новое: у регулярной поездки дата не спрашивается — её дают дни недели и период' },
+  { text: offerCopy.whenArrivalTimeLabel, mark: 'Утверждено', note: 'новое: подпись собственного времени регулярной поездки' },
+  { text: offerCopy.daysTitle, mark: 'Утверждено', note: 'копия 4.6, `offer.step.days.label`, из заголовка экрана превращена в подпись поля' },
+  { text: 'Пн · Вт · Ср · Чт · Пт · Сб · Вс', mark: 'Утверждено', note: 'строки в корпусе текстов нет: короткие подписи дней, полное имя дня — для вспомогательных технологий' },
+  { text: offerCopy.daysFrom, mark: 'Утверждено', note: 'строки в корпусе текстов нет: подпись начала периода' },
+  { text: offerCopy.daysTo, mark: 'Утверждено', note: 'строки в корпусе текстов нет: подпись конца периода' },
+  { text: offerPeriod('{от}', '{до}'), mark: 'Утверждено', note: 'копия 4.6, `offer.step.period`' },
+];
+
+/*
+ * Screen 2 while a place is being chosen: the map, the address field, one short instruction and one
+ * quiet line about what becomes public. Nothing else — everything else depends on the place.
+ */
+const offerWhereEmptyRows: ReadonlyArray<StringSource> = [
+  ...offerChrome.slice(0, 2),
+  { text: offerCopy.whereTitle, mark: 'Утверждено', note: 'новое: заголовок экрана 2; «Откуда вы поедете?» из копии 4.4.2 не используется' },
+  { text: offerCopy.mapSearch, mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.search`; у пассажира утверждена, здесь проверяется впервые' },
+  { text: offerCopy.mapHint, mark: 'Утверждено', note: 'копия 4.4.2, `map.pick.hint`; после выбора места убирается вместе с полем адреса' },
+  { text: offerCopy.wherePrivacy, mark: 'Утверждено', note: 'новое, короче прежнего: одно тихое предложение вместо выделенной панели; правило сказано один раз на всю форму (IA §11.6)' },
+  { text: offerCopy.mapConfirm, mark: 'PS', note: 'PS §8.1; копия 4.4.2, `map.pick.confirm`' },
+];
+
+const offerWhereRows: ReadonlyArray<StringSource> = [
+  ...offerChrome.slice(0, 3),
+  { text: offerCopy.whereTitle, mark: 'Утверждено', note: 'новое: заголовок экрана 2' },
+  { text: '{адрес}', mark: 'Утверждено', note: 'выбранный адрес показывается один раз; подписи над ним нет — её заменяет вопрос экрана' },
+  { text: offerCopy.whereChange, mark: 'Утверждено', note: 'новое: возвращает этот же экран в режим выбора места, никуда не уводя' },
+  { text: offerCopy.detourLabel, mark: 'Утверждено', note: 'копия 4.6, `offer.step.detour.label`; компактный список, а не экран с кнопками' },
+  { text: offerCopy.detourNone, mark: 'Утверждено', note: 'копия 4.6, `offer.step.detour.none`' },
+  { text: detourKm(15), mark: 'Утверждено', note: 'копия 4.6, `offer.step.detour.km`; лестница 0 / 2 / 5 / 10 / 15 / 20 км документами не закреплена' },
+];
+
+const offerDetailsRows: ReadonlyArray<StringSource> = [
+  ...offerChrome,
+  { text: offerCopy.detailsTitle, mark: 'Утверждено', note: 'новое: заголовок экрана 3; заменяет «Сколько мест вы можете предложить?», потому что экран уже не только о местах' },
+  { text: offerCopy.seatsLabel, mark: 'Утверждено', note: 'строки в корпусе текстов нет: подпись счётчика мест' },
+  { text: offerCopy.childrenLabel, mark: 'Утверждено', note: 'строки в корпусе текстов нет: подпись группы' },
+  { text: offerCopy.childrenYes, mark: 'IA', note: 'IA §2.3' },
+  { text: offerCopy.childrenNo, mark: 'IA', note: 'IA §2.3' },
+  { text: offerCopy.detailsReturn, mark: 'IA', note: 'IA §11.5; копия 4.6, `offer.step.return`' },
+  { text: offerCopy.noteLabel, mark: 'Утверждено', note: 'строки в корпусе текстов нет: подпись поля взята из формы пассажира' },
+  { text: offerCopy.notePlaceholder, mark: 'Утверждено', note: 'новое: предупреждение IA §6.4 стоит подсказкой внутри поля; отдельного текста под полем больше нет' },
+];
+
+const offerDetailsChildrenRows: ReadonlyArray<StringSource> = [
+  ...offerDetailsRows.slice(0, 8),
+  { text: offerCopy.childSeatYes, mark: 'IA', note: 'IA §2.3; появляется, только когда водитель может везти детей' },
+  { text: offerCopy.childSeatHint, mark: 'IA', note: 'IA §2.3; копия 4.6, `offer.step.child_seat.hint`' },
+  ...offerDetailsRows.slice(8),
+];
+
+/*
+ * Screen 4 shows and asks nothing. `offer.step.review.title` comes back as the name of this screen;
+ * `offer.step.review.public` and the small public picture are withdrawn with it.
+ */
+const offerReviewRows: ReadonlyArray<StringSource> = [
+  ...offerChrome.slice(0, 2),
+  { text: offerCopy.reviewTitle, mark: 'Утверждено', note: 'копия 4.6, `offer.step.review.title`; экран только показывает, новых вопросов на нём нет' },
+  { text: offerCopy.summaryWhen, mark: 'Утверждено', note: 'новое: подпись строки резюме, отвечает вопросу экрана 1' },
+  { text: offerCopy.summaryWhere, mark: 'Утверждено', note: 'новое: подпись строки резюме, отвечает вопросу экрана 2' },
+  { text: offerCopy.summarySeats, mark: 'Утверждено', note: 'новое: подпись строки резюме, отвечает части экрана 3' },
+  { text: offerCopy.summaryReturn, mark: 'Утверждено', note: 'новое: подпись строки резюме; значение — та же строка, что на экране 3' },
+  { text: offerCopy.summaryNote, mark: 'Утверждено', note: 'новое: подпись строки резюме' },
+  { text: offerCopy.returnNo, mark: 'Утверждено', note: 'строки в корпусе текстов нет: отрицательный ответ о поездке обратно' },
+  { text: offerCopy.empty, mark: 'Утверждено', note: 'необязательное поле, оставленное пустым; DS §10: пустое состояние не описывается как сбой' },
+  { text: offerCopy.edit, mark: 'Утверждено', note: 'формулировка взята из формы пассажира; DS §5, тихое действие' },
+  { text: offerSummaryEditName(offerCopy.summaryWhen), mark: 'Утверждено', note: 'новое: имя действия для вспомогательных технологий, на экране не видно' },
+  { text: offerCopy.summaryGroup, mark: 'Утверждено', note: 'новое: имя блока резюме для вспомогательных технологий, на экране не видно' },
+  { text: offerCopy.publish, mark: 'IA', note: 'IA §19.2; копия 4.6, `offer.publish`; вход и проверка контактов — отдельная подгруппа' },
+];
+
+/* A series adds only its period to the review: the rule about it belongs to screen 1. */
+const offerReviewRecurringRows: ReadonlyArray<StringSource> = [
+  ...offerReviewRows,
+  { text: offerPeriod('{от}', '{до}'), mark: 'Утверждено', note: 'копия 4.6, `offer.step.period`; в резюме — та же строка, что на экране 1' },
+];
+
 const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   catalog: [
     { text: copy.catalogTitle, mark: 'IA', note: 'IA §8' },
@@ -1820,6 +2803,18 @@ const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   'request-people-children': peopleChildrenRows,
   'request-final': finalRows,
   'request-final-filled': finalRows,
+
+  /* Group 3, the driver offer: proposed wording only, waiting for its own screen-by-screen review. */
+  'offer-when': offerWhenRows,
+  'offer-when-custom': offerWhenCustomRows,
+  'offer-when-recurring': offerWhenRecurringRows,
+  'offer-where-empty': offerWhereEmptyRows,
+  'offer-where': offerWhereRows,
+  'offer-seats': offerDetailsRows,
+  'offer-seats-children': offerDetailsChildrenRows,
+  'offer-final': offerReviewRows,
+  'offer-final-filled': offerReviewRows,
+  'offer-final-recurring': offerReviewRecurringRows,
 };
 
 function SourcePanel({ sample }: { sample: SampleId }) {
@@ -1841,6 +2836,18 @@ function SourcePanel({ sample }: { sample: SampleId }) {
           десять отдельных экранов. Строки трёх первых смысловых экранов утверждены 24 августа
           2026 года; экран «Последние детали», окончательная вёрстка «Где вас забрать?» и правки по
           собранной форме утверждены 26 августа 2026 года.
+        </p>
+      )}
+      {sample.startsWith('offer-') && (
+        <p>
+          Состояния 15–24 — одна и та же форма предложения водителя с разными уже данными ответами.
+          Четыре смысловых экрана: когда, откуда, детали поездки, проверьте поездку. Экран «откуда»
+          упрощён до того, что человек на нём решает; все оставшиеся изменяемые сведения собраны на
+          экране 3; экран 4 только показывает и вопросов не задаёт (решения владельца от 27, 28 и
+          29 августа 2026 года). Строки этих экранов{' '}
+          <strong>утверждены владельцем 2 сентября 2026 года</strong>. Сообщения об успешной
+          публикации на собранной форме не показывались и остаются «Проект»: вход и проверка
+          контактов проверяются своей группой.
         </p>
       )}
       <dl className={styles.sourceList}>
@@ -1884,12 +2891,14 @@ export function CopyReview() {
       case 'board': return <BoardScreen textZoom={textZoom} />;
       case 'empty-church': return <EmptyChurchScreen textZoom={textZoom} />;
       /*
-       * One form for all ten request states. The `key` restarts it when the owner picks another
-       * state, so an entry point always opens with the answers it promises; inside a state the form
-       * keeps everything the person has typed, forwards and backwards alike.
+       * One form per role for all of their states. The `key` restarts it when the owner picks
+       * another state, so an entry point always opens with the answers it promises; inside a state
+       * the form keeps everything the person has typed, forwards and backwards alike.
        */
       default:
-        return (
+        return sample.startsWith('offer-') ? (
+          <DriverOfferForm key={sample} seed={offerSeeds[sample] ?? {}} textZoom={textZoom} />
+        ) : (
           <PassengerRequestForm
             key={sample}
             seed={requestSeeds[sample] ?? {}}
@@ -1914,8 +2923,8 @@ export function CopyReview() {
   return (
     <div className={styles.reviewRoot}>
       <header className={styles.reviewHeader}>
-        <p>Временная поверхность проверки · группы 1, 2A и 2B просмотрены</p>
-        <h1>Проверка русской копии: храм и просьба пассажира</h1>
+        <p>Временная поверхность проверки · группы 1, 2A, 2B и 3 просмотрены</p>
+        <h1>Проверка русской копии: храм, просьба пассажира и предложение водителя</h1>
         <p>
           Мобильные экраны шириной 390 px. Состояния 1–4 — первая группа после правок владельца от
           22 августа 2026 года. Состояния 5–14 — одна форма просьбы пассажира из четырёх смысловых
@@ -1925,11 +2934,20 @@ export function CopyReview() {
           детали» и окончательная вёрстка «Где вас забрать?» — 26 августа 2026 года.
           Производственный интерфейс не изменён; поверхность существует только для просмотра слов.
         </p>
+        <p>
+          Состояния 15–24 — форма предложения водителя «Могу подвезти» из четырёх смысловых
+          экранов: когда, откуда, детали поездки, проверьте поездку. Экран «откуда» после выбора
+          места показывает адрес один раз, дорогу на карте и допустимое отклонение; времени выезда
+          форма не собирает — сопоставление сравнивает указанные времена напрямую. Экран 4 только
+          показывает введённое. Форму можно пройти целиком, ответы сохраняются. Строки этих экранов
+          просмотрены 2 сентября 2026 года.
+        </p>
       </header>
       <nav className={styles.reviewControls} aria-label="Выбор экрана проверки">
         <div>{choose('church')}</div>
+        <div>{choose('request')}</div>
         <div>
-          {choose('request')}
+          {choose('offer')}
           <button
             type="button"
             className={styles.zoomToggle}
