@@ -11,7 +11,7 @@ Roadmap separates the isolated browser demo and implemented local Core slice fro
 - The code, tests, and README describe what is implemented now.
 - `PROJECT_SPEC_V0_1.md`, `DATA_MODEL.md`, `UX_RULES.md`, and `PROJECT_MAP.md` remain explicitly labelled prototype or legacy references and cannot override Product Scope or IA V2.
 - Information architecture is complete at the approved-document level. Empirical card sorting and tree testing remain future validation work recorded in IA V2, not invented research results; they do not block Design System V2 approval.
-- **Design System V2** is canonical and approved, and **Backend and integration architecture** is complete and approved. The **Core multi-user platform** phase is complete. The active phase is **Maps and quality matching**, tracked in [BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md](BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md). The isolated `/design-preview` reference artifact now carries twelve V2 control screens, including the approved transport-board ride map; production adoption remains separate Phase 10 work. Phase approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
+- **Design System V2** is canonical and approved, and **Backend and integration architecture** is complete and approved. The **Core multi-user platform** phase is complete. The **Maps and quality matching** phase is complete, recorded in [BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md](BACKEND_CAMPAIGN_MAPS_QUALITY_MATCHING.md); no later phase is authorized or started. The isolated `/design-preview` reference artifact now carries twelve V2 control screens, including the approved transport-board ride map; production adoption remains separate Phase 10 work. Phase approval does not authorize implementation inside a documentation-only task or combine later roadmap phases.
 - Maps are part of the required first full version, even though they are not part of the current mock.
 - Product-scope approval does not authorize implementing all phases in one change.
 
@@ -99,15 +99,15 @@ The target data model and target project diagrams are approved architecture arti
 - Keep contacts unavailable to anonymous users and unconfirmed counterparties — completed for the implemented Core agreement boundary.
 - Support contextual registration from the action the visitor was already performing — completed for requests, offers, and responses with an explicit final send.
 
-The complete Core campaign passed its final local, migration, security/privacy, isolated-staging, provider, and GitHub Actions release gates. The Maps and quality-matching phase is separately authorized and now active.
+The complete Core campaign passed its final local, migration, security/privacy, isolated-staging, provider, and GitHub Actions release gates. The Maps and quality-matching phase is complete and merged, with its own release gates passed and the owner's manual acceptance test signed off.
 
-### 5. Maps and quality matching — active
+### 5. Maps and quality matching — complete
 
 - Use Geoapify as the only embedded map and geospatial provider, rendered with MapLibre GL; Google and Yandex remain outbound navigation links only.
 - Add the church catalog map with universal search and an explicit `Рядом со мной` action, and the dedicated church location screen opened from the exact public address.
 - Add the reusable address/place-first location picker with map confirmation, marker correction, manual placement fallback, and reusable saved places.
 - Add protected exact church and user coordinates, up to three passenger meeting points, one driver departure point, and stable off-centre approximate public areas exposed identically to anonymous visitors and authenticated non-participants.
-- Implement deterministic route-aware quality matching with church, active-state, service/date and one-hour time compatibility, block, whole-group seat, child and child-seat, and detour-distance rules.
+- Implement deterministic route-aware quality matching with church, active-state, block, whole-group seat, child and child-seat, and detour-distance rules. Time is compatible when both sides chose the same service, or when the arrival the driver stated falls from sixty minutes before to thirty minutes after the passenger's desired arrival (amended 28 August 2026; the added minutes of a pickup explain a suggestion and never decide it).
 - Show suggestions as an explainable `Подходит` marker and a `Подходящие мне` view; suggestions never confirm a ride, never restrict the ordinary board, and never show a score.
 - Do not create public driver route corridors, persisted provider route geometry, a separate direction rule, route optimization, or pgRouting.
 
