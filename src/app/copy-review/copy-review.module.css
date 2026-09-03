@@ -8,6 +8,13 @@
   --or-surface-subtle: #f4f7f3;
   --or-map-surface: #eef3eb;
   --or-map-water: #dcecf2;
+  --or-map-radius-bg: rgb(46 106 87 / 10%);
+  --or-map-radius-border: rgb(46 106 87 / 35%);
+  /* The board role colours at map weight: the same two quiet, non-green hues, never green. */
+  --or-map-driver-bg: rgb(58 78 122 / 12%);
+  --or-map-driver-border: rgb(58 78 122 / 60%);
+  --or-map-passenger-bg: rgb(107 87 62 / 12%);
+  --or-map-passenger-border: rgb(107 87 62 / 60%);
   --or-map-label-bg: rgb(255 255 255 / 82%);
   --or-text: #172019;
   --or-text-secondary: #58625b;
@@ -1722,4 +1729,439 @@
 /* «Изменить место» sits under the address it changes, quiet and aligned with it (DS §5). */
 .pickSheet .quietButton {
   margin-left: calc(-1 * var(--or-space-4));
+}
+
+/* ------------------------------------------------- group 4: the ride map of a board group */
+
+/*
+ * The map is a separate spatial view of one board group, never a replacement for the board
+ * (IA §9.3, DS §8.1–8.2). Objects carry only public approximate geometry: a dashed circle for a
+ * passenger meeting area, a solid circle for a driver departure area, and the exact church marker
+ * because that address is public. There is no route line and no corridor here at all.
+ */
+
+.desktopFrame {
+  display: flex;
+  width: min(1180px, 100%);
+  min-height: 720px;
+  flex: 0 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-card);
+  background: var(--or-surface);
+  box-shadow: var(--or-shadow-stage);
+}
+
+.desktopFrame[data-text-zoom='200'] {
+  --or-size-page: 60px;
+  --or-size-section: 40px;
+  --or-size-card: 34px;
+  --or-size-body: 32px;
+  --or-size-data: 30px;
+  --or-size-secondary: 28px;
+  --or-size-micro: 24px;
+
+  font-size: var(--or-size-body);
+}
+
+.mapScreen {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  background: var(--or-map-surface);
+}
+
+.mapHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--or-space-3);
+  border-bottom: 1px solid var(--or-border);
+  background: var(--or-surface);
+  padding: var(--or-space-3) var(--or-space-4);
+}
+
+/* One line and no second, explanatory one under it (owner decision of 3 September 2026). */
+.mapHeader strong {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+  font-size: var(--or-size-card);
+  font-weight: var(--or-weight-semibold);
+}
+
+.mapFilters {
+  border-bottom: 1px solid var(--or-border);
+  background: var(--or-surface);
+  padding: var(--or-space-1) var(--or-space-4) var(--or-space-3);
+}
+
+.mapFilters .chips {
+  margin-top: 0;
+}
+
+.mapFilters button[disabled] {
+  color: var(--or-text-subtle);
+  cursor: default;
+}
+
+/* The reason for an unavailable filter, and the note about what a distance means. */
+.noticeLine {
+  margin: 0;
+  border-bottom: 1px solid var(--or-border);
+  background: var(--or-surface);
+  color: var(--or-text-secondary);
+  padding: 0 var(--or-space-4) var(--or-space-3);
+  font-size: var(--or-size-secondary);
+}
+
+.mapCanvas {
+  position: relative;
+  min-height: 420px;
+  flex: 1;
+  overflow: hidden;
+  background: var(--or-map-surface);
+}
+
+.bleedLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * Everything drawn lives in this layer, so when a card opens and the map moves the selected place
+ * out from under it, the roads, the labels and the markers move with it and the geography holds
+ * together. The layer is only ever moved, never re-projected: no maps provider stands behind it.
+ */
+/*
+ * Moved, never animated. Where the selected geography ends up is a fact about the screen, not a
+ * flourish: a transition would make it depend on the animation clock, which a background tab stops.
+ */
+.mapFocus {
+  position: absolute;
+  inset: 0;
+}
+
+/*
+ * The field is a square whose smaller side matches the canvas, so a `meet` viewBox maps 1:1 onto it
+ * and percentage-positioned hit targets stay aligned with the shapes. Mobile canvases are taller
+ * than wide, so the square follows width; desktop follows height.
+ */
+.mapField {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}
+
+.desktopMapScreen .mapField {
+  width: auto;
+  height: 100%;
+}
+
+.mapField > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.mapRoad,
+.mapRoadMinor {
+  fill: none;
+  stroke: var(--or-surface);
+  stroke-linecap: round;
+  stroke-width: 3.4;
+}
+
+.mapRoadMinor {
+  stroke-width: 2.2;
+}
+
+.mapWater {
+  fill: none;
+  stroke: var(--or-map-water);
+  stroke-width: 11;
+}
+
+/*
+ * Passenger request: dashed circle, deliberately without any centre marker (DS §8.2), in the quiet
+ * passenger colour the board badge already uses. The dash and the legend label carry the type on
+ * their own, so the colour is a third signal and never the only one (DS §8.2, IA §28.1).
+ */
+.areaShape {
+  fill: var(--or-map-passenger-bg);
+  stroke: var(--or-map-passenger-border);
+  stroke-dasharray: 3 2.4;
+  stroke-width: 0.9;
+}
+
+.areaShape[data-selected='true'] {
+  fill: var(--or-primary-pale);
+  stroke: var(--or-primary);
+  stroke-dasharray: none;
+  stroke-width: 1.4;
+}
+
+/*
+ * Driver offer: the approximate departure area. Same circle family, separated by a solid outline
+ * and its own label rather than by colour alone. Selection is carried by fill and colour at
+ * unchanged geometry, and the outline keeps its weight in screen pixels on the larger desktop field.
+ */
+.departureAreaShape {
+  fill: var(--or-map-driver-bg);
+  stroke: var(--or-map-driver-border);
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.departureAreaShape[data-selected='true'] {
+  fill: var(--or-primary-pale);
+  stroke: var(--or-primary);
+  stroke-width: 2;
+}
+
+.churchMarker {
+  fill: var(--or-primary);
+  stroke: var(--or-surface);
+  stroke-width: 1;
+}
+
+.churchMarkerCore {
+  fill: var(--or-surface);
+}
+
+/* User location: a ring, deliberately unlike the drop marker used for chosen places. */
+.userDot {
+  fill: var(--or-focus);
+  stroke: var(--or-surface);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.userRing {
+  fill: none;
+  stroke: var(--or-focus);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.fieldTarget {
+  display: contents;
+}
+
+/* The visible object and the press target are different sizes: the target stays 44 x 44 px. */
+.mapHit {
+  position: absolute;
+  width: var(--or-target-min);
+  height: var(--or-target-min);
+  border: 0;
+  border-radius: var(--or-radius-pill);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  transform: translate(-50%, -50%);
+}
+
+.objectPill {
+  position: absolute;
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border: 1px solid var(--or-primary);
+  border-radius: var(--or-radius-pill);
+  background: var(--or-surface);
+  color: var(--or-text);
+  padding: 0 var(--or-space-2);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-semibold);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.fieldLabel {
+  position: absolute;
+  border-radius: var(--or-radius-status);
+  background: var(--or-map-label-bg);
+  color: var(--or-text-secondary);
+  padding: var(--or-space-1) var(--or-space-2);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-medium);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* One overlay column keeps the action and the key clear of the detail sheet and panel. */
+.mapOverlay {
+  position: absolute;
+  top: var(--or-space-3);
+  left: var(--or-space-4);
+  display: flex;
+  max-width: calc(100% - var(--or-space-8));
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--or-space-2);
+}
+
+.desktopMapScreen .mapOverlay {
+  top: var(--or-space-6);
+  left: var(--or-space-6);
+}
+
+.locateButton {
+  display: inline-flex;
+  min-height: var(--or-target-min);
+  align-items: center;
+  gap: var(--or-space-2);
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-pill);
+  background: var(--or-surface);
+  box-shadow: var(--or-shadow-float);
+  color: var(--or-control-text);
+  cursor: pointer;
+  padding: 0 var(--or-space-4);
+  font-size: var(--or-size-secondary);
+  font-weight: var(--or-weight-medium);
+}
+
+.locateButton[aria-pressed='true'] {
+  border-color: var(--or-primary);
+  background: var(--or-primary-pale);
+  color: var(--or-primary);
+}
+
+/*
+ * Two compact keys on one row, not an instruction block: a symbol and the role it stands for
+ * (owner decision of 3 September 2026). The key stays visually secondary to the map (DS §8.2).
+ *
+ * It sits in the bottom-left corner of the map, out of the way of the action at the top and of the
+ * card at the right on a computer. Its `bottom` is set on the element: on a phone the card owns the
+ * bottom edge, and the key keeps the same inset above it.
+ */
+.legend {
+  position: absolute;
+  left: var(--or-space-4);
+  z-index: 1;
+  display: flex;
+  max-width: calc(100% - var(--or-space-8));
+  flex-wrap: wrap;
+  gap: var(--or-space-2) var(--or-space-4);
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-pill);
+  background: var(--or-map-label-bg);
+  padding: var(--or-space-2) var(--or-space-3);
+}
+
+.desktopMapScreen .legend {
+  left: var(--or-space-6);
+}
+
+.legend > span {
+  display: flex;
+  align-items: center;
+  gap: var(--or-space-2);
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-medium);
+  white-space: nowrap;
+}
+
+/* Same two circles as on the map: the outline and the label carry the role, the colour repeats it. */
+.legendArea,
+.legendDepartureArea {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--or-radius-pill);
+}
+
+.legendArea {
+  border: 1px dashed var(--or-map-passenger-border);
+  background: var(--or-map-passenger-bg);
+}
+
+.legendDepartureArea {
+  border: 1px solid var(--or-map-driver-border);
+  background: var(--or-map-driver-bg);
+}
+
+.detailSheet {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  max-height: 78%;
+  overflow-y: auto;
+  border-radius: var(--or-radius-sheet) var(--or-radius-sheet) 0 0;
+  background: var(--or-surface);
+  box-shadow: var(--or-shadow-float);
+  padding: var(--or-space-4);
+}
+
+.detailPanel {
+  position: absolute;
+  top: var(--or-space-6);
+  right: var(--or-space-6);
+  width: 380px;
+  max-height: calc(100% - var(--or-space-12));
+  overflow-y: auto;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-card);
+  background: var(--or-surface);
+  box-shadow: var(--or-shadow-float);
+  padding: var(--or-space-4);
+}
+
+.detailSheet .card,
+.detailPanel .card {
+  border: 0;
+  padding: 0;
+}
+
+.detailHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--or-space-3);
+  margin-bottom: var(--or-space-3);
+}
+
+.detailHead > span {
+  color: var(--or-text-subtle);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-semibold);
+  text-transform: uppercase;
+}
+
+.privacyLine {
+  margin: var(--or-space-3) 0 0;
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface-subtle);
+  color: var(--or-text-secondary);
+  padding: var(--or-space-3);
+  font-size: var(--or-size-secondary);
+}
+
+.desktopMapScreen .mapHeader {
+  gap: var(--or-space-4);
+  padding: var(--or-space-3) var(--or-space-8);
+}
+
+.desktopMapScreen .mapFilters {
+  padding: var(--or-space-1) var(--or-space-8) var(--or-space-3);
+}
+
+.desktopMapScreen .noticeLine {
+  padding-inline: var(--or-space-8);
+}
+
+.desktopMapScreen .mapCanvas {
+  min-height: 560px;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ChurchPlaceholder } from '../design-preview/church-placeholder';
 import styles from './copy-review.module.css';
 
@@ -52,7 +52,14 @@ type SampleId =
   | 'offer-seats-children'
   | 'offer-final'
   | 'offer-final-filled'
-  | 'offer-final-recurring';
+  | 'offer-final-recurring'
+  | 'map-base'
+  | 'map-driver'
+  | 'map-passenger'
+  | 'map-passenger-areas'
+  | 'map-located'
+  | 'map-filter-empty'
+  | 'map-desktop';
 
 type SourceMark = 'IA' | 'PS' | 'DS' | 'Решение' | 'Утверждено' | 'Проект';
 
@@ -71,9 +78,10 @@ type Sample = {
   id: SampleId;
   /**
    * `church` — group 1; `request` — an entry point into the one interactive passenger form;
-   * `offer` — an entry point into the one interactive driver form (group 3, not yet reviewed).
+   * `offer` — an entry point into the one interactive driver form (group 3); `map` — an entry
+   * point into the one interactive ride map of a board group (group 4, not yet reviewed).
    */
-  group: 'church' | 'request' | 'offer';
+  group: 'church' | 'request' | 'offer' | 'map';
   label: string;
   title: string;
   description: string;
@@ -280,6 +288,71 @@ const samples: ReadonlyArray<Sample> = [
     description:
       'То же резюме для регулярной поездки: в строке «Когда» появляются дни недели и период, и рядом стоит напоминание, что каждая дата серии остаётся отдельной поездкой с отдельными местами (IA §11.3).',
   },
+
+  /*
+   * Group 4: the ride map of one board group (IA §9.3, DS §8.1–8.2, DESIGN_DECISIONS 19–25 and 32).
+   * The board stays the default representation; the map is a separate spatial view of one service or
+   * one custom date. Seven entry points into one interactive map after the owner review of
+   * 3 September 2026: the explanatory subtitle, the wordy legend, the long privacy paragraphs, the
+   * distance note and the visible reason of an unavailable filter are gone, and the custom-date
+   * state went with them — without a subtitle it showed nothing a service group does not.
+   */
+  {
+    id: 'map-base',
+    group: 'map',
+    label: '25 · Карта: обычное состояние',
+    title: 'Карта поездок одной службы: ничего не выбрано',
+    description:
+      'Карта той же группы, что и доска в состоянии 3: одна служба, фильтр «Все», поездка не выбрана, местоположение не включено. На экране заголовок группы со временем службы и больше ни одной объясняющей строки: фильтры, объекты карты, две компактные пометки легенды и явное действие «Показать, где я». Карта работает: фильтры переключаются, объект выбирается, «Назад к доске поездок» возвращает на доску с тем же фильтром.',
+  },
+  {
+    id: 'map-driver',
+    group: 'map',
+    label: '26 · Карта: выбран водитель',
+    title: 'Выбрано предложение водителя: карточка и одна строка о приватности',
+    description:
+      'Область отправления водителя выбрана, снизу открылась карточка той же поездки, что на доске, с главным действием. Карта сдвигается так, чтобы выбранная область осталась видна над карточкой. Публично показана только примерная область отправления: линии маршрута на карте нет и быть не может (решение 32) — и второй раз об этом в карточке не говорится.',
+  },
+  {
+    id: 'map-passenger',
+    group: 'map',
+    label: '27 · Карта: выбран пассажир',
+    title: 'Выбрана просьба пассажира с одним местом встречи',
+    description:
+      'У просьбы одно публичное место встречи, поэтому показана одна примерная область и строка о приватности стоит в единственном числе. У области нет центральной отметки: публичный центр не должен читаться как точное место (DS §8.2).',
+  },
+  {
+    id: 'map-passenger-areas',
+    group: 'map',
+    label: '28 · Карта: пассажир, несколько мест',
+    title: 'Одна просьба пассажира, представленная двумя примерными областями',
+    description:
+      'Две области принадлежат одной просьбе и являются альтернативами, а не остановками по пути. Карточка их считает — «2 возможных места встречи» — и ни одно из них не называет: место ещё не выбрано. Выбор любой области открывает одну карточку, обе получают состояние выбранного объекта и линией не соединяются (решение 23); карта сдвигается и при необходимости отдаляется, чтобы обе остались видны.',
+  },
+  {
+    id: 'map-located',
+    group: 'map',
+    label: '29 · Карта: показано, где я',
+    title: 'Местоположение включено явным действием: примерное расстояние',
+    description:
+      'Состояние после нажатия «Показать, где я»: сама по себе карта геолокацию не запрашивает (решение 25). Появляются отметка местоположения и в карточке выбранной поездки — «≈23 км от вас». Объясняющей строки о том, как считается расстояние, больше нет: короткого значения достаточно. До включения местоположения расстояния нет ни в одной карточке.',
+  },
+  {
+    id: 'map-filter-empty',
+    group: 'map',
+    label: '30 · Карта: недоступный фильтр',
+    title: 'Группа, в которой у одной роли нет активных объявлений',
+    description:
+      'Другая служба той же страницы: есть предложения водителей и нет ни одной просьбы пассажира. Фильтр «Пассажиры» приглушён и не нажимается, видимого объяснения под фильтрами нет. Причину слышат вспомогательные технологии — отдельной видимой строкой она не становится.',
+  },
+  {
+    id: 'map-desktop',
+    group: 'map',
+    label: '31 · Карта на компьютере',
+    title: 'Та же карта в раскладке компьютера: панель вместо листа',
+    description:
+      'Одно представительное состояние для компьютера, а не повтор всех шести: выбрана та же просьба с двумя областями, карточка открыта панелью рядом с картой, а не листом снизу (IA §9.3). Карта сдвигается влево от панели, чтобы обе области остались видны. Проверяется, работают ли те же слова в широкой раскладке. Шапки сайта в этой рамке нет: в группу 4 она не входит.',
+  },
 ];
 
 /* ------------------------------------------------------------------ proposed and approved copy */
@@ -441,7 +514,7 @@ const childrenOfThem = (count: number) => `из них ${pluralRu(count, childre
 
 /* --------------------------------------------------------------------------- shared elements */
 
-type IconName = 'back' | 'bell' | 'car' | 'chevron-down' | 'expand' | 'map' | 'pin' | 'route' | 'save' | 'search' | 'share';
+type IconName = 'back' | 'bell' | 'car' | 'chevron-down' | 'close' | 'expand' | 'map' | 'pin' | 'route' | 'save' | 'search' | 'share';
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -449,6 +522,7 @@ function Icon({ name }: { name: IconName }) {
     bell: <><path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15Z" /><path d="M10 19a2 2 0 0 0 4 0" /></>,
     car: <><path d="M4 15h16M5.5 15l1.6-5a2 2 0 0 1 1.9-1.4h6a2 2 0 0 1 1.9 1.4l1.6 5" /><path d="M4 15v3h3v-3M17 15v3h3v-3" /></>,
     'chevron-down': <path d="m7 9.5 5 5 5-5" />,
+    close: <path d="m6 6 12 12M18 6 6 18" />,
     expand: <path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5" />,
     map: <><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></>,
     pin: <><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z" /><circle cx="12" cy="10" r="2.4" /></>,
@@ -460,9 +534,15 @@ function Icon({ name }: { name: IconName }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.icon}>{paths[name]}</svg>;
 }
 
-function IconButton({ label, icon, className = '' }: { label: string; icon: IconName; className?: string }) {
+function IconButton({ label, icon, className = '', onClick }: {
+  label: string;
+  icon: IconName;
+  className?: string;
+  /** Only the interactive review states pass one; the static screens keep the button inert. */
+  onClick?: () => void;
+}) {
   return (
-    <button type="button" className={`${styles.iconButton} ${className}`} aria-label={label}>
+    <button type="button" className={`${styles.iconButton} ${className}`} aria-label={label} onClick={onClick}>
       <Icon name={icon} />
     </button>
   );
@@ -887,27 +967,59 @@ const boardCards: ReadonlyArray<BoardCard> = [
 ];
 
 /** Public trip card: first name only, public area only, never a contact or an exact place. */
-function RideCard({ card }: { card: BoardCard }) {
+function RideCard({ card, showType = true, actionVariant = 'secondary', distance, place }: {
+  card: BoardCard;
+  /** The map detail already names the type above the card, so it is not repeated inside it. */
+  showType?: boolean;
+  /**
+   * Primary only where the person has already selected this one ride and no other primary competes
+   * with it (DESIGN_DECISIONS 22). On the board every card stays secondary.
+   */
+  actionVariant?: 'secondary' | 'primary';
+  /** Rounded distance to the public approximate area; absent while no location is available. */
+  distance?: string;
+  /**
+   * Replaces the whole «{подпись}: {место}» row where naming one place would be untrue — a request
+   * that offers several public areas has not settled on any of them. The board never passes it.
+   */
+  place?: string;
+}) {
   return (
     <article className={styles.card} data-ride-card data-ride-type={card.type}>
-      <span className={styles.typeTag} data-role={card.type === copy.boardTypeDriver ? 'driver' : 'passenger'}>
-        {card.type}
-      </span>
+      {showType && (
+        <span className={styles.typeTag} data-role={card.type === copy.boardTypeDriver ? 'driver' : 'passenger'}>
+          {card.type}
+        </span>
+      )}
       <h4 className={styles.cardTitle}>{card.time}</h4>
-      <p className={styles.data} data-ride-place>{card.placeLabel}: {card.place}</p>
+      <p className={styles.data} data-ride-place>{place ?? `${card.placeLabel}: ${card.place}`}</p>
+      {distance && <p className={styles.data} data-ride-distance>{distance}</p>}
       <p className={styles.rideFacts}>
         {card.facts.map((fact) => <span key={fact}>{fact}</span>)}
       </p>
       <p className={styles.personLine}>{card.person}</p>
       <div className={styles.cardAction}>
-        <button type="button" className={styles.secondaryButton}>{card.action}</button>
+        <button
+          type="button"
+          className={actionVariant === 'primary' ? styles.primaryButton : styles.secondaryButton}
+        >
+          {card.action}
+        </button>
       </div>
     </article>
   );
 }
 
-function BoardScreen({ textZoom }: { textZoom: boolean }) {
-  const [filter, setFilter] = useState<BoardFilter>(copy.boardFilterAll);
+/**
+ * The board filter is owned by the review page, not by this screen: `IA §9.3` carries the active
+ * filter from the board to the map and back, and the owner can only judge that rule by walking it.
+ */
+function BoardScreen({ textZoom, filter, onFilterChange, onOpenMap }: {
+  textZoom: boolean;
+  filter: BoardFilter;
+  onFilterChange: (filter: BoardFilter) => void;
+  onOpenMap: () => void;
+}) {
   const visible = boardCards.filter((card) => filter === copy.boardFilterAll || card.type === filteredRole[filter]);
 
   return (
@@ -923,7 +1035,7 @@ function BoardScreen({ textZoom }: { textZoom: boolean }) {
                   type="button"
                   className={candidate === filter ? styles.selectedChip : undefined}
                   aria-pressed={candidate === filter}
-                  onClick={() => setFilter(candidate)}
+                  onClick={() => onFilterChange(candidate)}
                 >
                   {candidate}
                 </button>
@@ -941,10 +1053,10 @@ function BoardScreen({ textZoom }: { textZoom: boolean }) {
         </main>
         {/*
          * The group has active rides, so the map entry exists. It sits outside the card stream at
-         * the bottom edge and outside the filter group. The ride map itself is a later copy group
-         * and is not part of this review.
+         * the bottom edge and outside the filter group. It now opens the group 4 ride map with the
+         * filter the person is looking at, which is the transition `IA §9.3` describes.
          */}
-        <button type="button" className={styles.mapAction} data-map-entry>
+        <button type="button" className={styles.mapAction} data-map-entry onClick={onOpenMap}>
           <Icon name="route" />
           <span className={styles.mapActionLabel}>{copy.boardMapMobile}</span>
         </button>
@@ -2508,6 +2620,629 @@ function DriverOfferForm({ seed, textZoom }: { seed: Partial<OfferState>; textZo
 }
 
 
+/* ------------------------ group 4: one interactive ride map of a board group (IA §9.3) */
+
+/**
+ * The proposed wording of Foundation 4.4.1. Not one of these strings is approved: the Foundation
+ * itself says the map strings belong to the next review group and were not revisited there, and the
+ * ones marked `Проект` after decision 32 replace the older control-screen sentences about a driver
+ * corridor. Being on the control screen is where a string came from, not an owner approval.
+ */
+const rideMapCopy = {
+  back: 'Назад к доске поездок',
+  filterGroupLabel: 'Тип объявления',
+  /*
+   * Accessible only. An unavailable filter is `disabled`, which already says «unavailable»; this
+   * says why, and it never becomes a visible sentence under the filters (owner, 3 September 2026).
+   * The wording names the filter and nothing else, so a service group and a custom-date group can
+   * use the same string: neither «на эту службу» nor «на эту дату» has to be chosen.
+   */
+  filterEmptyRequests: 'Пассажиры — поездок нет',
+  filterEmptyOffers: 'Водители — поездок нет',
+  locate: 'Показать, где я',
+  legendLabel: 'Условные обозначения',
+  legendDriver: 'Водитель',
+  legendPassenger: 'Пассажир',
+  detailOffer: 'Предложение водителя',
+  detailRequest: 'Просьба пассажира',
+  detailClose: 'Закрыть карточку и вернуться к карте',
+  privacyOffer: 'Место отправления показано примерно; точное место откроется после договорённости.',
+  privacyRequestOne: 'Место встречи показано примерно; точное место откроется после договорённости.',
+  privacyRequestMany: 'Показаны примерные места встречи; точное место откроется после договорённости.',
+} as const;
+
+const meetingAreaPlural = {
+  one: 'возможное место встречи',
+  few: 'возможных места встречи',
+  many: 'возможных мест встречи',
+};
+
+/**
+ * The card row of a request that owns several public areas. It replaces «Место встречи: {place}»,
+ * which claimed one public meeting place had already been picked (owner, 3 September 2026). The
+ * alternatives themselves stay on the map; the card only counts them.
+ */
+const meetingAreasValue = (count: number) => pluralRu(count, meetingAreaPlural);
+
+/** `ridemap.distance`: the control-screen form without a space after the sign. */
+const rideMapDistance = (km: number) => `≈${km} км от вас`;
+
+/*
+ * Accessible names of the map objects. `{type}` is filled with the role badge the card already
+ * shows — «Водитель» / «Пассажир» — so the object and the card name the same thing; `{title}` is
+ * the card title. The Foundation does not say which of the two type wordings `{type}` means.
+ */
+const objectAreaName = (type: string, title: string) => `${type} · ${title} · примерная область`;
+const objectAreaOfName = (type: string, title: string, index: number, total: number) =>
+  `${type} · ${title} · примерная область, место ${index} из ${total}`;
+const objectDepartureAreaName = (type: string, title: string) =>
+  `${type} · ${title} · примерная область отправления`;
+
+/**
+ * One board group. A passenger request is one to three public approximate meeting areas — they are
+ * alternatives, never stops along a route; a driver offer is one public approximate departure area.
+ * There is no public route line, corridor or exact point anywhere in this data (decision 32).
+ */
+type MapRide = {
+  card: BoardCard;
+  areas: ReadonlyArray<{ id: string; x: number; y: number }>;
+  /** Rounded kilometres to the public area, shown only once a location is available. */
+  km: number;
+};
+
+type MapGroup = {
+  id: 'liturgy' | 'vigil';
+  /*
+   * `ridemap.group_title` — the same heading the board gives the group: {service} · {date}, {time}.
+   * A custom-date group is headed by its date and time alone. Neither heading carries a second,
+   * explanatory line: the owner removed the subtitle on 3 September 2026.
+   */
+  title: string;
+  rides: ReadonlyArray<MapRide>;
+};
+
+/*
+ * The objects are spread over the whole field the way places are spread over a district. Nothing is
+ * pushed towards the top edge to survive the detail sheet: the sheet is answered by moving the map
+ * under it (see `focus` below), not by keeping the fixture out of its way.
+ */
+const liturgyRides: ReadonlyArray<MapRide> = [
+  { card: boardCards[0], areas: [{ id: 'offer-lido-departure', x: 16, y: 74 }], km: 6 },
+  {
+    card: boardCards[1],
+    areas: [
+      { id: 'request-centro-area-1', x: 26, y: 30 },
+      { id: 'request-centro-area-2', x: 40, y: 58 },
+    ],
+    km: 3,
+  },
+  { card: boardCards[2], areas: [{ id: 'offer-siano-departure', x: 84, y: 20 }], km: 23 },
+  { card: boardCards[3], areas: [{ id: 'request-soverato-area', x: 74, y: 62 }], km: 31 },
+];
+
+/** A second service of the same church in which no passenger has asked for a ride. */
+const vigilRides: ReadonlyArray<MapRide> = [
+  {
+    card: {
+      id: 'offer-vigil-lido',
+      type: copy.boardTypeDriver,
+      time: '22 августа, 17:20',
+      placeLabel: copy.boardOrigin,
+      place: 'Catanzaro Lido',
+      facts: [pluralRu(3, seatsFreePlural), copy.boardReturnOffered],
+      person: 'Алексей',
+      action: copy.boardActionAsk,
+    },
+    areas: [{ id: 'offer-vigil-lido-departure', x: 30, y: 68 }],
+    km: 6,
+  },
+  {
+    card: {
+      id: 'offer-vigil-siano',
+      type: copy.boardTypeDriver,
+      time: '22 августа, 17:40',
+      placeLabel: copy.boardOrigin,
+      place: 'Siano',
+      facts: [pluralRu(1, seatsFreePlural), copy.boardNoChildren],
+      person: 'Игорь',
+      action: copy.boardActionAsk,
+    },
+    areas: [{ id: 'offer-vigil-siano-departure', x: 72, y: 26 }],
+    km: 23,
+  },
+];
+
+/*
+ * A group of a custom date has no review state of its own: after the subtitle was removed it says
+ * nothing a service group does not, apart from its heading — the date and time alone, without the
+ * service name (owner, 3 September 2026). The behaviour itself stays in `IA §9.3` and 4.4.1.
+ */
+const mapGroups: Record<MapGroup['id'], MapGroup> = {
+  liturgy: {
+    id: 'liturgy',
+    title: 'Божественная литургия · 23 августа, 9:00',
+    rides: liturgyRides,
+  },
+  vigil: {
+    id: 'vigil',
+    title: 'Всенощное бдение · 22 августа, 18:00',
+    rides: vigilRides,
+  },
+};
+
+/** The church address is public and exact; every user location on the map is approximate. */
+const churchPoint = { x: 52, y: 44 };
+const userPoint = { x: 50, y: 84 };
+const areaRadius = 7;
+
+/**
+ * The same square field is about 60 % larger on a computer, so the markers carry their own desktop
+ * values instead of scaling with the viewport (DESIGN_DECISIONS 24). The rule is the order of
+ * visual weight — selected ride → other areas → church → user location → base map — not the number.
+ */
+const mapFieldScale = {
+  mobile: { church: 1, userRing: 4.2, userDot: 2 },
+  desktop: { church: 0.72, userRing: 2.8, userDot: 1.3 },
+} as const;
+
+const mapFieldLabels = [
+  { id: 'catanzaro', label: 'Catanzaro', x: 62, y: 30 },
+  { id: 'lido', label: 'Catanzaro Lido', x: 18, y: 88 },
+  { id: 'siano', label: 'Siano', x: 78, y: 9 },
+  { id: 'church', label: 'Храм', x: 52, y: 55 },
+] as const;
+
+/** Roads and water are context texture only; they bleed across the whole canvas. */
+function MapBackdrop() {
+  return (
+    <svg className={styles.bleedLayer} viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <path className={styles.mapWater} d="M -5 92 L 105 88" />
+      <path className={styles.mapRoad} d="M -5 58 Q 30 46 56 54 T 105 44" />
+      <path className={styles.mapRoadMinor} d="M 30 -5 Q 36 40 28 105" />
+      <path className={styles.mapRoadMinor} d="M 78 -5 Q 70 44 84 105" />
+    </svg>
+  );
+}
+
+function MapShapes({ rides, selectedId, located, desktop }: {
+  rides: ReadonlyArray<MapRide>;
+  selectedId: string | null;
+  located: boolean;
+  desktop: boolean;
+}) {
+  const scale = mapFieldScale[desktop ? 'desktop' : 'mobile'];
+  // The marker scales about its own point, so it stays planted on the same location.
+  const churchAnchor = `translate(${churchPoint.x} ${churchPoint.y + 7}) scale(${scale.church}) translate(${-churchPoint.x} ${-(churchPoint.y + 7)})`;
+  const areasOf = (kind: 'driver' | 'passenger') =>
+    rides
+      .filter((ride) => (ride.card.type === copy.boardTypeDriver) === (kind === 'driver'))
+      .flatMap((ride) => ride.areas.map((area) => ({ ...area, rideId: ride.card.id })));
+
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      {/* Driver: a solid outline. Passenger: a dashed one. Never a route line or a corridor. */}
+      {areasOf('driver').map((area) => (
+        <circle
+          key={area.id}
+          className={styles.departureAreaShape}
+          cx={area.x}
+          cy={area.y}
+          r={areaRadius}
+          data-map-shape="departure-area"
+          data-selected={area.rideId === selectedId || undefined}
+        />
+      ))}
+      {areasOf('passenger').map((area) => (
+        <circle
+          key={area.id}
+          className={styles.areaShape}
+          cx={area.x}
+          cy={area.y}
+          r={areaRadius}
+          data-map-shape="area"
+          data-selected={area.rideId === selectedId || undefined}
+        />
+      ))}
+      <g transform={churchAnchor} data-map-shape="church">
+        <path
+          className={styles.churchMarker}
+          d={`M ${churchPoint.x} ${churchPoint.y + 7} c -3.2 -4.2 -5 -6.2 -5 -8.6 a 5 5 0 1 1 10 0 c 0 2.4 -1.8 4.4 -5 8.6 Z`}
+        />
+        <circle className={styles.churchMarkerCore} cx={churchPoint.x} cy={churchPoint.y - 1.6} r={1.9} />
+      </g>
+      {located && (
+        <g data-map-shape="user">
+          <circle className={styles.userRing} cx={userPoint.x} cy={userPoint.y} r={scale.userRing} />
+          <circle className={styles.userDot} cx={userPoint.x} cy={userPoint.y} r={scale.userDot} />
+        </g>
+      )}
+    </svg>
+  );
+}
+
+/** Hit targets share the field coordinate system, so they stay aligned with the shapes. */
+function MapTargets({ rides, selectedId, onSelect }: {
+  rides: ReadonlyArray<MapRide>;
+  selectedId: string | null;
+  onSelect: (rideId: string) => void;
+}) {
+  return (
+    <>
+      {mapFieldLabels.map((label) => (
+        <span key={label.id} className={styles.fieldLabel} style={{ left: `${label.x}%`, top: `${label.y}%` }}>
+          {label.label}
+        </span>
+      ))}
+      {rides.flatMap((ride) => {
+        const driver = ride.card.type === copy.boardTypeDriver;
+        const total = ride.areas.length;
+        const selected = ride.card.id === selectedId;
+
+        return ride.areas.map((area, index) => (
+          <span key={area.id} className={styles.fieldTarget}>
+            <button
+              type="button"
+              className={styles.mapHit}
+              style={{ left: `${area.x}%`, top: `${area.y}%` }}
+              aria-label={
+                driver
+                  ? objectDepartureAreaName(ride.card.type, ride.card.time)
+                  : total > 1
+                    ? objectAreaOfName(ride.card.type, ride.card.time, index + 1, total)
+                    : objectAreaName(ride.card.type, ride.card.time)
+              }
+              aria-pressed={selected}
+              data-map-object={driver ? 'departure-area' : 'area'}
+              onClick={() => onSelect(ride.card.id)}
+            />
+            {selected && (
+              <span
+                className={styles.objectPill}
+                style={{ left: `${area.x}%`, top: `${area.y - areaRadius - 5}%` }}
+              >
+                {ride.card.type}
+              </span>
+            )}
+          </span>
+        ));
+      })}
+    </>
+  );
+}
+
+type MapSeed = {
+  group: MapGroup['id'];
+  selected?: string;
+  located?: boolean;
+  desktop?: boolean;
+};
+
+const mapSeeds: Partial<Record<SampleId, MapSeed>> = {
+  'map-base': { group: 'liturgy' },
+  'map-driver': { group: 'liturgy', selected: 'offer-lido' },
+  'map-passenger': { group: 'liturgy', selected: 'request-soverato' },
+  'map-passenger-areas': { group: 'liturgy', selected: 'request-centro' },
+  /* Location is never requested: this state is what appears after «Показать, где я» is pressed. */
+  'map-located': { group: 'liturgy', selected: 'offer-siano', located: true },
+  'map-filter-empty': { group: 'vigil' },
+  'map-desktop': { group: 'liturgy', selected: 'request-centro', desktop: true },
+};
+
+/** The gap kept between the focused geography and whatever bounds the free part of the map. */
+const focusPad = 12;
+/** The key sits this far from the left and bottom edges of the map, in both layouts. */
+const legendInset = { mobile: 16, desktop: 24 } as const;
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+type MapFocus = { x: number; y: number; scale: number; originX: number; originY: number };
+
+/** What the map has to work around, measured once so the key and the geography agree on it. */
+type MapLayout = { focus: MapFocus | null; legendBottom: number };
+
+/**
+ * The card is opened by a person who has just pointed at a place, so that place has to stay in
+ * sight. The free part of the map is whatever the floating controls, the key and the card leave —
+ * the strip between them on a phone, the space left of the panel on a computer — and the map is
+ * moved, and if need be scaled down, until the areas of the selected ride sit inside it.
+ *
+ * The key is placed here rather than measured, because it has not moved yet when this runs: on a
+ * phone it rides above the card, so where it will sit depends on the very card being measured.
+ *
+ * This is a review-surface stand-in for the approved behaviour, not a maps provider: it moves one
+ * static drawing. Everything drawn — roads, labels, areas, markers — moves together, so the
+ * geography stays coherent.
+ */
+function mapLayout({ canvas, detail, overlay, legendHeight, areas, desktop }: {
+  canvas: DOMRect;
+  detail: DOMRect | null;
+  overlay: DOMRect | null;
+  legendHeight: number;
+  areas: ReadonlyArray<{ x: number; y: number }>;
+  desktop: boolean;
+}): MapLayout {
+  const inset = desktop ? legendInset.desktop : legendInset.mobile;
+  /* On a phone the card owns the bottom edge, so the key keeps its inset above the card instead. */
+  const sheetHeight = !desktop && detail && detail.height > 0 ? detail.height : 0;
+  const legendBottom = inset + sheetHeight;
+  const layout = { focus: null, legendBottom } satisfies MapLayout;
+
+  const size = desktop ? canvas.height : canvas.width;
+  if (size <= 0 || canvas.width <= 0 || areas.length === 0) return layout;
+
+  const fieldLeft = canvas.left + (canvas.width - size) / 2;
+  const fieldTop = canvas.top + (canvas.height - size) / 2;
+  const px = (percent: number) => (percent / 100) * size;
+
+  const box = {
+    left: fieldLeft + px(Math.min(...areas.map((area) => area.x)) - areaRadius),
+    right: fieldLeft + px(Math.max(...areas.map((area) => area.x)) + areaRadius),
+    top: fieldTop + px(Math.min(...areas.map((area) => area.y)) - areaRadius),
+    bottom: fieldTop + px(Math.max(...areas.map((area) => area.y)) + areaRadius),
+  };
+
+  let free = {
+    left: canvas.left + focusPad,
+    right: canvas.right - focusPad,
+    top: canvas.top + focusPad,
+    bottom: canvas.bottom - focusPad,
+  };
+  if (overlay && overlay.height > 0) free = { ...free, top: Math.max(free.top, overlay.bottom + focusPad) };
+  if (detail && detail.height > 0) {
+    free = desktop
+      ? { ...free, right: Math.min(free.right, detail.left - focusPad) }
+      : { ...free, bottom: Math.min(free.bottom, detail.top - focusPad) };
+  }
+  /*
+   * The key is short and hugs the left edge, but a selected area is never allowed to end up under
+   * it, so the whole band it occupies is treated as taken.
+   */
+  if (legendHeight > 0) {
+    free = { ...free, bottom: Math.min(free.bottom, canvas.bottom - legendBottom - legendHeight - focusPad) };
+  }
+
+  const freeWidth = free.right - free.left;
+  const freeHeight = free.bottom - free.top;
+  if (freeWidth <= 0 || freeHeight <= 0) return layout;
+
+  const scale = clamp(
+    Math.min(freeWidth / (box.right - box.left), freeHeight / (box.bottom - box.top), 1),
+    0.6,
+    1,
+  );
+  return {
+    legendBottom,
+    focus: {
+      x: (free.left + free.right) / 2 - (box.left + box.right) / 2,
+      y: (free.top + free.bottom) / 2 - (box.top + box.bottom) / 2,
+      scale,
+      /* The transform turns about the selected geography, so scaling never slides it off again. */
+      originX: ((box.left + box.right) / 2 - canvas.left) / canvas.width * 100,
+      originY: ((box.top + box.bottom) / 2 - canvas.top) / canvas.height * 100,
+    },
+  };
+}
+
+/**
+ * One interactive map for all seven entry points. The filter belongs to the review page, so the
+ * board and the map hand it to each other; the selection and the simulated location belong to the
+ * map. Nothing here talks to a maps provider, asks for a geolocation permission or stores anything.
+ */
+function RideMapScreen({ seed, filter, onFilterChange, onBack, textZoom }: {
+  seed: MapSeed;
+  filter: BoardFilter;
+  onFilterChange: (filter: BoardFilter) => void;
+  onBack: () => void;
+  textZoom: boolean;
+}) {
+  const group = mapGroups[seed.group];
+  const [selectedId, setSelectedId] = useState<string | null>(seed.selected ?? null);
+  const [located, setLocated] = useState(seed.located ?? false);
+  const desktop = seed.desktop === true;
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const legendRef = useRef<HTMLDivElement>(null);
+  const [layout, setLayout] = useState<MapLayout>({
+    focus: null,
+    legendBottom: (seed.desktop === true ? legendInset.desktop : legendInset.mobile),
+  });
+
+  const hasDrivers = group.rides.some((ride) => ride.card.type === copy.boardTypeDriver);
+  const hasPassengers = group.rides.some((ride) => ride.card.type === copy.boardTypePassenger);
+  const unavailable = boardFilters.filter(
+    (candidate) => (candidate === copy.boardFilterDrivers && !hasDrivers)
+      || (candidate === copy.boardFilterPassengers && !hasPassengers),
+  );
+
+  /*
+   * The board filter travels with the person, but a group can lack the role it names. An empty map
+   * is never offered (IA §9.3): the filter is unavailable, so the map falls back to «Все» and the
+   * reason stands next to the filters.
+   */
+  const active = unavailable.includes(filter) ? copy.boardFilterAll : filter;
+  const visible = group.rides.filter(
+    (ride) => active === copy.boardFilterAll || ride.card.type === filteredRole[active],
+  );
+  const selected = visible.find((ride) => ride.card.id === selectedId) ?? null;
+  const reasonId = 'ride-map-filter-reason';
+  const areaCount = selected && selected.card.type === copy.boardTypePassenger ? selected.areas.length : 1;
+
+  /*
+   * Measured after the card is laid out, because its height is what decides how much map is left.
+   * Nothing else depends on the result, so the effect settles in one pass.
+   */
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const measure = () => setLayout(mapLayout({
+      canvas: canvas.getBoundingClientRect(),
+      detail: detailRef.current?.getBoundingClientRect() ?? null,
+      overlay: overlayRef.current?.getBoundingClientRect() ?? null,
+      legendHeight: legendRef.current?.getBoundingClientRect().height ?? 0,
+      areas: selected?.areas ?? [],
+      desktop,
+    }));
+
+    measure();
+    /* The desktop frame follows the window, so a resize has to be measured again. */
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [selected, located, desktop, textZoom]);
+
+  const map = (
+    <div
+      className={`${styles.mapScreen} ${desktop ? styles.desktopMapScreen : ''}`}
+      data-ride-map
+      data-map-group={group.id}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && selectedId) setSelectedId(null);
+      }}
+    >
+      {/* One heading and nothing under it: the group is named precisely enough by its own line. */}
+      <header className={styles.mapHeader}>
+        <IconButton label={rideMapCopy.back} icon="back" onClick={onBack} />
+        <strong>{group.title}</strong>
+      </header>
+
+      <div className={styles.mapFilters}>
+        <div className={styles.chips} role="group" aria-label={rideMapCopy.filterGroupLabel} data-ride-filters>
+          {boardFilters.map((candidate) => (
+            <button
+              key={candidate}
+              type="button"
+              className={candidate === active ? styles.selectedChip : undefined}
+              aria-pressed={candidate === active}
+              aria-describedby={unavailable.includes(candidate) ? reasonId : undefined}
+              disabled={unavailable.includes(candidate)}
+              onClick={() => { onFilterChange(candidate); setSelectedId(null); }}
+            >
+              {candidate}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/*
+       * An unavailable filter is muted and cannot be pressed; the reason is said only to assistive
+       * technology, because a visible sentence under the filters was one explanation too many
+       * (owner, 3 September 2026).
+       */}
+      {unavailable.length > 0 && (
+        <span className={styles.srOnly} id={reasonId} data-filter-reason>
+          {unavailable.includes(copy.boardFilterPassengers)
+            ? rideMapCopy.filterEmptyRequests
+            : rideMapCopy.filterEmptyOffers}
+        </span>
+      )}
+
+      <div className={styles.mapCanvas} ref={canvasRef}>
+        <div
+          className={styles.mapFocus}
+          data-map-focus={layout.focus ? 'on' : 'off'}
+          style={layout.focus ? {
+            transform: `translate(${Math.round(layout.focus.x)}px, ${Math.round(layout.focus.y)}px) scale(${layout.focus.scale})`,
+            transformOrigin: `${layout.focus.originX}% ${layout.focus.originY}%`,
+          } : undefined}
+        >
+          <MapBackdrop />
+          <div className={styles.mapField}>
+            <MapShapes rides={visible} selectedId={selected?.card.id ?? null} located={located} desktop={desktop} />
+            <MapTargets rides={visible} selectedId={selected?.card.id ?? null} onSelect={setSelectedId} />
+          </div>
+        </div>
+
+        <div className={styles.mapOverlay} ref={overlayRef}>
+          <button
+            type="button"
+            className={styles.locateButton}
+            aria-pressed={located}
+            data-locate
+            onClick={() => setLocated((current) => !current)}
+          >
+            <Icon name="map" />
+            {rideMapCopy.locate}
+          </button>
+        </div>
+
+        {/*
+         * Two compact keys, not an instruction block: a symbol, a role colour and the role. The key
+         * lives at the bottom-left corner of the map, and on a phone it keeps that same inset above
+         * the card instead of sliding under it.
+         */}
+        <div
+          className={styles.legend}
+          role="note"
+          aria-label={rideMapCopy.legendLabel}
+          ref={legendRef}
+          data-map-legend
+          style={{ bottom: `${layout.legendBottom}px` }}
+        >
+          <span data-legend-key="driver">
+            <span className={styles.legendDepartureArea} aria-hidden="true" />
+            {rideMapCopy.legendDriver}
+          </span>
+          <span data-legend-key="passenger">
+            <span className={styles.legendArea} aria-hidden="true" />
+            {rideMapCopy.legendPassenger}
+          </span>
+        </div>
+
+        {selected && (
+          <section
+            className={desktop ? styles.detailPanel : styles.detailSheet}
+            role="region"
+            aria-label={`${selected.card.type === copy.boardTypeDriver ? rideMapCopy.detailOffer : rideMapCopy.detailRequest} · ${selected.card.time}`}
+            data-ride-detail
+            ref={detailRef}
+          >
+            <div className={styles.detailHead}>
+              <span>
+                {selected.card.type === copy.boardTypeDriver ? rideMapCopy.detailOffer : rideMapCopy.detailRequest}
+              </span>
+              <IconButton label={rideMapCopy.detailClose} icon="close" onClick={() => setSelectedId(null)} />
+            </div>
+            <RideCard
+              card={selected.card}
+              showType={false}
+              actionVariant="primary"
+              distance={located ? rideMapDistance(selected.km) : undefined}
+              /*
+               * A request with several public areas has not picked a meeting place yet, so the card
+               * counts the alternatives instead of naming one of them as if it were settled.
+               */
+              place={areaCount > 1 ? meetingAreasValue(areaCount) : undefined}
+            />
+            <p className={styles.privacyLine} data-map-privacy>
+              {selected.card.type === copy.boardTypeDriver
+                ? rideMapCopy.privacyOffer
+                : areaCount > 1
+                  ? rideMapCopy.privacyRequestMany
+                  : rideMapCopy.privacyRequestOne}
+            </p>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+
+  if (desktop) {
+    return (
+      <section
+        className={styles.desktopFrame}
+        role="region"
+        aria-label="Карта поездок на компьютере"
+        data-product-screen
+        data-text-zoom={textZoom ? '200' : undefined}
+      >
+        {map}
+      </section>
+    );
+  }
+
+  return <PhoneFrame label="Карта поездок группы" textZoom={textZoom}>{map}</PhoneFrame>;
+}
+
 /* ------------------------------------------------------------------ review-only source key */
 
 /*
@@ -2717,6 +3452,66 @@ const offerReviewRecurringRows: ReadonlyArray<StringSource> = [
   { text: offerPeriod('{от}', '{до}'), mark: 'Утверждено', note: 'копия 4.6, `offer.step.period`; в резюме — та же строка, что на экране 1' },
 ];
 
+/*
+ * Group 4, the ride map, after the owner review of 3 September 2026. `Утверждено` marks only what
+ * the owner actually decided on the assembled screen: the heading with the time, the two compact
+ * legend keys, the three short privacy sentences, the distance and its explicit action, and the row
+ * that counts the alternative meeting areas. What he did not touch — the back action, the type of
+ * the selected ride, the accessible names — stays `Проект` and waits for its own review.
+ */
+const rideMapChromeRows = (group: MapGroup): ReadonlyArray<StringSource> => [
+  { text: rideMapCopy.back, mark: 'Проект', note: 'копия 4.4.1, `ridemap.back`; строка control screen, владелец её не пересматривал' },
+  { text: group.title, mark: 'Утверждено', note: '`ridemap.group_title`: {служба} · {дата}, {время} — тот же заголовок, что у группы на доске; подзаголовок под ним снят 03.09.2026' },
+  { text: rideMapCopy.filterGroupLabel, mark: 'Проект', note: '`ridemap.filter.group_label`, имя группы фильтров для вспомогательных технологий; на экране не видно' },
+  { text: `${copy.boardFilterAll} · ${copy.boardFilterDrivers} · ${copy.boardFilterPassengers}`, mark: 'Решение', note: 'те же фильтры, что на доске (решение 1.8 (12)); недоступный приглушён и не нажимается, видимой причины рядом нет' },
+  { text: rideMapCopy.locate, mark: 'Утверждено', note: '`ridemap.locate`; единственный вход к местоположению, автоматического запроса нет (решение 25)' },
+  { text: rideMapCopy.legendLabel, mark: 'Проект', note: '`ridemap.legend.label`; имя легенды для вспомогательных технологий, на экране не видно' },
+  { text: rideMapCopy.legendDriver, mark: 'Утверждено', note: '`ridemap.legend.driver`; заменяет прежнее предложение о сплошном круге. Роль различается подписью, оформлением границы и ролевым цветом доски' },
+  { text: rideMapCopy.legendPassenger, mark: 'Утверждено', note: '`ridemap.legend.passenger`; заменяет прежнее предложение о пунктирном круге' },
+  { text: objectDepartureAreaName('{тип}', '{заголовок}'), mark: 'Проект', note: '`ridemap.object.departure_area`; имя объекта для вспомогательных технологий' },
+  { text: objectAreaName('{тип}', '{заголовок}'), mark: 'Проект', note: '`ridemap.object.area`; {тип} подставлен ролевой меткой карточки — «Водитель» или «Пассажир»' },
+];
+
+const rideMapDetailRows = (kind: 'offer' | 'request'): ReadonlyArray<StringSource> => [
+  { text: kind === 'offer' ? rideMapCopy.detailOffer : rideMapCopy.detailRequest, mark: 'Проект', note: kind === 'offer' ? '`ridemap.detail.offer`; тип поездки над карточкой' : '`ridemap.detail.request`; тип поездки над карточкой' },
+  { text: rideMapCopy.detailClose, mark: 'Проект', note: '`ridemap.detail.close`; имя действия для вспомогательных технологий, на экране не видно' },
+];
+
+const rideMapBaseRows = rideMapChromeRows(mapGroups.liturgy);
+
+const rideMapDriverRows: ReadonlyArray<StringSource> = [
+  ...rideMapBaseRows,
+  ...rideMapDetailRows('offer'),
+  { text: rideMapCopy.privacyOffer, mark: 'Утверждено', note: '`ridemap.privacy.offer`; одно предложение вместо абзаца. Радиус в километрах и запрет публичного маршрута — правила продукта, но в карточке они не повторяются' },
+];
+
+const rideMapPassengerRows: ReadonlyArray<StringSource> = [
+  ...rideMapBaseRows,
+  ...rideMapDetailRows('request'),
+  { text: rideMapCopy.privacyRequestOne, mark: 'Утверждено', note: '`ridemap.privacy.request.one`; у просьбы одна публичная область — место названо в единственном числе' },
+];
+
+const rideMapPassengerAreasRows: ReadonlyArray<StringSource> = [
+  ...rideMapBaseRows,
+  { text: objectAreaOfName('{тип}', '{заголовок}', 1, 2), mark: 'Проект', note: '`ridemap.object.area_of`; так вспомогательные технологии слышат, что области принадлежат одной просьбе' },
+  ...rideMapDetailRows('request'),
+  { text: meetingAreasValue(2), mark: 'Утверждено', note: '`ridemap.card.meeting_areas`, новая строка; заменяет «Место встречи: {место}» там, где место ещё не выбрано. Требует ICU `plural`' },
+  { text: rideMapCopy.privacyRequestMany, mark: 'Утверждено', note: '`ridemap.privacy.request.many`; о числе областей говорит строка карточки, поэтому в этом предложении числа нет' },
+];
+
+const rideMapLocatedRows: ReadonlyArray<StringSource> = [
+  ...rideMapBaseRows,
+  { text: rideMapDistance(23), mark: 'Утверждено', note: '`ridemap.distance`: ≈{distance} км от вас, без «по прямой». Объясняющей строки рядом больше нет; до включения местоположения расстояния нет вовсе' },
+  ...rideMapDetailRows('offer'),
+  { text: rideMapCopy.privacyOffer, mark: 'Утверждено', note: '`ridemap.privacy.offer`; расстояние считается до этой публичной области' },
+];
+
+const rideMapFilterEmptyRows: ReadonlyArray<StringSource> = [
+  ...rideMapChromeRows(mapGroups.vigil),
+  { text: rideMapCopy.filterEmptyRequests, mark: 'Утверждено', note: '`ridemap.filter.unavailable.requests`; только для вспомогательных технологий, видимой строкой не становится. Формулировка не называет ни службу, ни дату, поэтому годится любой группе' },
+  { text: rideMapCopy.filterEmptyOffers, mark: 'Утверждено', note: '`ridemap.filter.unavailable.offers`; в этой группе не звучит' },
+];
+
 const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   catalog: [
     { text: copy.catalogTitle, mark: 'IA', note: 'IA §8' },
@@ -2815,6 +3610,15 @@ const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   'offer-final': offerReviewRows,
   'offer-final-filled': offerReviewRows,
   'offer-final-recurring': offerReviewRecurringRows,
+
+  /* Group 4, the ride map, reviewed on 3 September 2026: see the marks of the rows themselves. */
+  'map-base': rideMapBaseRows,
+  'map-driver': rideMapDriverRows,
+  'map-passenger': rideMapPassengerRows,
+  'map-passenger-areas': rideMapPassengerAreasRows,
+  'map-located': rideMapLocatedRows,
+  'map-filter-empty': rideMapFilterEmptyRows,
+  'map-desktop': rideMapPassengerAreasRows,
 };
 
 function SourcePanel({ sample }: { sample: SampleId }) {
@@ -2850,6 +3654,19 @@ function SourcePanel({ sample }: { sample: SampleId }) {
           контактов проверяются своей группой.
         </p>
       )}
+      {sample.startsWith('map-') && (
+        <p>
+          Состояния 25–31 — одна и та же карта поездок одной группы доски с разными уже сделанными
+          выборами. Доска остаётся представлением по умолчанию: карта её не заменяет и открывается
+          только для одной службы или одной собственной даты (IA §9.3). Просмотр{' '}
+          <strong>3 сентября 2026 года</strong> убрал с экрана подзаголовок, длинную легенду, абзацы
+          о приватности, объяснение расстояния и видимую причину недоступного фильтра; заголовок
+          получил время службы, а карточка просьбы с несколькими областями перестала называть одно
+          место. Утверждены только те строки, о которых владелец так и решил; «Назад к доске
+          поездок», тип выбранной поездки и имена для вспомогательных технологий он не пересматривал
+          — они остаются «Проект».
+        </p>
+      )}
       <dl className={styles.sourceList}>
         {rows.map((row) => (
           <div key={`${row.text}-${row.note ?? ''}`}>
@@ -2881,6 +3698,11 @@ function readAddress(): SampleId | null {
 export function CopyReview() {
   const [chosen, setChosen] = useState<SampleId | null>(null);
   const [textZoom, setTextZoom] = useState(false);
+  /*
+   * The board and the map are the same semantic filter (IA §9.3), so it is kept here rather than in
+   * either screen: only then can the owner walk the transition and see the filter arrive with him.
+   */
+  const [boardFilter, setBoardFilter] = useState<BoardFilter>(copy.boardFilterAll);
   const fromAddress = useSyncExternalStore(subscribeToAddress, readAddress, () => null);
   const sample = chosen ?? fromAddress ?? 'catalog';
 
@@ -2888,7 +3710,14 @@ export function CopyReview() {
     switch (sample) {
       case 'catalog': return <CatalogScreen textZoom={textZoom} />;
       case 'church': return <ChurchScreen textZoom={textZoom} />;
-      case 'board': return <BoardScreen textZoom={textZoom} />;
+      case 'board': return (
+        <BoardScreen
+          textZoom={textZoom}
+          filter={boardFilter}
+          onFilterChange={setBoardFilter}
+          onOpenMap={() => setChosen('map-base')}
+        />
+      );
       case 'empty-church': return <EmptyChurchScreen textZoom={textZoom} />;
       /*
        * One form per role for all of their states. The `key` restarts it when the owner picks
@@ -2896,6 +3725,18 @@ export function CopyReview() {
        * the form keeps everything the person has typed, forwards and backwards alike.
        */
       default:
+        if (sample.startsWith('map-')) {
+          return (
+            <RideMapScreen
+              key={sample}
+              seed={mapSeeds[sample] ?? { group: 'liturgy' }}
+              filter={boardFilter}
+              onFilterChange={setBoardFilter}
+              onBack={() => setChosen('board')}
+              textZoom={textZoom}
+            />
+          );
+        }
         return sample.startsWith('offer-') ? (
           <DriverOfferForm key={sample} seed={offerSeeds[sample] ?? {}} textZoom={textZoom} />
         ) : (
@@ -2923,8 +3764,8 @@ export function CopyReview() {
   return (
     <div className={styles.reviewRoot}>
       <header className={styles.reviewHeader}>
-        <p>Временная поверхность проверки · группы 1, 2A, 2B и 3 просмотрены</p>
-        <h1>Проверка русской копии: храм, просьба пассажира и предложение водителя</h1>
+        <p>Временная поверхность проверки · группы 1, 2A, 2B, 3 и 4 просмотрены</p>
+        <h1>Проверка русской копии: храм, просьба пассажира, предложение водителя и карта поездок</h1>
         <p>
           Мобильные экраны шириной 390 px. Состояния 1–4 — первая группа после правок владельца от
           22 августа 2026 года. Состояния 5–14 — одна форма просьбы пассажира из четырёх смысловых
@@ -2942,12 +3783,24 @@ export function CopyReview() {
           показывает введённое. Форму можно пройти целиком, ответы сохраняются. Строки этих экранов
           просмотрены 2 сентября 2026 года.
         </p>
+        <p>
+          Состояния 25–31 — карта поездок одной группы доски: семь точек входа в одну работающую
+          карту. Фильтры переключаются, объект выбирается, карточка закрывается, «Показать, где я»
+          включает и выключает местоположение. Фильтр общий с доской: «Поездки на карте» в состоянии
+          3 открывает карту с тем же фильтром, «Назад к доске поездок» возвращает на доску. Карта
+          изолированная: настоящего поставщика карт, запроса геолокации и сохранения здесь нет.
+          После просмотра 3 сентября 2026 года объясняющего текста на экране осталось заметно меньше:
+          подзаголовка, длинной легенды, абзацев о приватности, объяснения расстояния и видимой
+          причины недоступного фильтра больше нет. Когда карточка открывается, карта сдвигается так,
+          чтобы выбранная область осталась видна.
+        </p>
       </header>
       <nav className={styles.reviewControls} aria-label="Выбор экрана проверки">
         <div>{choose('church')}</div>
         <div>{choose('request')}</div>
+        <div>{choose('offer')}</div>
         <div>
-          {choose('offer')}
+          {choose('map')}
           <button
             type="button"
             className={styles.zoomToggle}
