@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { act } from 'react';
+import { act, type ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EmailEntry } from './email-entry';
 
 afterEach(cleanup);
 
 function renderEntry(
-  requestAction = vi.fn(async (_previousState, formData: FormData) => ({
+  requestAction = vi.fn<ComponentProps<typeof EmailEntry>['requestAction']>(async (_previousState, formData) => ({
     email: String(formData.get('email')),
     status: 'sent' as const,
   })),

@@ -17,7 +17,7 @@ const delivery: PhoneVerificationDelivery = {
 
 describe('Bird SMS phone-verification adapter', () => {
   it('sends one application-owned authentication code with an idempotent provider request', async () => {
-    const fetchBird = vi.fn(async () => new Response(
+    const fetchBird = vi.fn<typeof fetch>(async () => new Response(
       JSON.stringify({ id: 'sms_01k3birdaccepted1234567890', status: 'accepted' }),
       { status: 202 },
     ));
