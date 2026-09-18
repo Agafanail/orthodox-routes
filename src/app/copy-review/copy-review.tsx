@@ -59,7 +59,16 @@ type SampleId =
   | 'map-passenger-areas'
   | 'map-located'
   | 'map-filter-empty'
-  | 'map-desktop';
+  | 'map-desktop'
+  | 'trips-needs-passenger'
+  | 'trips-needs-driver'
+  | 'trips-waiting'
+  | 'trips-upcoming-passenger'
+  | 'trips-upcoming-driver'
+  | 'trips-listings'
+  | 'trips-history'
+  | 'trips-empty'
+  | 'trips-desktop';
 
 type SourceMark = 'IA' | 'PS' | 'DS' | 'Решение' | 'Утверждено' | 'Проект';
 
@@ -79,9 +88,10 @@ type Sample = {
   /**
    * `church` — group 1; `request` — an entry point into the one interactive passenger form;
    * `offer` — an entry point into the one interactive driver form (group 3); `map` — an entry
-   * point into the one interactive ride map of a board group (group 4, not yet reviewed).
+   * point into the one interactive ride map of a board group (group 4); `trips` — an entry point
+   * into the one interactive «Мои поездки» (group 5, not yet reviewed).
    */
-  group: 'church' | 'request' | 'offer' | 'map';
+  group: 'church' | 'request' | 'offer' | 'map' | 'trips';
   label: string;
   title: string;
   description: string;
@@ -352,6 +362,78 @@ const samples: ReadonlyArray<Sample> = [
     title: 'Та же карта в раскладке компьютера: панель вместо листа',
     description:
       'Одно представительное состояние для компьютера, а не повтор всех шести: выбрана та же просьба с двумя областями, карточка открыта панелью рядом с картой, а не листом снизу (IA §9.3). Карта сдвигается влево от панели, чтобы обе области остались видны. Проверяется, работают ли те же слова в широкой раскладке. Шапки сайта в этой рамке нет: в группу 4 она не входит.',
+  },
+  {
+    id: 'trips-needs-passenger',
+    group: 'trips',
+    label: '32 · Ответ пассажира',
+    title: 'Требуют ответа: пассажир отвечает водителю',
+    description:
+      'Раздел «Требуют ответа» с двумя карточками. Карточка не повторяет вкладку ничем: ни плашкой, ни строкой «Ждёт вашего ответа», ни предложением о том, что произошло. Открытая вкладка и есть состояние, поэтому на карточке остались роль, служба, город, второй человек с его ролью («Водитель: Алексей»), условия решения его словами («Может подвезти обратно») и два действия.',
+  },
+  {
+    id: 'trips-needs-driver',
+    group: 'trips',
+    label: '33 · Ответ водителя',
+    title: 'Требуют ответа: водитель отвечает пассажиру',
+    description:
+      'Та же вкладка, вторая карточка. Роли различаются меткой, вторым человеком с его ролью («Пассажир: Мария») и условиями, а не отдельной фразой: родовых форм на экране нет — род второй стороны сервису неизвестен. Проверяется, хватает ли этого, чтобы понять, о чём решение.',
+  },
+  {
+    id: 'trips-waiting',
+    group: 'trips',
+    label: '34 · Мои объявления: разные состояния',
+    title: 'Собственные объявления с текущими взаимодействиями',
+    description:
+      'Вкладка «Мои объявления» аккаунта, у которого что-то происходит. Она разделена по тому, что человек опубликовал: «Ищу поездку» и «Могу подвезти». Внутри группы карточки идут по важности: «Нужен ваш ответ» ведёт кнопкой «Ответить» к открытому объявлению, где сначала стоит обращение человека с «Подтвердить поездку» / «Отказаться», а ниже отдельно — управление объявлением; «Ждём ответа» и «Активно» просто открываются. Имя на карточке всегда с ролью: «Водитель: Игорь», «Пассажир: Игорь».',
+  },
+  {
+    id: 'trips-upcoming-passenger',
+    group: 'trips',
+    label: '35 · Предстоящая: пассажир',
+    title: 'Подтверждённая поездка глазами пассажира',
+    description:
+      'Открытая поездка из раздела «Предстоящие». Сведения разложены на «Встреча» и «Поездка», контакты — отдельный блок с «Позвонить» главным действием, ниже отдельный блок «Управление поездкой» с «Изменить условия» и «Отменить поездку», а «Пожаловаться» — тихое действие под всем. Объяснений о контактах, о деталях и «Истории поездки» на экране нет.',
+  },
+  {
+    id: 'trips-upcoming-driver',
+    group: 'trips',
+    label: '36 · Предстоящая: водитель',
+    title: 'Одна дата поездки глазами водителя',
+    description:
+      'Та же вкладка, открыта дата водителя. Подтверждённые пассажиры и человек, чьего ответа ждут, разделены и выглядят по-разному: у первых плашка «Подтверждено» и место встречи, у второго — плашка «Ждём ответа» и никакого действия, потому что отвечать должен он. Дата принадлежит регулярной поездке, и экран это называет.',
+  },
+  {
+    id: 'trips-listings',
+    group: 'trips',
+    label: '37 · Мои объявления: без ожидающих действий',
+    title: 'Та же вкладка у аккаунта, где ничего не ждёт решения',
+    description:
+      'Фикстура проверки, а не фильтр продукта: та же вкладка «Мои объявления», только у этого аккаунта нет ни ожидающих ответов, ни отправленных обращений — опубликованные просьба, разовое предложение и регулярная поездка в тех же двух группах. Карточка называет, что это, и открывается; условия, даты и управление объявлением живут внутри.',
+  },
+  {
+    id: 'trips-history',
+    group: 'trips',
+    label: '38 · История',
+    title: 'Завершённая, отменённая и истёкшая поездки',
+    description:
+      'Три закрытых записи разных видов, три разных плашки и вопрос «Поездка состоялась?» — только на завершённой поездке и только потому, что время уже прошло (IA §16.4). У истёкшей просьбы сказано, чем всё кончилось: договориться не удалось. Здесь же виден второй храм, поэтому строки называют храм полностью.',
+  },
+  {
+    id: 'trips-empty',
+    group: 'trips',
+    label: '39 · Пустые состояния',
+    title: 'Совсем пустой раздел и пустой выбранный раздел',
+    description:
+      'Оба случая IA §16.1 в одном состоянии. Переключатель над экраном выбирает между совсем пустым разделом и случаем, когда данные есть в других разделах: во втором случае вкладки переключаются, и все четыре текста читаются подряд. Действие осталось только у совсем пустого раздела: у пустого раздела навигация — это сами вкладки.',
+  },
+  {
+    id: 'trips-desktop',
+    group: 'trips',
+    label: '40 · Мои поездки на компьютере',
+    title: 'Та же поездка в раскладке компьютера: список слева, подробности справа',
+    description:
+      'Одно представительное состояние для компьютера, а не повтор всех мобильных: утверждённая композиция IA §29.3 — разделы и список слева, выбранная поездка справа. Иерархия та же, что на телефоне: короткие карточки, группы объявлений по тому, что опубликовано, смысловые группы внутри открытой поездки, никаких повторов состояния. Шапки сайта в этой рамке нет: в группу 5 она не входит.',
   },
 ];
 
@@ -3243,6 +3325,1117 @@ function RideMapScreen({ seed, filter, onFilterChange, onBack, textZoom }: {
   return <PhoneFrame label="Карта поездок группы" textZoom={textZoom}>{map}</PhoneFrame>;
 }
 
+/* --------------------------------------- group 5: one interactive «Мои поездки» (IA §16) */
+
+/**
+ * The wording of «Мои поездки» after the owner reviews of 4, 5 and 18 September 2026.
+ *
+ * The first review replaced repetition with the event; the second removed the event too, because
+ * inside «Требуют ответа» every card needs an answer by definition, and re-cut «Мои объявления» by
+ * what the person published. The third review made the remaining words unambiguous: a name is
+ * never bare («Водитель: Алексей»), the two groups are named the way the person thinks of them
+ * («Ищу поездку», «Могу подвезти»), the state that needs the person says so («Нужен ваш ответ»)
+ * and leads to «Ответить», and the confirmed trip separates calling the driver from managing the
+ * trip.
+ *
+ * The owner approved the group on 18 September 2026 after that third review.
+ */
+const tripsCopy = {
+  title: 'Мои поездки',
+  tabNeeds: 'Требуют ответа',
+  tabUpcoming: 'Предстоящие',
+  /** Renamed on 4 September 2026: inside «Мои поездки» these are the person's own listings. */
+  tabListings: 'Мои объявления',
+  tabHistory: 'История',
+
+  roleDriver: 'Вы водитель',
+  rolePassenger: 'Вы пассажир',
+
+  /*
+   * Status plates (3.3). Inside «Требуют ответа» there is none at all: the open tab already says
+   * that every card there waits for the person. In «Мои объявления» the plate is the whole state —
+   * the card body describes the listing, not the workflow around it.
+   */
+  badgeNeedsAnswer: 'Нужен ваш ответ',
+  badgeWaiting: 'Ждём ответа',
+  badgeActive: 'Активно',
+  badgeConfirmed: 'Подтверждено',
+  badgeChangePending: 'Ожидает подтверждения изменений',
+  badgeCancelled: 'Отменено',
+  badgeExpired: 'Время прошло',
+  badgeCompleted: 'Завершено',
+
+  reminder: 'Поездка завтра',
+  open: 'Открыть',
+  /** The list action of a listing that needs the person: it leads to the answer, not just inside. */
+  answer: 'Ответить',
+  backToTrips: 'Мои поездки',
+
+  /** Two kinds of own listing, named the way the person thinks of them. */
+  groupRequests: 'Ищу поездку',
+  groupOffers: 'Могу подвезти',
+
+  /* Responses (4.7.1). */
+  accept: 'Подтвердить поездку',
+  decline: 'Отказаться',
+  partialSummary: 'Водитель предлагает 1 место из 2. Остальным нужно будет найти другую машину.',
+  expiredRequest: 'До указанного времени договориться о поездке не удалось.',
+
+  /*
+   * Two different things, and the words keep them apart: a published listing is removed from the
+   * board, a person-to-person request or offer is withdrawn from one person.
+   */
+  manageListing: 'Управление объявлением',
+  editListing: 'Изменить объявление',
+  removeListing: 'Снять объявление',
+  withdrawRequest: 'Отозвать просьбу',
+  withdrawOffer: 'Отозвать предложение',
+
+  /* The agreement seen by its participant (4.7.2). */
+  groupMeeting: 'Встреча',
+  groupTrip: 'Поездка',
+  contactsTitle: 'Контакты',
+  contactsCall: 'Позвонить',
+  contactsEmail: 'Написать по email',
+  place: 'Место встречи',
+  manageTrip: 'Управление поездкой',
+  change: 'Изменить условия',
+  cancel: 'Отменить поездку',
+  report: 'Пожаловаться',
+  returnNeeded: 'Нужна поездка обратно',
+
+  /*
+   * A proposed change to a confirmed trip. The read projection stores `change_pending` but cannot
+   * say which participant has to answer, so the wording stays neutral and the card stays out of
+   * «Требуют ответа» (4.7.3 has both `change.pending.mine` and `change.pending.theirs`; neither may
+   * be shown on this data). Unchanged by all three reviews on purpose.
+   */
+  changeProposed: 'Условия поездки предложено изменить. Откройте поездку, чтобы посмотреть.',
+
+  /* Cancellation and the outcome question (4.7.4, 4.7.5). */
+  cancelledByDriver: 'Водитель отменил поездку',
+  findAnother: 'Найти другую поездку',
+  outcomeQuestion: 'Поездка состоялась?',
+  outcomeYes: 'Да',
+  outcomeNo: 'Нет',
+  outcomeHint: 'Отвечать не обязательно, но так вы поможете работе сервиса.',
+
+  /* A regular driver trip and its dates (IA §16.2, 3.4: no «серия» in the interface). */
+  seriesTitle: 'Регулярная поездка',
+  seriesDatesTitle: 'Даты поездки',
+  seriesRule: 'Каждая дата остаётся отдельной поездкой с отдельными местами.',
+  passengersTitle: 'Пассажиры',
+  pendingTitle: 'Ждут ответа',
+
+  /*
+   * Empty states. The completely empty account keeps its action; a single empty section does not
+   * get one — the tabs are the navigation, and four different call-to-actions only added noise
+   * (owner decision of 4 September 2026, replacing the earlier rule of `IA §16.1`).
+   */
+  emptyAllTitle: 'Здесь появятся ваши поездки',
+  emptyAllBody: 'Найдите храм, чтобы попросить подвезти или предложить место в машине.',
+  emptyAllAction: 'Найти храм',
+  emptyNeeds: 'Сейчас нет поездок, которые требуют вашего ответа.',
+  emptyUpcoming: 'У вас нет предстоящих договорённостей',
+  emptyListings: 'У вас нет активных просьб и предложений',
+  emptyHistory: 'Завершённых и отменённых поездок пока нет',
+} as const;
+
+const confirmedPassengersPlural = {
+  one: 'подтверждённый пассажир',
+  few: 'подтверждённых пассажира',
+  many: 'подтверждённых пассажиров',
+};
+const remainingPeoplePlural = { one: 'человеку', few: 'людям', many: 'людям' };
+const nextDatesPlural = { one: 'ближайшая дата', few: 'ближайшие даты', many: 'ближайших дат' };
+
+const confirmedPassengers = (count: number) => pluralRu(count, confirmedPassengersPlural);
+/** `IA §16.3`: a partial group still says how many people are left without a car. */
+const remainingGroup = (count: number) => `Ещё ${pluralRu(count, remainingPeoplePlural)} нужно место`;
+const nextDates = (count: number) => pluralRu(count, nextDatesPlural);
+const seriesPeriod = (days: string, until: string) => `${days} · до ${until}`;
+/** A name is never bare on a card: the role of the other person always comes with it. */
+const driverNamed = (name: string) => `Водитель: ${name}`;
+const passengerNamed = (name: string) => `Пассажир: ${name}`;
+
+type TripsTab = 'needs' | 'upcoming' | 'listings' | 'history';
+
+const tripsTabOrder: ReadonlyArray<TripsTab> = ['needs', 'upcoming', 'listings', 'history'];
+
+const tripsTabLabel: Record<TripsTab, string> = {
+  needs: tripsCopy.tabNeeds,
+  upcoming: tripsCopy.tabUpcoming,
+  listings: tripsCopy.tabListings,
+  history: tripsCopy.tabHistory,
+};
+
+const tripsEmptyText: Record<TripsTab, string> = {
+  needs: tripsCopy.emptyNeeds,
+  upcoming: tripsCopy.emptyUpcoming,
+  listings: tripsCopy.emptyListings,
+  history: tripsCopy.emptyHistory,
+};
+
+/**
+ * Status tones. Every plate keeps its own words, so colour is only the second sign (`IA §28.1`,
+ * `DS §6`, `§11`); the tones exist so that one glance separates what needs the person from what is
+ * merely running. Every value comes from the token table of `DS §3.1`.
+ */
+type TripTone =
+  | 'confirmed'
+  | 'completed'
+  | 'attention'
+  | 'waiting'
+  | 'neutral'
+  | 'cancelled'
+  | 'expired';
+type TripRole = 'driver' | 'passenger';
+type TripAction = { text: string; variant: 'primary' | 'secondary' | 'quiet' };
+
+/** A row inside an opened trip: one date of a regular trip, one passenger, one awaited answer. */
+type TripRow = {
+  id: string;
+  title: string;
+  badge?: string;
+  tone?: TripTone;
+  facts?: ReadonlyArray<string>;
+  /** Only a confirmed participant sees a contact or an exact place (`IA §6.5`, `§16.5`). */
+  contact?: string;
+  note?: string;
+  kind?: 'confirmed' | 'pending';
+};
+
+type TripContact = {
+  who: string;
+  phone: string;
+  email?: string;
+};
+
+/** One titled group of the opened trip: «Встреча», «Поездка». */
+type TripGroup = { title: string; items: ReadonlyArray<string> };
+
+/**
+ * The one interaction that waits for the person inside their own listing. It is shown first and
+ * answered here, with the same two actions as in «Требуют ответа»; managing the listing itself is a
+ * separate block below it.
+ */
+type TripIncoming = {
+  person: string;
+  facts?: ReadonlyArray<string>;
+  sentence?: string;
+};
+
+/**
+ * What an opened trip or listing shows. Contacts and an exact place exist only inside a confirmed
+ * trip: the projection behind the section does not return them for the list either.
+ */
+type TripDetail = {
+  incoming?: TripIncoming;
+  subtitle?: string;
+  groups?: ReadonlyArray<TripGroup>;
+  rowsTitle?: string;
+  rows?: ReadonlyArray<TripRow>;
+  rowsNote?: string;
+  pendingTitle?: string;
+  pending?: ReadonlyArray<TripRow>;
+  contacts?: ReadonlyArray<TripContact>;
+  /** Managing the thing itself — the trip or the listing — kept apart from contacting a person. */
+  management: { title?: string; actions: ReadonlyArray<TripAction> };
+  /** A quiet text action under everything; never a button of the management block. */
+  report?: boolean;
+};
+
+type TripItem = {
+  id: string;
+  tab: TripsTab;
+  /**
+   * Inside «Мои объявления»: how much the listing needs the person right now. It orders the cards
+   * of a group, chooses the plate and decides whether the card leads to an answer or just opens.
+   */
+  priority?: 'needs' | 'waiting' | 'active';
+  /**
+   * Which listings fixture shows this item. States 34 and 37 are the same tab with different data:
+   * one account has interactions running, the other has nothing waiting. Neither is a product
+   * filter.
+   */
+  fixture?: 'interactions' | 'plain';
+  role: TripRole;
+  badge?: string;
+  tone?: TripTone;
+  /** The one human sentence a card may carry: a reminder, or how a closed trip ended. */
+  line?: string;
+  /** A whole sentence under the facts: a partial offer, a closed listing, a proposed change. */
+  sentence?: string;
+  service: string;
+  church: string;
+  locality: string;
+  /** Always with the role: «Водитель: Алексей», never a bare name. */
+  person?: string;
+  /** One compact line on the card. Everything else waits inside the opened trip. */
+  facts?: ReadonlyArray<string>;
+  actions?: ReadonlyArray<TripAction>;
+  outcome?: boolean;
+  detail?: TripDetail;
+};
+
+const pokrov = 'Покров Пресвятой Богородицы';
+const george = 'Храм великомученика Георгия';
+
+const respond: ReadonlyArray<TripAction> = [
+  { text: tripsCopy.accept, variant: 'primary' },
+  { text: tripsCopy.decline, variant: 'secondary' },
+];
+
+/** The confirmed trip is managed apart from contacting the person; the complaint stays quiet. */
+const tripManagement: TripDetail['management'] = {
+  title: tripsCopy.manageTrip,
+  actions: [
+    { text: tripsCopy.change, variant: 'secondary' },
+    { text: tripsCopy.cancel, variant: 'secondary' },
+  ],
+};
+
+/** The person's own published listing: it is edited or taken off the board, never «отозвано». */
+const listingManagement: TripDetail['management'] = {
+  title: tripsCopy.manageListing,
+  actions: [
+    { text: tripsCopy.editListing, variant: 'secondary' },
+    { text: tripsCopy.removeListing, variant: 'quiet' },
+  ],
+};
+
+/**
+ * Content fixtures shaped after the four sections the read projection actually returns: a response
+ * awaiting the person, a driver date aggregating its answers, confirmed agreements, own listings,
+ * a regular driver trip with its dates, and closed items. Names, dates and counts are sample
+ * content, not copy under review.
+ */
+const tripItems: ReadonlyArray<TripItem> = [
+  /*
+   * «Требуют ответа». No plate and no sentence about a required answer: the open tab is the state,
+   * and the card only shows what the decision is about.
+   */
+  {
+    id: 'needs-passenger',
+    tab: 'needs',
+    role: 'passenger',
+    service: 'Божественная литургия · 23 августа, 9:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    person: driverNamed('Алексей'),
+    facts: [copy.boardReturnOffered],
+    sentence: tripsCopy.partialSummary,
+    actions: respond,
+  },
+  {
+    id: 'needs-driver',
+    tab: 'needs',
+    role: 'driver',
+    service: 'Божественная литургия · 23 августа, 9:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    person: passengerNamed('Мария'),
+    facts: [`${pluralRu(2, passengersPlural)}, ${childrenOfThem(1)}`, copy.boardChildSeatNeeded],
+    actions: respond,
+  },
+
+  {
+    id: 'upcoming-passenger',
+    tab: 'upcoming',
+    role: 'passenger',
+    badge: tripsCopy.badgeConfirmed,
+    tone: 'confirmed',
+    line: tripsCopy.reminder,
+    service: 'Божественная литургия · 23 августа, 9:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    person: driverNamed('Алексей'),
+    facts: [confirmedPassengers(2)],
+    detail: {
+      groups: [
+        {
+          title: tripsCopy.groupMeeting,
+          items: ['Catanzaro Lido, у входа в библиотеку', '23 августа, 8:00'],
+        },
+        {
+          title: tripsCopy.groupTrip,
+          items: [confirmedPassengers(2), remainingGroup(1), tripsCopy.returnNeeded],
+        },
+      ],
+      contacts: [{ who: driverNamed('Алексей'), phone: '+39 000 000 00 00', email: 'alexey@example.invalid' }],
+      management: tripManagement,
+      report: true,
+    },
+  },
+  {
+    id: 'upcoming-driver',
+    tab: 'upcoming',
+    role: 'driver',
+    badge: tripsCopy.badgeConfirmed,
+    tone: 'confirmed',
+    service: 'Божественная литургия · 30 августа, 9:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    facts: [seatsTaken(3, 4)],
+    detail: {
+      subtitle: 'Дата регулярной поездки',
+      groups: [
+        {
+          title: tripsCopy.groupTrip,
+          items: ['30 августа, 8:00', seatsTaken(3, 4), pluralRu(1, seatsFreePlural)],
+        },
+      ],
+      rowsTitle: tripsCopy.passengersTitle,
+      rows: [
+        {
+          id: 'maria',
+          title: 'Мария',
+          kind: 'confirmed',
+          badge: tripsCopy.badgeConfirmed,
+          tone: 'confirmed',
+          facts: [`${pluralRu(2, passengersPlural)}, ${childrenOfThem(1)}`, copy.boardChildSeatNeeded],
+          note: `${tripsCopy.place}: Catanzaro, площадь Матеотти`,
+          contact: '+39 000 000 00 01',
+        },
+        {
+          id: 'olga',
+          title: 'Ольга',
+          kind: 'confirmed',
+          badge: tripsCopy.badgeConfirmed,
+          tone: 'confirmed',
+          facts: [pluralRu(1, passengersPlural)],
+          note: `${tripsCopy.place}: Soverato, у почты`,
+          contact: '+39 000 000 00 02',
+        },
+      ],
+      pendingTitle: tripsCopy.pendingTitle,
+      pending: [
+        {
+          id: 'igor',
+          title: passengerNamed('Игорь'),
+          kind: 'pending',
+          /* The answer is his, not the driver's: the plate says so and no action is offered. */
+          badge: tripsCopy.badgeWaiting,
+          tone: 'waiting',
+          facts: [pluralRu(1, passengersPlural)],
+        },
+      ],
+      management: tripManagement,
+      report: true,
+    },
+  },
+  {
+    id: 'upcoming-change',
+    tab: 'upcoming',
+    role: 'passenger',
+    badge: tripsCopy.badgeChangePending,
+    tone: 'attention',
+    service: 'Всенощное бдение · 29 августа, 18:00',
+    church: george,
+    locality: 'Crotone',
+    person: driverNamed('Игорь'),
+    sentence: tripsCopy.changeProposed,
+  },
+
+  /* «Мои объявления», the account with interactions running (review state 34). */
+  {
+    id: 'listing-responses',
+    tab: 'listings',
+    priority: 'needs',
+    fixture: 'interactions',
+    role: 'passenger',
+    badge: tripsCopy.badgeNeedsAnswer,
+    tone: 'attention',
+    service: 'Божественная литургия · 23 августа, 9:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    facts: [`${pluralRu(2, passengersPlural)}, ${childrenOfThem(1)}`],
+    detail: {
+      /* The same offer the person sees in «Требуют ответа», answered from inside the listing too. */
+      incoming: {
+        person: driverNamed('Алексей'),
+        facts: [copy.boardReturnOffered],
+        sentence: tripsCopy.partialSummary,
+      },
+      groups: [
+        {
+          title: tripsCopy.groupTrip,
+          items: [
+            `${pluralRu(2, passengersPlural)}, ${childrenOfThem(1)}`,
+            copy.boardChildSeatNeeded,
+            tripsCopy.returnNeeded,
+          ],
+        },
+      ],
+      management: listingManagement,
+    },
+  },
+  {
+    id: 'listing-waiting',
+    tab: 'listings',
+    priority: 'waiting',
+    fixture: 'interactions',
+    role: 'passenger',
+    badge: tripsCopy.badgeWaiting,
+    tone: 'waiting',
+    service: 'Всенощное бдение · 5 сентября, 18:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    person: driverNamed('Игорь'),
+    facts: [pluralRu(1, passengersPlural)],
+    detail: {
+      groups: [{ title: tripsCopy.groupTrip, items: [pluralRu(1, passengersPlural)] }],
+      /* One person-to-person request: it is withdrawn from that person, not taken off the board. */
+      management: { actions: [{ text: tripsCopy.withdrawRequest, variant: 'quiet' }] },
+    },
+  },
+  {
+    id: 'listing-quiet',
+    tab: 'listings',
+    priority: 'active',
+    fixture: 'interactions',
+    role: 'passenger',
+    badge: tripsCopy.badgeActive,
+    tone: 'neutral',
+    service: 'Божественная литургия · 13 сентября, 9:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    facts: [pluralRu(1, passengersPlural)],
+    detail: {
+      groups: [{ title: tripsCopy.groupTrip, items: [pluralRu(1, passengersPlural), copy.boardReturnNotNeeded] }],
+      management: listingManagement,
+    },
+  },
+  {
+    id: 'listing-offer-responses',
+    tab: 'listings',
+    priority: 'needs',
+    fixture: 'interactions',
+    role: 'driver',
+    badge: tripsCopy.badgeNeedsAnswer,
+    tone: 'attention',
+    service: 'Всенощное бдение · 30 августа, 18:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    facts: [pluralRu(1, seatsFreePlural)],
+    detail: {
+      incoming: {
+        person: passengerNamed('Мария'),
+        facts: [`${pluralRu(2, passengersPlural)}, ${childrenOfThem(1)}`, copy.boardChildSeatNeeded],
+      },
+      groups: [
+        {
+          title: tripsCopy.groupTrip,
+          items: [pluralRu(1, seatsFreePlural), copy.boardChildSeatProvided, copy.boardReturnOffered],
+        },
+      ],
+      management: listingManagement,
+    },
+  },
+  {
+    id: 'listing-offered',
+    tab: 'listings',
+    priority: 'waiting',
+    fixture: 'interactions',
+    role: 'driver',
+    badge: tripsCopy.badgeWaiting,
+    tone: 'waiting',
+    service: 'Божественная литургия · 6 сентября, 9:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    person: passengerNamed('Игорь'),
+    facts: [pluralRu(2, seatsFreePlural)],
+    detail: {
+      groups: [{ title: tripsCopy.groupTrip, items: [pluralRu(2, seatsFreePlural)] }],
+      management: { actions: [{ text: tripsCopy.withdrawOffer, variant: 'quiet' }] },
+    },
+  },
+
+  /* «Мои объявления», the account with nothing waiting (review state 37). Not a product filter. */
+  {
+    id: 'listing-request',
+    tab: 'listings',
+    priority: 'active',
+    fixture: 'plain',
+    role: 'passenger',
+    badge: tripsCopy.badgeActive,
+    tone: 'neutral',
+    service: 'Божественная литургия · 6 сентября, 9:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    facts: [`${pluralRu(2, passengersPlural)}, ${childrenOfThem(1)}`],
+    detail: {
+      groups: [
+        {
+          title: tripsCopy.groupTrip,
+          items: [
+            `${pluralRu(2, passengersPlural)}, ${childrenOfThem(1)}`,
+            copy.boardChildSeatNeeded,
+            tripsCopy.returnNeeded,
+          ],
+        },
+      ],
+      management: listingManagement,
+    },
+  },
+  {
+    id: 'listing-offer',
+    tab: 'listings',
+    priority: 'active',
+    fixture: 'plain',
+    role: 'driver',
+    badge: tripsCopy.badgeActive,
+    tone: 'neutral',
+    service: 'Всенощное бдение · 5 сентября, 18:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    facts: [pluralRu(3, seatsFreePlural)],
+    detail: {
+      groups: [
+        {
+          title: tripsCopy.groupTrip,
+          items: [pluralRu(3, seatsFreePlural), copy.boardChildSeatProvided, copy.boardReturnOffered],
+        },
+      ],
+      management: listingManagement,
+    },
+  },
+  {
+    id: 'listing-series',
+    tab: 'listings',
+    priority: 'active',
+    fixture: 'plain',
+    role: 'driver',
+    badge: tripsCopy.badgeActive,
+    tone: 'neutral',
+    service: `${tripsCopy.seriesTitle} · Божественная литургия, 9:00`,
+    church: pokrov,
+    locality: 'Catanzaro',
+    /* The card names the rhythm and how many dates; the dates themselves wait inside. */
+    facts: [seriesPeriod('По воскресеньям', '13 сентября'), nextDates(3)],
+    detail: {
+      rowsTitle: tripsCopy.seriesDatesTitle,
+      rowsNote: tripsCopy.seriesRule,
+      rows: [
+        {
+          id: 'series-30',
+          title: '30 августа',
+          badge: tripsCopy.badgeConfirmed,
+          tone: 'confirmed',
+          facts: [seatsTaken(3, 4), pluralRu(1, seatsFreePlural)],
+        },
+        {
+          id: 'series-06',
+          title: '6 сентября',
+          badge: tripsCopy.badgeActive,
+          tone: 'neutral',
+          facts: [pluralRu(4, seatsFreePlural)],
+        },
+        {
+          id: 'series-13',
+          title: '13 сентября',
+          badge: tripsCopy.badgeActive,
+          tone: 'neutral',
+          facts: [pluralRu(4, seatsFreePlural)],
+        },
+      ],
+      management: listingManagement,
+    },
+  },
+
+  {
+    id: 'history-completed',
+    tab: 'history',
+    role: 'passenger',
+    badge: tripsCopy.badgeCompleted,
+    tone: 'completed',
+    service: 'Божественная литургия · 16 августа, 9:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    person: driverNamed('Алексей'),
+    facts: [confirmedPassengers(2)],
+    outcome: true,
+  },
+  {
+    id: 'history-cancelled',
+    tab: 'history',
+    role: 'passenger',
+    badge: tripsCopy.badgeCancelled,
+    tone: 'cancelled',
+    line: tripsCopy.cancelledByDriver,
+    service: 'Всенощное бдение · 15 августа, 18:00',
+    church: george,
+    locality: 'Crotone',
+    person: driverNamed('Игорь'),
+    facts: [pluralRu(1, passengersPlural)],
+    actions: [{ text: tripsCopy.findAnother, variant: 'secondary' }],
+  },
+  {
+    id: 'history-expired',
+    tab: 'history',
+    role: 'passenger',
+    badge: tripsCopy.badgeExpired,
+    tone: 'expired',
+    service: 'Божественная литургия · 9 августа, 9:00',
+    church: pokrov,
+    locality: 'Catanzaro',
+    facts: [pluralRu(1, passengersPlural)],
+    sentence: tripsCopy.expiredRequest,
+  },
+];
+
+const roleLabel: Record<TripRole, string> = {
+  driver: tripsCopy.roleDriver,
+  passenger: tripsCopy.rolePassenger,
+};
+
+const actionClass: Record<TripAction['variant'], string> = {
+  primary: styles.primaryButton,
+  secondary: styles.secondaryButton,
+  quiet: styles.quietButton,
+};
+
+/** Inside one group: first what needs the person, then what waits, then what merely runs. */
+const priorityRank: Record<NonNullable<TripItem['priority']>, number> = {
+  needs: 0,
+  waiting: 1,
+  active: 2,
+};
+
+function TripBadge({ text, tone }: { text: string; tone: TripTone }) {
+  return <span className={styles.tripBadge} data-tone={tone}>{text}</span>;
+}
+
+function TripActions({ actions }: { actions: ReadonlyArray<TripAction> }) {
+  return (
+    <div className={styles.tripActions}>
+      {actions.map((action) => (
+        <button key={action.text} type="button" className={actionClass[action.variant]}>
+          {action.text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TripFacts({ facts }: { facts: ReadonlyArray<string> }) {
+  return (
+    <p className={styles.rideFacts} data-trip-facts>
+      {facts.map((fact) => <span key={fact}>{fact}</span>)}
+    </p>
+  );
+}
+
+/** Titled groups of an opened trip, so the facts stop being one continuous column. */
+function TripGroups({ groups }: { groups: ReadonlyArray<TripGroup> }) {
+  return (
+    <>
+      {groups.map((group) => (
+        <section key={group.title} className={styles.tripGroup} data-trip-group={group.title}>
+          <h4 className={styles.micro}>{group.title}</h4>
+          <TripFacts facts={group.items} />
+        </section>
+      ))}
+    </>
+  );
+}
+
+function TripRows({ title, note, rows }: {
+  title: string;
+  note?: string;
+  rows: ReadonlyArray<TripRow>;
+}) {
+  return (
+    <section className={styles.tripRows} data-trip-rows={title}>
+      <h4 className={styles.micro}>{title}</h4>
+      {note && <p className={styles.secondary}>{note}</p>}
+      <ul>
+        {rows.map((row) => (
+          <li key={row.id} data-trip-row={row.id} data-row-kind={row.kind}>
+            <div className={styles.tripRowHead}>
+              <strong>{row.title}</strong>
+              {row.badge && <TripBadge text={row.badge} tone={row.tone ?? 'neutral'} />}
+            </div>
+            {row.facts && <TripFacts facts={row.facts} />}
+            {row.note && <p className={styles.secondary}>{row.note}</p>}
+            {row.contact && <p className={styles.data}>{row.contact}</p>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * The outcome question of `IA §16.4`. It only ever stands on a trip whose time has passed, and it
+ * asks once; the completion workflow behind it is not part of this group.
+ */
+function TripOutcome() {
+  return (
+    <section className={styles.tripOutcome} data-trip-outcome>
+      <p className={styles.cardTitle}>{tripsCopy.outcomeQuestion}</p>
+      <div className={styles.tripActions}>
+        <button type="button" className={styles.secondaryButton}>{tripsCopy.outcomeYes}</button>
+        <button type="button" className={styles.secondaryButton}>{tripsCopy.outcomeNo}</button>
+      </div>
+      <p className={styles.secondary}>{tripsCopy.outcomeHint}</p>
+    </section>
+  );
+}
+
+/**
+ * One card of the list. It describes the thing — the trip or the listing — and carries its state as
+ * a plate; the workflow around it is not narrated in the body. It never names a contact or an exact
+ * place: the projection behind the section does not return them.
+ */
+function TripCard({ item, context, selected, onOpen }: {
+  item: TripItem;
+  /**
+   * `IA §16`: while every row of the list belongs to one church, the repeated church name is not
+   * shown and only the distinguishing context stays.
+   */
+  context: string;
+  selected?: boolean;
+  onOpen?: () => void;
+}) {
+  /* A listing that needs the person leads to the answer; every other one just opens. */
+  const openLabel = item.priority === 'needs' ? tripsCopy.answer : tripsCopy.open;
+
+  return (
+    <article
+      className={styles.card}
+      data-trip-card={item.id}
+      data-trip-role={item.role}
+      data-trip-priority={item.priority}
+      data-trip-selected={selected ? 'yes' : undefined}
+    >
+      <div className={styles.tripHead}>
+        <span className={styles.typeTag} data-role={item.role}>{roleLabel[item.role]}</span>
+        {item.badge && <TripBadge text={item.badge} tone={item.tone ?? 'neutral'} />}
+      </div>
+      <h3 className={styles.cardTitle}>{item.service}</h3>
+      <p className={styles.secondary}>{context}</p>
+      {item.line && <p className={styles.tripLine} data-trip-line>{item.line}</p>}
+      {item.person && <p className={styles.personLine}>{item.person}</p>}
+      {item.facts && <TripFacts facts={item.facts} />}
+      {item.sentence && <p className={styles.data} data-trip-sentence>{item.sentence}</p>}
+      {item.outcome && <TripOutcome />}
+      {(item.actions || onOpen) && (
+        <div className={styles.tripActions}>
+          {item.actions?.map((action) => (
+            <button key={action.text} type="button" className={actionClass[action.variant]}>
+              {action.text}
+            </button>
+          ))}
+          {onOpen && (
+            /* The label repeats on every card, so the trip is named for assistive technology. */
+            <button
+              type="button"
+              className={item.priority === 'needs' ? styles.primaryButton : styles.secondaryButton}
+              aria-label={`${openLabel}: ${item.service}`}
+              onClick={onOpen}
+            >
+              {openLabel}
+            </button>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+/**
+ * An opened trip or listing (`IA §13.2`, `§16.2`, `§16.3`). Contacts and an exact meeting place
+ * appear only inside a confirmed trip, and only because it is confirmed: cancelling closes them the
+ * same moment (`IA §6.5`, `§14.1`).
+ */
+function TripDetailView({ item }: { item: TripItem }) {
+  const detail = item.detail;
+  if (!detail) return null;
+
+  return (
+    <article className={`${styles.card} ${styles.tripDetail}`} data-trip-detail={item.id}>
+      <div className={styles.tripHead}>
+        <span className={styles.typeTag} data-role={item.role}>{roleLabel[item.role]}</span>
+        {item.badge && <TripBadge text={item.badge} tone={item.tone ?? 'neutral'} />}
+      </div>
+      <h3 className={styles.sectionTitle}>{item.service}</h3>
+      <p className={styles.secondary}>{`${item.church} · ${item.locality}`}</p>
+      {detail.subtitle && <p className={styles.secondary}>{detail.subtitle}</p>}
+      {detail.incoming && (
+        /*
+         * The interaction that waits for the person comes first and is answered here — the same
+         * two actions as in «Требуют ответа». It is a person, so it is answered; the listing below
+         * is a thing, so it is managed.
+         */
+        <section className={styles.tripIncoming} data-trip-incoming>
+          <p className={styles.personLine}>{detail.incoming.person}</p>
+          {detail.incoming.facts && <TripFacts facts={detail.incoming.facts} />}
+          {detail.incoming.sentence && <p className={styles.data}>{detail.incoming.sentence}</p>}
+          <TripActions actions={respond} />
+        </section>
+      )}
+      {detail.groups && <TripGroups groups={detail.groups} />}
+      {detail.rows && (
+        <TripRows
+          title={detail.rowsTitle ?? tripsCopy.passengersTitle}
+          note={detail.rowsNote}
+          rows={detail.rows}
+        />
+      )}
+      {detail.pending && (
+        <TripRows title={detail.pendingTitle ?? tripsCopy.pendingTitle} rows={detail.pending} />
+      )}
+      {detail.contacts && (
+        <section className={styles.tripContacts} data-trip-contacts>
+          <h4 className={styles.micro}>{tripsCopy.contactsTitle}</h4>
+          {detail.contacts.map((contact) => (
+            <div key={contact.who}>
+              <p className={styles.personLine}>{contact.who}</p>
+              <p className={styles.data}>
+                {contact.email ? `${contact.phone} · ${contact.email}` : contact.phone}
+              </p>
+              {/*
+               * Calling the person you have already agreed with is the likeliest next thing on this
+               * screen, so it is the one accent action of the trip (DS §5).
+               */}
+              <div className={styles.tripActions}>
+                <button type="button" className={styles.primaryButton}>{tripsCopy.contactsCall}</button>
+                {contact.email && (
+                  <button type="button" className={styles.secondaryButton}>{tripsCopy.contactsEmail}</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+      {/* Managing the thing is kept apart from contacting or answering a person. */}
+      <section className={styles.tripManagement} data-trip-management>
+        {detail.management.title && <h4 className={styles.micro}>{detail.management.title}</h4>}
+        <TripActions actions={detail.management.actions} />
+      </section>
+      {detail.report && (
+        <div className={styles.tripActions}>
+          <button type="button" className={styles.quietButton}>{tripsCopy.report}</button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+/**
+ * `IA §16.1`. The completely empty account keeps one action; a single empty section only says what
+ * belongs there — the tabs above are already the way out (owner decision of 4 September 2026).
+ */
+function TripsEmpty({ tab, all }: { tab: TripsTab; all: boolean }) {
+  if (all) {
+    return (
+      <div className={styles.emptyState} data-trips-empty="all">
+        <h3 className={styles.cardTitle}>{tripsCopy.emptyAllTitle}</h3>
+        <p className={styles.secondary}>{tripsCopy.emptyAllBody}</p>
+        <div className={styles.tripActions}>
+          <button type="button" className={styles.primaryButton}>{tripsCopy.emptyAllAction}</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.emptyState} data-trips-empty={tab}>
+      <p>{tripsEmptyText[tab]}</p>
+    </div>
+  );
+}
+
+type TripsSeed = {
+  tab: TripsTab;
+  /** Opens one trip instead of the list; the desktop state shows both at once. */
+  open?: string;
+  /** Which «Мои объявления» account this state shows. A review fixture, not a product filter. */
+  fixture?: 'interactions' | 'plain';
+  desktop?: boolean;
+  /** The empty review state: `all` starts on the completely empty account. */
+  empty?: 'all' | 'section';
+};
+
+const tripsSeeds: Partial<Record<SampleId, TripsSeed>> = {
+  'trips-needs-passenger': { tab: 'needs' },
+  'trips-needs-driver': { tab: 'needs' },
+  'trips-waiting': { tab: 'listings', fixture: 'interactions' },
+  'trips-upcoming-passenger': { tab: 'upcoming', open: 'upcoming-passenger' },
+  'trips-upcoming-driver': { tab: 'upcoming', open: 'upcoming-driver' },
+  'trips-listings': { tab: 'listings', fixture: 'plain' },
+  'trips-history': { tab: 'history' },
+  'trips-empty': { tab: 'needs', empty: 'all' },
+  'trips-desktop': { tab: 'upcoming', open: 'upcoming-passenger', desktop: true },
+};
+
+/**
+ * One «Мои поездки» for every review state. The states differ only in the tab they open on, in
+ * which listings account they show, in whether a trip is open and in whether the account has
+ * anything at all, so a correction to a card reaches every state that shows it. There is no role
+ * switch: one section serves both roles (`IA §16`), and the card says which role the person is in.
+ */
+function MyTripsScreen({ seed, textZoom }: { seed: TripsSeed; textZoom: boolean }) {
+  const [tab, setTab] = useState<TripsTab>(seed.tab);
+  const [open, setOpen] = useState<string | null>(seed.open ?? null);
+  const [emptyAll, setEmptyAll] = useState(seed.empty === 'all');
+  const desktop = seed.desktop === true;
+  const reviewingEmpty = seed.empty !== undefined;
+  const fixture = seed.fixture ?? 'plain';
+
+  /*
+   * The empty review state carries both cases of `IA §16.1` in one screen: either the account has
+   * nothing at all, or the other sections have data and only the selected one is empty. The second
+   * case is walked by switching tabs, so all four texts are reachable without four screens.
+   */
+  const account = tripItems.filter((item) => item.fixture === undefined || item.fixture === fixture);
+  const pool = reviewingEmpty
+    ? (emptyAll ? [] : account.filter((item) => item.tab !== tab))
+    : account;
+
+  const visible = pool.filter((item) => item.tab === tab);
+  const opened = visible.find((item) => item.id === open && item.detail) ?? null;
+  const needsCount = pool.filter((item) => item.tab === 'needs').length;
+
+  /* `IA §16`: one church across the whole list leaves only the distinguishing context on the rows. */
+  const oneChurch = visible.length > 0 && visible.every((item) => item.church === visible[0].church);
+  const context = (item: TripItem) => (oneChurch ? item.locality : `${item.church} · ${item.locality}`);
+
+  const goTo = (next: TripsTab) => {
+    setTab(next);
+    setOpen(null);
+  };
+
+  const tabs = (
+    <div className={styles.chips} role="tablist" aria-label="Разделы поездок">
+      {tripsTabOrder.map((candidate) => (
+        <button
+          key={candidate}
+          type="button"
+          role="tab"
+          data-trips-tab={candidate}
+          className={candidate === tab ? styles.selectedChip : undefined}
+          aria-selected={candidate === tab}
+          onClick={() => goTo(candidate)}
+        >
+          {tripsTabLabel[candidate]}
+          {candidate === 'needs' && needsCount > 0 && (
+            <span className={styles.tabCount}>{needsCount}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+
+  const card = (item: TripItem) => (
+    <TripCard
+      key={item.id}
+      item={item}
+      context={context(item)}
+      selected={desktop && item.id === opened?.id}
+      onOpen={item.detail && !(desktop && item.id === opened?.id) ? () => setOpen(item.id) : undefined}
+    />
+  );
+
+  /*
+   * Only «Мои объявления» is grouped, and by what the person published: their first question is
+   * whether a card is their own request or their own offer. One account can hold both, and that is
+   * not a mode switch — both groups are on the same screen (`IA §16`). Inside a group the order is
+   * what needs the person, then what waits for the other side, then what merely runs; those three
+   * are the plate on the card, not three more headings.
+   */
+  const grouped = tab === 'listings'
+    ? (['passenger', 'driver'] as const)
+      .map((role) => ({
+        role,
+        title: role === 'passenger' ? tripsCopy.groupRequests : tripsCopy.groupOffers,
+        items: visible
+          .filter((item) => item.role === role)
+          .slice()
+          .sort((a, b) => priorityRank[a.priority ?? 'active'] - priorityRank[b.priority ?? 'active']),
+      }))
+      .filter((group) => group.items.length > 0)
+    : [];
+
+  const list = (
+    <div className={styles.cardList} data-trips-list>
+      {visible.length === 0 ? (
+        <TripsEmpty tab={tab} all={emptyAll} />
+      ) : grouped.length > 0 ? (
+        grouped.map((group) => (
+          <section key={group.role} className={styles.tripSection} data-trips-group={group.role}>
+            <h2 className={styles.groupTitle}>{group.title}</h2>
+            <div className={styles.cardList}>{group.items.map(card)}</div>
+          </section>
+        ))
+      ) : (
+        visible.map(card)
+      )}
+    </div>
+  );
+
+  /* The review-only switch between the two empty cases. It is not part of the product screen. */
+  const emptySwitch = reviewingEmpty ? (
+    <div className={styles.variantSwitch} role="group" aria-label="Какое пустое состояние показать">
+      <button type="button" aria-pressed={emptyAll} onClick={() => setEmptyAll(true)}>
+        Совсем пусто
+      </button>
+      <button type="button" aria-pressed={!emptyAll} onClick={() => setEmptyAll(false)}>
+        Пуст только выбранный раздел
+      </button>
+    </div>
+  ) : null;
+
+  if (desktop) {
+    return (
+      <section
+        className={styles.desktopFrame}
+        role="region"
+        aria-label="Мои поездки на компьютере"
+        data-product-screen
+        data-text-zoom={textZoom ? '200' : undefined}
+      >
+        <main className={`${styles.mobileContent} ${styles.tripsDesktop}`}>
+          <h1 className={styles.pageTitle}>{tripsCopy.title}</h1>
+          {tabs}
+          <div className={styles.tripsGrid}>
+            {list}
+            {opened && <TripDetailView item={opened} />}
+          </div>
+        </main>
+      </section>
+    );
+  }
+
+  return (
+    <div className={styles.tripsStage}>
+      {emptySwitch}
+      <PhoneFrame label="Мои поездки" textZoom={textZoom}>
+        <main className={styles.mobileContent}>
+          {opened ? (
+            <>
+              <div className={styles.tripsBack}>
+                <button type="button" className={styles.quietButton} onClick={() => setOpen(null)}>
+                  {tripsCopy.backToTrips}
+                </button>
+              </div>
+              <TripDetailView item={opened} />
+            </>
+          ) : (
+            <>
+              <h1 className={styles.pageTitle}>{tripsCopy.title}</h1>
+              {tabs}
+              {list}
+            </>
+          )}
+        </main>
+        <MobileNavigation active="Поездки" />
+      </PhoneFrame>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ review-only source key */
 
 /*
@@ -3512,6 +4705,203 @@ const rideMapFilterEmptyRows: ReadonlyArray<StringSource> = [
   { text: rideMapCopy.filterEmptyOffers, mark: 'Утверждено', note: '`ridemap.filter.unavailable.offers`; в этой группе не звучит' },
 ];
 
+/*
+ * Group 5 shares one screen across nine entry points, so the rows below are assembled from the
+ * chrome every state shows plus what the opened section adds. Nothing here is approved: the marks
+ * name where each string comes from, `Проект` means the owner still has to decide it, and
+ * `Решение` marks a text the owner took off the screen on the reviews of 4, 5 and 18 September
+ * 2026, kept in the key so that it does not come back; every live string carries `Утверждено`.
+ */
+
+const tripsChromeRows: ReadonlyArray<StringSource> = [
+  { text: tripsCopy.title, mark: 'IA', note: 'IA §16, §7.2; один раздел для обеих ролей' },
+  { text: tripsCopy.tabNeeds, mark: 'IA', note: 'IA §16; открывается первой, если есть что решать' },
+  { text: tripsCopy.tabUpcoming, mark: 'IA', note: 'IA §16' },
+  { text: tripsCopy.tabListings, mark: 'Утверждено', note: 'заменяет «Объявления»: это собственные просьбы и предложения' },
+  { text: tripsCopy.tabHistory, mark: 'IA', note: 'IA §16' },
+  { text: tripsCopy.rolePassenger, mark: 'IA', note: 'IA §16, копия 4.7.2; роль на карточке' },
+  { text: tripsCopy.roleDriver, mark: 'IA', note: 'IA §16, копия 4.7.2; роль на карточке' },
+  { text: '2', mark: 'Утверждено', note: 'счётчик у вкладки «Требуют ответа»; ключа в корпусе нет' },
+  { text: copy.navTrips, mark: 'IA', note: 'IA §7.2; нижняя навигация называет раздел «Поездки», страница — «Мои поездки»' },
+];
+
+const tripsNeedsPassengerRows: ReadonlyArray<StringSource> = [
+  ...tripsChromeRows,
+  { text: driverNamed('Алексей'), mark: 'Решение', note: 'имя всегда с ролью второго человека; голое «Алексей» снято' },
+  { text: copy.boardReturnOffered, mark: 'Утверждено', note: 'форма группы 1; вместо «Могу подвезти обратно» — это его слова, не ваши' },
+  { text: tripsCopy.partialSummary, mark: 'IA', note: 'IA §12.5, копия 4.7.1; водитель предложил меньше мест' },
+  { text: tripsCopy.accept, mark: 'IA', note: 'IA §12.3, копия 4.7.1' },
+  { text: tripsCopy.decline, mark: 'IA', note: 'IA §12.6, копия 4.7.1' },
+  {
+    text: 'Требует подтверждения',
+    mark: 'Решение',
+    note: 'плашки на этих карточках нет: открытая вкладка и есть состояние',
+  },
+  {
+    text: 'Алексей предлагает подвезти вас',
+    mark: 'Решение',
+    note: 'снято 5 сентября: во вкладке «Требуют ответа» это известно и без предложения',
+  },
+];
+
+const tripsNeedsDriverRows: ReadonlyArray<StringSource> = [
+  ...tripsChromeRows,
+  { text: passengerNamed('Мария'), mark: 'Решение', note: 'имя всегда с ролью второго человека; голое «Мария» снято' },
+  { text: `${pluralRu(2, passengersPlural)}, ${childrenOfThem(1)}`, mark: 'Утверждено', note: 'форма группы 1; здесь проверяется заново' },
+  { text: copy.boardChildSeatNeeded, mark: 'Утверждено', note: 'форма группы 1; сведения о детях, IA §16.2' },
+  { text: tripsCopy.accept, mark: 'IA', note: 'IA §12.3, копия 4.7.1' },
+  { text: tripsCopy.decline, mark: 'IA', note: 'IA §12.6, копия 4.7.1' },
+  {
+    text: 'Мария просит подвезти её',
+    mark: 'Решение',
+    note: 'снято 5 сентября вместе с родовой формой: род второй стороны сервису неизвестен (7.5)',
+  },
+];
+
+const tripsListingsChrome: ReadonlyArray<StringSource> = [
+  ...tripsChromeRows,
+  { text: tripsCopy.groupRequests, mark: 'Утверждено', note: 'первая группа «Моих объявлений»: собственные просьбы. Заменяет «Просьбы о поездке»' },
+  { text: tripsCopy.groupOffers, mark: 'Утверждено', note: 'вторая группа: собственные предложения. Совпадает с действием страницы храма (3.2)' },
+  { text: tripsCopy.open, mark: 'Утверждено', note: 'переход к объявлению; для вспомогательных технологий — «Открыть: {поездка}»' },
+  { text: tripsCopy.groupTrip, mark: 'Утверждено', note: 'заголовок условий внутри объявления; ключа в корпусе нет' },
+  { text: tripsCopy.manageListing, mark: 'Утверждено', note: 'заголовок блока управления объявлением; ключа в корпусе нет' },
+  { text: tripsCopy.editListing, mark: 'Утверждено', note: 'управление собственным объявлением; сам диалог в группу не входит' },
+  { text: tripsCopy.removeListing, mark: 'Решение', note: 'снятие собственного объявления с доски — не «Отозвать просьбу»' },
+];
+
+const tripsListingsPendingRows: ReadonlyArray<StringSource> = [
+  ...tripsListingsChrome,
+  { text: tripsCopy.badgeNeedsAnswer, mark: 'Утверждено', note: 'ждёт действия самого человека; заменяет «Нужно ответить»' },
+  { text: tripsCopy.answer, mark: 'Утверждено', note: 'действие карточки с «Нужен ваш ответ» вместо «Открыть»; ведёт к ответу' },
+  { text: tripsCopy.badgeWaiting, mark: 'Утверждено', note: 'человек уже ответил и ждёт второго; без пересказа и без родовых местоимений' },
+  { text: tripsCopy.badgeActive, mark: 'IA', note: 'IA §45.6, копия 3.3; нейтральное состояние, не успех' },
+  { text: driverNamed('Игорь'), mark: 'Утверждено', note: 'имя всегда с ролью; голое имя на карточке не показывается' },
+  { text: passengerNamed('Игорь'), mark: 'Утверждено', note: 'то же со стороны водителя' },
+  { text: tripsCopy.accept, mark: 'IA', note: 'IA §12.3; внутри открытого объявления отвечают человеку теми же двумя действиями' },
+  { text: tripsCopy.decline, mark: 'IA', note: 'IA §12.6' },
+  { text: tripsCopy.withdrawRequest, mark: 'Утверждено', note: 'копия 4.7.1; отзывается просьба к одному человеку, а не объявление' },
+  { text: tripsCopy.withdrawOffer, mark: 'Утверждено', note: 'копия 4.7.1; то же со стороны водителя' },
+  {
+    text: 'Нужно ответить',
+    mark: 'Решение',
+    note: 'снято 18 сентября: «Нужен ваш ответ» говорит, чей именно ответ',
+  },
+  {
+    text: 'Просьбы о поездке / Предложения подвезти',
+    mark: 'Решение',
+    note: 'снято 18 сентября: группы названы так, как человек думает о своём — «Ищу поездку», «Могу подвезти»',
+  },
+  {
+    text: '1 отклик требует ответа',
+    mark: 'Решение',
+    note: 'снято: «отклик» — внутреннее слово (копия 3.7); состояние сказано плашкой',
+  },
+];
+
+const tripsListingsPlainRows: ReadonlyArray<StringSource> = [
+  ...tripsListingsChrome,
+  { text: tripsCopy.badgeActive, mark: 'IA', note: 'IA §45.6, копия 3.3; нейтральное состояние, не успех' },
+  { text: `${tripsCopy.seriesTitle} · {служба}, {время}`, mark: 'IA', note: 'IA §11.3; слово «серия» в интерфейсе запрещено (копия 3.4)' },
+  { text: seriesPeriod('По воскресеньям', '13 сентября'), mark: 'Утверждено', note: 'ритм и конец периода одной строкой вместо двух' },
+  { text: nextDates(3), mark: 'Утверждено', note: 'сколько дат впереди; сами даты — внутри объявления, а не в списке' },
+  { text: tripsCopy.seriesDatesTitle, mark: 'Утверждено', note: 'заголовок списка дат; ключа в корпусе нет' },
+  { text: tripsCopy.seriesRule, mark: 'Утверждено', note: 'форма группы 3 (4.6, whenRecurringHint); здесь проверяется заново' },
+];
+
+const tripsChangePendingRows: ReadonlyArray<StringSource> = [
+  { text: tripsCopy.badgeChangePending, mark: 'IA', note: 'IA §45.6, копия 3.3' },
+  {
+    text: tripsCopy.changeProposed,
+    mark: 'Проект',
+    note: 'вместо «Ждёт вашего ответа»: данные не говорят, кто должен ответить на изменения',
+  },
+];
+
+const tripsUpcomingPassengerRows: ReadonlyArray<StringSource> = [
+  ...tripsChromeRows,
+  { text: tripsCopy.badgeConfirmed, mark: 'IA', note: 'IA §45.6, копия 3.3; плашка' },
+  { text: tripsCopy.reminder, mark: 'Утверждено', note: 'копия 4.8; IA §17.3' },
+  { text: driverNamed('Алексей'), mark: 'Утверждено', note: 'имя всегда с ролью — и на карточке, и в контактах' },
+  { text: tripsCopy.groupMeeting, mark: 'Утверждено', note: 'первая смысловая группа открытой поездки' },
+  { text: tripsCopy.groupTrip, mark: 'Утверждено', note: 'вторая смысловая группа открытой поездки' },
+  { text: 'Catanzaro Lido, у входа в библиотеку', mark: 'IA', note: 'IA §13.2; точное место — только участнику' },
+  { text: '23 августа, 8:00', mark: 'Утверждено', note: 'время внутри группы «Встреча»; «по вашему времени» больше не повторяется' },
+  { text: confirmedPassengers(2), mark: 'IA', note: 'IA §16.2, копия 4.8' },
+  { text: remainingGroup(1), mark: 'IA', note: 'IA §16.3, копия 4.8; частичная группа' },
+  { text: tripsCopy.returnNeeded, mark: 'IA', note: 'копия 3.2; признак обратной поездки со стороны пассажира' },
+  { text: tripsCopy.contactsTitle, mark: 'IA', note: 'IA §13.2, копия 4.7.2' },
+  { text: tripsCopy.contactsCall, mark: 'Утверждено', note: 'главное действие экрана: позвонить тому, с кем уже договорились (DS §5)' },
+  { text: tripsCopy.contactsEmail, mark: 'Утверждено', note: 'копия 4.7.2; вторичное действие' },
+  { text: tripsCopy.manageTrip, mark: 'Утверждено', note: 'отдельный блок: управление поездкой не смешивается со связью с человеком' },
+  { text: tripsCopy.change, mark: 'DS', note: 'DS §5, копия 4.7.2; сам диалог в группу не входит' },
+  { text: tripsCopy.cancel, mark: 'DS', note: 'DS §5, копия 4.7.2; сам диалог в группу не входит' },
+  { text: tripsCopy.report, mark: 'IA', note: 'IA §15.1, копия 4.7.2; тихое текстовое действие внизу' },
+  { text: tripsCopy.backToTrips, mark: 'Утверждено', note: 'возврат к списку; ключа в корпусе нет' },
+  {
+    text: 'О времени выезда и других деталях договоритесь напрямую.',
+    mark: 'Решение',
+    note: 'снято 18 сентября; правило PS §25 не изменилось',
+  },
+  {
+    text: 'История поездки',
+    mark: 'Решение',
+    note: 'снято 5 сентября: до поездки истории ещё нет',
+  },
+];
+
+const tripsUpcomingDriverRows: ReadonlyArray<StringSource> = [
+  ...tripsChromeRows,
+  { text: tripsCopy.badgeConfirmed, mark: 'IA', note: 'IA §45.6, копия 3.3' },
+  { text: 'Дата регулярной поездки', mark: 'Утверждено', note: 'связь даты с регулярной поездкой; ключа в корпусе нет' },
+  { text: tripsCopy.groupTrip, mark: 'Утверждено', note: 'смысловая группа открытой поездки' },
+  { text: seatsTaken(3, 4), mark: 'Утверждено', note: 'форма группы 1; корпус 4.8 предлагает «мест заняты» без согласования' },
+  { text: pluralRu(1, seatsFreePlural), mark: 'Утверждено', note: 'форма группы 1' },
+  { text: tripsCopy.passengersTitle, mark: 'Утверждено', note: 'заголовок списка подтверждённых пассажиров; имена под ним объяснены заголовком' },
+  { text: tripsCopy.pendingTitle, mark: 'Утверждено', note: 'заголовок ожидающих ответов; ключа в корпусе нет' },
+  { text: passengerNamed('Игорь'), mark: 'Утверждено', note: 'под «Ждут ответа» роль не очевидна, поэтому имя с ролью' },
+  { text: tripsCopy.badgeWaiting, mark: 'Утверждено', note: 'ответа ждут не от водителя, поэтому действия рядом нет' },
+  { text: `${tripsCopy.place}: {место}`, mark: 'IA', note: 'IA §13.2; согласованное место встречи каждого пассажира' },
+  { text: copy.boardChildSeatNeeded, mark: 'Утверждено', note: 'сведения о детях, IA §16.2' },
+  { text: tripsCopy.manageTrip, mark: 'Утверждено', note: 'тот же блок, что у пассажира' },
+  { text: tripsCopy.change, mark: 'DS', note: 'DS §5, копия 4.7.2' },
+  { text: tripsCopy.cancel, mark: 'DS', note: 'DS §5, копия 4.7.2; отмена всей даты в группу не входит' },
+];
+
+const tripsHistoryRows: ReadonlyArray<StringSource> = [
+  ...tripsChromeRows,
+  { text: tripsCopy.badgeCompleted, mark: 'IA', note: 'IA §45.6, копия 3.3; невозможна для будущей даты' },
+  { text: tripsCopy.badgeCancelled, mark: 'IA', note: 'IA §45.6, копия 3.3' },
+  { text: tripsCopy.badgeExpired, mark: 'IA', note: 'IA §45.6, копия 3.3' },
+  { text: driverNamed('Алексей'), mark: 'Утверждено', note: 'имя всегда с ролью' },
+  { text: tripsCopy.cancelledByDriver, mark: 'Утверждено', note: 'кто отменил; проекция возвращает роль отменившего' },
+  { text: tripsCopy.findAnother, mark: 'Утверждено', note: 'копия 4.7.4' },
+  {
+    text: tripsCopy.expiredRequest,
+    mark: 'Утверждено',
+    note: 'заменяет «Время поездки прошло — просьба больше не действует.»: сказано, чем всё кончилось',
+  },
+  { text: tripsCopy.outcomeQuestion, mark: 'IA', note: 'IA §16.4, копия 4.7.5; только после времени поездки' },
+  { text: tripsCopy.outcomeYes, mark: 'IA', note: 'IA §16.4, копия 4.7.5' },
+  { text: tripsCopy.outcomeNo, mark: 'IA', note: 'IA §16.4, копия 4.7.5' },
+  { text: tripsCopy.outcomeHint, mark: 'Утверждено', note: 'короткая замена прежнему объяснению 4.7.5' },
+];
+
+const tripsEmptyRows: ReadonlyArray<StringSource> = [
+  ...tripsChromeRows,
+  { text: tripsCopy.emptyAllTitle, mark: 'Утверждено', note: 'копия 4.8, IA §27.2; совсем пустой аккаунт' },
+  { text: tripsCopy.emptyAllBody, mark: 'Утверждено', note: 'заменяет прежний текст 4.8; говорит о двух ролях словами продукта' },
+  { text: tripsCopy.emptyAllAction, mark: 'IA', note: 'IA §27.2; единственное действие пустых состояний' },
+  { text: tripsCopy.emptyNeeds, mark: 'Утверждено', note: 'заменяет «Сейчас ничего не ждёт вашего решения»' },
+  { text: tripsCopy.emptyUpcoming, mark: 'IA', note: 'IA §27.3, дословно' },
+  { text: tripsCopy.emptyListings, mark: 'IA', note: 'IA §27.3, дословно' },
+  { text: tripsCopy.emptyHistory, mark: 'IA', note: 'IA §27.3, дословно' },
+  {
+    text: 'Посмотреть предстоящие',
+    mark: 'Решение',
+    note: 'действия пустых разделов сняты: вкладки и есть навигация (правка IA §16.1)',
+  },
+];
+
 const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   catalog: [
     { text: copy.catalogTitle, mark: 'IA', note: 'IA §8' },
@@ -3619,6 +5009,17 @@ const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   'map-located': rideMapLocatedRows,
   'map-filter-empty': rideMapFilterEmptyRows,
   'map-desktop': rideMapPassengerAreasRows,
+
+  /* Group 5, «Мои поездки». Nothing of it is approved yet. */
+  'trips-needs-passenger': tripsNeedsPassengerRows,
+  'trips-needs-driver': tripsNeedsDriverRows,
+  'trips-waiting': tripsListingsPendingRows,
+  'trips-upcoming-passenger': [...tripsUpcomingPassengerRows, ...tripsChangePendingRows],
+  'trips-upcoming-driver': [...tripsUpcomingDriverRows, ...tripsChangePendingRows],
+  'trips-listings': tripsListingsPlainRows,
+  'trips-history': tripsHistoryRows,
+  'trips-empty': tripsEmptyRows,
+  'trips-desktop': [...tripsUpcomingPassengerRows, ...tripsChangePendingRows],
 };
 
 function SourcePanel({ sample }: { sample: SampleId }) {
@@ -3665,6 +5066,22 @@ function SourcePanel({ sample }: { sample: SampleId }) {
           место. Утверждены только те строки, о которых владелец так и решил; «Назад к доске
           поездок», тип выбранной поездки и имена для вспомогательных технологий он не пересматривал
           — они остаются «Проект».
+        </p>
+      )}
+      {sample.startsWith('trips-') && (
+        <p>
+          Состояния 32–40 — один раздел «Мои поездки» с девятью точками входа. Три просмотра —{' '}
+          <strong>4, 5 и 18 сентября 2026 года</strong> — последовательно убирали повторы: сначала
+          плашку и фразу ожидания, потом объясняющее предложение, потом всё, что можно было понять
+          двояко. Теперь имя на карточке всегда с ролью («Водитель: Алексей»), группы «Моих
+          объявлений» названы так, как человек думает о своём — «Ищу поездку» и «Могу подвезти», —
+          состояние, которое ждёт человека, называется «Нужен ваш ответ» и ведёт кнопкой «Ответить»
+          к обращению с двумя действиями, а управление объявлением стоит отдельным блоком ниже. На
+          подтверждённой поездке звонок отделён от блока «Управление поездкой». Снятые тексты
+          перечислены здесь же, чтобы не вернулись. Строки экранов{' '}
+          <strong>утверждены владельцем 18 сентября 2026 года</strong>. Договорённость с предложенными
+          изменениями по-прежнему не говорит «Ждёт вашего ответа»: данные не знают, чья очередь
+          отвечать — это вопрос к проекции, а не к словам.
         </p>
       )}
       <dl className={styles.sourceList}>
@@ -3725,6 +5142,15 @@ export function CopyReview() {
        * the form keeps everything the person has typed, forwards and backwards alike.
        */
       default:
+        if (sample.startsWith('trips-')) {
+          return (
+            <MyTripsScreen
+              key={sample}
+              seed={tripsSeeds[sample] ?? { tab: 'needs' }}
+              textZoom={textZoom}
+            />
+          );
+        }
         if (sample.startsWith('map-')) {
           return (
             <RideMapScreen
@@ -3764,8 +5190,8 @@ export function CopyReview() {
   return (
     <div className={styles.reviewRoot}>
       <header className={styles.reviewHeader}>
-        <p>Временная поверхность проверки · группы 1, 2A, 2B, 3 и 4 просмотрены</p>
-        <h1>Проверка русской копии: храм, просьба пассажира, предложение водителя и карта поездок</h1>
+        <p>Временная поверхность проверки · группы 1, 2A, 2B, 3, 4 и 5 просмотрены</p>
+        <h1>Проверка русской копии: храм, просьба пассажира, предложение водителя, карта поездок и «Мои поездки»</h1>
         <p>
           Мобильные экраны шириной 390 px. Состояния 1–4 — первая группа после правок владельца от
           22 августа 2026 года. Состояния 5–14 — одна форма просьбы пассажира из четырёх смысловых
@@ -3794,13 +5220,28 @@ export function CopyReview() {
           причины недоступного фильтра больше нет. Когда карточка открывается, карта сдвигается так,
           чтобы выбранная область осталась видна.
         </p>
+        <p>
+          Состояния 32–40 — раздел «Мои поездки»: девять точек входа в один работающий экран. Один
+          раздел на обе роли, переключателя «водитель / пассажир» нет; карточка называет роль
+          (IA §16). Вкладки переключаются, объявление и поездка открываются и закрываются, у пустых
+          состояний свой переключатель двух случаев IA §16.1. Три просмотра — 4, 5 и 18 сентября
+          2026 года — сняли повторы состояния, переименовали вкладку в «Мои объявления», разделили
+          её на «Ищу поездку» и «Могу подвезти», свели состояние к плашке («Нужен ваш ответ», «Ждём
+          ответа», «Активно»), сделали имя всегда с ролью, а «Нужен ваш ответ» — кнопкой «Ответить»
+          к обращению человека. Состояние 37 — не фильтр продукта, а та же вкладка у аккаунта без
+          ожидающих действий.
+          <strong> Группа утверждена владельцем 18 сентября 2026 года.</strong> Фикстуры повторяют то,
+          что действительно возвращает проекция «Моих поездок»; сервера за экраном нет. Договорённость с предложенными
+          изменениями не утверждает, что отвечать должны вы: данные этого не знают.
+        </p>
       </header>
       <nav className={styles.reviewControls} aria-label="Выбор экрана проверки">
         <div>{choose('church')}</div>
         <div>{choose('request')}</div>
         <div>{choose('offer')}</div>
+        <div>{choose('map')}</div>
         <div>
-          {choose('map')}
+          {choose('trips')}
           <button
             type="button"
             className={styles.zoomToggle}

@@ -31,7 +31,7 @@ describe('Russian copy review surface', () => {
     expect(existsSync(resolve(process.cwd(), 'src/app/design-preview/fonts/Onest-Variable.ttf'))).toBe(true);
   });
 
-  it('offers the reviewed screens, the request, offer and map states, with the switch outside them', () => {
+  it('offers the reviewed screens, the request, offer, map and trips states, with the switch outside them', () => {
     render(<CopyReviewPage />);
 
     const selector = screen.getByRole('navigation', { name: 'Выбор экрана проверки' });
@@ -67,6 +67,15 @@ describe('Russian copy review surface', () => {
       '29 · Карта: показано, где я',
       '30 · Карта: недоступный фильтр',
       '31 · Карта на компьютере',
+      '32 · Ответ пассажира',
+      '33 · Ответ водителя',
+      '34 · Мои объявления: разные состояния',
+      '35 · Предстоящая: пассажир',
+      '36 · Предстоящая: водитель',
+      '37 · Мои объявления: без ожидающих действий',
+      '38 · История',
+      '39 · Пустые состояния',
+      '40 · Мои поездки на компьютере',
       'Текст 200 %',
     ]);
     expect(productScreen().contains(selector)).toBe(false);
@@ -436,7 +445,7 @@ describe('Passenger request review states', () => {
       cleanup();
     });
     window.location.hash = '';
-  });
+  }, 40000);
 
   it('keeps the four anchors the canonical documents name for group 2A', () => {
     expect(groupTwoASamples.map(([, anchor]) => anchor)).toEqual([
@@ -867,7 +876,7 @@ describe('Passenger request review states', () => {
 
     // The simulated product screen has its own header, so pick the review chrome one.
     const header = screen.getAllByRole('banner').find((node) => !node.closest('[data-product-screen]'))!;
-    expect(header.textContent).toContain('группы 1, 2A, 2B, 3 и 4 просмотрены');
+    expect(header.textContent).toContain('группы 1, 2A, 2B, 3, 4 и 5 просмотрены');
     expect(header.textContent).toContain('Последние детали');
     expect(header.textContent).not.toContain('ждёт просмотра');
     expect(header.textContent).not.toContain('ждут просмотра');

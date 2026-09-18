@@ -31,6 +31,14 @@
   --or-role-driver: #3a4e7a;
   --or-role-passenger-bg: #f4eee5;
   --or-role-passenger: #6b573e;
+  /* Status tokens of DS §3.1. Colour is the second sign; every plate still carries its words. */
+  --or-status-planned-bg: #edf2f5;
+  --or-status-planned: #3f5f73;
+  --or-status-pending-bg: #fbf2df;
+  --or-status-pending: #79551d;
+  --or-status-completed-bg: #f0f2f0;
+  --or-error: #a33a32;
+  --or-error-surface: #faeeee;
   --or-space-1: 4px;
   --or-space-2: 8px;
   --or-space-3: 12px;
@@ -2164,4 +2172,296 @@
 
 .desktopMapScreen .mapCanvas {
   min-height: 560px;
+}
+
+/* ------------------------------------------------- group 5: «Мои поездки» (IA §16, §29.3) */
+
+/*
+ * The phone screen and the review-only switch above it share one column, so the switch never sits
+ * inside the simulated product screen.
+ */
+.tripsStage {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--or-space-3);
+}
+
+.variantSwitch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--or-space-2);
+}
+
+.variantSwitch button {
+  min-height: var(--or-height-selector);
+  flex: 1;
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  color: var(--or-control-text);
+  cursor: pointer;
+  padding: 0 var(--or-space-3);
+  font-size: var(--or-size-secondary);
+  font-weight: var(--or-weight-medium);
+}
+
+.variantSwitch button[aria-pressed='true'] {
+  border-color: var(--or-primary);
+  background: var(--or-primary-pale);
+  color: var(--or-primary);
+}
+
+/* The role tag and the status plate share the top line of a card: role left, state right. */
+.tripHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--or-space-2);
+  margin-bottom: var(--or-space-2);
+}
+
+/*
+ * A status plate (`DS §6`, `IA §45.6`). Colour is only the second sign — every plate always carries
+ * its own words — but the tones must not collapse into one another: «Активно» is an ordinary
+ * operational state and may not read as a success, and a cancelled trip may not read like a live
+ * one. Every value comes from the token table of `DS §3.1`.
+ */
+.tripBadge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border-radius: var(--or-radius-status);
+  background: var(--or-surface-subtle);
+  color: var(--or-text-secondary);
+  padding: var(--or-space-1) var(--or-space-2);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-semibold);
+}
+
+/* «Подтверждено»: the one positive green of the system (DS §3.1 names this pair for it). */
+.tripBadge[data-tone='confirmed'] {
+  background: var(--or-primary-pale);
+  color: var(--or-primary);
+}
+
+/* «Завершено»: the same positive colour on the calmer completed ground. */
+.tripBadge[data-tone='completed'] {
+  background: var(--or-status-completed-bg);
+  color: var(--or-primary);
+}
+
+/*
+ * The salience ladder of «Мои объявления». «Нужно ответить» is the only warm plate: it is the one
+ * that needs the person. «Ждём ответа» is a live interaction, so it keeps some presence. «Активно»
+ * is merely published and stays the quiet default. Every value comes from DS §3.1.
+ */
+.tripBadge[data-tone='attention'] {
+  background: var(--or-status-pending-bg);
+  color: var(--or-status-pending);
+}
+
+.tripBadge[data-tone='waiting'] {
+  background: var(--or-status-planned-bg);
+  color: var(--or-status-planned);
+}
+
+.tripBadge[data-tone='neutral'] {
+  background: var(--or-surface-subtle);
+  color: var(--or-text-secondary);
+}
+
+/* «Отменено»: muted negative, the destructive pair of DS §3.1 and never a bright red. */
+.tripBadge[data-tone='cancelled'] {
+  background: var(--or-error-surface);
+  color: var(--or-error);
+}
+
+/* «Время прошло»: plain grey — nothing happened, good or bad. */
+.tripBadge[data-tone='expired'] {
+  background: var(--or-surface-subtle);
+  color: var(--or-text-subtle);
+}
+
+/* The sentence that says what happened. Ordinary text, never a second plate. */
+.tripLine {
+  margin: var(--or-space-2) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--or-text);
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-medium);
+}
+
+.tripActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--or-space-2);
+  margin-top: var(--or-space-3);
+}
+
+.tripActions button {
+  flex: 1 1 auto;
+}
+
+/* «Ждут решения» and «Активные»: two groups of one tab, separated by a heading, not by a colour. */
+.tripSection + .tripSection {
+  margin-top: var(--or-space-6);
+}
+
+.tripSection > .groupTitle {
+  margin-top: 0;
+}
+
+/* Semantic groups of an opened trip: «Встреча», «Поездка». */
+.tripGroup {
+  margin-top: var(--or-space-4);
+}
+
+.tripGroup > .rideFacts {
+  margin-top: var(--or-space-1);
+}
+
+/* Dates of a regular trip, confirmed passengers, waiting answers: the same row inside a trip. */
+.tripRows {
+  margin-top: var(--or-space-4);
+  border-top: 1px solid var(--or-border);
+  padding-top: var(--or-space-3);
+}
+
+.tripRows ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--or-space-2);
+  margin: var(--or-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tripRows li {
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface-subtle);
+  padding: var(--or-space-3);
+}
+
+/*
+ * A row whose answer belongs to the other person. Its own heading and its plate already say so, so
+ * the ground only separates it quietly from the confirmed rows above.
+ */
+.tripRows li[data-row-kind='pending'] {
+  background: var(--or-canvas);
+  box-shadow: inset 0 0 0 1px var(--or-border);
+}
+
+.tripRowHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--or-space-2);
+}
+
+.tripRowHead strong {
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-semibold);
+}
+
+/* The interaction that waits for the person inside their own listing: first, and set apart. */
+.tripIncoming {
+  margin-top: var(--or-space-4);
+  border: 1px solid var(--or-status-pending);
+  border-radius: var(--or-radius-control);
+  background: var(--or-status-pending-bg);
+  padding: var(--or-space-3);
+}
+
+.tripIncoming > .personLine {
+  margin-top: 0;
+}
+
+/* Managing the trip or the listing, apart from contacting or answering a person. */
+.tripManagement {
+  margin-top: var(--or-space-4);
+  border-top: 1px solid var(--or-border);
+  padding-top: var(--or-space-3);
+}
+
+.tripContacts {
+  margin-top: var(--or-space-4);
+  border-top: 1px solid var(--or-border);
+  padding-top: var(--or-space-3);
+}
+
+/* What the service does not do. Secondary by weight: it is not a next step. */
+.tripNotice {
+  margin: var(--or-space-4) 0 0;
+  color: var(--or-text-subtle);
+  font-size: var(--or-size-secondary);
+}
+
+/* `IA §16.4`: asked once, only after the planned time, and only about what happened. */
+.tripOutcome {
+  margin-top: var(--or-space-4);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface-subtle);
+  padding: var(--or-space-3);
+}
+
+.tripDetail {
+  min-width: 0;
+}
+
+/* The count beside «Требуют ответа». It never stands alone: the tab name is always beside it. */
+.tabCount {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--or-radius-pill);
+  background: var(--or-primary-pale);
+  color: var(--or-primary);
+  margin-left: var(--or-space-2);
+  padding: 0 var(--or-space-1);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-semibold);
+}
+
+/* `IA §29.3` on a computer: sections and the list on the left, the opened trip on the right. */
+.tripsDesktop {
+  overflow-y: auto;
+  padding: var(--or-space-8);
+}
+
+.tripsGrid {
+  display: grid;
+  align-items: start;
+  gap: var(--or-space-6);
+  margin-top: var(--or-space-4);
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+}
+
+.tripsGrid .cardList {
+  margin-top: 0;
+}
+
+/*
+ * The two columns are the desktop composition, not a layout the frame may keep at any width: in a
+ * narrow review pane they would push the trip out of the screen. Below the composition breakpoint
+ * the frame reads as one column, the same order as on the phone.
+ */
+@media (max-width: 900px) {
+  .tripsGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.tripsGrid [data-trip-selected='yes'] {
+  border-color: var(--or-primary);
+  background: var(--or-primary-pale);
+}
+
+.tripsBack {
+  display: flex;
+  margin-bottom: var(--or-space-3);
 }

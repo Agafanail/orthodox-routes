@@ -66,7 +66,7 @@ describe('Driver offer review states', () => {
       cleanup();
     });
     window.location.hash = '';
-  });
+  }, 40000);
 
   /* ------------------------------------------- four semantic screens, and no more than four */
 

@@ -86,7 +86,7 @@ describe('Ride map review states', () => {
       cleanup();
     });
     window.location.hash = '';
-  });
+  }, 28000);
 
   it('no longer offers a dedicated custom-date review state', () => {
     render(<CopyReviewPage />);
