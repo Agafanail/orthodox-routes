@@ -200,11 +200,11 @@ for (const church of churches) {
 }
 
 let placeCounter = 0;
-async function publishRequest(passengerIndex, church, arrivalAt, label, passengers = 1) {
+async function publishRequest(passengerIndex, church, arrivalAt, label, passengers = 1, conditions = {}) {
   placeCounter += 1;
   return rpc(clients[passengerIndex], 'publish_passenger_request', {
-    p_child_seat_required: false,
-    p_children_count: 0,
+    p_child_seat_required: conditions.childSeatRequired ?? false,
+    p_children_count: conditions.childrenCount ?? 0,
     p_church_id: church.id,
     p_client_key: randomUUID(),
     p_desired_arrival_at: arrivalAt,
@@ -213,16 +213,16 @@ async function publishRequest(passengerIndex, church, arrivalAt, label, passenge
       church.lng - 0.02 - placeCounter / 10000,
       `MY_TRIPS_EXACT_${label}`,
       `${label} safe district`,
-    )],
+    ), ...(conditions.additionalPlaces ?? [])],
     p_public_note: `MY_TRIPS_NOTE_${label}`,
-    p_return_required: false,
+    p_return_required: conditions.returnRequired ?? false,
     p_service_occurrence_id: null,
     p_timezone: 'UTC',
     p_total_passengers: passengers,
   });
 }
 
-async function publishOccurrence(church, arrivalAt, label, seats = 4) {
+async function publishOccurrence(church, arrivalAt, label, seats = 4, conditions = {}) {
   placeCounter += 1;
   const departureAt = new Date(new Date(arrivalAt).getTime() - 60 * 60 * 1000).toISOString();
   return rpc(clients[3], 'publish_driver_occurrence', {
@@ -240,7 +240,7 @@ async function publishOccurrence(church, arrivalAt, label, seats = 4) {
       `${label} safe origin district`,
     ),
     p_public_note: `MY_TRIPS_NOTE_DRIVER_${label}`,
-    p_return_available: false,
+    p_return_available: conditions.returnAvailable ?? false,
     p_service_occurrence_id: null,
     p_timezone: 'UTC',
     p_total_seats: seats,
@@ -286,6 +286,7 @@ async function historicalRide(passengerIndex, church, arrivalAt, label, elapsedI
       fixture_place_id uuid;
       fixture_snapshot_id uuid;
       fixture_response_id uuid;
+      fixture_agreement_id uuid;
       fixture_arrival_at timestamptz := now() - ${sqlLiteral(elapsedInterval)}::interval;
     begin
       update app.passenger_request
@@ -321,6 +322,17 @@ async function historicalRide(passengerIndex, church, arrivalAt, label, elapsedI
         ${sqlLiteral(identities[3].id)}::uuid, ${sqlLiteral(identities[passengerIndex].id)}::uuid,
         1, fixture_snapshot_id, fixture_place_id, fixture_arrival_at + interval '30 days',
         fixture_arrival_at + interval '30 days', fixture_arrival_at - interval '1 day'
+      ) returning id into fixture_agreement_id;
+      insert into private.agreement_contact_snapshot (
+        agreement_id, participant_account_id, email_normalized, phone_e164,
+        email_verified_at, phone_verified_at, visible_until
+      )
+      select fixture_agreement_id, contact.account_id, contact.email_normalized, contact.phone_e164,
+        identity.email_confirmed_at, contact.phone_verified_at, fixture_arrival_at + interval '30 days'
+      from private.account_contact as contact
+      join auth.users as identity on identity.id = contact.account_id
+      where contact.account_id in (
+        ${sqlLiteral(identities[passengerIndex].id)}::uuid, ${sqlLiteral(identities[3].id)}::uuid
       );
     end;
     $$;
@@ -650,12 +662,186 @@ await assertElapsedResponse(0, aggregateResponseA.response_id,
 await assertElapsedResponse(1, aggregateResponseB.response_id,
   aggregateOccurrence.occurrence_id, 'expired', 'history', 0, 0);
 
+// Opened agreement details are a separate authenticated read, never an expanded list payload.
+const detailArrival = isoAfter(36, 10);
+const detailRequest = await publishRequest(0, churches[0], detailArrival, 'DETAIL', 3, {
+  childrenCount: 1, childSeatRequired: true, returnRequired: true,
+  additionalPlaces: [syntheticPlace(45.041, 7.654, 'DETAIL_UNUSED_EXACT', 'Unused safe district')],
+});
+const detailOccurrence = await publishOccurrence(churches[0], detailArrival, 'DETAIL', 4, {
+  returnAvailable: true,
+});
+const detailResponse = await rpc(clients[3], 'submit_driver_response', {
+  p_client_key: randomUUID(), p_occurrence_id: detailOccurrence.occurrence_id,
+  p_offered_passenger_count: 2,
+  p_place_id: await requestPlaceId(churches[0], detailRequest.request_id),
+  p_request_id: detailRequest.request_id,
+});
+const detailArgs = { p_agreement_id: detailResponse.response_id };
+assert.equal(await rpc(clients[0], 'get_my_trip_details', detailArgs), null,
+  'An unconfirmed response must not provide agreement details.');
+const detailAgreement = await rpc(clients[0], 'confirm_ride_response', {
+  p_client_key: randomUUID(), p_response_id: detailResponse.response_id,
+});
+detailArgs.p_agreement_id = detailAgreement.agreement_id;
+
+const anonymousDetail = await callRpc(anonymous, 'get_my_trip_details', detailArgs);
+assert.ok(anonymousDetail.error, 'Anonymous detail access unexpectedly succeeded.');
+assert.equal(await rpc(clients[4], 'get_my_trip_details', detailArgs), null);
+assert.equal(await rpc(clients[1], 'get_my_trip_details', detailArgs), null,
+  'Participation in another ride must not grant access.');
+assert.equal(await rpc(clients[0], 'get_my_trip_details', { p_agreement_id: randomUUID() }), null);
+assert.equal(await rpc(clients[0], 'get_my_trip_details', { p_agreement_id: null }), null);
+assert.ok((await callRpc(clients[0], 'get_my_trip_details', { p_agreement_id: 'invalid' })).error);
+// Call directly: an unexpected named actor argument must fail, not invoke the cache retry loop.
+assert.ok((await clients[4].schema('api').rpc('get_my_trip_details', {
+  ...detailArgs, p_actor_id: identities[0].id,
+})).error, 'The detail boundary must not accept a caller-supplied actor.');
+
+const listsBeforeDetails = await rpc(clients[0], 'current_my_trips');
+const stateBeforeDetails = responseLifecycleState(detailResponse.response_id);
+const passengerDetail = await rpc(clients[0], 'get_my_trip_details', detailArgs);
+const driverDetail = await rpc(clients[3], 'get_my_trip_details', detailArgs);
+assert.equal(passengerDetail.agreement_id, detailAgreement.agreement_id);
+assert.equal(passengerDetail.status, 'confirmed');
+assert.equal(passengerDetail.current_role, 'passenger');
+assert.deepEqual(passengerDetail.counterparty, { name: identities[3].name, role: 'driver' });
+assert.equal(driverDetail.current_role, 'driver');
+assert.deepEqual(driverDetail.counterparty, { name: identities[0].name, role: 'passenger' });
+assert.equal(passengerDetail.scheduled_at, driverDetail.scheduled_at);
+assert.equal(new Date(passengerDetail.scheduled_at).toISOString(), detailArrival);
+assert.equal(passengerDetail.timezone, 'UTC');
+assert.equal(passengerDetail.church.church_id, churches[0].id);
+assert.deepEqual(passengerDetail.counts, { confirmed_passenger_count: 2, remaining_passengers: 1 });
+assert.deepEqual(passengerDetail.conditions, {
+  children_count: 1, child_seat_required: true, children_allowed: true,
+  driver_child_seat_available: true, passenger_return_required: true,
+  driver_return_available: true, max_detour_km: 5,
+});
+assert.deepEqual(driverDetail.conditions, passengerDetail.conditions);
+for (const [client, detail] of [[clients[0], passengerDetail], [clients[3], driverDetail]]) {
+  assert.deepEqual(detail.contacts, await rpc(client, 'get_agreement_contacts', detailArgs));
+  assert.deepEqual(detail.places, await rpc(client, 'get_agreement_exact_place', detailArgs));
+  assert.equal(detail.places.meeting_place.exact_address, 'MY_TRIPS_EXACT_DETAIL');
+  assert.equal(detail.places.departure_place.exact_address, 'MY_TRIPS_EXACT_DRIVER_DETAIL');
+  const serialized = JSON.stringify(detail);
+  for (const forbidden of ['DETAIL_UNUSED_EXACT', 'MY_TRIPS_NOTE_', identities[4].phone,
+    identities[4].email, ...identities.map((identity) => identity.id)]) {
+    assert.equal(serialized.includes(forbidden), false, 'Unrelated/private data leaked into a detail read.');
+  }
+}
+assert.equal(passengerDetail.contacts.phone, identities[3].phone);
+assert.equal(driverDetail.contacts.phone, identities[0].phone);
+assert.equal(responseLifecycleState(detailResponse.response_id), stateBeforeDetails);
+assert.deepEqual(await rpc(clients[0], 'current_my_trips'), listsBeforeDetails,
+  'Opening a detail must not change or enrich the list.');
+
+// Later source edits must never masquerade as accepted terms. This is an owner-only synthetic
+// fixture; there is no new production editing operation in this read-only slice.
+runSql(container, `
+  update app.passenger_request set children_count = 0, child_seat_required = false, return_required = false
+  where public_id = ${sqlLiteral(detailRequest.request_id)}::uuid;
+  update app.driver_offer_occurrence set children_allowed = false, driver_child_seat_available = false,
+    return_available = false, max_detour_km = 10
+  where public_id = ${sqlLiteral(detailOccurrence.occurrence_id)}::uuid;
+`);
+assert.deepEqual((await rpc(clients[0], 'get_my_trip_details', detailArgs)).conditions,
+  passengerDetail.conditions, 'Details must use the immutable accepted snapshot.');
+
+// Existing change_pending rows keep accepted terms and disclosure. The read must not invent a
+// proposal author, an awaiting actor, or a new state transition for the unimplemented workflow.
+const pendingDetail = await rpc(clients[0], 'get_my_trip_details', {
+  p_agreement_id: changePendingRide.agreement.agreement_id,
+});
+assert.equal(pendingDetail.status, 'change_pending');
+assert.ok(pendingDetail.conditions);
+assert.ok(pendingDetail.contacts);
+assert.ok(pendingDetail.places);
+assert.equal('action_required' in pendingDetail, false);
+assert.equal('proposed_by' in pendingDetail, false);
+
+for (const [client, ride, status] of [
+  [clients[0], completedRide, 'completed'], [clients[1], noOutcomeRide, 'no_outcome'],
+]) {
+  const detail = await rpc(client, 'get_my_trip_details', { p_agreement_id: ride.agreement.agreement_id });
+  assert.equal(detail.status, status);
+  assert.ok(detail.conditions);
+  assert.ok(detail.contacts);
+  assert.ok(detail.places);
+}
+
+function assertClosedDetail(detail, expectedStatus) {
+  assert.equal(detail.status, expectedStatus);
+  assert.equal(detail.conditions, null);
+  assert.equal(detail.contacts, null);
+  assert.equal(detail.places, null);
+  assert.equal(detail.counts.remaining_passengers, null);
+  assert.ok(detail.church.church_id);
+  assert.ok(detail.scheduled_at);
+  assert.equal(typeof detail.meeting_area, 'string');
+  assert.equal(JSON.stringify(detail).includes('MY_TRIPS_EXACT_'), false);
+  for (const identity of identities) {
+    assert.equal(JSON.stringify(detail).includes(identity.phone), false);
+    assert.equal(JSON.stringify(detail).includes(identity.email), false);
+  }
+}
+assertClosedDetail(await rpc(clients[2], 'get_my_trip_details', {
+  p_agreement_id: archivedRide.agreement.agreement_id,
+}), 'archived');
+for (const client of [clients[0], clients[3]]) {
+  const cancelledDetail = await rpc(client, 'get_my_trip_details', {
+    p_agreement_id: cancelledRide.agreement.agreement_id,
+  });
+  assertClosedDetail(cancelledDetail, 'cancelled');
+  assert.equal(cancelledDetail.cancelled_by_role, 'driver');
+}
+
+// Visibility is checked during the read, even when cleanup has not yet archived the agreement.
+const overdueRide = await historicalRide(2, churches[1], isoAfter(37, 9), 'DETAIL_OVERDUE', '31 days');
+const overdueArgs = { p_agreement_id: overdueRide.agreement.agreement_id };
+const overdueBefore = responseLifecycleState(overdueRide.response.response_id);
+for (const client of [clients[2], clients[3]]) {
+  assertClosedDetail(await rpc(client, 'get_my_trip_details', overdueArgs), 'confirmed');
+}
+assert.equal(responseLifecycleState(overdueRide.response.response_id), overdueBefore);
+assert.equal(runSql(container, `select status from app.ride_agreement
+  where public_id = ${sqlLiteral(overdueRide.agreement.agreement_id)}::uuid;`), 'confirmed');
+
+// Reuse the separate contact deadline as well; exact-place permission must not extend it.
+runSql(container, `update app.ride_agreement set contact_visible_until = now() - interval '1 minute'
+  where public_id = ${sqlLiteral(detailAgreement.agreement_id)}::uuid;`);
+const contactExpiredDetail = await rpc(clients[0], 'get_my_trip_details', detailArgs);
+assert.equal(contactExpiredDetail.contacts, null);
+assert.ok(contactExpiredDetail.places);
+await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: detailAgreement.agreement_id, p_client_key: randomUUID(),
+});
+for (const client of [clients[0], clients[3]]) {
+  assertClosedDetail(await rpc(client, 'get_my_trip_details', detailArgs), 'cancelled');
+}
+runSql(container, 'select ops.expire_transport_items();');
+assertClosedDetail(await rpc(clients[2], 'get_my_trip_details', overdueArgs), 'archived');
+
+assert.equal(runSql(container, `
+  select has_function_privilege('anon', 'api.get_my_trip_details(uuid)', 'execute')::text || ':' ||
+    has_function_privilege('authenticated', 'api.get_my_trip_details(uuid)', 'execute')::text || ':' ||
+    has_function_privilege('service_role', 'api.get_my_trip_details(uuid)', 'execute')::text;
+`), 'false:true:false');
+assert.equal(runSql(container, `
+  select count(*) from pg_proc as procedure
+  join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+  where namespace.nspname = 'api' and procedure.proname = 'get_my_trip_details'
+    and procedure.prosecdef and procedure.provolatile = 's'
+    and coalesce(array_to_string(procedure.proconfig, ','), '') like '%search_path=""%';
+`), '1');
+
 const forbiddenValues = [
   ...identities.flatMap((identity) => [identity.email, identity.phone]),
   'MY_TRIPS_EXACT_', 'MY_TRIPS_NOTE_', 'Synthetic public church address',
 ];
 for (const payload of [passengerTrips, secondPassengerTrips, thirdPassengerTrips, driverTrips,
-  partialDriverTrips, partialPassengerTrips, ...elapsedPayloads]) {
+  partialDriverTrips, partialPassengerTrips, ...elapsedPayloads, listsBeforeDetails,
+  await rpc(clients[0], 'current_my_trips'), await rpc(clients[3], 'current_my_trips')]) {
   assertNoProtectedPayload(payload, forbiddenValues);
 }
 
@@ -676,19 +862,18 @@ assert.equal(runSql(container, `
   where table_schema in ('app', 'private')
     and table_name in (
       'account', 'church', 'passenger_request', 'driver_offer_series', 'driver_offer_occurrence',
-      'ride_response', 'ride_condition_snapshot', 'ride_agreement'
+      'ride_response', 'ride_condition_snapshot', 'ride_agreement', 'agreement_contact_snapshot', 'user_place'
     )
     and grantee in ('anon', 'authenticated', 'service_role');
 `), '0');
 assert.equal(runSql(container, `
   select count(*) from pg_class as class
   join pg_namespace as namespace on namespace.oid = class.relnamespace
-  where namespace.nspname = 'app'
-    and class.relname in (
+  where (namespace.nspname = 'app' and class.relname in (
       'account', 'church', 'passenger_request', 'driver_offer_series', 'driver_offer_occurrence',
       'ride_response', 'ride_condition_snapshot', 'ride_agreement'
-    )
+    ) or namespace.nspname = 'private' and class.relname in ('agreement_contact_snapshot', 'user_place'))
     and class.relrowsecurity and class.relforcerowsecurity;
-`), '8');
+`), '10');
 
-console.log('Account-scoped My Trips authorization, classification, aggregation, and privacy verification passed.');
+console.log('Account-scoped My Trips lists and on-demand details: authorization, snapshots, expiry, and privacy verification passed.');

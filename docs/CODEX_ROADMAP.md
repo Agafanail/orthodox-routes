@@ -114,6 +114,9 @@ The complete Core campaign passed its final local, migration, security/privacy, 
 ### 6. My Trips, notifications, profile, and PWA
 
 - The protected account-scoped `My Trips` read projection is implemented over the existing transport domain, with the four approved IA V2 sections, cross-church context, passenger participation, aggregated driver occurrences, and no protected disclosure data. The route and UI remain unimplemented.
+- Group 5 My Trips copy-review screens and their IA V2 amendments are approved (PR #5); they remain an isolated fixture-based surface, not the production interface.
+- Participant-only agreement detail reading is implemented through `api.get_my_trip_details`: accepted child/seat and return conditions, current remaining passenger need, and on-demand contact/exact-place access under the existing cancellation and retention rules. The broad list remains free of protected disclosure data. This supplies the confirmed-agreement detail data identified by IA V2 sections 16.2/16.3, without implementing the UI or listing-edit workflows.
+- The `change_pending` proposal/answer workflow and authoritative awaiting actor remain outstanding; current reads do not guess whose turn it is. Production list integration must also reflect Group 5's own-listing grouping and response contexts.
 - Implement the remaining `My Trips` route and interface, the in-app notification history, and the lightweight profile with notification settings.
 - Preserve church-management entry points without treating church administration as part of personal trips.
 - Implement durable in-app notifications, transactional email, and Web Push.
