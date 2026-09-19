@@ -125,6 +125,9 @@ jobs:
       - name: Verify account-scoped My Trips read model
         run: npm run test:my-trips
 
+      - name: Verify notification preferences and durable delivery foundation
+        run: npm run test:notifications
+
       - name: Verify geographic foundation and privacy boundary
         run: npm run test:geography
 
