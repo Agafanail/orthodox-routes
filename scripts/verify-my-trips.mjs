@@ -366,10 +366,16 @@ const aggregateResponseB = await rpc(clients[1], 'submit_passenger_response', {
 
 const confirmedRide = await arrangeRide(2, churches[0], isoAfter(23, 11), 'CONFIRMED');
 const changePendingRide = await arrangeRide(0, churches[1], isoAfter(24, 12), 'CHANGE_PENDING');
-runSql(container, `
-  update app.ride_agreement set status = 'change_pending'
-  where public_id = ${sqlLiteral(changePendingRide.agreement.agreement_id)}::uuid;
-`);
+const changeProposalKey = randomUUID();
+const changeProposalArgs = {
+  p_agreement_id: changePendingRide.agreement.agreement_id,
+  p_changes: { passenger_return_required: true },
+  p_client_key: changeProposalKey,
+};
+const changeProposal = await rpc(clients[0], 'propose_agreement_change', changeProposalArgs);
+assert.equal(changeProposal.status, 'change_pending');
+assert.deepEqual(await rpc(clients[0], 'propose_agreement_change', changeProposalArgs), changeProposal,
+  'A retried proposal must return the original idempotent result.');
 
 const declinedRequest = await publishRequest(0, churches[0], isoAfter(25, 13), 'DECLINED');
 const declinedOccurrence = await publishOccurrence(churches[0], isoAfter(25, 13), 'DECLINED');
@@ -469,6 +475,9 @@ assert.equal(waitingForDriver.status, 'await_driver');
 const changePending = itemById(passengerTrips, 'upcoming', changePendingRide.agreement.agreement_id);
 assert.equal(changePending.status, 'change_pending');
 assert.equal(changePending.action_required, false);
+assert.equal(changePending.proposal_id, changeProposal.proposal_id);
+assert.equal(changePending.proposed_by_role, 'passenger');
+assert.equal(changePending.awaiting_role, 'driver');
 assert.equal(itemById(passengerTrips, 'history', declinedResponse.response_id).status, 'declined');
 for (const [responseId, status] of [
   [withdrawnResponse.response_id, 'withdrawn'], [staleResponses[0].response_id, 'stale'],
@@ -533,6 +542,16 @@ const driverTopLevelIds = new Set(allItems(driverTrips).map(({ item }) => item.o
 assert.equal(driverTopLevelIds.has(aggregateResponseA.response_id), false);
 assert.equal(driverTopLevelIds.has(aggregateResponseB.response_id), false);
 assert.equal(driverTopLevelIds.has(confirmedRide.agreement.agreement_id), false);
+const changeDriverOccurrence = itemById(driverTrips, 'needs_response', changePendingRide.occurrence.occurrence_id);
+assert.ok(changeDriverOccurrence, 'The driver must see a passenger-proposed agreement change as actionable.');
+assert.equal(changeDriverOccurrence.action_required, true);
+const changeDriverChild = changeDriverOccurrence.children.agreements.find(
+  (agreement) => agreement.object_id === changePendingRide.agreement.agreement_id,
+);
+assert.equal(changeDriverChild.proposal_id, changeProposal.proposal_id);
+assert.equal(changeDriverChild.proposed_by_role, 'passenger');
+assert.equal(changeDriverChild.awaiting_role, 'driver');
+assert.equal(changeDriverChild.action_required, true);
 
 // A passenger requests the whole group; the driver can still answer with a partial offer.
 // All creation, counteroffer, and confirmation steps use the existing protected mutation RPCs.
@@ -748,17 +767,112 @@ runSql(container, `
 assert.deepEqual((await rpc(clients[0], 'get_my_trip_details', detailArgs)).conditions,
   passengerDetail.conditions, 'Details must use the immutable accepted snapshot.');
 
-// Existing change_pending rows keep accepted terms and disclosure. The read must not invent a
-// proposal author, an awaiting actor, or a new state transition for the unimplemented workflow.
+// Pending changes expose the accepted and proposed snapshots separately. Only the designated
+// responder receives an action, while both participants retain the existing disclosure boundary.
 const pendingDetail = await rpc(clients[0], 'get_my_trip_details', {
+  p_agreement_id: changePendingRide.agreement.agreement_id,
+});
+const pendingDriverDetail = await rpc(clients[3], 'get_my_trip_details', {
   p_agreement_id: changePendingRide.agreement.agreement_id,
 });
 assert.equal(pendingDetail.status, 'change_pending');
 assert.ok(pendingDetail.conditions);
 assert.ok(pendingDetail.contacts);
 assert.ok(pendingDetail.places);
-assert.equal('action_required' in pendingDetail, false);
-assert.equal('proposed_by' in pendingDetail, false);
+assert.equal(pendingDetail.conditions.passenger_return_required, false);
+assert.equal(pendingDetail.change.proposal_id, changeProposal.proposal_id);
+assert.equal(pendingDetail.change.proposed_by_role, 'passenger');
+assert.equal(pendingDetail.change.awaiting_role, 'driver');
+assert.equal(pendingDetail.change.action_required, false);
+assert.equal(pendingDetail.change.conditions.passenger_return_required, true);
+assert.equal(pendingDriverDetail.change.action_required, true);
+assert.deepEqual(pendingDriverDetail.change.conditions, pendingDetail.change.conditions);
+
+assert.ok((await callRpc(clients[0], 'resolve_agreement_change', {
+  p_accept: true, p_client_key: randomUUID(), p_proposal_id: changeProposal.proposal_id,
+})).error, 'The proposer must not resolve their own change.');
+assert.ok((await callRpc(clients[4], 'resolve_agreement_change', {
+  p_accept: true, p_client_key: randomUUID(), p_proposal_id: changeProposal.proposal_id,
+})).error, 'An unrelated account must not resolve an agreement change.');
+const acceptedChangeKey = randomUUID();
+const acceptedChangeArgs = {
+  p_accept: true, p_client_key: acceptedChangeKey, p_proposal_id: changeProposal.proposal_id,
+};
+const acceptedChange = await rpc(clients[3], 'resolve_agreement_change', acceptedChangeArgs);
+assert.equal(acceptedChange.status, 'accepted');
+assert.deepEqual(await rpc(clients[3], 'resolve_agreement_change', acceptedChangeArgs), acceptedChange,
+  'A retried decision must return the original idempotent result.');
+const acceptedChangeDetail = await rpc(clients[0], 'get_my_trip_details', {
+  p_agreement_id: changePendingRide.agreement.agreement_id,
+});
+assert.equal(acceptedChangeDetail.status, 'confirmed');
+assert.equal(acceptedChangeDetail.change, null);
+assert.equal(acceptedChangeDetail.conditions.passenger_return_required, true);
+
+// Declining keeps the accepted snapshot. Passenger-count changes move request need and occurrence
+// capacity only when accepted, and the reverse delta is equally atomic.
+const capacityArrival = isoAfter(38, 14);
+const capacityRequest = await publishRequest(1, churches[0], capacityArrival, 'CHANGE_CAPACITY', 2);
+const capacityOccurrence = await publishOccurrence(churches[0], capacityArrival, 'CHANGE_CAPACITY', 3);
+const capacityResponse = await rpc(clients[3], 'submit_driver_response', {
+  p_client_key: randomUUID(), p_occurrence_id: capacityOccurrence.occurrence_id,
+  p_offered_passenger_count: 1,
+  p_place_id: await requestPlaceId(churches[0], capacityRequest.request_id),
+  p_request_id: capacityRequest.request_id,
+});
+const capacityAgreement = await rpc(clients[1], 'confirm_ride_response', {
+  p_client_key: randomUUID(), p_response_id: capacityResponse.response_id,
+});
+const declinedChange = await rpc(clients[1], 'propose_agreement_change', {
+  p_agreement_id: capacityAgreement.agreement_id,
+  p_changes: { passenger_return_required: true }, p_client_key: randomUUID(),
+});
+assert.equal((await rpc(clients[3], 'resolve_agreement_change', {
+  p_accept: false, p_client_key: randomUUID(), p_proposal_id: declinedChange.proposal_id,
+})).status, 'declined');
+let capacityState = runSql(container, `
+  select agreement.confirmed_passenger_count::text || ':' || request.remaining_passengers::text || ':' ||
+    occurrence.confirmed_seats::text || ':' || agreement.status
+  from app.ride_agreement as agreement
+  join app.passenger_request as request on request.id = agreement.passenger_request_id
+  join app.driver_offer_occurrence as occurrence on occurrence.id = agreement.driver_occurrence_id
+  where agreement.public_id = ${sqlLiteral(capacityAgreement.agreement_id)}::uuid;
+`);
+assert.equal(capacityState, '1:1:1:confirmed');
+
+const increaseChange = await rpc(clients[1], 'propose_agreement_change', {
+  p_agreement_id: capacityAgreement.agreement_id,
+  p_changes: { passenger_count: 2 }, p_client_key: randomUUID(),
+});
+assert.equal((await rpc(clients[3], 'resolve_agreement_change', {
+  p_accept: true, p_client_key: randomUUID(), p_proposal_id: increaseChange.proposal_id,
+})).status, 'accepted');
+capacityState = runSql(container, `
+  select agreement.confirmed_passenger_count::text || ':' || request.remaining_passengers::text || ':' ||
+    occurrence.confirmed_seats::text || ':' || request.status || ':' || occurrence.status
+  from app.ride_agreement as agreement
+  join app.passenger_request as request on request.id = agreement.passenger_request_id
+  join app.driver_offer_occurrence as occurrence on occurrence.id = agreement.driver_occurrence_id
+  where agreement.public_id = ${sqlLiteral(capacityAgreement.agreement_id)}::uuid;
+`);
+assert.equal(capacityState, '2:0:2:fulfilled:active');
+
+const decreaseChange = await rpc(clients[3], 'propose_agreement_change', {
+  p_agreement_id: capacityAgreement.agreement_id,
+  p_changes: { passenger_count: 1 }, p_client_key: randomUUID(),
+});
+assert.equal((await rpc(clients[1], 'resolve_agreement_change', {
+  p_accept: true, p_client_key: randomUUID(), p_proposal_id: decreaseChange.proposal_id,
+})).status, 'accepted');
+capacityState = runSql(container, `
+  select agreement.confirmed_passenger_count::text || ':' || request.remaining_passengers::text || ':' ||
+    occurrence.confirmed_seats::text || ':' || request.status || ':' || occurrence.status
+  from app.ride_agreement as agreement
+  join app.passenger_request as request on request.id = agreement.passenger_request_id
+  join app.driver_offer_occurrence as occurrence on occurrence.id = agreement.driver_occurrence_id
+  where agreement.public_id = ${sqlLiteral(capacityAgreement.agreement_id)}::uuid;
+`);
+assert.equal(capacityState, '1:1:1:partial:active');
 
 for (const [client, ride, status] of [
   [clients[0], completedRide, 'completed'], [clients[1], noOutcomeRide, 'no_outcome'],
@@ -862,7 +976,8 @@ assert.equal(runSql(container, `
   where table_schema in ('app', 'private')
     and table_name in (
       'account', 'church', 'passenger_request', 'driver_offer_series', 'driver_offer_occurrence',
-      'ride_response', 'ride_condition_snapshot', 'ride_agreement', 'agreement_contact_snapshot', 'user_place'
+      'ride_response', 'ride_condition_snapshot', 'ride_agreement', 'agreement_change_proposal',
+      'agreement_contact_snapshot', 'user_place'
     )
     and grantee in ('anon', 'authenticated', 'service_role');
 `), '0');
@@ -871,9 +986,20 @@ assert.equal(runSql(container, `
   join pg_namespace as namespace on namespace.oid = class.relnamespace
   where (namespace.nspname = 'app' and class.relname in (
       'account', 'church', 'passenger_request', 'driver_offer_series', 'driver_offer_occurrence',
-      'ride_response', 'ride_condition_snapshot', 'ride_agreement'
+      'ride_response', 'ride_condition_snapshot', 'ride_agreement', 'agreement_change_proposal'
     ) or namespace.nspname = 'private' and class.relname in ('agreement_contact_snapshot', 'user_place'))
     and class.relrowsecurity and class.relforcerowsecurity;
-`), '10');
+`), '11');
+
+for (const signature of [
+  'api.propose_agreement_change(uuid,jsonb,uuid)',
+  'api.resolve_agreement_change(uuid,boolean,uuid)',
+]) {
+  assert.equal(runSql(container, `
+    select has_function_privilege('anon', ${sqlLiteral(signature)}, 'execute')::text || ':' ||
+      has_function_privilege('authenticated', ${sqlLiteral(signature)}, 'execute')::text || ':' ||
+      has_function_privilege('service_role', ${sqlLiteral(signature)}, 'execute')::text;
+  `), 'false:true:false');
+}
 
 console.log('Account-scoped My Trips lists and on-demand details: authorization, snapshots, expiry, and privacy verification passed.');
