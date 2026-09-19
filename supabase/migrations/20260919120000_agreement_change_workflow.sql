@@ -479,7 +479,7 @@ begin
     update app.passenger_request
     set remaining_passengers = remaining_passengers - capacity_delta,
         status = case when remaining_passengers - capacity_delta = 0 then 'fulfilled' else 'partial' end,
-        closed_at = case when remaining_passengers - capacity_delta = 0 then evaluated_at else null end,
+        closed_at = null,
         updated_at = evaluated_at
     where id = request.id;
 
