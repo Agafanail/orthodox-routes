@@ -10,8 +10,8 @@
 | Checkpoint | Scope | Status | Evidence |
 | --- | --- | --- | --- |
 | 0 | Protect `main` with PR-only changes, strict required CI, no force push or deletion, and zero required approvals | Complete | GitHub branch protection verified on 19 September 2026 |
-| 1 | Campaign recovery state and non-destructive current staging smoke | In progress | Branch `codex/backend-campaign-foundation`; remote smoke passed locally before PR |
-| 2 | Agreement change proposal/answer workflow and remaining My Trips backend | Planned | Approved agreement rules and existing My Trips projections |
+| 1 | Campaign recovery state and non-destructive current staging smoke | Complete | PR #8; commit `31436a3`; CI `35443915447` green; remote staging smoke passed with exact cleanup |
+| 2 | Agreement change proposal/answer workflow and remaining My Trips backend | In progress | Approved agreement rules and existing My Trips projections |
 | 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | Planned | Product Scope, IA V2, Backend Architecture V1, Target Data Model V1 |
 | 4 | Profile/account operations required by the approved personal area | Planned | Name/language/contact-change/export backend; deletion is checkpoint 7 |
 | 5 | Church creation, deduplication, equal administration, schedules, exceptions, cancellation, and archival | Planned | Roadmap phase 7 backend |
@@ -22,7 +22,7 @@
 
 ## Current checkpoint
 
-Checkpoint 1. The staging smoke no longer requires an empty project, no longer truncates shared staging data, accepts additive readiness fields, reuses the current staging Terms fixture, scopes cleanup to the identities created by one run, and verifies cleanup while preserving any pre-existing church fixture.
+Checkpoint 2. Implement the participant-authorized agreement change proposal/answer workflow, authoritative awaiting actor, immutable pending/active snapshots, atomic capacity changes, expiry, cancellation interaction, and the remaining backend state required by My Trips.
 
 ## Remaining backend areas
 
@@ -49,6 +49,7 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - `main` started at the expected merge of PR #7 and was clean.
 - Required checks on protected `main`: `verify`, `database-foundation`, `local-auth`, `core-browser-e2e`.
 - Checkpoint 1 remote staging smoke passed against the isolated project with exact synthetic cleanup and no broad truncation.
+- PR #8 CI run `35443915447` passed `verify`, `database-foundation`, `local-auth`, and `core-browser-e2e`, including cleanup/post-steps.
 - No campaign checkpoint is complete until its PR is merged through all required green checks.
 
 Update this file after every merged checkpoint with the PR, merge commit, CI run, current checkpoint, and any genuine gate.
