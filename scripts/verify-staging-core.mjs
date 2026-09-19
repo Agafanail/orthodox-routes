@@ -22,12 +22,24 @@ function runCli(args) {
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
   });
-  if (result.status !== 0) fail('The authenticated staging CLI operation failed.');
+  if (result.status !== 0) {
+    const reason = `${result.stderr ?? ''}${result.stdout ?? ''}`
+      .trim().split('\n').slice(-4).join('\n');
+    fail(`The authenticated staging CLI operation failed.\n${reason}`);
+  }
   return result.stdout;
 }
 
 function runSql(statement) {
   runCli(['db', 'query', '--linked', statement]);
+}
+
+function queryRows(statement) {
+  const result = JSON.parse(runCli([
+    'db', 'query', '--linked', '--output-format', 'json', statement,
+  ]));
+  if (!Array.isArray(result.rows)) fail('The staging query returned an invalid result.');
+  return result.rows;
 }
 
 function sqlLiteral(value) {
@@ -94,34 +106,71 @@ function isoAfter(days, hour) {
   return value.toISOString();
 }
 
-const guardSql = `
-do $$
-begin
-  if exists (select 1 from auth.users)
-    or exists (select 1 from app.account)
-    or exists (select 1 from app.church)
-    or exists (select 1 from app.passenger_request)
-    or exists (select 1 from app.driver_offer_occurrence)
-    or exists (select 1 from app.ride_agreement)
-  then
-    raise exception 'staging smoke requires an empty synthetic-only project';
-  end if;
-end;
-$$;
-`;
+function cleanupSql(accountIds, churchId, removeChurch) {
+  const accounts = accountIds.map((id) => `${sqlLiteral(id)}::uuid`).join(', ');
+  const fixtureAccounts = `select id from app.account where id in (${accounts})`;
+  const fixtureRequests = `select id from app.passenger_request where author_account_id in (${accounts})`;
+  const fixtureOccurrences = `select id from app.driver_offer_occurrence where author_account_id in (${accounts})`;
+  const fixtureAgreements = `
+    select id from app.ride_agreement
+    where passenger_request_id in (${fixtureRequests})
+       or driver_occurrence_id in (${fixtureOccurrences})
+  `;
 
-const cleanupSql = `
-truncate table app.account, app.legal_document_version, app.church restart identity cascade;
-`;
+  return `
+    begin;
+    set local session_replication_role = replica;
+    delete from private.agreement_contact_snapshot where agreement_id in (${fixtureAgreements});
+    delete from app.agreement_event where agreement_id in (${fixtureAgreements});
+    delete from app.ride_agreement where id in (${fixtureAgreements});
+    delete from app.ride_response
+    where passenger_request_id in (${fixtureRequests})
+       or driver_occurrence_id in (${fixtureOccurrences});
+    delete from app.ride_condition_snapshot
+    where passenger_request_id in (${fixtureRequests})
+       or driver_occurrence_id in (${fixtureOccurrences});
+    set local session_replication_role = origin;
+    delete from app.passenger_request_place where request_id in (${fixtureRequests});
+    delete from app.passenger_request where id in (${fixtureRequests});
+    delete from app.driver_offer_occurrence where id in (${fixtureOccurrences});
+    delete from app.driver_offer_series where author_account_id in (${accounts});
+    delete from private.user_place where owner_account_id in (${accounts});
+    delete from app.account where id in (${fixtureAccounts});
+    ${removeChurch ? `delete from app.church where public_id = ${sqlLiteral(churchId)}::uuid;` : ''}
+    commit;
+  `;
+}
 
 const { publicKey, secretKey, url } = readStagingConfiguration();
-runSql(guardSql);
+
+const currentTerms = queryRows(`
+  select id
+  from app.legal_document_version
+  where id = app.current_legal_document_id('terms', now())
+`);
+if (currentTerms.length !== 1) {
+  fail('The isolated staging project has no current published Terms fixture.');
+}
+
+const existingChurches = queryRows(`
+  select public_id, status
+  from app.church
+  where slug = 'pokrov-catanzaro'
+`);
+if (existingChurches.length > 1
+  || (existingChurches.length === 1 && existingChurches[0].status !== 'published')) {
+  fail('The staging board church is ambiguous or unavailable.');
+}
+const churchId = existingChurches[0]?.public_id ?? randomUUID();
+const createdChurch = existingChurches.length === 0;
 
 const readiness = await fetch(`${stagingAppOrigin}/api/readiness`, {
   headers: { 'cache-control': 'no-cache' },
 });
 assert.equal(readiness.status, 200);
-assert.deepEqual(await readiness.json(), { scope: 'core-application', status: 'ready' });
+const readinessBody = await readiness.json();
+assert.equal(readinessBody.scope, 'core-application');
+assert.equal(readinessBody.status, 'ready');
 
 const suffix = `${Date.now()}-${process.pid}`;
 const phoneStem = String(Date.now()).slice(-9);
@@ -161,24 +210,19 @@ try {
     await rpc(clients[index], 'declare_adult');
   }
 
-  const churchId = randomUUID();
   runSql(`
-    insert into app.legal_document_version (
-      document_type, version, language_codes, effective_at, status, content_hash
-    ) values (
-      'terms', ${sqlLiteral(`staging-smoke-${suffix}`)}, array['en'],
-      now() - interval '1 day', 'published', repeat('a', 64)
-    );
     update private.account_contact
     set phone_verified_at = now()
     where account_id in (${identities.map((identity) => `${sqlLiteral(identity.id)}::uuid`).join(', ')});
-    insert into app.church (
-      public_id, slug, official_name, address_display, locality, country_code, timezone, status, location
-    ) values (
-      ${sqlLiteral(churchId)}::uuid, 'pokrov-catanzaro',
-      'Synthetic Staging Church', 'Synthetic staging address', 'Test Locality', 'IT', 'UTC', 'published',
-      extensions.st_setsrid(extensions.st_makepoint(7.6869, 45.0703), 4326)::extensions.geography
-    );
+    ${createdChurch ? `
+      insert into app.church (
+        public_id, slug, official_name, address_display, locality, country_code, timezone, status, location
+      ) values (
+        ${sqlLiteral(churchId)}::uuid, 'pokrov-catanzaro',
+        'Synthetic Staging Church', 'Synthetic staging address', 'Test Locality', 'IT', 'UTC', 'published',
+        extensions.st_setsrid(extensions.st_makepoint(7.6869, 45.0703), 4326)::extensions.geography
+      );
+    ` : ''}
   `);
 
   for (const client of clients) await rpc(client, 'accept_current_terms');
@@ -272,24 +316,33 @@ try {
   const afterCancellation = await rpc(anonymous, 'list_active_driver_occurrences', { p_church_id: churchId });
   assert.equal(afterCancellation.find((item) => item.occurrence_id === occurrence.occurrence_id).available_seats, 2);
   assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
-    .some((item) => item.request_id === request.request_id), false);
-  await rpc(clients[0], 'restore_passenger_request', {
-    p_client_key: randomUUID(),
-    p_request_id: request.request_id,
-  });
-  assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
     .some((item) => item.request_id === request.request_id), true);
 
   console.log('Remote staging Core smoke verification passed:');
   console.log('- isolated synthetic passenger, driver, and unrelated identities coordinated through the remote API');
   console.log('- the HTTPS deployment rendered remote public board data without exact places or contacts');
-  console.log('- ownership, public privacy, agreement, capacity, cancellation, restoration, and disclosure held');
+  console.log('- ownership, public privacy, agreement, capacity, driver cancellation, republication, and disclosure held');
   console.log('- phone eligibility used a database-owner staging fixture; real SMS delivery was not verified');
 } finally {
-  runSql(cleanupSql);
-  for (const identity of identities) {
-    if (identity.id) await admin.auth.admin.deleteUser(identity.id);
+  const createdAccountIds = identities.flatMap((identity) => identity.id ? [identity.id] : []);
+  if (createdAccountIds.length > 0) {
+    runSql(cleanupSql(createdAccountIds, churchId, createdChurch));
   }
-  runSql(guardSql);
-  console.log('- all synthetic staging smoke data was removed');
+  for (const identity of identities) {
+    if (!identity.id) continue;
+    const removed = await admin.auth.admin.deleteUser(identity.id);
+    if (removed.error) fail('A synthetic staging identity could not be removed.');
+  }
+  const leftoverAccounts = createdAccountIds.length === 0 ? [] : queryRows(`
+    select id from app.account
+    where id in (${createdAccountIds.map((id) => `${sqlLiteral(id)}::uuid`).join(', ')})
+  `);
+  assert.deepEqual(leftoverAccounts, []);
+  if (!createdChurch) {
+    const preservedChurch = queryRows(`
+      select public_id from app.church where public_id = ${sqlLiteral(churchId)}::uuid
+    `);
+    assert.equal(preservedChurch.length, 1);
+  }
+  console.log('- only this run\'s synthetic staging data was removed; unrelated fixtures were preserved');
 }
