@@ -81,6 +81,7 @@ const clients = identities.map(() => userClient(url, publicKey));
 const createdUserIds = [];
 const termsVersion = `notification-terms-${suffix}`;
 const churchSlug = `notification-${suffix}`.toLowerCase();
+let emailProviderReference = '';
 
 try {
   runSql(container, `
@@ -138,24 +139,53 @@ try {
   await rpcFailure(clients[0], 'notification_worker_claim_jobs', {
     p_lease_token: randomUUID(), p_limit: 10,
   });
+  await rpcFailure(clients[0], 'notification_worker_claim_jobs_v2', {
+    p_channels: ['email'], p_lease_token: randomUUID(), p_limit: 10,
+  });
   let lease = randomUUID();
-  let jobs = await rpc(admin, 'notification_worker_claim_jobs', { p_lease_token: lease, p_limit: 10 });
+  let jobs = await rpc(admin, 'notification_worker_claim_jobs_v2', {
+    p_channels: ['email'], p_lease_token: lease, p_limit: 10,
+  });
   assert.equal(jobs.length, 1);
   assert.equal(jobs[0].channel, 'email');
+  assert.equal(jobs[0].notification_id, firstNotificationId);
+  assert.equal(jobs[0].preferred_language, 'en');
   assert.equal(jobs[0].destination_value, identities[0].email);
   assert.equal(await rpc(admin, 'notification_worker_complete_job', {
     p_job_id: jobs[0].job_id, p_lease_token: lease, p_outcome: 'temporary_failure',
-    p_provider_adapter: 'synthetic-email', p_safe_failure_class: 'provider_unavailable',
+    p_provider_adapter: 'resend-email-v1', p_safe_failure_class: 'provider_unavailable',
   }), true);
   runSql(container, `update app.outbox_job set available_at = now() - interval '1 second'
     where public_id = ${sqlLiteral(jobs[0].job_id)}::uuid;`);
   lease = randomUUID();
   jobs = await rpc(admin, 'notification_worker_claim_jobs', { p_lease_token: lease, p_limit: 10 });
   assert.equal(jobs[0].attempt_count, 2);
+  emailProviderReference = randomUUID();
   assert.equal(await rpc(admin, 'notification_worker_complete_job', {
     p_job_id: jobs[0].job_id, p_lease_token: lease, p_outcome: 'sent',
-    p_provider_adapter: 'synthetic-email', p_provider_reference: 'email-safe-reference',
+    p_provider_adapter: 'resend-email-v1', p_provider_reference: emailProviderReference,
   }), true);
+  const deliveredEventId = `msg_${suffix}_delivered`;
+  const deliveredAt = new Date().toISOString();
+  const delivered = await rpc(admin, 'notification_worker_record_provider_event', {
+    p_event_id: deliveredEventId, p_event_type: 'email.delivered', p_occurred_at: deliveredAt,
+    p_provider: 'resend', p_provider_reference: emailProviderReference,
+  });
+  assert.deepEqual(delivered, {
+    duplicate: false, matched: true, outcome: 'delivered', state_changed: true,
+  });
+  assert.equal((await rpc(admin, 'notification_worker_record_provider_event', {
+    p_event_id: deliveredEventId, p_event_type: 'email.delivered', p_occurred_at: deliveredAt,
+    p_provider: 'resend', p_provider_reference: emailProviderReference,
+  })).duplicate, true);
+  const olderSent = await rpc(admin, 'notification_worker_record_provider_event', {
+    p_event_id: `msg_${suffix}_older`, p_event_type: 'email.sent',
+    p_occurred_at: new Date(Date.parse(deliveredAt) - 60_000).toISOString(),
+    p_provider: 'resend', p_provider_reference: emailProviderReference,
+  });
+  assert.equal(olderSent.state_changed, false);
+  assert.equal(runSql(container, `select state from app.notification_delivery
+    where provider_reference = ${sqlLiteral(emailProviderReference)};`), 'delivered');
 
   const pushArgs = (marker, clientKey = randomUUID()) => ({
     p_auth_key: 'B'.repeat(22), p_client_key: clientKey,
@@ -244,7 +274,8 @@ try {
     select count(*) from information_schema.role_table_grants
     where table_schema in ('app','private','ops')
       and table_name in ('notification','notification_preference','push_subscription',
-        'notification_delivery','notification_destination','outbox_job','notification_operation','operational_alert')
+        'notification_delivery','notification_destination','outbox_job','notification_operation',
+        'operational_alert','provider_webhook_receipt')
       and grantee in ('anon','authenticated','service_role');
   `), '0');
   assert.equal(runSql(container, `
@@ -252,19 +283,26 @@ try {
     join pg_namespace as namespace on namespace.oid = class.relnamespace
     where namespace.nspname in ('app','private','ops')
       and class.relname in ('notification','notification_preference','push_subscription',
-        'notification_delivery','notification_destination','outbox_job','notification_operation','operational_alert')
+        'notification_delivery','notification_destination','outbox_job','notification_operation',
+        'operational_alert','provider_webhook_receipt')
       and class.relrowsecurity and class.relforcerowsecurity;
-  `), '8');
+  `), '9');
   assert.equal(runSql(container, `
     select has_function_privilege('anon', 'api.notification_worker_claim_jobs(uuid,integer)', 'execute')::text || ':' ||
       has_function_privilege('authenticated', 'api.notification_worker_claim_jobs(uuid,integer)', 'execute')::text || ':' ||
       has_function_privilege('service_role', 'api.notification_worker_claim_jobs(uuid,integer)', 'execute')::text;
+  `), 'false:false:true');
+  assert.equal(runSql(container, `
+    select has_function_privilege('anon', 'api.notification_worker_record_provider_event(text,text,text,text,timestamptz)', 'execute')::text || ':' ||
+      has_function_privilege('authenticated', 'api.notification_worker_record_provider_event(text,text,text,text,timestamptz)', 'execute')::text || ':' ||
+      has_function_privilege('service_role', 'api.notification_worker_record_provider_event(text,text,text,text,timestamptz)', 'execute')::text;
   `), 'false:false:true');
   assert.ok(secondNotificationId);
   console.log('Notification history, preferences, channel invariant, push storage, and durable outbox verification passed.');
 } finally {
   try {
     runSql(container, `
+      delete from ops.provider_webhook_receipt where provider_reference = ${sqlLiteral(emailProviderReference ?? '')};
       delete from app.passenger_request where author_account_id in (${createdUserIds.map((id) => `${sqlLiteral(id)}::uuid`).join(',') || 'null'});
       delete from app.church where slug = ${sqlLiteral(churchSlug)};
       delete from app.account where id in (${createdUserIds.map((id) => `${sqlLiteral(id)}::uuid`).join(',') || 'null'});

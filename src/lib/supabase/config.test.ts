@@ -3,8 +3,12 @@ import {
   getContextualRegistrationConfig,
   getApplicationOrigin,
   getBirdSmsConfig,
+  getNotificationWorkerSecret,
   getPublicSupabaseConfig,
+  getResendNotificationConfig,
+  getResendWebhookSecret,
   getServerSupabaseConfig,
+  getWebPushNotificationConfig,
   hasPublicSupabaseConfigurationIntent,
   isSafePublicSupabaseKey,
   isSafeServerSupabaseKey,
@@ -18,6 +22,14 @@ const originalContextSecret = process.env.CONTEXTUAL_REGISTRATION_SECRET;
 const originalBirdApiBaseUrl = process.env.BIRD_API_BASE_URL;
 const originalBirdApiKey = process.env.BIRD_API_KEY;
 const originalBirdSmsSender = process.env.BIRD_SMS_SENDER;
+const notificationVariables = [
+  'NOTIFICATION_WORKER_SECRET', 'RESEND_API_KEY', 'RESEND_NOTIFICATION_FROM',
+  'RESEND_WEBHOOK_SECRET', 'VAPID_KEY_VERSION', 'VAPID_PRIVATE_KEY',
+  'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT',
+] as const;
+const originalNotificationVariables = Object.fromEntries(
+  notificationVariables.map((name) => [name, process.env[name]]),
+);
 
 function legacyJwt(role: string) {
   const payload = Buffer.from(JSON.stringify({ role })).toString('base64url');
@@ -43,6 +55,11 @@ afterEach(() => {
   else process.env.BIRD_API_KEY = originalBirdApiKey;
   if (originalBirdSmsSender === undefined) delete process.env.BIRD_SMS_SENDER;
   else process.env.BIRD_SMS_SENDER = originalBirdSmsSender;
+  for (const name of notificationVariables) {
+    const value = originalNotificationVariables[name];
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
 });
 
 describe('public Supabase configuration', () => {
@@ -117,6 +134,51 @@ describe('server-only backend configuration', () => {
     process.env.ORTHODOX_ROUTES_APP_URL = 'https://routes.example.org';
     process.env.CONTEXTUAL_REGISTRATION_SECRET = 'short';
     expect(getContextualRegistrationConfig()).toBeNull();
+  });
+});
+
+describe('notification provider configuration', () => {
+  it('accepts complete server-only Resend, worker, webhook, and VAPID configuration', () => {
+    process.env.ORTHODOX_ROUTES_APP_URL = 'https://routes.example.org';
+    process.env.RESEND_API_KEY = `re_${'a'.repeat(32)}`;
+    process.env.RESEND_NOTIFICATION_FROM = 'Orthodox Routes <notify@example.org>';
+    process.env.RESEND_WEBHOOK_SECRET = `whsec_${'a'.repeat(32)}`;
+    process.env.NOTIFICATION_WORKER_SECRET = 'worker-secret-'.repeat(4);
+    process.env.VAPID_PUBLIC_KEY = 'A'.repeat(87);
+    process.env.VAPID_PRIVATE_KEY = 'B'.repeat(43);
+    process.env.VAPID_SUBJECT = 'mailto:push@example.org';
+    process.env.VAPID_KEY_VERSION = '1';
+
+    expect(getResendNotificationConfig()).toEqual({
+      apiKey: process.env.RESEND_API_KEY,
+      appOrigin: 'https://routes.example.org',
+      from: process.env.RESEND_NOTIFICATION_FROM,
+    });
+    expect(getResendWebhookSecret()).toBe(process.env.RESEND_WEBHOOK_SECRET);
+    expect(getNotificationWorkerSecret()).toBe(process.env.NOTIFICATION_WORKER_SECRET);
+    expect(getWebPushNotificationConfig()).toEqual({
+      keyVersion: 1,
+      privateKey: process.env.VAPID_PRIVATE_KEY,
+      publicKey: process.env.VAPID_PUBLIC_KEY,
+      subject: 'mailto:push@example.org',
+    });
+  });
+
+  it('fails closed for partial or unsafe notification provider values', () => {
+    process.env.ORTHODOX_ROUTES_APP_URL = 'https://routes.example.org';
+    process.env.RESEND_API_KEY = 'invalid';
+    process.env.RESEND_NOTIFICATION_FROM = 'notify@example.org\r\nBcc: attacker@example.org';
+    process.env.RESEND_WEBHOOK_SECRET = 'short';
+    process.env.NOTIFICATION_WORKER_SECRET = 'short';
+    process.env.VAPID_PUBLIC_KEY = 'A'.repeat(87);
+    process.env.VAPID_PRIVATE_KEY = 'B'.repeat(43);
+    process.env.VAPID_SUBJECT = 'https://localhost';
+    process.env.VAPID_KEY_VERSION = '0';
+
+    expect(getResendNotificationConfig()).toBeNull();
+    expect(getResendWebhookSecret()).toBeNull();
+    expect(getNotificationWorkerSecret()).toBeNull();
+    expect(getWebPushNotificationConfig()).toBeNull();
   });
 });
 

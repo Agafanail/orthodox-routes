@@ -16,6 +16,19 @@ export type BirdSmsConfig = {
   sender: string;
 };
 
+export type ResendNotificationConfig = {
+  apiKey: string;
+  appOrigin: string;
+  from: string;
+};
+
+export type WebPushNotificationConfig = {
+  keyVersion: number;
+  privateKey: string;
+  publicKey: string;
+  subject: string;
+};
+
 export function getApplicationOrigin() {
   const appUrl = process.env.ORTHODOX_ROUTES_APP_URL?.trim();
   if (!appUrl) return null;
@@ -138,4 +151,61 @@ export function getBirdSmsConfig(): BirdSmsConfig | null {
   } catch {
     return null;
   }
+}
+
+function isSafeEmailAddress(value: string) {
+  const mailbox = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+  if (value.length > 254) return false;
+  if (mailbox.test(value)) return true;
+  const friendly = /^([^<>\r\n]{1,80}) <([^<>\r\n]+)>$/.exec(value);
+  return Boolean(friendly && mailbox.test(friendly[2]));
+}
+
+export function getResendNotificationConfig(): ResendNotificationConfig | null {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from = process.env.RESEND_NOTIFICATION_FROM?.trim();
+  const appOrigin = getApplicationOrigin();
+  return apiKey && /^re_[A-Za-z0-9_-]{16,}$/.test(apiKey)
+    && from && isSafeEmailAddress(from)
+    && appOrigin
+    ? { apiKey, appOrigin, from }
+    : null;
+}
+
+export function getResendWebhookSecret() {
+  const secret = process.env.RESEND_WEBHOOK_SECRET?.trim();
+  return secret && /^whsec_[A-Za-z0-9_+/=-]{16,}$/.test(secret) ? secret : null;
+}
+
+export function getNotificationWorkerSecret() {
+  const secret = process.env.NOTIFICATION_WORKER_SECRET?.trim();
+  return secret && secret.length >= 32 && secret.length <= 256 && !/[\u0000-\u001f\u007f]/.test(secret)
+    ? secret
+    : null;
+}
+
+export function getWebPushNotificationConfig(): WebPushNotificationConfig | null {
+  const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
+  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  const subject = process.env.VAPID_SUBJECT?.trim();
+  const keyVersion = Number(process.env.VAPID_KEY_VERSION?.trim());
+  if (
+    !publicKey || !/^[A-Za-z0-9_-]{87}$/.test(publicKey)
+    || !privateKey || !/^[A-Za-z0-9_-]{43}$/.test(privateKey)
+    || !subject || !Number.isSafeInteger(keyVersion) || keyVersion <= 0
+  ) return null;
+
+  try {
+    if (subject.startsWith('mailto:')) {
+      if (!isSafeEmailAddress(subject.slice(7))) return null;
+    } else {
+      const parsed = new URL(subject);
+      if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.hostname === 'localhost') {
+        return null;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return { keyVersion, privateKey, publicKey, subject };
 }
