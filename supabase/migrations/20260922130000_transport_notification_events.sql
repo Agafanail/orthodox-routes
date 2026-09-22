@@ -201,7 +201,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  agreement record;
+  agreement_row record;
   quality_match record;
   series record;
   match_count integer := 0;
@@ -247,46 +247,50 @@ begin
     match_count := match_count + 2;
   end loop;
 
-  for agreement in
-    select agreement.public_id, agreement.passenger_account_id, agreement.driver_account_id
-    from app.ride_agreement as agreement
-    join app.driver_offer_occurrence as occurrence on occurrence.id = agreement.driver_occurrence_id
-    where agreement.status in ('confirmed', 'change_pending')
+  for agreement_row in
+    select ride_agreement.public_id, ride_agreement.passenger_account_id,
+      ride_agreement.driver_account_id
+    from app.ride_agreement as ride_agreement
+    join app.driver_offer_occurrence as occurrence
+      on occurrence.id = ride_agreement.driver_occurrence_id
+    where ride_agreement.status in ('confirmed', 'change_pending')
       and occurrence.arrival_at > p_evaluated_at
       and occurrence.arrival_at <= p_evaluated_at + interval '24 hours'
   loop
     perform app.create_notification_once(
-      agreement.passenger_account_id,
-      'ride_agreement:' || agreement.public_id::text || ':reminder24h:passenger',
-      'ride.reminder', 'ride_agreement', agreement.public_id, '/trips',
+      agreement_row.passenger_account_id,
+      'ride_agreement:' || agreement_row.public_id::text || ':reminder24h:passenger',
+      'ride.reminder', 'ride_agreement', agreement_row.public_id, '/trips',
       'notifications.ride_reminder', '{}'::jsonb, 60, 'upcoming'
     );
     perform app.create_notification_once(
-      agreement.driver_account_id,
-      'ride_agreement:' || agreement.public_id::text || ':reminder24h:driver',
-      'ride.reminder', 'ride_agreement', agreement.public_id, '/trips',
+      agreement_row.driver_account_id,
+      'ride_agreement:' || agreement_row.public_id::text || ':reminder24h:driver',
+      'ride.reminder', 'ride_agreement', agreement_row.public_id, '/trips',
       'notifications.ride_reminder', '{}'::jsonb, 60, 'upcoming'
     );
     reminder_count := reminder_count + 2;
   end loop;
 
-  for agreement in
-    select agreement.public_id, agreement.passenger_account_id, agreement.driver_account_id
-    from app.ride_agreement as agreement
-    join app.driver_offer_occurrence as occurrence on occurrence.id = agreement.driver_occurrence_id
-    where agreement.status in ('confirmed', 'change_pending', 'completed')
+  for agreement_row in
+    select ride_agreement.public_id, ride_agreement.passenger_account_id,
+      ride_agreement.driver_account_id
+    from app.ride_agreement as ride_agreement
+    join app.driver_offer_occurrence as occurrence
+      on occurrence.id = ride_agreement.driver_occurrence_id
+    where ride_agreement.status in ('confirmed', 'change_pending', 'completed')
       and occurrence.arrival_at <= p_evaluated_at
   loop
     perform app.create_notification_once(
-      agreement.passenger_account_id,
-      'ride_agreement:' || agreement.public_id::text || ':outcome:passenger',
-      'ride.outcome_requested', 'ride_agreement', agreement.public_id, '/trips',
+      agreement_row.passenger_account_id,
+      'ride_agreement:' || agreement_row.public_id::text || ':outcome:passenger',
+      'ride.outcome_requested', 'ride_agreement', agreement_row.public_id, '/trips',
       'notifications.ride_outcome_requested', '{}'::jsonb, 50, 'awaiting_outcome'
     );
     perform app.create_notification_once(
-      agreement.driver_account_id,
-      'ride_agreement:' || agreement.public_id::text || ':outcome:driver',
-      'ride.outcome_requested', 'ride_agreement', agreement.public_id, '/trips',
+      agreement_row.driver_account_id,
+      'ride_agreement:' || agreement_row.public_id::text || ':outcome:driver',
+      'ride.outcome_requested', 'ride_agreement', agreement_row.public_id, '/trips',
       'notifications.ride_outcome_requested', '{}'::jsonb, 50, 'awaiting_outcome'
     );
     outcome_count := outcome_count + 2;
