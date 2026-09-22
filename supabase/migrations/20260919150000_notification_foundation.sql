@@ -199,7 +199,7 @@ revoke all on table app.notification, private.notification_preference, private.p
   private.notification_operation, ops.operational_alert
 from public, anon, authenticated, service_role;
 
-create function app.notification_parameters_are_safe(value jsonb)
+create function app.notification_parameters_are_safe(requested_parameters jsonb)
 returns boolean
 language plpgsql
 immutable
@@ -208,8 +208,11 @@ as $$
 declare
   item record;
 begin
-  if value is null or jsonb_typeof(value) <> 'object' then return false; end if;
-  for item in select key, value as content from jsonb_each(value) loop
+  if requested_parameters is null or jsonb_typeof(requested_parameters) <> 'object' then return false; end if;
+  for item in
+    select parameter.key, parameter.value as content
+    from jsonb_each(requested_parameters) as parameter(key, value)
+  loop
     if item.key !~ '^[a-z][a-z0-9_]{0,39}$'
       or item.key ~* '(email|phone|contact|address|coordinate|latitude|longitude|note|route|token|secret)'
       or jsonb_typeof(item.content) not in ('string', 'number', 'boolean', 'null')
