@@ -11,8 +11,8 @@
 | --- | --- | --- | --- |
 | 0 | Protect `main` with PR-only changes, strict required CI, no force push or deletion, and zero required approvals | Complete | GitHub branch protection verified on 19 September 2026 |
 | 1 | Campaign recovery state and non-destructive current staging smoke | Complete | PR #8; commit `31436a3`; CI `35443915447` green; remote staging smoke passed with exact cleanup |
-| 2 | Agreement change proposal/answer workflow and remaining My Trips backend | In progress | Approved agreement rules and existing My Trips projections |
-| 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | Planned | Product Scope, IA V2, Backend Architecture V1, Target Data Model V1 |
+| 2 | Agreement change proposal/answer workflow and remaining My Trips backend | Complete | PR #9; merge `24f70fa`; CI `35445507498` green |
+| 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | In progress | Product Scope, IA V2, Backend Architecture V1, Target Data Model V1 |
 | 4 | Profile/account operations required by the approved personal area | Planned | Name/language/contact-change/export backend; deletion is checkpoint 7 |
 | 5 | Church creation, deduplication, equal administration, schedules, exceptions, cancellation, and archival | Planned | Roadmap phase 7 backend |
 | 6 | Stored dynamic-content translations and provider-independent translation jobs | Planned | Six-language approved content boundary; provider action remains external |
@@ -22,11 +22,10 @@
 
 ## Current checkpoint
 
-Checkpoint 2. Implement the participant-authorized agreement change proposal/answer workflow, authoritative awaiting actor, immutable pending/active snapshots, atomic capacity changes, expiry, cancellation interaction, and the remaining backend state required by My Trips.
+Checkpoint 3. Implement the durable in-app notification history, account preferences, per-device Web Push subscriptions, effective-external-channel invariant, delivery/outbox leasing, provider-independent workers, and atomic transport-event integration.
 
 ## Remaining backend areas
 
-- authoritative agreement change proposer/responder state and atomic snapshot replacement;
 - durable in-app notifications, preferences, transactional email, Web Push, outbox, retry, and delivery state;
 - account/profile data operations, contact changes, export, and deletion lifecycle;
 - church creation/deduplication, up to three equal administrators, schedules, exceptions, cancellation, and archival;
@@ -50,6 +49,7 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - Required checks on protected `main`: `verify`, `database-foundation`, `local-auth`, `core-browser-e2e`.
 - Checkpoint 1 remote staging smoke passed against the isolated project with exact synthetic cleanup and no broad truncation.
 - PR #8 CI run `35443915447` passed `verify`, `database-foundation`, `local-auth`, and `core-browser-e2e`, including cleanup/post-steps.
+- PR #9 merged as `24f70fa`; CI run `35445507498` passed all required checks after the focused agreement-change RPC suite verified authorization, idempotency, snapshot separation, and atomic capacity deltas.
 - No campaign checkpoint is complete until its PR is merged through all required green checks.
 
 Update this file after every merged checkpoint with the PR, merge commit, CI run, current checkpoint, and any genuine gate.
