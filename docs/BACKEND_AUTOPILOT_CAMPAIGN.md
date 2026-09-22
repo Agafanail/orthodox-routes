@@ -12,7 +12,7 @@
 | 0 | Protect `main` with PR-only changes, strict required CI, no force push or deletion, and zero required approvals | Complete | GitHub branch protection verified on 19 September 2026 |
 | 1 | Campaign recovery state and non-destructive current staging smoke | Complete | PR #8; commit `31436a3`; CI `35443915447` green; remote staging smoke passed with exact cleanup |
 | 2 | Agreement change proposal/answer workflow and remaining My Trips backend | Complete | PR #9; merge `24f70fa`; CI `35445507498` green |
-| 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | In progress | Product Scope, IA V2, Backend Architecture V1, Target Data Model V1 |
+| 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | In progress | PR #10; merge `6beca9c`; CI `35708503854` green; provider delivery/events branch in progress |
 | 4 | Profile/account operations required by the approved personal area | Planned | Name/language/contact-change/export backend; deletion is checkpoint 7 |
 | 5 | Church creation, deduplication, equal administration, schedules, exceptions, cancellation, and archival | Planned | Roadmap phase 7 backend |
 | 6 | Stored dynamic-content translations and provider-independent translation jobs | Planned | Six-language approved content boundary; provider action remains external |
@@ -50,6 +50,7 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - Checkpoint 1 remote staging smoke passed against the isolated project with exact synthetic cleanup and no broad truncation.
 - PR #8 CI run `35443915447` passed `verify`, `database-foundation`, `local-auth`, and `core-browser-e2e`, including cleanup/post-steps.
 - PR #9 merged as `24f70fa`; CI run `35445507498` passed all required checks after the focused agreement-change RPC suite verified authorization, idempotency, snapshot separation, and atomic capacity deltas.
+- PR #10 merged as `6beca9c`; CI run `35708503854` passed all required checks after the notification suite verified protected preferences/subscriptions, effective-channel enforcement, durable leasing/retry, terminal invalidation, grants, and forced RLS.
 - No campaign checkpoint is complete until its PR is merged through all required green checks.
 
 Update this file after every merged checkpoint with the PR, merge commit, CI run, current checkpoint, and any genuine gate.

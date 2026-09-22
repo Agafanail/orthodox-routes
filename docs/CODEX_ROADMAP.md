@@ -120,7 +120,7 @@ The complete Core campaign passed its final local, migration, security/privacy, 
 - Implement the remaining `My Trips` route and interface, the in-app notification history, and the lightweight profile with notification settings.
 - Preserve church-management entry points without treating church administration as part of personal trips.
 - Implement durable in-app notifications, transactional email, and Web Push.
-- The durable notification foundation is implemented: account-owned history, ordinary email/Web Push preferences, protected device subscriptions, effective-channel enforcement, delivery state, and a service-role-only leased outbox. Provider adapters, signed webhooks, transport-event insertion, reminders, and production UI remain outstanding.
+- The durable notification foundation is implemented: account-owned history, ordinary email/Web Push preferences, protected device subscriptions, effective-channel enforcement, delivery state, and a service-role-only leased outbox. Provider-independent Resend and VAPID workers plus signed, deduplicated, out-of-order-safe Resend webhook receipts are implemented behind server-only configuration. Transport-event insertion, reminders, owner-controlled provider configuration, real device/provider verification, and production UI remain outstanding.
 - Follow the IA V2 PWA guidance: provide iPhone installation guidance before Web Push; on Android, use the system installation prompt when supported and otherwise provide browser-specific guidance; keep installation and push permission separate; request push only after a useful user action; and continue important messages by email while push is unavailable.
 - Make the web application installable as a PWA.
 
