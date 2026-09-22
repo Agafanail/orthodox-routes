@@ -59,8 +59,16 @@ create table private.push_subscription (
   constraint push_subscription_endpoint check (
     char_length(endpoint_value) between 12 and 2048 and endpoint_value ~ '^https://[^[:space:]]+$'
   ),
-  constraint push_subscription_p256dh check (p256dh_key ~ '^[A-Za-z0-9_-]{32,256}={0,2}$'),
-  constraint push_subscription_auth check (auth_key ~ '^[A-Za-z0-9_-]{16,128}={0,2}$'),
+  constraint push_subscription_p256dh check (
+    p256dh_key ~ '^[A-Za-z0-9_-]+={0,2}$'
+    and char_length(rtrim(p256dh_key, '=')) between 32 and 256
+    and char_length(p256dh_key) - char_length(rtrim(p256dh_key, '=')) <= 2
+  ),
+  constraint push_subscription_auth check (
+    auth_key ~ '^[A-Za-z0-9_-]+={0,2}$'
+    and char_length(rtrim(auth_key, '=')) between 16 and 128
+    and char_length(auth_key) - char_length(rtrim(auth_key, '=')) <= 2
+  ),
   constraint push_subscription_vapid_version check (vapid_key_version > 0),
   constraint push_subscription_device_label check (
     device_label is null or (char_length(device_label) between 1 and 80 and device_label !~ '[[:cntrl:]]')
@@ -568,8 +576,12 @@ begin
   end if;
   if normalized_endpoint !~ '^https://[^[:space:]]+$'
     or char_length(normalized_endpoint) not between 12 and 2048
-    or p_p256dh_key !~ '^[A-Za-z0-9_-]{32,256}={0,2}$'
-    or p_auth_key !~ '^[A-Za-z0-9_-]{16,128}={0,2}$'
+    or p_p256dh_key !~ '^[A-Za-z0-9_-]+={0,2}$'
+    or char_length(rtrim(p_p256dh_key, '=')) not between 32 and 256
+    or char_length(p_p256dh_key) - char_length(rtrim(p_p256dh_key, '=')) > 2
+    or p_auth_key !~ '^[A-Za-z0-9_-]+={0,2}$'
+    or char_length(rtrim(p_auth_key, '=')) not between 16 and 128
+    or char_length(p_auth_key) - char_length(rtrim(p_auth_key, '=')) > 2
     or p_vapid_key_version is null or p_vapid_key_version <= 0
     or (nullif(btrim(p_device_label), '') is not null and (
       char_length(btrim(p_device_label)) > 80 or btrim(p_device_label) ~ '[[:cntrl:]]'
