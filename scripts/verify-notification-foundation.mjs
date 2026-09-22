@@ -118,6 +118,9 @@ try {
   });
   await rpcFailure(anonymous, 'current_notifications');
 
+  runSql(container, `update app.outbox_job
+    set available_at = now() + interval '1 hour'
+    where state in ('queued', 'retry') and available_at <= now();`);
   const firstNotificationId = runSql(container, `select app.create_notification(
     ${sqlLiteral(identities[0].id)}::uuid, 'ride.response.received', 'ride_response', gen_random_uuid(),
     '/trips', 'notifications.ride_response_received', '{"passenger_count":2}'::jsonb, 70
@@ -144,19 +147,19 @@ try {
   });
   let lease = randomUUID();
   let jobs = await rpc(admin, 'notification_worker_claim_jobs_v2', {
-    p_channels: ['email'], p_lease_token: lease, p_limit: 50,
+    p_channels: ['email'], p_lease_token: lease, p_limit: 10,
   });
-  const targetJob = jobs.find((job) => job.notification_id === firstNotificationId);
-  assert.ok(targetJob);
-  assert.equal(targetJob.channel, 'email');
-  assert.equal(targetJob.preferred_language, 'en');
-  assert.equal(targetJob.destination_value, identities[0].email);
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0].channel, 'email');
+  assert.equal(jobs[0].notification_id, firstNotificationId);
+  assert.equal(jobs[0].preferred_language, 'en');
+  assert.equal(jobs[0].destination_value, identities[0].email);
   assert.equal(await rpc(admin, 'notification_worker_complete_job', {
-    p_job_id: targetJob.job_id, p_lease_token: lease, p_outcome: 'temporary_failure',
+    p_job_id: jobs[0].job_id, p_lease_token: lease, p_outcome: 'temporary_failure',
     p_provider_adapter: 'resend-email-v1', p_safe_failure_class: 'provider_unavailable',
   }), true);
   runSql(container, `update app.outbox_job set available_at = now() - interval '1 second'
-    where public_id = ${sqlLiteral(targetJob.job_id)}::uuid;`);
+    where public_id = ${sqlLiteral(jobs[0].job_id)}::uuid;`);
   lease = randomUUID();
   jobs = await rpc(admin, 'notification_worker_claim_jobs', { p_lease_token: lease, p_limit: 10 });
   assert.equal(jobs[0].attempt_count, 2);
