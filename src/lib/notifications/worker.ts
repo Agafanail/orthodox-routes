@@ -110,6 +110,10 @@ export async function processNotificationDeliveries(
 
   const leaseToken = dependencies.leaseToken ?? randomUUID();
   const api = client.schema('api');
+  const scheduled = await api.rpc('notification_worker_enqueue_scheduled', {});
+  if (scheduled.error) {
+    return { claimed: 0, configured: true, failed: 1, sent: 0 };
+  }
   const claimed = await api.rpc('notification_worker_claim_jobs_v2', {
     p_channels: channels,
     p_lease_token: leaseToken,

@@ -297,6 +297,11 @@ try {
       has_function_privilege('authenticated', 'api.notification_worker_record_provider_event(text,text,text,text,timestamptz)', 'execute')::text || ':' ||
       has_function_privilege('service_role', 'api.notification_worker_record_provider_event(text,text,text,text,timestamptz)', 'execute')::text;
   `), 'false:false:true');
+  assert.equal(runSql(container, `
+    select has_function_privilege('anon', 'api.notification_worker_enqueue_scheduled(timestamptz)', 'execute')::text || ':' ||
+      has_function_privilege('authenticated', 'api.notification_worker_enqueue_scheduled(timestamptz)', 'execute')::text || ':' ||
+      has_function_privilege('service_role', 'api.notification_worker_enqueue_scheduled(timestamptz)', 'execute')::text;
+  `), 'false:false:true');
   assert.ok(secondNotificationId);
   console.log('Notification history, preferences, channel invariant, push storage, and durable outbox verification passed.');
 } finally {

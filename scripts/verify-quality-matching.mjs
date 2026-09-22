@@ -279,6 +279,19 @@ assert.ok(match.added_duration_s > 0);
 const driverMatches = await rpc(clients[1], 'list_quality_matches', { p_church_id: churchId });
 assert.equal(driverMatches.length, 1);
 assert.equal(driverMatches[0].current_role, 'driver');
+await rpc(admin, 'notification_worker_enqueue_scheduled');
+await rpc(admin, 'notification_worker_enqueue_scheduled');
+const passengerMatchNotifications = (await rpc(clients[0], 'current_notifications')).filter((notification) =>
+  notification.event_type === 'ride.quality_match'
+  && notification.parameters.request_id === request.request_id
+  && notification.parameters.occurrence_id === occurrence.occurrence_id);
+const driverMatchNotifications = (await rpc(clients[1], 'current_notifications')).filter((notification) =>
+  notification.event_type === 'ride.quality_match'
+  && notification.parameters.request_id === request.request_id
+  && notification.parameters.occurrence_id === occurrence.occurrence_id);
+assert.equal(passengerMatchNotifications.length, 1);
+assert.equal(driverMatchNotifications.length, 1);
+assert.equal(JSON.stringify({ passengerMatchNotifications, driverMatchNotifications }).includes('Exact'), false);
 
 // Neither side learns the other's exact geography through matching.
 const matchPayload = JSON.stringify({ driverMatches, passengerMatches });

@@ -374,6 +374,10 @@ const changeProposalArgs = {
 };
 const changeProposal = await rpc(clients[0], 'propose_agreement_change', changeProposalArgs);
 assert.equal(changeProposal.status, 'change_pending');
+assert.ok((await rpc(clients[3], 'current_notifications')).some((notification) =>
+  notification.event_type === 'ride.change.proposed'
+  && notification.object_id === changeProposal.proposal_id
+  && notification.current_outcome === 'pending'));
 assert.deepEqual(await rpc(clients[0], 'propose_agreement_change', changeProposalArgs), changeProposal,
   'A retried proposal must return the original idempotent result.');
 
@@ -800,6 +804,10 @@ const acceptedChangeArgs = {
 };
 const acceptedChange = await rpc(clients[3], 'resolve_agreement_change', acceptedChangeArgs);
 assert.equal(acceptedChange.status, 'accepted');
+assert.ok((await rpc(clients[0], 'current_notifications')).some((notification) =>
+  notification.event_type === 'ride.change.accepted'
+  && notification.object_id === changeProposal.proposal_id
+  && notification.current_outcome === 'accepted'));
 assert.deepEqual(await rpc(clients[3], 'resolve_agreement_change', acceptedChangeArgs), acceptedChange,
   'A retried decision must return the original idempotent result.');
 const acceptedChangeDetail = await rpc(clients[0], 'get_my_trip_details', {
