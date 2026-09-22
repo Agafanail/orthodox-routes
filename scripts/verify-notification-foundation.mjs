@@ -186,9 +186,12 @@ try {
 
   const secondPush = await rpc(clients[0], 'upsert_push_subscription', pushArgs('second'));
   runSql(container, `
-    insert into app.church (slug, official_name, address_display, locality, country_code, timezone, status)
+    insert into app.church (
+      slug, official_name, address_display, locality, country_code, timezone, status, location
+    )
     values (${sqlLiteral(churchSlug)}, 'Notification Test Church', 'Synthetic public address',
-      'Berlin', 'DE', 'Europe/Berlin', 'published');
+      'Berlin', 'DE', 'Europe/Berlin', 'published',
+      extensions.st_setsrid(extensions.st_makepoint(13.405, 52.52), 4326)::extensions.geography);
     insert into app.passenger_request (
       author_account_id, church_id, desired_arrival_at, timezone, total_passengers,
       children_count, child_seat_required, return_required, remaining_passengers,
