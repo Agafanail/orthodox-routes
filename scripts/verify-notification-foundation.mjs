@@ -118,6 +118,9 @@ try {
   });
   await rpcFailure(anonymous, 'current_notifications');
 
+  runSql(container, `update app.outbox_job
+    set available_at = now() + interval '1 hour'
+    where state in ('queued', 'retry') and available_at <= now();`);
   const firstNotificationId = runSql(container, `select app.create_notification(
     ${sqlLiteral(identities[0].id)}::uuid, 'ride.response.received', 'ride_response', gen_random_uuid(),
     '/trips', 'notifications.ride_response_received', '{"passenger_count":2}'::jsonb, 70
@@ -296,6 +299,11 @@ try {
     select has_function_privilege('anon', 'api.notification_worker_record_provider_event(text,text,text,text,timestamptz)', 'execute')::text || ':' ||
       has_function_privilege('authenticated', 'api.notification_worker_record_provider_event(text,text,text,text,timestamptz)', 'execute')::text || ':' ||
       has_function_privilege('service_role', 'api.notification_worker_record_provider_event(text,text,text,text,timestamptz)', 'execute')::text;
+  `), 'false:false:true');
+  assert.equal(runSql(container, `
+    select has_function_privilege('anon', 'api.notification_worker_enqueue_scheduled(timestamptz)', 'execute')::text || ':' ||
+      has_function_privilege('authenticated', 'api.notification_worker_enqueue_scheduled(timestamptz)', 'execute')::text || ':' ||
+      has_function_privilege('service_role', 'api.notification_worker_enqueue_scheduled(timestamptz)', 'execute')::text;
   `), 'false:false:true');
   assert.ok(secondNotificationId);
   console.log('Notification history, preferences, channel invariant, push storage, and durable outbox verification passed.');
