@@ -13,7 +13,7 @@
 | 1 | Campaign recovery state and non-destructive current staging smoke | Complete | PR #8; commit `31436a3`; CI `35443915447` green; remote staging smoke passed with exact cleanup |
 | 2 | Agreement change proposal/answer workflow and remaining My Trips backend | Complete | PR #9; merge `24f70fa`; CI `35445507498` green |
 | 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | Complete | PR #10 merge `6beca9c`, CI `35708503854`; PR #11 merge `103be11`, CI `35711039875`; PR #12 merge `a890245`, CI `35713885218` |
-| 4 | Profile/account operations required by the approved personal area | In progress | Existing name/language update plus account-owned export and protected contact-change backend; deletion is checkpoint 7 |
+| 4 | Profile/account operations required by the approved personal area | In progress | PR #13 merge `7e3e8bb`, CI `37229664994`; protected phone/email change backend continues; deletion is checkpoint 7 |
 | 5 | Church creation, deduplication, equal administration, schedules, exceptions, cancellation, and archival | Planned | Roadmap phase 7 backend |
 | 6 | Stored dynamic-content translations and provider-independent translation jobs | Planned | Six-language approved content boundary; provider action remains external |
 | 7 | Complaints, personal blocking, account deletion, retention, protected support/owner operations, and audit | Planned | Roadmap phase 8 backend |
@@ -52,6 +52,7 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - PR #10 merged as `6beca9c`; CI run `35708503854` passed all required checks after the notification suite verified protected preferences/subscriptions, effective-channel enforcement, durable leasing/retry, terminal invalidation, grants, and forced RLS.
 - PR #11 merged as `103be11`; CI run `35711039875` passed all required checks after migration replay and the notification suite verified channel-filtered worker leases, provider adapters, signed minimized webhook receipts, replay deduplication, and out-of-order terminal-state protection.
 - PR #12 merged as `a890245`; CI run `35713885218` passed all required checks after migration replay and integration coverage verified atomic transport-event notifications, replay-safe scheduling, safe payloads, authorization, and deduplication.
+- PR #13 merged as `7e3e8bb`; CI run `37229664994` passed all required checks after migration replay and account integration verified actor-scoped profile updates and a complete privacy-safe current-data export.
 - No campaign checkpoint is complete until its PR is merged through all required green checks.
 
 Update this file after every merged checkpoint with the PR, merge commit, CI run, current checkpoint, and any genuine gate.
