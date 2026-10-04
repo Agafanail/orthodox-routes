@@ -163,6 +163,7 @@ try {
 
   const clientA = userClient(url, publicKey);
   const clientB = userClient(url, publicKey);
+  const anonymous = userClient(url, publicKey);
   await signIn(clientA, identities[0].email, password);
   await signIn(clientB, identities[1].email, password);
 
@@ -284,11 +285,11 @@ try {
       container,
       `select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'api'
-         and p.proname in ('current_eligibility', 'current_account', 'create_account', 'update_current_account_profile', 'declare_adult', 'accept_current_terms')
+          and p.proname in ('current_eligibility', 'current_account', 'create_account', 'update_current_account_profile', 'declare_adult', 'accept_current_terms', 'export_current_account_data')
          and p.prosecdef
          and p.proconfig @> array['search_path=""'];`,
     ),
-    '6',
+    '7',
     'Protected API functions are not fully hardened.',
   );
 
@@ -412,6 +413,41 @@ try {
   });
   assert.equal((await rpc(clientA, 'current_account')).display_name, "Дмитрий O'Нил-Smith");
 
+  const updatedProfile = await rpc(clientA, 'update_current_account_profile', {
+    p_display_name: '  Updated Account Name  ',
+    p_preferred_language: 'de',
+  });
+  assert.equal(updatedProfile.display_name, 'Updated Account Name');
+  assert.equal(updatedProfile.preferred_language, 'de');
+
+  await expectRpcFailure(anonymous, 'export_current_account_data');
+  await expectRpcFailure(clientB, 'export_current_account_data', {
+    p_account_id: identities[0].id,
+  });
+  const exportA = await rpc(clientA, 'export_current_account_data');
+  const exportB = await rpc(clientB, 'export_current_account_data');
+  assert.equal(exportA.schema_version, 1);
+  assert.ok(exportA.generated_at);
+  assert.equal(exportA.account.display_name, 'Updated Account Name');
+  assert.equal(exportA.account.preferred_language, 'de');
+  assert.equal(exportA.account.email, identities[0].email);
+  assert.equal(exportA.legal_acceptances.length, 2);
+  assert.deepEqual(exportA.notifications, []);
+  assert.deepEqual(exportA.push_subscriptions, []);
+  assert.deepEqual(exportA.places, []);
+  assert.deepEqual(exportA.owned_transport, {
+    driver_occurrences: [], driver_series: [], passenger_requests: [],
+  });
+  assert.deepEqual(exportA.ride_responses, []);
+  assert.deepEqual(exportA.ride_agreements, []);
+  assert.deepEqual(exportA.my_trips, {
+    history: [], listings: [], needs_response: [], upcoming: [],
+  });
+  assert.equal(exportA.notification_preferences.ride_email_enabled, true);
+  assert.equal(JSON.stringify(exportA).includes(identities[1].email), false);
+  assert.equal(exportB.account.email, identities[1].email);
+  assert.equal(JSON.stringify(exportB).includes(identities[0].email), false);
+
   process.stdout.write(
     [
       'Account and eligibility foundation verification passed:',
@@ -422,6 +458,7 @@ try {
       '- adult declaration and current Terms acceptance are durable prerequisites',
       '- active account state remains separate from participation eligibility',
       '- restricted, deleting, deleted, and unverified-email states are ineligible',
+      '- profile updates and complete account-owned exports remain actor-scoped and privacy-safe',
       '- app/private tables remain behind RLS, grants, and hardened API functions',
     ].join('\n') + '\n',
   );
