@@ -46,12 +46,16 @@ function findDatabaseContainer() {
   return container;
 }
 
-function runSql(container, statement) {
+function runSql(container, statement, { expectFailure = false } = {}) {
   const result = spawnSync(
     'docker',
     ['exec', '-i', container, 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At', '-f', '-'],
     { encoding: 'utf8', input: statement },
   );
+  if (expectFailure) {
+    assert.notEqual(result.status, 0, 'The protected phone operation unexpectedly succeeded.');
+    return '';
+  }
   if (result.status !== 0) fail('A synthetic phone verification database operation failed.');
   return result.stdout.trim();
 }
@@ -359,6 +363,9 @@ try {
     ),
     '1',
   );
+  assert.equal((await rpc(clients[0], 'request_phone_change', {
+    p_client_key: randomUUID(), p_phone_e164: racePhone,
+  })).status, 'phone_in_use');
 
   const unverifiedRaceIndex = raceResults.findIndex((result) => result.status === 'phone_in_use') + 1;
   runSql(
@@ -407,6 +414,70 @@ try {
     '1',
   );
 
+  const anonymousPhoneChange = await fetch(`${url}/rest/v1/rpc/request_phone_change`, {
+    method: 'POST',
+    headers: { apikey: publicKey, 'content-type': 'application/json' },
+    body: JSON.stringify({ p_client_key: randomUUID(), p_phone_e164: '+390000000180' }),
+  });
+  assert.ok([401, 403, 404].includes(anonymousPhoneChange.status));
+  runSql(
+    container,
+    `begin;
+     set local role authenticated;
+     select set_config('request.jwt.claims', '{"sub":"${identities[0].id}","role":"authenticated","amr":[{"method":"password","timestamp":1}]}', true);
+     select api.request_phone_change('+390000000180', '${randomUUID()}');
+     rollback;`,
+    { expectFailure: true },
+  );
+
+  runSql(
+    container,
+    `update ops.phone_verification_attempt
+     set requested_at = requested_at - interval '2 minutes'
+     where account_id = '${identities[0].id}';`,
+  );
+  const oldVerifiedPhone = (await rpc(clients[0], 'current_account')).phone;
+  const newPhone = '+390000000180';
+  const phoneChangeKey = randomUUID();
+  const requestedChange = await rpc(clients[0], 'request_phone_change', {
+    p_client_key: phoneChangeKey,
+    p_phone_e164: newPhone,
+  });
+  assert.equal(requestedChange.status, 'queued');
+  assert.equal(requestedChange.purpose, 'phone_change');
+  assert.equal(requestedChange.last_digits, '0180');
+  assert.deepEqual(await rpc(clients[0], 'request_phone_change', {
+    p_client_key: phoneChangeKey,
+    p_phone_e164: newPhone,
+  }), requestedChange);
+  assert.equal((await rpc(clients[0], 'current_account')).phone, oldVerifiedPhone);
+  assert.equal((await rpc(clients[0], 'current_phone_verification')).purpose, 'phone_change');
+  assert.equal((await rpc(clients[1], 'verify_phone_code', {
+    p_attempt_id: requestedChange.attempt_id,
+    p_code: '000000',
+  })).status, 'invalid_attempt');
+
+  const claimedChange = await claimDeliveryThroughWorkerApi(admin, requestedChange.attempt_id);
+  await completeDeliveryThroughWorkerApi(admin, requestedChange.attempt_id, claimedChange.leaseToken);
+  const changed = await rpc(clients[0], 'verify_phone_code', {
+    p_attempt_id: requestedChange.attempt_id,
+    p_code: claimedChange.delivery.verification_code,
+  });
+  assert.equal(changed.status, 'verified');
+  assert.equal(changed.purpose, 'phone_change');
+  assert.equal(changed.account.phone, newPhone);
+  assert.ok(changed.account.phone_changed_at);
+  assert.ok(changed.account.phone_verified_at);
+  assert.equal((await rpc(clients[0], 'verify_phone_code', {
+    p_attempt_id: requestedChange.attempt_id,
+    p_code: claimedChange.delivery.verification_code,
+  })).status, 'verified');
+  assert.equal(
+    runSql(container, `select count(*) from app.notification
+      where recipient_account_id = '${identities[0].id}' and event_type = 'account.phone_changed';`),
+    '1',
+  );
+
   assert.equal(
     runSql(
       container,
@@ -423,10 +494,10 @@ try {
       container,
       `select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'api'
-         and p.proname in ('request_phone_verification', 'current_phone_verification', 'verify_phone_code')
+          and p.proname in ('request_phone_verification', 'request_phone_change', 'current_phone_verification', 'verify_phone_code')
          and p.prosecdef and p.proconfig @> array['search_path=""'];`,
     ),
-    '3',
+    '4',
   );
   assert.equal(
     runSql(
@@ -453,6 +524,7 @@ try {
       '- concurrent claims of one unbound phone produce exactly one verified binding',
       '- expired queued codes are removed from both attempt and delivery storage',
       '- abandoned worker leases are recoverable while post-expiry completion is rejected',
+      '- verified phone replacement requires recent non-refresh authentication and preserves the old binding until success',
       '- RLS, grants, and hardened function boundaries remain least-privilege',
     ].join('\n') + '\n',
   );

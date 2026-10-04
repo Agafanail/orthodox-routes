@@ -10,7 +10,7 @@ describe('account data export migration', () => {
   it('keeps the export actor-derived and hardened', () => {
     expect(migration).toContain('actor_id uuid := app.current_actor_id()');
     expect(migration).toContain("account.status in ('active', 'restricted')");
-    expect(migration).toContain("security definer\nset search_path = ''");
+    expect(migration).toMatch(/security definer\r?\nset search_path = ''/);
     expect(migration).toContain('grant execute on function api.export_current_account_data() to authenticated');
   });
 

@@ -79,7 +79,7 @@ In the implemented foundation, `active` means normal account standing and is int
 
 Contacts are user-private and participant-visible only through an eligible agreement disclosure function. General account queries never join this table.
 
-Entering a phone does not reserve it. The implemented partial unique index applies only when `phone_verified_at` is set, so incomplete accounts may temporarily hold the same E.164 value while a second verified binding is rejected. The current foundation has no phone-change, deletion, or binding-release workflow; until a later protected operation explicitly invalidates a verified binding, it remains reserved across account lifecycle states.
+Entering a phone does not reserve it. The implemented partial unique index applies only when `phone_verified_at` is set, so incomplete accounts may temporarily hold the same E.164 value while a second verified binding is rejected. Protected phone replacement preserves the existing verified binding until a recent-reauthenticated actor verifies the new number through the restricted SMS delivery boundary, then swaps the binding atomically and records the change. Deletion and binding release remain later lifecycle work; until one of those protected operations explicitly invalidates a verified binding, it remains reserved across account lifecycle states.
 
 ### 4.3 `app.legal_document_version` and `app.legal_acceptance`
 
