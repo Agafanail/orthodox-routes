@@ -320,6 +320,10 @@ const firstResponse = await rpc(clients[3], 'submit_driver_response', {
   p_request_id: firstRequest.request_id,
 });
 assert.equal(firstResponse.status, 'await_passenger');
+assert.ok((await rpc(clients[0], 'current_notifications')).some((notification) =>
+  notification.event_type === 'ride.response.received'
+  && notification.object_id === firstResponse.response_id
+  && notification.current_outcome === 'await_passenger'));
 
 const passengerResponses = await rpc(clients[0], 'current_ride_responses');
 assert.equal(passengerResponses[0].response_id, firstResponse.response_id);
@@ -336,6 +340,10 @@ const firstAgreement = await rpc(clients[0], 'confirm_ride_response', {
   p_client_key: firstConfirmKey, p_response_id: firstResponse.response_id,
 });
 assert.equal(firstAgreement.status, 'confirmed');
+assert.ok((await rpc(clients[3], 'current_notifications')).some((notification) =>
+  notification.event_type === 'ride.confirmed'
+  && notification.object_id === firstAgreement.agreement_id
+  && notification.current_outcome === 'confirmed'));
 assert.equal((await rpc(clients[0], 'current_ride_agreements'))[0].current_role, 'passenger');
 assert.equal((await rpc(clients[3], 'current_ride_agreements'))[0].current_role, 'driver');
 assert.deepEqual(await rpc(clients[0], 'confirm_ride_response', {
@@ -386,6 +394,14 @@ const firstCancelled = await rpc(clients[3], 'cancel_ride_agreement', {
   p_agreement_id: firstAgreement.agreement_id, p_client_key: cancelKey,
 });
 assert.equal(firstCancelled.status, 'cancelled');
+const passengerCancellationHistory = await rpc(clients[0], 'current_notifications');
+assert.ok(passengerCancellationHistory.some((notification) =>
+  notification.event_type === 'ride.cancelled'
+  && notification.object_id === firstAgreement.agreement_id));
+assert.ok(passengerCancellationHistory.filter((notification) =>
+  notification.object_type === 'ride_agreement'
+  && notification.object_id === firstAgreement.agreement_id)
+  .every((notification) => notification.current_outcome === 'cancelled'));
 assert.deepEqual(await rpc(clients[3], 'cancel_ride_agreement', {
   p_agreement_id: firstAgreement.agreement_id, p_client_key: cancelKey,
 }), firstCancelled);
@@ -548,6 +564,22 @@ assert.equal(runSql(container, `
   where agreement.public_id = ${sqlLiteral(winningAgreement.agreement_id)}::uuid;
 `), 'true');
 
+await expectRpcFailure(clients[0], 'notification_worker_enqueue_scheduled', {
+  p_evaluated_at: new Date(Date.parse(concurrencyArrival) - 23 * 3_600_000).toISOString(),
+});
+const reminderEvaluation = new Date(Date.parse(concurrencyArrival) - 23 * 3_600_000).toISOString();
+await rpc(admin, 'notification_worker_enqueue_scheduled', { p_evaluated_at: reminderEvaluation });
+await rpc(admin, 'notification_worker_enqueue_scheduled', { p_evaluated_at: reminderEvaluation });
+assert.equal((await rpc(winnerClient, 'current_notifications')).filter((notification) =>
+  notification.event_type === 'ride.reminder'
+  && notification.object_id === winningAgreement.agreement_id).length, 1);
+const outcomeEvaluation = new Date(Date.parse(concurrencyArrival) + 60_000).toISOString();
+await rpc(admin, 'notification_worker_enqueue_scheduled', { p_evaluated_at: outcomeEvaluation });
+await rpc(admin, 'notification_worker_enqueue_scheduled', { p_evaluated_at: outcomeEvaluation });
+assert.equal((await rpc(winnerClient, 'current_notifications')).filter((notification) =>
+  notification.event_type === 'ride.outcome_requested'
+  && notification.object_id === winningAgreement.agreement_id).length, 1);
+
 const terminalArrival = isoAfter(10, 12);
 const terminalRequest = await publishRequest(clients[2], terminalArrival, 1, 'Terminal Gamma');
 const terminalOccurrence = await publishOccurrence(terminalArrival, 1, 'terminal');
@@ -612,6 +644,12 @@ const seriesResponse = await rpc(clients[3], 'submit_driver_response', {
 const seriesAgreement = await rpc(clients[0], 'confirm_ride_response', {
   p_client_key: randomUUID(), p_response_id: seriesResponse.response_id,
 });
+await rpc(admin, 'notification_worker_enqueue_scheduled', {
+  p_evaluated_at: `${seriesDate}T23:59:00.000Z`,
+});
+assert.equal((await rpc(clients[3], 'current_notifications')).filter((notification) =>
+  notification.event_type === 'driver.series.ended'
+  && notification.object_id === seriesOffer.series_id).length, 1);
 const stoppedSeries = await rpc(clients[3], 'stop_driver_series', {
   p_client_key: randomUUID(), p_series_id: seriesOffer.series_id,
 });

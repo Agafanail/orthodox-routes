@@ -19,9 +19,11 @@ const leasedJob = {
 };
 
 function workerClient() {
-  const rpc = vi.fn(async (name: string) => name === 'notification_worker_claim_jobs_v2'
-    ? { data: [leasedJob], error: null }
-    : { data: true, error: null });
+  const rpc = vi.fn(async (name: string) => {
+    if (name === 'notification_worker_enqueue_scheduled') return { data: {}, error: null };
+    if (name === 'notification_worker_claim_jobs_v2') return { data: [leasedJob], error: null };
+    return { data: true, error: null };
+  });
   return { client: { schema: vi.fn(() => ({ rpc })) } as NotificationWorkerClient, rpc };
 }
 
@@ -37,13 +39,14 @@ describe('notification delivery worker', () => {
       adapters: { email: adapter }, appOrigin: 'https://routes.example.org', client,
       leaseToken: '019c7134-a39b-7d8e-a4ad-8b11d56d0033',
     })).resolves.toEqual({ claimed: 1, configured: true, failed: 0, sent: 1 });
-    expect(rpc).toHaveBeenNthCalledWith(1, 'notification_worker_claim_jobs_v2', {
+    expect(rpc).toHaveBeenNthCalledWith(1, 'notification_worker_enqueue_scheduled', {});
+    expect(rpc).toHaveBeenNthCalledWith(2, 'notification_worker_claim_jobs_v2', {
       p_channels: ['email'], p_lease_token: '019c7134-a39b-7d8e-a4ad-8b11d56d0033', p_limit: 20,
     });
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ language: 'de' }), expect.objectContaining({
       push: JSON.stringify({ eventType: 'ride.confirmed', notificationId: leasedJob.notification_id, route: '/trips' }),
     }));
-    expect(rpc).toHaveBeenNthCalledWith(2, 'notification_worker_complete_job', expect.objectContaining({
+    expect(rpc).toHaveBeenNthCalledWith(3, 'notification_worker_complete_job', expect.objectContaining({
       p_job_id: leasedJob.job_id, p_outcome: 'sent', p_provider_adapter: 'fake-email-v1',
     }));
   });
