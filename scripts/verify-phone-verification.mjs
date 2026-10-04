@@ -239,69 +239,6 @@ try {
     '1',
   );
 
-  const anonymousPhoneChange = await fetch(`${url}/rest/v1/rpc/request_phone_change`, {
-    method: 'POST',
-    headers: { apikey: publicKey, 'content-type': 'application/json' },
-    body: JSON.stringify({ p_client_key: randomUUID(), p_phone_e164: '+390000000180' }),
-  });
-  assert.ok([401, 403, 404].includes(anonymousPhoneChange.status));
-  runSql(
-    container,
-    `begin;
-     set local role authenticated;
-     select set_config('request.jwt.claims', '{"sub":"${identities[0].id}","role":"authenticated","amr":[{"method":"password","timestamp":1}]}', true);
-     select api.request_phone_change('+390000000180', '${randomUUID()}');
-     rollback;`,
-    { expectFailure: true },
-  );
-
-  runSql(
-    container,
-    `update ops.phone_verification_attempt
-     set requested_at = requested_at - interval '2 minutes'
-     where account_id = '${identities[0].id}';`,
-  );
-  const oldVerifiedPhone = (await rpc(clients[0], 'current_account')).phone;
-  const newPhone = '+390000000180';
-  const phoneChangeKey = randomUUID();
-  const requestedChange = await rpc(clients[0], 'request_phone_change', {
-    p_client_key: phoneChangeKey,
-    p_phone_e164: newPhone,
-  });
-  assert.equal(requestedChange.status, 'queued');
-  assert.equal(requestedChange.purpose, 'phone_change');
-  assert.equal(requestedChange.last_digits, '0180');
-  assert.deepEqual(await rpc(clients[0], 'request_phone_change', {
-    p_client_key: phoneChangeKey,
-    p_phone_e164: newPhone,
-  }), requestedChange);
-  assert.equal((await rpc(clients[0], 'current_account')).phone, oldVerifiedPhone);
-  assert.equal((await rpc(clients[0], 'current_phone_verification')).purpose, 'phone_change');
-  assert.equal((await rpc(clients[1], 'verify_phone_code', {
-    p_attempt_id: requestedChange.attempt_id,
-    p_code: '000000',
-  })).status, 'invalid_attempt');
-
-  const claimedChange = await claimDeliveryThroughWorkerApi(admin, requestedChange.attempt_id);
-  await completeDeliveryThroughWorkerApi(admin, requestedChange.attempt_id, claimedChange.leaseToken);
-  const changed = await rpc(clients[0], 'verify_phone_code', {
-    p_attempt_id: requestedChange.attempt_id,
-    p_code: claimedChange.delivery.verification_code,
-  });
-  assert.equal(changed.status, 'verified');
-  assert.equal(changed.purpose, 'phone_change');
-  assert.equal(changed.account.phone, newPhone);
-  assert.ok(changed.account.phone_changed_at);
-  assert.ok(changed.account.phone_verified_at);
-  assert.equal((await rpc(clients[0], 'verify_phone_code', {
-    p_attempt_id: requestedChange.attempt_id,
-    p_code: claimedChange.delivery.verification_code,
-  })).status, 'verified');
-  assert.equal(
-    runSql(container, `select count(*) from app.notification
-      where recipient_account_id = '${identities[0].id}' and event_type = 'account.phone_changed';`),
-    '1',
-  );
   assert.equal(
     runSql(container, `select count(*) from ops.phone_verification_delivery where attempt_id = '${requestedA.attempt_id}';`),
     '0',
@@ -340,7 +277,7 @@ try {
   );
   assert.equal((await rpc(clients[0], 'request_phone_verification', {
     p_client_key: randomUUID(),
-    p_phone_e164: newPhone,
+    p_phone_e164: identities[0].phone,
   })).status, 'already_verified');
 
   const requestedB = await rpc(clients[1], 'request_phone_verification', {
@@ -474,6 +411,70 @@ try {
          and attempt.state = 'expired' and attempt.code_salt is null and attempt.code_digest is null
          and delivery.attempt_id is null;`,
     ),
+    '1',
+  );
+
+  const anonymousPhoneChange = await fetch(`${url}/rest/v1/rpc/request_phone_change`, {
+    method: 'POST',
+    headers: { apikey: publicKey, 'content-type': 'application/json' },
+    body: JSON.stringify({ p_client_key: randomUUID(), p_phone_e164: '+390000000180' }),
+  });
+  assert.ok([401, 403, 404].includes(anonymousPhoneChange.status));
+  runSql(
+    container,
+    `begin;
+     set local role authenticated;
+     select set_config('request.jwt.claims', '{"sub":"${identities[0].id}","role":"authenticated","amr":[{"method":"password","timestamp":1}]}', true);
+     select api.request_phone_change('+390000000180', '${randomUUID()}');
+     rollback;`,
+    { expectFailure: true },
+  );
+
+  runSql(
+    container,
+    `update ops.phone_verification_attempt
+     set requested_at = requested_at - interval '2 minutes'
+     where account_id = '${identities[0].id}';`,
+  );
+  const oldVerifiedPhone = (await rpc(clients[0], 'current_account')).phone;
+  const newPhone = '+390000000180';
+  const phoneChangeKey = randomUUID();
+  const requestedChange = await rpc(clients[0], 'request_phone_change', {
+    p_client_key: phoneChangeKey,
+    p_phone_e164: newPhone,
+  });
+  assert.equal(requestedChange.status, 'queued');
+  assert.equal(requestedChange.purpose, 'phone_change');
+  assert.equal(requestedChange.last_digits, '0180');
+  assert.deepEqual(await rpc(clients[0], 'request_phone_change', {
+    p_client_key: phoneChangeKey,
+    p_phone_e164: newPhone,
+  }), requestedChange);
+  assert.equal((await rpc(clients[0], 'current_account')).phone, oldVerifiedPhone);
+  assert.equal((await rpc(clients[0], 'current_phone_verification')).purpose, 'phone_change');
+  assert.equal((await rpc(clients[1], 'verify_phone_code', {
+    p_attempt_id: requestedChange.attempt_id,
+    p_code: '000000',
+  })).status, 'invalid_attempt');
+
+  const claimedChange = await claimDeliveryThroughWorkerApi(admin, requestedChange.attempt_id);
+  await completeDeliveryThroughWorkerApi(admin, requestedChange.attempt_id, claimedChange.leaseToken);
+  const changed = await rpc(clients[0], 'verify_phone_code', {
+    p_attempt_id: requestedChange.attempt_id,
+    p_code: claimedChange.delivery.verification_code,
+  });
+  assert.equal(changed.status, 'verified');
+  assert.equal(changed.purpose, 'phone_change');
+  assert.equal(changed.account.phone, newPhone);
+  assert.ok(changed.account.phone_changed_at);
+  assert.ok(changed.account.phone_verified_at);
+  assert.equal((await rpc(clients[0], 'verify_phone_code', {
+    p_attempt_id: requestedChange.attempt_id,
+    p_code: claimedChange.delivery.verification_code,
+  })).status, 'verified');
+  assert.equal(
+    runSql(container, `select count(*) from app.notification
+      where recipient_account_id = '${identities[0].id}' and event_type = 'account.phone_changed';`),
     '1',
   );
 
