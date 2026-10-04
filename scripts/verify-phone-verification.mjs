@@ -340,7 +340,7 @@ try {
   );
   assert.equal((await rpc(clients[0], 'request_phone_verification', {
     p_client_key: randomUUID(),
-    p_phone_e164: identities[0].phone,
+    p_phone_e164: newPhone,
   })).status, 'already_verified');
 
   const requestedB = await rpc(clients[1], 'request_phone_verification', {
