@@ -13,8 +13,8 @@
 | 1 | Campaign recovery state and non-destructive current staging smoke | Complete | PR #8; commit `31436a3`; CI `35443915447` green; remote staging smoke passed with exact cleanup |
 | 2 | Agreement change proposal/answer workflow and remaining My Trips backend | Complete | PR #9; merge `24f70fa`; CI `35445507498` green |
 | 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | Complete | PR #10 merge `6beca9c`, CI `35708503854`; PR #11 merge `103be11`, CI `35711039875`; PR #12 merge `a890245`, CI `35713885218` |
-| 4 | Profile/account operations required by the approved personal area | In progress | PR #13 merge `7e3e8bb`, CI `37229664994`; protected phone/email change backend continues; deletion is checkpoint 7 |
-| 5 | Church creation, deduplication, equal administration, schedules, exceptions, cancellation, and archival | Planned | Roadmap phase 7 backend |
+| 4 | Profile/account operations required by the approved personal area | Decision gate | PR #13 merge `7e3e8bb`, CI `37229664994`; PR #14 merge `4c4bf23`, CI `37230861925`; email recovery awaits the approved protective delay; deletion is checkpoint 7 |
+| 5 | Church creation, deduplication, equal administration, schedules, exceptions, cancellation, and archival | In progress | Roadmap phase 7 backend; creation and first-administrator foundation is the current slice |
 | 6 | Stored dynamic-content translations and provider-independent translation jobs | Planned | Six-language approved content boundary; provider action remains external |
 | 7 | Complaints, personal blocking, account deletion, retention, protected support/owner operations, and audit | Planned | Roadmap phase 8 backend |
 | 8 | Minimal privacy-safe product analytics | Planned | Approved aggregate events only; no advertising trackers |
@@ -53,6 +53,8 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - PR #11 merged as `103be11`; CI run `35711039875` passed all required checks after migration replay and the notification suite verified channel-filtered worker leases, provider adapters, signed minimized webhook receipts, replay deduplication, and out-of-order terminal-state protection.
 - PR #12 merged as `a890245`; CI run `35713885218` passed all required checks after migration replay and integration coverage verified atomic transport-event notifications, replay-safe scheduling, safe payloads, authorization, and deduplication.
 - PR #13 merged as `7e3e8bb`; CI run `37229664994` passed all required checks after migration replay and account integration verified actor-scoped profile updates and a complete privacy-safe current-data export.
+- PR #14 merged as `4c4bf23`; CI run `37230861925` passed all required checks after migration replay and Local Auth integration verified recent-authenticated phone replacement, preservation of the existing binding while pending, atomic verified swap, and account notification.
+- The lost-email recovery flow is paused only at the approved owner/legal/security decision for the exact configurable protective delay required by Backend Architecture §8 and Target Data Model §23. Independent campaign checkpoints continue.
 - No campaign checkpoint is complete until its PR is merged through all required green checks.
 
 Update this file after every merged checkpoint with the PR, merge commit, CI run, current checkpoint, and any genuine gate.

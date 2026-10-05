@@ -134,6 +134,9 @@ jobs:
       - name: Verify deterministic quality matching
         run: npm run test:matching
 
+      - name: Verify church administration foundation
+        run: npm run test:church-admin
+
       - name: Stop local Auth
         if: always()
         run: npm run auth:stop

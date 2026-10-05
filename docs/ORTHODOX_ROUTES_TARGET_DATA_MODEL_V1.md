@@ -150,6 +150,8 @@ Unique `(church_id, slug)` plus global unique active slug. Supports safe redirec
 
 A protected constraint/function limits active memberships plus reserved invitations to three. Membership never grants access to ride contacts, exact user locations, responses, or agreements.
 
+The implemented creation foundation materializes slug history, equal administrator membership, bounded administrative events, and actor-scoped idempotency. It publishes an eligible creator's page and first membership in one transaction, serializes creation by normalized-address fingerprint, confirms a nearby PostGIS point before returning an existing page, fails closed for suspicious same-address geography, and enforces the three-place membership maximum under an advisory lock. Invitation reservations and membership transfer/exit operations remain subsequent migrations.
+
 ### 5.4 `app.church_admin_invite`
 
 Fields: church, normalized invite email in protected form, sender, reserved slot, token hash, expiry, and state `pending`, `accepted`, `declined`, `cancelled`, `expired`, `no_slot`. Unique pending invite per church/email. Acceptance and transfer of a membership slot are atomic.

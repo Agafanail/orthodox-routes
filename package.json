@@ -20,6 +20,7 @@
     "test:notifications": "node scripts/verify-notification-foundation.mjs",
     "test:geography": "node scripts/verify-geographic-foundation.mjs",
     "test:matching": "node scripts/verify-quality-matching.mjs",
+    "test:church-admin": "node scripts/verify-church-administration.mjs",
     "test:geoapify-search": "node scripts/verify-geoapify-search.mjs",
     "test:maps-upgrade": "supabase db reset --local --version 20260822130000 && node scripts/prepare-maps-upgrade.mjs && supabase migration up --local && node scripts/verify-maps-upgrade.mjs",
     "test:staging-email": "node scripts/verify-staging-email.mjs",
