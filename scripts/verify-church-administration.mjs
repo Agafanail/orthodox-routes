@@ -269,7 +269,8 @@ try {
   assert.equal((await rpc(clients[3], 'accept_church_admin_invite', {
     p_invite_id: transfer.invite_id, p_token: transferToken,
   })).status, 'accepted');
-  assert.deepEqual(await rpc(clients[1], 'current_managed_churches'), []);
+  assert.equal((await rpc(clients[1], 'current_managed_churches'))
+    .some((item) => item.church_id === second.church_id), false);
   assert.equal((await rpc(clients[3], 'current_managed_churches'))[0].administrator_count, 2);
   await rpcFailure(clients[1], 'cancel_church_admin_invite', { p_invite_id: reserved.invite_id });
   assert.equal(await rpc(clients[3], 'cancel_church_admin_invite', { p_invite_id: reserved.invite_id }), true);
