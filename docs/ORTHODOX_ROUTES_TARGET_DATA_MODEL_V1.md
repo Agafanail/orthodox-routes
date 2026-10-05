@@ -156,6 +156,8 @@ The implemented creation foundation materializes slug history, equal administrat
 
 Fields: church, normalized invite email in protected form, sender, reserved slot, token hash, expiry, and state `pending`, `accepted`, `declined`, `cancelled`, `expired`, `no_slot`. Unique pending invite per church/email. Acceptance and transfer of a membership slot are atomic.
 
+The executable invitation backend stores only a token hash on the invitation and keeps the clear token in a forced-RLS mail queue leased solely to the service worker. Ordinary invitations reserve a place; an own-place transfer reuses the sender's place until atomic acceptance. Expired invitations cease to reserve capacity even before their lazy state cleanup. The worker queues email independently of recipient account creation, and the invitation interface must consume the link fragment without placing the token in server logs or public data.
+
 ### 5.5 `app.service_series`, `app.service_occurrence`, and `app.service_exception`
 
 `service_series` stores church, source name/type, weekly recurrence, local start, IANA time zone, start/end bounds, status, and version. `service_occurrence` represents a concrete service date/time when materialized or explicitly created, with unique `(church_id, source_series_id, local_date, local_start_time)` where applicable. `service_exception` changes or cancels a concrete date and increments the relevant version.
