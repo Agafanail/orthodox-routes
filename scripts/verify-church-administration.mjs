@@ -220,6 +220,74 @@ try {
   assert.equal(runSql(container, `select count(*) from app.church_admin_membership
     where church_id = ${sqlLiteral(firstInternalId)}::uuid and status = 'active';`), '3');
 
+  const inviteArgs = (email, transfer = false) => ({
+    p_church_id: second.church_id, p_email: email,
+    p_transfer_own_place: transfer, p_client_key: randomUUID(),
+  });
+  await rpcFailure(clients[0], 'invite_church_admin', inviteArgs(identities[2].email));
+  const firstInviteArgs = inviteArgs(identities[2].email);
+  const firstInvite = await rpc(clients[1], 'invite_church_admin', firstInviteArgs);
+  assert.equal(firstInvite.status, 'pending');
+  assert.deepEqual(await rpc(clients[1], 'invite_church_admin', firstInviteArgs), firstInvite);
+  await rpcFailure(clients[1], 'invite_church_admin', { ...firstInviteArgs, p_email: identities[3].email });
+  const firstToken = runSql(container, `select mail.token_value from private.church_invite_mail as mail
+    join app.church_admin_invite as invite on invite.id = mail.invite_id
+    where invite.public_id = ${sqlLiteral(firstInvite.invite_id)}::uuid;`);
+  assert.equal(firstToken.length, 64);
+  await rpcFailure(clients[0], 'church_invite_worker_claim', {
+    p_lease_token: randomUUID(), p_limit: 10,
+  });
+  const leaseToken = randomUUID();
+  const queuedMail = await rpc(admin, 'church_invite_worker_claim', {
+    p_lease_token: leaseToken, p_limit: 10,
+  });
+  const claimedMail = queuedMail.find((item) => item.invite_id === firstInvite.invite_id);
+  assert.ok(claimedMail);
+  assert.equal(claimedMail.token, firstToken);
+  assert.equal(claimedMail.destination_email, identities[2].email);
+  assert.equal(await rpc(admin, 'church_invite_worker_complete', {
+    p_job_id: claimedMail.job_id, p_lease_token: leaseToken,
+    p_outcome: 'sent', p_provider_reference: randomUUID(),
+  }), true);
+  await rpcFailure(clients[3], 'accept_church_admin_invite', {
+    p_invite_id: firstInvite.invite_id, p_token: firstToken,
+  });
+  await rpcFailure(clients[2], 'accept_church_admin_invite', {
+    p_invite_id: firstInvite.invite_id, p_token: '0'.repeat(64),
+  });
+  assert.equal((await rpc(clients[2], 'accept_church_admin_invite', {
+    p_invite_id: firstInvite.invite_id, p_token: firstToken,
+  })).status, 'accepted');
+  assert.equal((await rpc(clients[2], 'current_managed_churches'))[0].church_id, second.church_id);
+
+  const reserved = await rpc(clients[1], 'invite_church_admin', inviteArgs(identities[0].email));
+  await rpcFailure(clients[1], 'invite_church_admin', inviteArgs(identities[3].email));
+  const transfer = await rpc(clients[1], 'invite_church_admin', inviteArgs(identities[3].email, true));
+  const transferToken = runSql(container, `select mail.token_value from private.church_invite_mail as mail
+    join app.church_admin_invite as invite on invite.id = mail.invite_id
+    where invite.public_id = ${sqlLiteral(transfer.invite_id)}::uuid;`);
+  assert.equal((await rpc(clients[3], 'accept_church_admin_invite', {
+    p_invite_id: transfer.invite_id, p_token: transferToken,
+  })).status, 'accepted');
+  assert.equal((await rpc(clients[1], 'current_managed_churches'))
+    .some((item) => item.church_id === second.church_id), false);
+  assert.equal((await rpc(clients[3], 'current_managed_churches'))[0].administrator_count, 2);
+  await rpcFailure(clients[1], 'cancel_church_admin_invite', { p_invite_id: reserved.invite_id });
+  assert.equal(await rpc(clients[3], 'cancel_church_admin_invite', { p_invite_id: reserved.invite_id }), true);
+  assert.equal(await rpc(clients[3], 'cancel_church_admin_invite', { p_invite_id: reserved.invite_id }), false);
+  const declined = await rpc(clients[3], 'invite_church_admin', inviteArgs(identities[0].email));
+  const declineToken = runSql(container, `select mail.token_value from private.church_invite_mail as mail
+    join app.church_admin_invite as invite on invite.id = mail.invite_id
+    where invite.public_id = ${sqlLiteral(declined.invite_id)}::uuid;`);
+  assert.equal(await rpc(clients[0], 'decline_church_admin_invite', {
+    p_invite_id: declined.invite_id, p_token: declineToken,
+  }), true);
+  assert.equal(await rpc(clients[2], 'leave_church_administration', { p_church_id: second.church_id }), true);
+  await rpcFailure(clients[3], 'leave_church_administration', { p_church_id: second.church_id });
+  assert.equal(runSql(container, `select count(*) from app.church_admin_membership
+    where church_id = (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid)
+      and status in ('active', 'transferring');`), '1');
+
   assert.equal(runSql(container, `select count(*) from information_schema.role_table_grants
     where grantee in ('anon', 'authenticated', 'service_role')
       and table_schema in ('app', 'private')
@@ -240,7 +308,10 @@ try {
     '- creation is actor-derived, idempotent, and immediately creates the first equal administrator place',
     '- normalized-address and PostGIS proximity checks return the existing safe page instead of duplicating it',
     '- suspicious same-address geography fails closed for protected review',
-    '- administrator membership is limited to three places and grants no visitor transport access',
+    '- administrator membership and pending invitations share a three-place cap; own-place transfer is atomic',
+    '- invite acceptance requires the matching confirmed email, a valid token, and eligibility',
+    '- a member may leave while another active administrator remains',
+    '- administrator membership grants no visitor transport access',
     '- administrative tables remain behind forced RLS with no direct application-role grants',
   ].join('\n') + '\n');
 } finally {
@@ -248,6 +319,14 @@ try {
     try {
       const accountList = createdUserIds.map((id) => `${sqlLiteral(id)}::uuid`).join(', ');
       runSql(container, `
+        delete from private.church_invite_mail where invite_id in (
+          select id from app.church_admin_invite where church_id in (
+            select id from app.church where created_by in (${accountList})
+          )
+        );
+        delete from app.church_admin_invite where church_id in (
+          select id from app.church where created_by in (${accountList})
+        );
         delete from app.church_admin_event where church_id in (
           select id from app.church where created_by in (${accountList})
         );
