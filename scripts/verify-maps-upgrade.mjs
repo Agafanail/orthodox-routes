@@ -55,6 +55,15 @@ function runSql(container, statement) {
   return result.stdout.trim();
 }
 
+function containsExactCoordinate(value, exactLat, exactLng) {
+  if (Array.isArray(value)) {
+    return value.some((item) => containsExactCoordinate(item, exactLat, exactLng));
+  }
+  if (!value || typeof value !== 'object') return false;
+  if (value.lat === exactLat && value.lng === exactLng) return true;
+  return Object.values(value).some((item) => containsExactCoordinate(item, exactLat, exactLng));
+}
+
 function userClient(url, publicKey) {
   return createClient(url, publicKey, {
     auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
@@ -163,8 +172,13 @@ assert.equal(publicLegacy.place_options[0].public_area, undefined);
 assert.equal(publicLegacy.place_options[0].public_area_label, 'Legacy open district');
 
 const publicPayload = JSON.stringify(publicRequests);
-for (const secret of ['Legacy exact meeting place', 'Legacy open meeting place', 'Upgraded exact meeting place', '45.0611', '7.6721']) {
+for (const secret of ['Legacy exact meeting place', 'Legacy open meeting place', 'Upgraded exact meeting place']) {
   assert.equal(publicPayload.includes(secret), false, 'The upgrade must not expose exact geography publicly.');
 }
+assert.equal(
+  containsExactCoordinate(publicRequests, 45.0611, 7.6721),
+  false,
+  'The upgrade must not expose an exact coordinate pair publicly.',
+);
 
 console.log('Representative pre-Maps upgrade, disclosure, and public boundary verification passed.');
