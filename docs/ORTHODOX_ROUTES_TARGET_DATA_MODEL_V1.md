@@ -167,7 +167,7 @@ Ride records preserve a reference and an immutable date/time snapshot so schedul
 
 The first schedule migration adds protected creation of future one-off `service_occurrence` rows, a source description, an administrative event, and a bounded chronological public projection. It retains the existing concrete service ID and time-zone-aware start; recurring series, exceptions, changes, and cancellation handling remain to be materialized.
 
-The next migration adds an administrator-only cancellation preview and version-checked cancellation for future one-off services. It records the cancellation and schedule-update time in the same transaction as deduplicated participant notifications. Linked ride and agreement snapshots remain unchanged; a cancelled service cannot contribute to new automatic matches. Recurring series, exceptions, and date/time editing remain future slices.
+The next migration adds an administrator-only cancellation preview and version-checked cancellation for future one-off services. It records the cancellation and schedule-update time in the same transaction as deduplicated notifications to linked listing authors, pending-response participants, and agreement participants. Linked ride and agreement snapshots remain unchanged; a cancelled service cannot contribute to new automatic matches or agreement confirmation. Recurring series, exceptions, and date/time editing remain future slices.
 
 ### 5.6 `app.church_image`
 

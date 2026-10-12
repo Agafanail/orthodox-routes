@@ -26,6 +26,7 @@ declare
   church_row app.church%rowtype;
   request_count integer;
   offer_count integer;
+  response_count integer;
   agreement_count integer;
 begin
   select * into service_row from app.service_occurrence as service
@@ -47,6 +48,12 @@ begin
   select count(*) into offer_count from app.driver_offer_occurrence as offer
   where offer.service_occurrence_id = service_row.id
     and offer.status in ('active', 'full') and offer.arrival_at > now();
+  select count(*) into response_count from app.ride_response as response
+  join app.passenger_request as request on request.id = response.passenger_request_id
+  join app.driver_offer_occurrence as offer on offer.id = response.driver_occurrence_id
+  where (request.service_occurrence_id = service_row.id or offer.service_occurrence_id = service_row.id)
+    and response.status in ('await_driver', 'await_passenger')
+    and response.expires_at > now();
   select count(*) into agreement_count from app.ride_agreement as agreement
   join app.ride_condition_snapshot as snapshot on snapshot.id = agreement.active_snapshot_id
   join app.passenger_request as request on request.id = agreement.passenger_request_id
@@ -57,7 +64,8 @@ begin
   return jsonb_build_object(
     'service_id', service_row.public_id, 'status', service_row.status,
     'version', service_row.version, 'passenger_requests', request_count,
-    'driver_offers', offer_count, 'agreements', agreement_count
+    'driver_offers', offer_count, 'pending_responses', response_count,
+    'agreements', agreement_count
   );
 end;
 $$;
@@ -137,6 +145,22 @@ begin
       where offer.service_occurrence_id = service_row.id
         and offer.status in ('active', 'full') and offer.arrival_at > now()
       union
+      select response.passenger_account_id
+      from app.ride_response as response
+      join app.passenger_request as request on request.id = response.passenger_request_id
+      join app.driver_offer_occurrence as offer on offer.id = response.driver_occurrence_id
+      where (request.service_occurrence_id = service_row.id or offer.service_occurrence_id = service_row.id)
+        and response.status in ('await_driver', 'await_passenger')
+        and response.expires_at > now()
+      union
+      select response.driver_account_id
+      from app.ride_response as response
+      join app.passenger_request as request on request.id = response.passenger_request_id
+      join app.driver_offer_occurrence as offer on offer.id = response.driver_occurrence_id
+      where (request.service_occurrence_id = service_row.id or offer.service_occurrence_id = service_row.id)
+        and response.status in ('await_driver', 'await_passenger')
+        and response.expires_at > now()
+      union
       select agreement.passenger_account_id
       from app.ride_agreement as agreement
       join app.ride_condition_snapshot as snapshot on snapshot.id = agreement.active_snapshot_id
@@ -172,6 +196,47 @@ begin
   return result;
 end;
 $$;
+
+create function app.reject_cancelled_service_participation()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and new.status not in ('await_driver', 'await_passenger', 'accepted') then
+    return new;
+  end if;
+  -- Serialize new responses and confirmations with cancellation so neither side misses the other.
+  perform 1 from app.service_occurrence as service
+  where service.id in (
+    select request.service_occurrence_id from app.passenger_request as request
+    where request.id = new.passenger_request_id
+    union
+    select offer.service_occurrence_id from app.driver_offer_occurrence as offer
+    where offer.id = new.driver_occurrence_id
+  ) for share;
+  if exists (
+    select 1 from app.passenger_request as request
+    join app.service_occurrence as service on service.id = request.service_occurrence_id
+    where request.id = new.passenger_request_id and service.status = 'cancelled'
+  ) or exists (
+    select 1 from app.driver_offer_occurrence as offer
+    join app.service_occurrence as service on service.id = offer.service_occurrence_id
+    where offer.id = new.driver_occurrence_id and service.status = 'cancelled'
+  ) then
+    raise exception using errcode = '22023', message = 'The linked service was cancelled.';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger ride_response_reject_cancelled_service
+before insert or update of status on app.ride_response
+for each row execute function app.reject_cancelled_service_participation();
+
+create trigger ride_agreement_reject_cancelled_service
+before insert on app.ride_agreement
+for each row execute function app.reject_cancelled_service_participation();
 
 -- Cancelled services may still anchor unchanged trips, but they never seed new automatic suggestions.
 create or replace view app.quality_match_candidate
@@ -226,6 +291,8 @@ revoke all on function api.cancel_one_off_service(uuid, integer, uuid)
   from public, anon, authenticated, service_role;
 grant execute on function api.cancel_one_off_service(uuid, integer, uuid) to authenticated;
 revoke all on table app.quality_match_candidate from public, anon, authenticated, service_role;
+revoke all on function app.reject_cancelled_service_participation()
+  from public, anon, authenticated, service_role;
 
 comment on function api.cancel_one_off_service(uuid, integer, uuid) is
   'Cancels a future one-off service, leaves ride snapshots unchanged, and notifies affected accounts atomically.';
