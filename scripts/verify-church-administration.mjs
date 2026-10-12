@@ -206,6 +206,53 @@ try {
     where church_id = (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid)
       and event_type = 'church.content_updated';`), '1');
 
+  const serviceArgs = {
+    p_church_id: created.church_id,
+    p_source_name: 'Synthetic Vespers',
+    p_source_description: 'A one-off synthetic service.',
+    p_starts_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    p_client_key: randomUUID(),
+  };
+  await rpcFailure(clients[1], 'create_one_off_service', serviceArgs);
+  await rpcFailure(clients[4], 'create_one_off_service', serviceArgs);
+  const service = await rpc(clients[0], 'create_one_off_service', serviceArgs);
+  assert.equal(service.status, 'created');
+  assert.equal(service.version, 1);
+  assert.deepEqual(await rpc(clients[0], 'create_one_off_service', serviceArgs), service);
+  await rpcFailure(clients[0], 'create_one_off_service', {
+    ...serviceArgs, p_source_name: 'Different service with reused key',
+  });
+  await rpcFailure(clients[0], 'create_one_off_service', {
+    ...serviceArgs, p_client_key: randomUUID(),
+  });
+  const publicSchedule = await rpc(userClient(url, publicKey), 'published_church_schedule', {
+    p_church_id: created.church_id,
+  });
+  assert.equal(publicSchedule.length, 1);
+  assert.equal(publicSchedule[0].service_id, service.service_id);
+  assert.equal(publicSchedule[0].source_name, serviceArgs.p_source_name);
+  assert.equal(publicSchedule[0].description, serviceArgs.p_source_description);
+  assert.equal(Date.parse(publicSchedule[0].starts_at), Date.parse(serviceArgs.p_starts_at));
+  assert.equal(publicSchedule[0].timezone, 'Europe/Rome');
+  assert.equal(publicSchedule[0].status, 'scheduled');
+  const churchWithSchedule = await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
+    p_slug: firstArgs.p_slug,
+  });
+  assert.ok(Number.isFinite(Date.parse(churchWithSchedule.schedule_updated_at)));
+  assert.deepEqual(await rpc(userClient(url, publicKey), 'published_church_schedule', {
+    p_church_id: created.church_id, p_limit: 0,
+  }), []);
+  runSql(container, `update app.church set status = 'hidden'
+    where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
+  assert.deepEqual(await rpc(userClient(url, publicKey), 'published_church_schedule', {
+    p_church_id: created.church_id,
+  }), []);
+  runSql(container, `update app.church set status = 'published'
+    where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
+  assert.equal(runSql(container, `select count(*) from app.church_admin_event
+    where church_id = (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid)
+      and event_type = 'service.created';`), '1');
+
   const duplicateArgs = churchArgs({
     p_client_key: randomUUID(), p_lat: 45.0705, p_lng: 7.6871,
     p_official_name: 'Duplicate Attempt', p_slug: `duplicate-church-${compactSuffix}`,
@@ -423,6 +470,9 @@ try {
           select id from app.church where created_by in (${accountList})
         );
         delete from app.church_admin_membership where church_id in (
+          select id from app.church where created_by in (${accountList})
+        );
+        delete from app.service_occurrence where church_id in (
           select id from app.church where created_by in (${accountList})
         );
         delete from app.church_slug_history where church_id in (

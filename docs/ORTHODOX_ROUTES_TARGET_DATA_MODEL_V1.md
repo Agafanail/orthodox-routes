@@ -165,6 +165,8 @@ The executable invitation backend stores only a token hash on the invitation and
 
 Ride records preserve a reference and an immutable date/time snapshot so schedule edits notify users but do not silently change agreements.
 
+The first schedule migration adds protected creation of future one-off `service_occurrence` rows, a source description, an administrative event, and a bounded chronological public projection. It retains the existing concrete service ID and time-zone-aware start; recurring series, exceptions, changes, and cancellation handling remain to be materialized.
+
 ### 5.6 `app.church_image`
 
 Stores church, opaque Storage object key for cleaned master, prepared variant manifest, media type, dimensions, checksum, attribution/rights statement, processing status, uploader, and lifecycle timestamps. Only one `current` image per church. The untouched upload is not retained.
