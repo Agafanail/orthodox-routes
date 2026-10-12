@@ -234,7 +234,7 @@ create trigger ride_response_reject_cancelled_service
 before insert or update of status on app.ride_response
 for each row execute function app.reject_cancelled_service_participation();
 
-create trigger ride_agreement_reject_cancelled_service
+create trigger a_ride_agreement_reject_cancelled_service
 before insert on app.ride_agreement
 for each row execute function app.reject_cancelled_service_participation();
 

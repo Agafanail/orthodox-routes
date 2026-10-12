@@ -369,11 +369,7 @@ try {
     where event_type = 'church.service.cancelled'
       and object_public_id = ${sqlLiteral(service.service_id)}::uuid;`), '3');
   const rejectedResponse = runSql(container, `
-    update app.ride_response set status = 'accepted',
-      selected_request_place_id = (
-        select id from private.user_place where owner_account_id = ${sqlLiteral(identities[1].id)}::uuid
-          and exact_address = 'Synthetic meeting' limit 1
-      )
+    update app.ride_response set status = status
     where passenger_request_id in (select id from app.passenger_request
       where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid)
       and driver_account_id = ${sqlLiteral(identities[3].id)}::uuid;
