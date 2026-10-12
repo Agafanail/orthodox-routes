@@ -174,7 +174,37 @@ try {
   assert.equal(managedByCreator.length, 1);
   assert.equal(managedByCreator[0].church_id, created.church_id);
   assert.equal(managedByCreator[0].administrator_count, 1);
+  assert.equal(managedByCreator[0].content_version, 1);
   assert.deepEqual(await rpc(clients[1], 'current_managed_churches'), []);
+
+  const editArgs = {
+    p_church_id: created.church_id,
+    p_official_name: 'Synthetic Orthodox Church Updated',
+    p_description_source: 'A public description of this synthetic church.',
+    p_expected_version: 1,
+    p_client_key: randomUUID(),
+  };
+  await rpcFailure(clients[1], 'update_church_content', editArgs);
+  const edited = await rpc(clients[0], 'update_church_content', editArgs);
+  assert.equal(edited.status, 'saved');
+  assert.equal(edited.content_version, 2);
+  assert.deepEqual(await rpc(clients[0], 'update_church_content', editArgs), edited);
+  await rpcFailure(clients[0], 'update_church_content', {
+    ...editArgs, p_official_name: 'Reused key with different content',
+  });
+  await rpcFailure(clients[0], 'update_church_content', {
+    ...editArgs, p_client_key: randomUUID(),
+  });
+  const editedPublicChurch = await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
+    p_slug: firstArgs.p_slug,
+  });
+  assert.equal(editedPublicChurch.official_name, editArgs.p_official_name);
+  assert.equal(editedPublicChurch.description, editArgs.p_description_source);
+  assert.equal(editedPublicChurch.address, firstArgs.p_address_display);
+  assert.equal((await rpc(clients[0], 'current_managed_churches'))[0].content_version, 2);
+  assert.equal(runSql(container, `select count(*) from app.church_admin_event
+    where church_id = (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid)
+      and event_type = 'church.content_updated';`), '1');
 
   const duplicateArgs = churchArgs({
     p_client_key: randomUUID(), p_lat: 45.0705, p_lng: 7.6871,
@@ -359,12 +389,13 @@ try {
       and relation.relrowsecurity and relation.relforcerowsecurity;`), '6');
   assert.equal(runSql(container, `select count(*) from app.church_admin_event
     where church_id = ${sqlLiteral(firstInternalId)}::uuid
-      and event_type in ('church.created', 'membership.joined');`), '2');
+       and event_type in ('church.created', 'membership.joined', 'church.content_updated');`), '3');
 
   process.stdout.write([
     'Church administration foundation verification passed:',
     '- only fully eligible actors can publish a church page',
     '- creation is actor-derived, idempotent, and immediately creates the first equal administrator place',
+    '- church source text edits are member-only, idempotent, version-checked, and public only through the deliberate projection',
     '- normalized-address and PostGIS proximity checks return the existing safe page instead of duplicating it',
     '- suspicious same-address geography fails closed for protected review',
     '- administrator membership and pending invitations share a three-place cap; own-place transfer is atomic',

@@ -127,6 +127,7 @@ Loss of both verified contacts is not a recovery type. The old identity is never
 | `location` | `geography(Point, 4326)`; required | Public church geography |
 | `timezone` | Required IANA zone | Public |
 | `status` | `draft`, `published`, `hidden`, `archive_requested`, `archived` | Public safe state/operational |
+| `content_version` | Monotonic version for administrator text edits | Protected management concurrency token |
 | `schedule_updated_at` | Derived/maintained timestamp | Public |
 | `created_by`, `created_at`, `updated_at` | FKs/timestamps | Protected/system |
 
@@ -150,7 +151,7 @@ Unique `(church_id, slug)` plus global unique active slug. Supports safe redirec
 
 A protected constraint/function limits active memberships plus reserved invitations to three. Membership never grants access to ride contacts, exact user locations, responses, or agreements.
 
-The implemented creation foundation materializes slug history, equal administrator membership, bounded administrative events, and actor-scoped idempotency. It publishes an eligible creator's page and first membership in one transaction, serializes creation by normalized-address fingerprint, confirms a nearby PostGIS point before returning an existing page, fails closed for suspicious same-address geography, and enforces the three-place membership maximum under an advisory lock. Invitation reservations and membership transfer/exit operations remain subsequent migrations.
+The implemented creation foundation materializes slug history, equal administrator membership, bounded administrative events, and actor-scoped idempotency. It publishes an eligible creator's page and first membership in one transaction, serializes creation by normalized-address fingerprint, confirms a nearby PostGIS point before returning an existing page, fails closed for suspicious same-address geography, and enforces the three-place membership maximum under an advisory lock. Invitation reservations and membership transfer/exit are implemented in the subsequent invitation migration. Source text editing uses membership authorization, optimistic content-version checks, and actor-scoped idempotency; address changes remain separate because they affect geography and route measurements.
 
 ### 5.4 `app.church_admin_invite`
 
