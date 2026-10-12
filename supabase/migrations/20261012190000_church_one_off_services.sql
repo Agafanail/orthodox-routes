@@ -128,6 +128,30 @@ as $$
   ) as service;
 $$;
 
+create or replace function api.transport_church_by_slug(p_slug text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_strip_nulls(jsonb_build_object(
+    'church_id', church.public_id,
+    'slug', church.slug,
+    'official_name', church.official_name,
+    'description', church.description_source,
+    'address', church.address_display,
+    'locality', church.locality,
+    'country_code', church.country_code,
+    'timezone', church.timezone,
+    'schedule_updated_at', church.schedule_updated_at,
+    'lat', extensions.st_y(church.location::extensions.geometry),
+    'lng', extensions.st_x(church.location::extensions.geometry)
+  ))
+  from app.church as church
+  where church.slug = p_slug and church.status = 'published';
+$$;
+
 revoke all on function api.create_one_off_service(uuid, text, text, timestamptz, uuid)
   from public, anon, authenticated, service_role;
 grant execute on function api.create_one_off_service(uuid, text, text, timestamptz, uuid)

@@ -235,6 +235,10 @@ try {
   assert.equal(Date.parse(publicSchedule[0].starts_at), Date.parse(serviceArgs.p_starts_at));
   assert.equal(publicSchedule[0].timezone, 'Europe/Rome');
   assert.equal(publicSchedule[0].status, 'scheduled');
+  const churchWithSchedule = await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
+    p_slug: firstArgs.p_slug,
+  });
+  assert.ok(Number.isFinite(Date.parse(churchWithSchedule.schedule_updated_at)));
   assert.deepEqual(await rpc(userClient(url, publicKey), 'published_church_schedule', {
     p_church_id: created.church_id, p_limit: 0,
   }), []);
