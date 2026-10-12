@@ -130,6 +130,7 @@ The complete Core campaign passed its final local, migration, security/privacy, 
 
 - Implement church creation with address deduplication, immediate publication without routine pre-approval, later protected intervention, archival behavior, and up to three equal administrators.
 - The backend creation foundation now enforces participation eligibility, combines a normalized-address fingerprint with PostGIS proximity checks, publishes atomically, records the creator as the first equal administrator, caps membership at three places, preserves slug and administrative history, and returns an actor-scoped management projection. Invitations, editing, schedules, translations, and archival operations remain later Phase 7 slices.
+- The invitation backend reserves one of three places for seven days, binds acceptance to the matching confirmed email and full eligibility, supports an atomic transfer of the sender's own place, cancellation, decline, resend cooldown, and guarded voluntary exit. A protected email queue and service-only worker carry invitation links for accounts that do not yet exist. The invitation acceptance interface is still unimplemented.
 - Implement recurring and one-time services, exceptions, cancellations, and date/time fallback.
 - Support English, Russian, Italian, Romanian, Ukrainian, and German.
 - Add prepared translations for system content and stored automatic translations for approved dynamic church content.
