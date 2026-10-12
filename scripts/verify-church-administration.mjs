@@ -288,16 +288,75 @@ try {
     where church_id = (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid)
       and status in ('active', 'transferring');`), '1');
 
+  const retryInvite = await rpc(clients[3], 'invite_church_admin', inviteArgs(identities[0].email));
+  await rpcFailure(clients[3], 'resend_church_admin_invite', { p_invite_id: retryInvite.invite_id });
+  const originalRetryToken = runSql(container, `select mail.token_value
+    from private.church_invite_mail as mail
+    join app.church_admin_invite as invite on invite.id = mail.invite_id
+    where invite.public_id = ${sqlLiteral(retryInvite.invite_id)}::uuid;`);
+  runSql(container, `with timing as (select clock_timestamp() - interval '11 minutes' as moment)
+    update app.church_admin_invite as invite
+    set issued_at = timing.moment, expires_at = timing.moment + interval '7 days',
+      last_sent_at = timing.moment
+    from timing where invite.public_id = ${sqlLiteral(retryInvite.invite_id)}::uuid;
+    update private.church_invite_mail as mail
+    set state = 'dead', token_value = repeat('0', 64), attempt_count = 5
+    where mail.invite_id = (select id from app.church_admin_invite
+      where public_id = ${sqlLiteral(retryInvite.invite_id)}::uuid);`);
+  assert.equal(await rpc(clients[3], 'resend_church_admin_invite', {
+    p_invite_id: retryInvite.invite_id,
+  }), true);
+  const replacementToken = runSql(container, `select mail.token_value
+    from private.church_invite_mail as mail
+    join app.church_admin_invite as invite on invite.id = mail.invite_id
+    where invite.public_id = ${sqlLiteral(retryInvite.invite_id)}::uuid;`);
+  assert.notEqual(replacementToken, originalRetryToken);
+  assert.notEqual(replacementToken, '0'.repeat(64));
+  assert.equal(runSql(container, `select (
+    invite.token_hash = encode(extensions.digest(convert_to(mail.token_value, 'UTF8'), 'sha256'), 'hex')
+  )::text from app.church_admin_invite as invite
+  join private.church_invite_mail as mail on mail.invite_id = invite.id
+  where invite.public_id = ${sqlLiteral(retryInvite.invite_id)}::uuid;`), 'true');
+
+  runSql(container, `update private.church_invite_mail set attempt_count = 4
+    where invite_id = (select id from app.church_admin_invite
+      where public_id = ${sqlLiteral(retryInvite.invite_id)}::uuid);`);
+  const finalLease = randomUUID();
+  const fifthAttempt = (await rpc(admin, 'church_invite_worker_claim', {
+    p_lease_token: finalLease, p_limit: 10,
+  })).find((item) => item.invite_id === retryInvite.invite_id);
+  assert.ok(fifthAttempt);
+  assert.equal(fifthAttempt.attempt_count, 5);
+  assert.equal(await rpc(admin, 'church_invite_worker_complete', {
+    p_job_id: fifthAttempt.job_id, p_lease_token: finalLease,
+    p_outcome: 'sent', p_provider_reference: randomUUID(),
+  }), true);
+  assert.equal(runSql(container, `select mail.token_value from private.church_invite_mail as mail
+    join app.church_admin_invite as invite on invite.id = mail.invite_id
+    where invite.public_id = ${sqlLiteral(retryInvite.invite_id)}::uuid;`), replacementToken);
+  runSql(container, `with timing as (select clock_timestamp() - interval '8 days' as moment)
+    update app.church_admin_invite as invite
+    set issued_at = timing.moment, expires_at = timing.moment + interval '7 days'
+    from timing where invite.public_id = ${sqlLiteral(retryInvite.invite_id)}::uuid;`);
+  await rpc(admin, 'church_invite_worker_claim', { p_lease_token: randomUUID(), p_limit: 10 });
+  assert.equal(runSql(container, `select invite.state || ':' || mail.state || ':' || mail.token_value
+    from app.church_admin_invite as invite
+    join private.church_invite_mail as mail on mail.invite_id = invite.id
+    where invite.public_id = ${sqlLiteral(retryInvite.invite_id)}::uuid;`),
+  `expired:cancelled:${'0'.repeat(64)}`);
+
   assert.equal(runSql(container, `select count(*) from information_schema.role_table_grants
     where grantee in ('anon', 'authenticated', 'service_role')
       and table_schema in ('app', 'private')
-      and table_name in ('church_slug_history', 'church_admin_membership', 'church_admin_event', 'church_operation')
+      and table_name in ('church_slug_history', 'church_admin_membership', 'church_admin_event',
+        'church_operation', 'church_admin_invite', 'church_invite_mail')
       and privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE');`), '0');
   assert.equal(runSql(container, `select count(*) from pg_class as relation
     join pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname in ('app', 'private')
-      and relation.relname in ('church_slug_history', 'church_admin_membership', 'church_admin_event', 'church_operation')
-      and relation.relrowsecurity and relation.relforcerowsecurity;`), '4');
+      and relation.relname in ('church_slug_history', 'church_admin_membership', 'church_admin_event',
+        'church_operation', 'church_admin_invite', 'church_invite_mail')
+      and relation.relrowsecurity and relation.relforcerowsecurity;`), '6');
   assert.equal(runSql(container, `select count(*) from app.church_admin_event
     where church_id = ${sqlLiteral(firstInternalId)}::uuid
       and event_type in ('church.created', 'membership.joined');`), '2');
@@ -311,6 +370,8 @@ try {
     '- administrator membership and pending invitations share a three-place cap; own-place transfer is atomic',
     '- invite acceptance requires the matching confirmed email, a valid token, and eligibility',
     '- a member may leave while another active administrator remains',
+    '- failed delivery can be resent with a fresh hashed token; fifth-attempt success retains it until expiry',
+    '- expiring a delivered invitation scrubs the clear token',
     '- administrator membership grants no visitor transport access',
     '- administrative tables remain behind forced RLS with no direct application-role grants',
   ].join('\n') + '\n');

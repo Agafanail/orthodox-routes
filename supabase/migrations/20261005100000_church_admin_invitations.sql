@@ -158,7 +158,7 @@ begin
     lease_until = null, token_value = repeat('0', 64), updated_at = clock_timestamp()
   where mail.invite_id in (select invite.id from app.church_admin_invite as invite
     where invite.church_id = requested_church_id and invite.state = 'expired')
-    and mail.state in ('queued', 'claimed');
+    and mail.state in ('queued', 'claimed', 'sent');
   return expired_count;
 end;
 $$;
@@ -381,6 +381,8 @@ as $$
 declare
   actor_id uuid := app.current_actor_id();
   invitation app.church_admin_invite%rowtype;
+  current_mail private.church_invite_mail%rowtype;
+  replacement_token text;
 begin
   select * into invitation from app.church_admin_invite as invite where invite.public_id = p_invite_id;
   if not found then raise exception using errcode = '42501', message = 'Invitation is unavailable.'; end if;
@@ -398,10 +400,23 @@ begin
   if invitation.last_sent_at > clock_timestamp() - interval '10 minutes' then
     raise exception using errcode = '23514', message = 'The invitation can be resent after ten minutes.';
   end if;
+  select * into current_mail from private.church_invite_mail as mail
+  where mail.invite_id = invitation.id for update;
+  if not found then
+    raise exception using errcode = '55000', message = 'Invitation delivery is unavailable.';
+  end if;
+  replacement_token := current_mail.token_value;
+  if current_mail.state = 'dead' or replacement_token = repeat('0', 64) then
+    replacement_token := encode(extensions.gen_random_bytes(32), 'hex');
+    update app.church_admin_invite
+    set token_hash = encode(extensions.digest(convert_to(replacement_token, 'UTF8'), 'sha256'), 'hex')
+    where id = invitation.id;
+  end if;
   update app.church_admin_invite set last_sent_at = clock_timestamp() where id = invitation.id;
   update private.church_invite_mail set state = 'queued', dispatch_id = gen_random_uuid(),
     attempt_count = 0, next_attempt_at = clock_timestamp(), lease_token = null,
-    lease_until = null, provider_reference = null, updated_at = clock_timestamp()
+    lease_until = null, provider_reference = null, token_value = replacement_token,
+    updated_at = clock_timestamp()
   where invite_id = invitation.id;
   insert into app.church_admin_event (church_id, actor_account_id, event_type)
   values (invitation.church_id, actor_id, 'invite.resent');
@@ -512,7 +527,7 @@ begin
   update private.church_invite_mail as mail
   set state = 'cancelled', token_value = repeat('0', 64),
     lease_token = null, lease_until = null, updated_at = clock_timestamp()
-  where mail.state in ('queued', 'claimed') and exists (
+  where mail.state in ('queued', 'claimed', 'sent') and exists (
     select 1 from app.church_admin_invite as invite
     where invite.id = mail.invite_id and invite.state = 'expired'
   );
@@ -587,7 +602,8 @@ begin
       clock_timestamp() + make_interval(mins => (2 ^ least(claimed.attempt_count, 5))::integer)
       else mail.next_attempt_at end,
     lease_token = null, lease_until = null,
-    token_value = case when p_outcome = 'permanent_failure' or claimed.attempt_count >= 5
+    token_value = case when p_outcome = 'permanent_failure'
+      or (p_outcome = 'temporary_failure' and claimed.attempt_count >= 5)
       then repeat('0', 64) else mail.token_value end,
     provider_reference = case when p_outcome = 'sent' then p_provider_reference else null end,
     updated_at = clock_timestamp()

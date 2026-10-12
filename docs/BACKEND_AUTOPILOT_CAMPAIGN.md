@@ -22,7 +22,7 @@
 
 ## Current checkpoint
 
-Checkpoint 4. Complete profile and account backend operations: verify the existing name/language update boundary, add a privacy-safe account-owned data export, and implement protected phone/email change flows. Account deletion remains checkpoint 7.
+Checkpoint 5. Complete church administration, editing, service schedules, exceptions, cancellation handling, and archival operations. The lost-email protective delay remains a separate product decision, and account deletion remains checkpoint 7.
 
 ## Remaining backend areas
 
