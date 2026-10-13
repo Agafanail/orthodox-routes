@@ -171,6 +171,8 @@ The first schedule migration adds protected creation of future one-off `service_
 
 The next migration adds an administrator-only cancellation preview and version-checked cancellation for future one-off services. It records the cancellation and schedule-update time in the same transaction as deduplicated notifications to linked listing authors, pending-response participants, and agreement participants. Linked ride and agreement snapshots remain unchanged; a cancelled service cannot contribute to new automatic matches or agreement confirmation. Recurring series, exceptions, and date/time editing remain future slices.
 
+One-off service source name/description editing reuses the affected-ride preview, checks the occurrence version, updates the public schedule in one transaction, and sends deduplicated participant notifications. Ride publication takes a shared church/service lock in the same order as editing, so a new listing either receives the edited source name or is included in the edit's notification scan. The source occurrence may change while listing and agreement snapshots remain immutable; date/time changes require a separate generation-safe matching step.
+
 ### 5.6 `app.church_image`
 
 Stores church, opaque Storage object key for cleaned master, prepared variant manifest, media type, dimensions, checksum, attribution/rights statement, processing status, uploader, and lifecycle timestamps. Only one `current` image per church. The untouched upload is not retained.
