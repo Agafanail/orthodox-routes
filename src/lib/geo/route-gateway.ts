@@ -22,6 +22,7 @@ export function createRouteWorkerGateway(client: SupabaseClient): RouteWorkerGat
     async recordLeg(leg, distanceM, durationS, providerName) {
       const result = await client.schema('api').rpc('route_worker_record_leg', {
         p_church_id: leg.churchId,
+        p_church_version: leg.churchVersion,
         p_distance_m: distanceM,
         p_duration_s: durationS,
         p_origin_place_id: leg.originPlaceId,
@@ -29,6 +30,7 @@ export function createRouteWorkerGateway(client: SupabaseClient): RouteWorkerGat
         p_via_place_id: leg.viaPlaceId,
       });
       if (result.error) throw new Error('The route measurement could not be recorded.');
+      return result.data?.status === 'recorded';
     },
   };
 }

@@ -115,11 +115,13 @@ async function measureAllPendingLegs(worker) {
     const legs = await rpc(worker, 'route_worker_pending_legs', { p_limit: 50 });
     if (legs.length === 0) return measured;
     for (const leg of legs) {
+      assert.ok(Number.isSafeInteger(leg.church_version) && leg.church_version > 0);
       const distance = (leg.via
         ? metres(leg.origin, leg.via) + metres(leg.via, leg.destination)
         : metres(leg.origin, leg.destination)) * ROAD_FACTOR;
       await rpc(worker, 'route_worker_record_leg', {
         p_church_id: leg.church_id,
+        p_church_version: leg.church_version,
         p_distance_m: Math.round(distance),
         p_duration_s: Math.round(distance / AVERAGE_SPEED_MS),
         p_origin_place_id: leg.origin_place_id,
@@ -242,7 +244,8 @@ assert.deepEqual(await rpc(clients[1], 'list_quality_matches', { p_church_id: ch
 // A signed-in person must never reach the measurement bridge: it carries exact coordinates.
 await expectRpcFailure(clients[0], 'route_worker_pending_legs', { p_limit: 5 });
 await expectRpcFailure(clients[0], 'route_worker_record_leg', {
-  p_church_id: churchId, p_distance_m: 1, p_duration_s: 1, p_origin_place_id: randomUUID(),
+  p_church_id: churchId, p_church_version: 1,
+  p_distance_m: 1, p_duration_s: 1, p_origin_place_id: randomUUID(),
   p_provider_name: 'local-fake', p_via_place_id: null,
 });
 await expectRpcFailure(anonymous, 'route_worker_pending_legs', { p_limit: 5 });

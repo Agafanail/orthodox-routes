@@ -175,6 +175,7 @@ for (const token of ['polyline', 'corridor', 'route_geometry', 'encodedpath', 'w
 await expectRpcDenied(anonymous, 'list_quality_matches');
 await expectRpcDenied(anonymous, 'route_worker_pending_legs', { p_limit: 1 });
 await expectRpcDenied(anonymous, 'route_worker_record_leg', {
+  p_church_version: 1,
   p_church_id: '00000000-0000-4000-8000-000000000001',
   p_distance_m: 1,
   p_duration_s: 1,
