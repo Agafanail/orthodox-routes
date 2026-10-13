@@ -235,6 +235,7 @@ try {
   assert.equal(Date.parse(publicSchedule[0].starts_at), Date.parse(serviceArgs.p_starts_at));
   assert.equal(publicSchedule[0].timezone, 'Europe/Rome');
   assert.equal(publicSchedule[0].status, 'scheduled');
+  assert.equal(publicSchedule[0].time_changed, false);
   const churchWithSchedule = await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
     p_slug: firstArgs.p_slug,
   });
@@ -399,9 +400,11 @@ try {
   assert.equal((await rpc(clients[0], 'update_one_off_service_time', {
     ...rescheduleArgs, p_expected_version: 3, p_client_key: randomUUID(),
   })).version, 3);
-  assert.equal(Date.parse((await rpc(userClient(url, publicKey), 'published_church_schedule', {
+  const rescheduledPublicSchedule = await rpc(userClient(url, publicKey), 'published_church_schedule', {
     p_church_id: created.church_id,
-  }))[0].starts_at), Date.parse(rescheduledAt));
+  });
+  assert.equal(Date.parse(rescheduledPublicSchedule[0].starts_at), Date.parse(rescheduledAt));
+  assert.equal(rescheduledPublicSchedule[0].time_changed, true);
   assert.equal(runSql(container, `select count(*) from app.passenger_request
     where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid
       and desired_arrival_at = ${serviceStart}::timestamptz

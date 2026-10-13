@@ -138,6 +138,35 @@ begin
 end;
 $$;
 
+-- Public consumers need an explicit changed-time marker for the single chronological schedule.
+create or replace function api.published_church_schedule(p_church_id uuid, p_limit integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+    'service_id', service.public_id,
+    'source_name', service.source_name,
+    'description', service.source_description,
+    'starts_at', service.starts_at,
+    'timezone', service.timezone,
+    'status', service.status,
+    'time_changed', service.schedule_generation > 1,
+    'version', service.version
+  )) order by service.starts_at, service.public_id), '[]'::jsonb)
+  from (
+    select occurrence.*
+    from app.service_occurrence as occurrence
+    join app.church as church on church.id = occurrence.church_id
+    where church.public_id = p_church_id and church.status = 'published'
+      and occurrence.starts_at >= now()
+    order by occurrence.starts_at, occurrence.public_id
+    limit greatest(0, least(coalesce(p_limit, 50), 100))
+  ) as service;
+$$;
+
 alter table private.church_operation drop constraint church_operation_type;
 alter table private.church_operation add constraint church_operation_type check (operation_type in (
   'create_church', 'invite_church_admin', 'update_church_content', 'update_church_address',
@@ -297,6 +326,9 @@ grant execute on function api.update_one_off_service_time(uuid, timestamptz, int
 revoke all on function app.capture_service_generation()
   from public, anon, authenticated, service_role;
 revoke all on table app.quality_match_candidate from public, anon, authenticated, service_role;
+revoke all on function api.published_church_schedule(uuid, integer)
+  from public, anon, authenticated, service_role;
+grant execute on function api.published_church_schedule(uuid, integer) to anon, authenticated;
 
 comment on function api.update_one_off_service_time(uuid, timestamptz, integer, uuid) is
   'Reschedules a future one-off service without moving existing rides; new listings use a new schedule generation.';
