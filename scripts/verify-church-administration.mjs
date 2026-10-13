@@ -442,6 +442,43 @@ try {
   assert.equal(runSql(container, `select count(*) from app.church_admin_membership
     where church_id = ${sqlLiteral(firstInternalId)}::uuid and status = 'active';`), '3');
 
+  const archiveArgs = { p_church_id: created.church_id, p_client_key: randomUUID() };
+  await rpcFailure(clients[3], 'request_church_archival', archiveArgs);
+  const archiveRequest = await rpc(clients[0], 'request_church_archival', archiveArgs);
+  assert.equal(archiveRequest.status, 'requested');
+  assert.deepEqual(await rpc(clients[0], 'request_church_archival', archiveArgs), archiveRequest);
+  const alreadyRequested = await rpc(clients[1], 'request_church_archival', {
+    p_church_id: created.church_id, p_client_key: randomUUID(),
+  });
+  assert.equal(alreadyRequested.status, 'already_requested');
+  assert.equal(alreadyRequested.request_id, archiveRequest.request_id);
+  const managedDuringArchive = (await rpc(clients[2], 'current_managed_churches'))
+    .find((church) => church.church_id === created.church_id);
+  assert.equal(managedDuringArchive.status, 'archive_requested');
+  assert.equal(managedDuringArchive.archive_request.request_id, archiveRequest.request_id);
+  assert.equal((await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
+    p_slug: firstArgs.p_slug,
+  })).church_id, created.church_id);
+  const cancelArchiveArgs = {
+    p_church_id: created.church_id, p_request_id: archiveRequest.request_id,
+    p_client_key: randomUUID(),
+  };
+  const cancelledArchive = await rpc(clients[1], 'cancel_church_archival_request', cancelArchiveArgs);
+  assert.equal(cancelledArchive.status, 'cancelled');
+  assert.deepEqual(await rpc(clients[1], 'cancel_church_archival_request', cancelArchiveArgs), cancelledArchive);
+  await rpcFailure(clients[1], 'cancel_church_archival_request', {
+    ...cancelArchiveArgs, p_client_key: randomUUID(),
+  });
+  const managedAfterWithdrawal = (await rpc(clients[0], 'current_managed_churches'))
+    .find((church) => church.church_id === created.church_id);
+  assert.equal(managedAfterWithdrawal.status, 'published');
+  assert.equal(managedAfterWithdrawal.archive_request, null);
+  const reopenedArchive = await rpc(clients[2], 'request_church_archival', {
+    p_church_id: created.church_id, p_client_key: randomUUID(),
+  });
+  assert.equal(reopenedArchive.status, 'requested');
+  assert.notEqual(reopenedArchive.request_id, archiveRequest.request_id);
+
   const inviteArgs = (email, transfer = false) => ({
     p_church_id: second.church_id, p_email: email,
     p_transfer_own_place: transfer, p_client_key: randomUUID(),
@@ -571,14 +608,14 @@ try {
     where grantee in ('anon', 'authenticated', 'service_role')
       and table_schema in ('app', 'private')
       and table_name in ('church_slug_history', 'church_admin_membership', 'church_admin_event',
-        'church_operation', 'church_admin_invite', 'church_invite_mail')
+        'church_operation', 'church_admin_invite', 'church_invite_mail', 'church_archive_request')
       and privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE');`), '0');
   assert.equal(runSql(container, `select count(*) from pg_class as relation
     join pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname in ('app', 'private')
       and relation.relname in ('church_slug_history', 'church_admin_membership', 'church_admin_event',
-        'church_operation', 'church_admin_invite', 'church_invite_mail')
-      and relation.relrowsecurity and relation.relforcerowsecurity;`), '6');
+        'church_operation', 'church_admin_invite', 'church_invite_mail', 'church_archive_request')
+      and relation.relrowsecurity and relation.relforcerowsecurity;`), '7');
   assert.equal(runSql(container, `select count(*) from app.church_admin_event
     where church_id = ${sqlLiteral(firstInternalId)}::uuid
        and event_type in ('church.created', 'membership.joined', 'church.content_updated');`), '3');
@@ -595,6 +632,7 @@ try {
     '- a member may leave while another active administrator remains',
     '- failed delivery can be resent with a fresh hashed token; fifth-attempt success retains it until expiry',
     '- expiring a delivered invitation scrubs the clear token',
+    '- equal administrators may request or cancel owner-reviewed archival without hiding the church',
     '- administrator membership grants no visitor transport access',
     '- administrative tables remain behind forced RLS with no direct application-role grants',
   ].join('\n') + '\n');
@@ -609,6 +647,9 @@ try {
           )
         );
         delete from app.church_admin_invite where church_id in (
+          select id from app.church where created_by in (${accountList})
+        );
+        delete from app.church_archive_request where church_id in (
           select id from app.church where created_by in (${accountList})
         );
         delete from app.church_admin_event where church_id in (

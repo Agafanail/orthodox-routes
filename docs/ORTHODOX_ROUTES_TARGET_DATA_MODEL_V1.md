@@ -153,6 +153,8 @@ A protected constraint/function limits active memberships plus reserved invitati
 
 The implemented creation foundation materializes slug history, equal administrator membership, bounded administrative events, and actor-scoped idempotency. It publishes an eligible creator's page and first membership in one transaction, serializes creation by normalized-address fingerprint, confirms a nearby PostGIS point before returning an existing page, fails closed for suspicious same-address geography, and enforces the three-place membership maximum under an advisory lock. Invitation reservations and membership transfer/exit are implemented in the subsequent invitation migration. Source text editing uses membership authorization, optimistic content-version checks, and actor-scoped idempotency; address changes remain separate because they affect geography and route measurements.
 
+`app.church_archive_request` holds a single pending owner-review request per church, plus cancelled/resolved history. Equal current administrators may request or cancel it through protected idempotent operations. The management projection derives `archive_requested` from a pending request while the persisted church status stays `published` for public visibility and transport continuity. Protected owner archive/restore follows only after future rides and agreements are handled.
+
 ### 5.4 `app.church_admin_invite`
 
 Fields: church, normalized invite email in protected form, sender, reserved slot, token hash, expiry, and state `pending`, `accepted`, `declined`, `cancelled`, `expired`, `no_slot`. Unique pending invite per church/email. Acceptance and transfer of a membership slot are atomic.
