@@ -724,6 +724,11 @@ try {
   const movedDate = await rpc(clients[0], 'reschedule_recurring_service_date', moveArgs);
   assert.equal(movedDate.version, 2);
   assert.equal(movedDate.schedule_generation, 2);
+  const movedPublicDate = (await rpc(userClient(url, publicKey), 'published_church_schedule', {
+    p_church_id: created.church_id,
+  })).find((item) => item.service_id === movingDate.service_id);
+  assert.equal(Date.parse(movedPublicDate.starts_at), Date.parse(movedTime));
+  assert.equal(movedPublicDate.time_changed, true);
   assert.deepEqual(await rpc(clients[0], 'reschedule_recurring_service_date', moveArgs), movedDate);
   await rpcFailure(clients[0], 'reschedule_recurring_service_date', {
     ...moveArgs, p_starts_at: movingDate.starts_at,
