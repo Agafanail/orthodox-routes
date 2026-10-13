@@ -175,6 +175,8 @@ One-off service source name/description editing reuses the affected-ride preview
 
 One-off date/time editing increments a separate `schedule_generation` on the concrete service. Passenger requests and driver occurrences capture that generation when linked, including a backfill for existing rows. Matching and new response/agreement confirmation reject mixed generations of the same service, but existing listing and agreement time snapshots remain unchanged. The public schedule exposes a safe `time_changed` marker. Rescheduling reuses the impact preview and sends deduplicated notifications to future affected participants.
 
+The recurring-service foundation stores a weekly source with church-local time and optional end date. Creation and a service-role-only worker materialize concrete dates through a rolling 90-local-day window into the existing public schedule. A unique series/date key makes replay idempotent; already materialized dates retain stable IDs for rides. Source editing, individual exceptions, and cancellation follow in separate migrations.
+
 ### 5.6 `app.church_image`
 
 Stores church, opaque Storage object key for cleaned master, prepared variant manifest, media type, dimensions, checksum, attribution/rights statement, processing status, uploader, and lifecycle timestamps. Only one `current` image per church. The untouched upload is not retained.

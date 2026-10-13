@@ -2,6 +2,7 @@ import { getNotificationWorkerSecret } from '@/lib/supabase/config';
 import { hasValidBearerSecret } from '@/lib/notifications/request-auth';
 import { processNotificationDeliveries } from '@/lib/notifications/worker';
 import { processChurchInviteMail } from '@/lib/church-admin/invite-worker';
+import { materializeChurchServiceSchedule } from '@/lib/church-admin/schedule-worker';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,11 +12,12 @@ export async function POST(request: Request) {
   if (!hasValidBearerSecret(request, secret)) {
     return Response.json({ status: 'unauthorized' }, { status: 401 });
   }
-  const [notifications, churchInvites] = await Promise.all([
-    processNotificationDeliveries(), processChurchInviteMail(),
+  const [notifications, churchInvites, churchSchedule] = await Promise.all([
+    processNotificationDeliveries(), processChurchInviteMail(), materializeChurchServiceSchedule(),
   ]);
-  return Response.json({ ...notifications, churchInvites }, {
+  return Response.json({ ...notifications, churchInvites, churchSchedule }, {
     headers: { 'cache-control': 'no-store' },
-    status: notifications.configured || churchInvites.configured ? 200 : 503,
+    status: churchSchedule.failed > 0 ? 500
+      : notifications.configured || churchInvites.configured || churchSchedule.configured ? 200 : 503,
   });
 }
