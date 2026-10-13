@@ -82,12 +82,18 @@ security definer
 set search_path = ''
 as $$
 declare
+  target_church_id uuid;
   series_row app.service_series%rowtype;
   local_today date;
   horizon date;
+  window_start date;
   inserted_count integer := 0;
   affected integer;
 begin
+  select church_id into target_church_id from app.service_series where id = p_series_id;
+  if target_church_id is null then return 0; end if;
+  -- Keep the same church-then-service lock order as administrator schedule edits.
+  perform 1 from app.church where id = target_church_id for update;
   select * into series_row from app.service_series as series
   where series.id = p_series_id for update;
   if not found or series_row.status <> 'active' then return 0; end if;
@@ -95,6 +101,8 @@ begin
   horizon := least(coalesce(series_row.ends_on, local_today + 90), local_today + 90);
   if series_row.materialized_through is not null
     and series_row.materialized_through >= horizon then return 0; end if;
+  window_start := greatest(series_row.starts_on, local_today,
+    coalesce(series_row.materialized_through + 1, local_today));
   insert into app.service_occurrence (
     church_id, source_name, source_description, source_kind, source_series_id,
     local_date, local_start_time, starts_at, timezone, created_by
@@ -104,18 +112,38 @@ begin
     (day::date + series_row.local_start_time) at time zone series_row.timezone,
     series_row.timezone, series_row.created_by
   from generate_series(
-    greatest(series_row.starts_on, local_today,
-      coalesce(series_row.materialized_through + 1, local_today))::timestamp,
+    window_start::timestamp,
     horizon::timestamp,
     interval '1 day'
   ) as day
   where extract(dow from day)::smallint = any(series_row.weekdays)
     and ((day::date + series_row.local_start_time) at time zone series_row.timezone) > p_evaluated_at
-  on conflict (source_series_id, local_date) where source_series_id is not null do nothing;
+  on conflict do nothing;
   get diagnostics affected = row_count;
   inserted_count := inserted_count + affected;
+  -- A concrete one-off or another series may already represent this same service.
+  -- Keep the worker moving, but leave an owner-visible operational alert.
+  insert into ops.operational_alert (alert_type, safe_reference)
+  select 'church.schedule_conflict', existing.public_id
+  from generate_series(window_start::timestamp, horizon::timestamp, interval '1 day') as day
+  join app.service_occurrence as existing
+    on existing.church_id = series_row.church_id
+      and existing.source_name = series_row.source_name
+      and existing.starts_at = ((day::date + series_row.local_start_time)
+        at time zone series_row.timezone)
+      and existing.source_series_id is distinct from series_row.id
+  where extract(dow from day)::smallint = any(series_row.weekdays)
+    and existing.starts_at > p_evaluated_at
+    and not exists (
+      select 1 from app.service_occurrence as own
+      where own.source_series_id = series_row.id and own.local_date = day::date
+    );
   update app.service_series set materialized_through = horizon
   where id = series_row.id;
+  if inserted_count > 0 then
+    update app.church set schedule_updated_at = clock_timestamp(),
+      updated_at = clock_timestamp() where id = series_row.church_id;
+  end if;
   return inserted_count;
 end;
 $$;
@@ -184,6 +212,17 @@ begin
   end if;
   if p_starts_on < (now() at time zone church_row.timezone)::date then
     raise exception using errcode = '22023', message = 'Recurring service must start in the future.';
+  end if;
+  if not exists (
+    select 1 from generate_series(
+      p_starts_on::timestamp,
+      least(coalesce(p_ends_on, p_starts_on + 7), p_starts_on + 7)::timestamp,
+      interval '1 day'
+    ) as day
+    where extract(dow from day)::smallint = any(p_weekdays)
+      and ((day::date + p_local_start_time) at time zone church_row.timezone) > now()
+  ) then
+    raise exception using errcode = '22023', message = 'Recurring service has no future date.';
   end if;
   insert into app.service_series (
     church_id, source_name, source_description, weekdays, local_start_time,

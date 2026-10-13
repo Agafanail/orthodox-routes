@@ -541,6 +541,10 @@ try {
   await rpcFailure(clients[0], 'create_recurring_service', {
     ...recurringArgs, p_weekdays: [recurringStart.getUTCDay(), recurringStart.getUTCDay()],
   });
+  await rpcFailure(clients[0], 'create_recurring_service', {
+    ...recurringArgs, p_weekdays: [(recurringStart.getUTCDay() + 1) % 7],
+    p_ends_on: recurringArgs.p_starts_on, p_client_key: randomUUID(),
+  });
   const recurring = await rpc(clients[0], 'create_recurring_service', recurringArgs);
   assert.equal(recurring.status, 'created');
   assert.equal(recurring.materialized_count, 3);
@@ -568,9 +572,34 @@ try {
     p_ends_on: null, p_client_key: randomUUID(),
   });
   assert.ok(openSeries.materialized_count >= 12);
+  const scheduleUpdatedBeforeAdvance = runSql(container, `select schedule_updated_at::text
+    from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
   assert.equal(runSql(container, `select app.materialize_service_series(id, now() + interval '7 days')
     from app.service_series where public_id = ${sqlLiteral(openSeries.series_id)}::uuid;`), '1');
+  assert.equal(runSql(container, `select (schedule_updated_at >
+    ${sqlLiteral(scheduleUpdatedBeforeAdvance)}::timestamptz)::text
+    from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid;`), 'true');
   assert.equal(await rpc(admin, 'service_schedule_worker_materialize'), 0);
+
+  const collisionDate = new Date(recurringStart.getTime() + 91 * 24 * 60 * 60 * 1000)
+    .toISOString().slice(0, 10);
+  const collisionAt = runSql(container, `select ((${sqlLiteral(collisionDate)}::date
+    + '09:30:00'::time) at time zone 'Europe/Rome')::text;`);
+  await rpc(clients[0], 'create_one_off_service', {
+    p_church_id: created.church_id, p_source_name: 'Synthetic Collision Service',
+    p_source_description: null, p_starts_at: collisionAt, p_client_key: randomUUID(),
+  });
+  const collisionSeries = await rpc(clients[0], 'create_recurring_service', {
+    ...recurringArgs, p_source_name: 'Synthetic Collision Service',
+    p_ends_on: null, p_client_key: randomUUID(),
+  });
+  assert.ok(collisionSeries.materialized_count >= 12);
+  assert.equal(runSql(container, `select app.materialize_service_series(id, now() + interval '7 days')
+    from app.service_series where public_id = ${sqlLiteral(collisionSeries.series_id)}::uuid;`), '0');
+  assert.equal(runSql(container, `select count(*) from ops.operational_alert as alert
+    join app.service_occurrence as service on service.public_id = alert.safe_reference
+    where alert.alert_type = 'church.schedule_conflict'
+      and service.source_name = 'Synthetic Collision Service';`), '1');
 
   const duplicateArgs = churchArgs({
     p_client_key: randomUUID(), p_lat: 45.0705, p_lng: 7.6871,
