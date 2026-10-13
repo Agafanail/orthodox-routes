@@ -179,6 +179,8 @@ The recurring-service foundation stores a weekly source with church-local time a
 
 The first recurring exception is a version-checked cancellation of one future concrete date. `service_exception` records the source series, local date, occurrence, original instant, and actor. The occurrence remains publicly visible as cancelled, linked rides retain immutable time snapshots, matching and new agreement confirmation reject the cancelled reference, and affected accounts receive durable notifications. The weekly source and other dates are unchanged.
 
+A recurring date can instead be rescheduled with the same impact boundary. The source `local_date` remains the original weekly slot, while the concrete occurrence's `starts_at` and schedule generation advance. The exception history records the original and replacement instants; repeated moves update the current reschedule record, and a later cancellation records a separate event. Old ride snapshots remain unchanged and cannot silently match new-generation listings.
+
 ### 5.6 `app.church_image`
 
 Stores church, opaque Storage object key for cleaned master, prepared variant manifest, media type, dimensions, checksum, attribution/rights statement, processing status, uploader, and lifecycle timestamps. Only one `current` image per church. The untouched upload is not retained.
