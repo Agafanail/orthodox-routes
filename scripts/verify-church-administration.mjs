@@ -459,6 +459,12 @@ try {
   assert.equal((await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
     p_slug: firstArgs.p_slug,
   })).church_id, created.church_id);
+  runSql(container, `update app.church set status = 'hidden'
+    where id = ${sqlLiteral(firstInternalId)}::uuid;`);
+  const managedWhileHidden = (await rpc(clients[2], 'current_managed_churches'))
+    .find((church) => church.church_id === created.church_id);
+  assert.equal(managedWhileHidden.status, 'hidden');
+  assert.equal(managedWhileHidden.archive_request.request_id, archiveRequest.request_id);
   const cancelArchiveArgs = {
     p_church_id: created.church_id, p_request_id: archiveRequest.request_id,
     p_client_key: randomUUID(),
@@ -469,6 +475,8 @@ try {
   await rpcFailure(clients[1], 'cancel_church_archival_request', {
     ...cancelArchiveArgs, p_client_key: randomUUID(),
   });
+  runSql(container, `update app.church set status = 'published'
+    where id = ${sqlLiteral(firstInternalId)}::uuid;`);
   const managedAfterWithdrawal = (await rpc(clients[0], 'current_managed_churches'))
     .find((church) => church.church_id === created.church_id);
   assert.equal(managedAfterWithdrawal.status, 'published');

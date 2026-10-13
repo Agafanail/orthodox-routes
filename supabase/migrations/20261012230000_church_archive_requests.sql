@@ -123,7 +123,7 @@ begin
 
   select * into church_row from app.church as church
   where church.public_id = p_church_id for update;
-  if not found or church_row.status <> 'published'
+  if not found or church_row.status not in ('published', 'hidden')
     or not exists (
       select 1 from app.church_admin_membership as membership
       where membership.church_id = church_row.id and membership.account_id = actor_id
@@ -167,7 +167,7 @@ as $$
     'locality', church.locality,
     'country_code', church.country_code,
     'timezone', church.timezone,
-    'status', case when exists (
+    'status', case when church.status = 'published' and exists (
       select 1 from app.church_archive_request as pending_request
       where pending_request.church_id = church.id and pending_request.status = 'pending'
     ) then 'archive_requested' else church.status end,
