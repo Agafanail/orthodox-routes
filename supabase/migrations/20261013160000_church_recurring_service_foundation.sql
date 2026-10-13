@@ -220,9 +220,11 @@ declare
   series_id uuid;
   materialized_count integer := 0;
 begin
-  for series_id in select id from app.service_series
-    where status = 'active'
-      and (ends_on is null or ends_on >= (now() at time zone timezone)::date)
+  for series_id in select series.id from app.service_series as series
+    join app.church as church on church.id = series.church_id
+    where series.status = 'active' and church.status in ('published', 'hidden')
+      and (series.ends_on is null
+        or series.ends_on >= (now() at time zone series.timezone)::date)
   loop
     materialized_count := materialized_count + app.materialize_service_series(series_id, now());
   end loop;
