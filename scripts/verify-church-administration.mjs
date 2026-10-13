@@ -337,26 +337,68 @@ try {
   assert.equal(runSql(container, `select count(*) from app.quality_match_candidate
     where request_id in (select id from app.passenger_request
       where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid);`), '2');
+  await rpcFailure(clients[1], 'preview_one_off_service_edit', {
+    p_service_id: service.service_id,
+  });
+  const editPreview = await rpc(clients[0], 'preview_one_off_service_edit', {
+    p_service_id: service.service_id,
+  });
+  assert.equal(editPreview.source_name, serviceArgs.p_source_name);
+  assert.equal(editPreview.version, 1);
+  assert.equal(editPreview.passenger_requests, 1);
+  assert.equal(editPreview.driver_offers, 1);
+  assert.equal(editPreview.pending_responses, 1);
+  const serviceEditArgs = {
+    p_service_id: service.service_id,
+    p_source_name: 'Synthetic Vespers Updated',
+    p_source_description: 'Updated description of a synthetic one-off service.',
+    p_expected_version: 1, p_client_key: randomUUID(),
+  };
+  await rpcFailure(clients[1], 'update_one_off_service_content', serviceEditArgs);
+  const editedService = await rpc(clients[0], 'update_one_off_service_content', serviceEditArgs);
+  assert.equal(editedService.status, 'saved');
+  assert.equal(editedService.version, 2);
+  assert.deepEqual(await rpc(clients[0], 'update_one_off_service_content', serviceEditArgs), editedService);
+  await rpcFailure(clients[0], 'update_one_off_service_content', {
+    ...serviceEditArgs, p_source_name: 'Reused key with changed service content',
+  });
+  await rpcFailure(clients[0], 'update_one_off_service_content', {
+    ...serviceEditArgs, p_client_key: randomUUID(),
+  });
+  assert.equal((await rpc(userClient(url, publicKey), 'published_church_schedule', {
+    p_church_id: created.church_id,
+  }))[0].source_name, serviceEditArgs.p_source_name);
+  assert.equal(runSql(container, `select count(*) from app.passenger_request
+    where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid
+      and service_name_snapshot = ${sqlLiteral(serviceArgs.p_source_name)};`), '1');
+  assert.equal(runSql(container, `select count(*) from app.notification
+    where event_type = 'church.service.updated'
+      and object_public_id = ${sqlLiteral(service.service_id)}::uuid
+      and safe_route = '/trips';`), '3');
   await rpcFailure(clients[1], 'preview_one_off_service_cancellation', {
     p_service_id: service.service_id,
   });
   const cancellationPreview = await rpc(clients[0], 'preview_one_off_service_cancellation', {
     p_service_id: service.service_id,
   });
+  assert.equal(cancellationPreview.version, 2);
   assert.equal(cancellationPreview.passenger_requests, 1);
   assert.equal(cancellationPreview.driver_offers, 1);
   assert.equal(cancellationPreview.pending_responses, 1);
   assert.equal(cancellationPreview.agreements, 0);
   const cancellationArgs = {
-    p_service_id: service.service_id, p_expected_version: 1, p_client_key: randomUUID(),
+    p_service_id: service.service_id, p_expected_version: 2, p_client_key: randomUUID(),
   };
   await rpcFailure(clients[1], 'cancel_one_off_service', cancellationArgs);
   const cancelledService = await rpc(clients[0], 'cancel_one_off_service', cancellationArgs);
   assert.equal(cancelledService.status, 'cancelled');
-  assert.equal(cancelledService.version, 2);
+  assert.equal(cancelledService.version, 3);
   assert.deepEqual(await rpc(clients[0], 'cancel_one_off_service', cancellationArgs), cancelledService);
   await rpcFailure(clients[0], 'cancel_one_off_service', {
     ...cancellationArgs, p_client_key: randomUUID(),
+  });
+  await rpcFailure(clients[0], 'update_one_off_service_content', {
+    ...serviceEditArgs, p_expected_version: 3, p_client_key: randomUUID(),
   });
   assert.equal(runSql(container, `select count(*) from app.quality_match_candidate
     where request_id in (select id from app.passenger_request
