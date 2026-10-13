@@ -966,6 +966,10 @@ try {
         );
         delete from private.user_place where owner_account_id in (${accountList})
           and exact_address in ('Synthetic meeting', 'Synthetic departure', 'Synthetic custom departure');
+        delete from ops.operational_alert where alert_type = 'church.schedule_conflict'
+          and safe_reference in (select public_id from app.service_occurrence where church_id in (
+            select id from app.church where created_by in (${accountList})
+          ));
         delete from app.service_occurrence where church_id in (
           select id from app.church where created_by in (${accountList})
         );
