@@ -235,6 +235,7 @@ try {
   assert.equal(Date.parse(publicSchedule[0].starts_at), Date.parse(serviceArgs.p_starts_at));
   assert.equal(publicSchedule[0].timezone, 'Europe/Rome');
   assert.equal(publicSchedule[0].status, 'scheduled');
+  assert.equal(publicSchedule[0].time_changed, false);
   const churchWithSchedule = await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
     p_slug: firstArgs.p_slug,
   });
@@ -378,30 +379,114 @@ try {
   assert.equal(runSql(container, `select routine.provolatile from pg_proc as routine
     join pg_namespace as namespace on namespace.oid = routine.pronamespace
     where namespace.nspname = 'app' and routine.proname = 'assert_transport_reference';`), 'v');
+  const rescheduledAt = new Date(Date.parse(serviceArgs.p_starts_at) + 24 * 60 * 60 * 1000).toISOString();
+  const rescheduleArgs = {
+    p_service_id: service.service_id, p_starts_at: rescheduledAt,
+    p_expected_version: 2, p_client_key: randomUUID(),
+  };
+  await rpcFailure(clients[1], 'update_one_off_service_time', rescheduleArgs);
+  const rescheduled = await rpc(clients[0], 'update_one_off_service_time', rescheduleArgs);
+  assert.equal(rescheduled.status, 'saved');
+  assert.equal(rescheduled.version, 3);
+  assert.equal(rescheduled.schedule_generation, 2);
+  assert.equal(Date.parse(rescheduled.starts_at), Date.parse(rescheduledAt));
+  assert.deepEqual(await rpc(clients[0], 'update_one_off_service_time', rescheduleArgs), rescheduled);
+  await rpcFailure(clients[0], 'update_one_off_service_time', {
+    ...rescheduleArgs, p_starts_at: serviceArgs.p_starts_at,
+  });
+  await rpcFailure(clients[0], 'update_one_off_service_time', {
+    ...rescheduleArgs, p_client_key: randomUUID(),
+  });
+  assert.equal((await rpc(clients[0], 'update_one_off_service_time', {
+    ...rescheduleArgs, p_expected_version: 3, p_client_key: randomUUID(),
+  })).version, 3);
+  const rescheduledPublicSchedule = await rpc(userClient(url, publicKey), 'published_church_schedule', {
+    p_church_id: created.church_id,
+  });
+  assert.equal(Date.parse(rescheduledPublicSchedule[0].starts_at), Date.parse(rescheduledAt));
+  assert.equal(rescheduledPublicSchedule[0].time_changed, true);
+  assert.equal(runSql(container, `select count(*) from app.passenger_request
+    where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid
+      and desired_arrival_at = ${serviceStart}::timestamptz
+      and service_generation_snapshot = 1;`), '1');
+  runSql(container, `update app.passenger_request
+    set service_occurrence_id = service_occurrence_id, service_generation_snapshot = 2
+    where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid;
+    update app.driver_offer_occurrence
+    set service_occurrence_id = service_occurrence_id, service_generation_snapshot = 2
+    where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid;`);
+  assert.equal(runSql(container, `select count(*) from app.passenger_request
+    where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid
+      and service_generation_snapshot = 1;`), '1');
+  assert.equal(runSql(container, `select count(*) from app.driver_offer_occurrence
+    where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid
+      and service_generation_snapshot = 1;`), '1');
+  assert.equal(runSql(container, `select count(*) from app.notification
+    where event_type = 'church.service.rescheduled'
+      and object_public_id = ${sqlLiteral(service.service_id)}::uuid
+      and safe_route = '/trips';`), '3');
+  const newGenerationOfferKey = randomUUID();
+  runSql(container, `insert into app.driver_offer_occurrence (
+    publication_key, author_account_id, church_id, service_occurrence_id,
+    departure_at, arrival_at, timezone, service_name_snapshot,
+    origin_place_id, total_seats, max_detour_km, children_allowed,
+    driver_child_seat_available, return_available
+  ) values (
+    ${sqlLiteral(newGenerationOfferKey)}::uuid, ${sqlLiteral(identities[3].id)}::uuid,
+    (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid),
+    ${sqlLiteral(serviceInternalId)}::uuid,
+    ${sqlLiteral(rescheduledAt)}::timestamptz - interval '2 hours',
+    ${sqlLiteral(rescheduledAt)}::timestamptz, 'Europe/Rome',
+    ${sqlLiteral(serviceEditArgs.p_source_name)},
+    (select id from private.user_place where owner_account_id = ${sqlLiteral(identities[3].id)}::uuid
+      and exact_address = 'Synthetic custom departure' limit 1),
+    2, 5, true, false, false
+  );`);
+  const newGenerationOfferId = runSql(container, `select id from app.driver_offer_occurrence
+    where publication_key = ${sqlLiteral(newGenerationOfferKey)}::uuid;`);
+  assert.equal(runSql(container, `select service_generation_snapshot from app.driver_offer_occurrence
+    where id = ${sqlLiteral(newGenerationOfferId)}::uuid;`), '2');
+  assert.equal(runSql(container, `select count(*) from app.quality_match_candidate
+    where request_id in (select id from app.passenger_request
+      where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid);`), '2');
+  runSql(container, `delete from app.driver_offer_occurrence
+    where id = ${sqlLiteral(newGenerationOfferId)}::uuid;`);
+  runSql(container, `update app.driver_offer_occurrence
+    set service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid
+    where author_account_id = ${sqlLiteral(identities[3].id)}::uuid
+      and service_occurrence_id is null;`);
+  const mixedGenerationResponse = runSql(container, `update app.ride_response set status = status
+    where passenger_request_id in (select id from app.passenger_request
+      where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid)
+      and driver_account_id = ${sqlLiteral(identities[3].id)}::uuid;`, { expectFailure: true });
+  assert.match(mixedGenerationResponse, /The linked service changed/);
+  runSql(container, `update app.driver_offer_occurrence set service_occurrence_id = null
+    where author_account_id = ${sqlLiteral(identities[3].id)}::uuid
+      and service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid;`);
   await rpcFailure(clients[1], 'preview_one_off_service_cancellation', {
     p_service_id: service.service_id,
   });
   const cancellationPreview = await rpc(clients[0], 'preview_one_off_service_cancellation', {
     p_service_id: service.service_id,
   });
-  assert.equal(cancellationPreview.version, 2);
+  assert.equal(cancellationPreview.version, 3);
   assert.equal(cancellationPreview.passenger_requests, 1);
   assert.equal(cancellationPreview.driver_offers, 1);
   assert.equal(cancellationPreview.pending_responses, 1);
   assert.equal(cancellationPreview.agreements, 0);
   const cancellationArgs = {
-    p_service_id: service.service_id, p_expected_version: 2, p_client_key: randomUUID(),
+    p_service_id: service.service_id, p_expected_version: 3, p_client_key: randomUUID(),
   };
   await rpcFailure(clients[1], 'cancel_one_off_service', cancellationArgs);
   const cancelledService = await rpc(clients[0], 'cancel_one_off_service', cancellationArgs);
   assert.equal(cancelledService.status, 'cancelled');
-  assert.equal(cancelledService.version, 3);
+  assert.equal(cancelledService.version, 4);
   assert.deepEqual(await rpc(clients[0], 'cancel_one_off_service', cancellationArgs), cancelledService);
   await rpcFailure(clients[0], 'cancel_one_off_service', {
     ...cancellationArgs, p_client_key: randomUUID(),
   });
   await rpcFailure(clients[0], 'update_one_off_service_content', {
-    ...serviceEditArgs, p_expected_version: 3, p_client_key: randomUUID(),
+    ...serviceEditArgs, p_expected_version: 4, p_client_key: randomUUID(),
   });
   assert.equal(runSql(container, `select count(*) from app.quality_match_candidate
     where request_id in (select id from app.passenger_request
