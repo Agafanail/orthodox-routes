@@ -375,6 +375,9 @@ try {
     where event_type = 'church.service.updated'
       and object_public_id = ${sqlLiteral(service.service_id)}::uuid
       and safe_route = '/trips';`), '3');
+  assert.equal(runSql(container, `select routine.provolatile from pg_proc as routine
+    join pg_namespace as namespace on namespace.oid = routine.pronamespace
+    where namespace.nspname = 'app' and routine.proname = 'assert_transport_reference';`), 'v');
   await rpcFailure(clients[1], 'preview_one_off_service_cancellation', {
     p_service_id: service.service_id,
   });

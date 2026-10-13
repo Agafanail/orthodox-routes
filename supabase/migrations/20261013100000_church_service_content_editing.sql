@@ -15,6 +15,49 @@ alter table app.church_admin_event add constraint church_admin_event_type check 
   'archive.requested', 'archive.request_cancelled'
 ));
 
+-- Publishing holds the same church/service lock order as an administrator edit. This keeps
+-- a new listing's service-name snapshot and the edit's affected-recipient scan atomic.
+create or replace function app.assert_transport_reference(
+  requested_church_public_id uuid,
+  requested_service_public_id uuid,
+  requested_time timestamptz
+)
+returns table (church_id uuid, service_id uuid, service_name text)
+language plpgsql
+volatile
+set search_path = ''
+as $$
+declare
+  resolved_church_id uuid;
+begin
+  select church.id into resolved_church_id
+  from app.church as church
+  where church.public_id = requested_church_public_id and church.status = 'published'
+  for share;
+  if resolved_church_id is null then
+    raise exception using errcode = 'P0002', message = 'The church is unavailable.';
+  end if;
+
+  church_id := resolved_church_id;
+  service_id := null;
+  service_name := null;
+  if requested_service_public_id is not null then
+    select service.id, service.source_name
+    into service_id, service_name
+    from app.service_occurrence as service
+    where service.public_id = requested_service_public_id
+      and service.church_id = resolved_church_id
+      and service.status = 'scheduled'
+      and service.starts_at = requested_time
+    for share;
+    if service_id is null then
+      raise exception using errcode = '22023', message = 'The service occurrence does not match the requested ride.';
+    end if;
+  end if;
+  return next;
+end;
+$$;
+
 create function api.preview_one_off_service_edit(p_service_id uuid)
 returns jsonb
 language plpgsql
