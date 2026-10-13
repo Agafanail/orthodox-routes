@@ -159,7 +159,7 @@ begin
         recipient.account_id,
         'church:' || church_row.public_id::text || ':address:' || church_row.content_version::text,
         'church.address.updated', 'church', church_row.public_id,
-        '/churches/' || church_row.slug, 'church.address.updated', '{}'::jsonb, 50
+        '/trips', 'church.address.updated', '{}'::jsonb, 50
       );
     end loop;
     result := jsonb_build_object('status', 'saved', 'church_id', church_row.public_id,

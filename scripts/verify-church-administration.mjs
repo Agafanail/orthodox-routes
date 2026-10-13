@@ -458,6 +458,8 @@ try {
   });
   assert.equal(duplicateAddress.status, 'potential_duplicate');
   assert.equal(duplicateAddress.content_version, 2);
+  runSql(container, `update app.church set status = 'hidden'
+    where id = ${sqlLiteral(firstInternalId)}::uuid;`);
   runSql(container, `insert into app.route_measurement (
     church_id, origin_place_id, distance_m, duration_s, provider_name
   ) values (
@@ -488,6 +490,8 @@ try {
     ...addressArgs, p_expected_version: 3, p_client_key: randomUUID(),
   });
   assert.equal(addressNoOp.content_version, 3);
+  runSql(container, `update app.church set status = 'published'
+    where id = ${sqlLiteral(firstInternalId)}::uuid;`);
   const publicWithUpdatedAddress = await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
     p_slug: firstArgs.p_slug,
   });
@@ -517,7 +521,8 @@ try {
       and event_type = 'church.address_updated';`), '1');
   assert.equal(runSql(container, `select count(*) from app.notification
     where event_type = 'church.address.updated'
-      and object_public_id = ${sqlLiteral(created.church_id)}::uuid;`), '3');
+      and object_public_id = ${sqlLiteral(created.church_id)}::uuid
+      and safe_route = '/trips';`), '3');
 
   const archiveArgs = { p_church_id: created.church_id, p_client_key: randomUUID() };
   await rpcFailure(clients[3], 'request_church_archival', archiveArgs);
