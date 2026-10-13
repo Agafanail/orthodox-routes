@@ -10,6 +10,7 @@ const via = { lat: 45.05, lng: 7.67 };
 function leg(overrides: Partial<PendingLeg> = {}): PendingLeg {
   return {
     churchId: '00000000-0000-4000-8000-000000000001',
+    churchVersion: 1,
     destination: church,
     origin,
     originPlaceId: '11111111-1111-4111-8111-111111111111',
@@ -25,6 +26,7 @@ function gateway(legs: PendingLeg[]) {
     async pendingLegs() { return legs; },
     async recordLeg(pending, distanceM, durationS, provider) {
       recorded.push({ distanceM, durationS, leg: pending, provider });
+      return true;
     },
   };
   return { gateway: value, recorded };
@@ -90,17 +92,17 @@ describe('measurePendingLegs', () => {
 
   it('bounds the number of legs it asks for, so one render cannot become a spend event', async () => {
     const pendingLegs = vi.fn(async () => [] as PendingLeg[]);
-    await measurePendingLegs({ pendingLegs, async recordLeg() {} }, createFakeGeoProvider(), { limit: 500 });
+    await measurePendingLegs({ pendingLegs, async recordLeg() { return true; } }, createFakeGeoProvider(), { limit: 500 });
     expect(pendingLegs).toHaveBeenCalledWith(null, 50);
 
-    await measurePendingLegs({ pendingLegs, async recordLeg() {} }, createFakeGeoProvider());
+    await measurePendingLegs({ pendingLegs, async recordLeg() { return true; } }, createFakeGeoProvider());
     expect(pendingLegs).toHaveBeenLastCalledWith(null, 8);
   });
 
   it('stays quiet when the database bridge itself is unavailable', async () => {
     const result = await measurePendingLegs({
       async pendingLegs() { throw new Error('bridge down'); },
-      async recordLeg() {},
+      async recordLeg() { return true; },
     }, createFakeGeoProvider());
     expect(result).toEqual({ measured: 0, providerUnavailable: false });
   });
@@ -116,20 +118,29 @@ describe('measurePendingLegs', () => {
     expect(await measurePendingLegs(value, broken)).toEqual({ measured: 0, providerUnavailable: false });
     expect(recorded).toEqual([]);
   });
+
+  it('does not count a route result discarded after the church changed', async () => {
+    const result = await measurePendingLegs({
+      async pendingLegs() { return [leg()]; },
+      async recordLeg() { return false; },
+    }, createFakeGeoProvider());
+    expect(result).toEqual({ measured: 0, providerUnavailable: false });
+  });
 });
 
 describe('parsePendingLegs', () => {
   it('reads legs and their optional via point', () => {
     const legs = parsePendingLegs([
       {
-        church_id: 'c', destination: church, origin, origin_place_id: 'o', via: null, via_place_id: null,
+        church_id: 'c', church_version: 1, destination: church, origin, origin_place_id: 'o', via: null, via_place_id: null,
       },
       {
-        church_id: 'c', destination: church, origin, origin_place_id: 'o', via, via_place_id: 'v',
+        church_id: 'c', church_version: 1, destination: church, origin, origin_place_id: 'o', via, via_place_id: 'v',
       },
     ]);
     expect(legs).toHaveLength(2);
     expect(legs[0].via).toBeNull();
+    expect(legs[0].churchVersion).toBe(1);
     expect(legs[1].via).toEqual(via);
   });
 

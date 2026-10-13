@@ -14,6 +14,7 @@ import type { Coordinate } from './types';
 
 export type PendingLeg = {
   churchId: string;
+  churchVersion: number;
   originPlaceId: string;
   viaPlaceId: string | null;
   origin: Coordinate;
@@ -24,7 +25,7 @@ export type PendingLeg = {
 /** The narrow database surface the worker needs, so it can be exercised without a network. */
 export type RouteWorkerGateway = {
   pendingLegs(churchId: string | null, limit: number): Promise<PendingLeg[]>;
-  recordLeg(leg: PendingLeg, distanceM: number, durationS: number, providerName: string): Promise<void>;
+  recordLeg(leg: PendingLeg, distanceM: number, durationS: number, providerName: string): Promise<boolean>;
 };
 
 export type RouteWorkerResult = {
@@ -66,13 +67,13 @@ export async function measurePendingLegs(
         || measurement.distanceM < 0 || measurement.durationS < 0) {
         continue;
       }
-      await gateway.recordLeg(
+      const recorded = await gateway.recordLeg(
         leg,
         Math.round(measurement.distanceM),
         Math.round(measurement.durationS),
         provider.name,
       );
-      measured += 1;
+      if (recorded) measured += 1;
     } catch (error) {
       // A leg the provider cannot route — a point with no road near it — is skipped, and the
       // run carries on. It is a fact about that one place, not about the provider, and letting
@@ -104,12 +105,16 @@ export function parsePendingLegs(value: unknown): PendingLeg[] {
     if (!raw || typeof raw !== 'object') return [];
     const item = raw as Record<string, unknown>;
     const churchId = typeof item.church_id === 'string' ? item.church_id : null;
+    const churchVersion = typeof item.church_version === 'number'
+      && Number.isSafeInteger(item.church_version) && item.church_version > 0
+      ? item.church_version : null;
     const originPlaceId = typeof item.origin_place_id === 'string' ? item.origin_place_id : null;
     const origin = coordinate(item.origin);
     const destination = coordinate(item.destination);
-    if (!churchId || !originPlaceId || !origin || !destination) return [];
+    if (!churchId || !churchVersion || !originPlaceId || !origin || !destination) return [];
     return [{
       churchId,
+      churchVersion,
       destination,
       origin,
       originPlaceId,

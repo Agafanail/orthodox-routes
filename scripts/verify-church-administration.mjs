@@ -442,6 +442,88 @@ try {
   assert.equal(runSql(container, `select count(*) from app.church_admin_membership
     where church_id = ${sqlLiteral(firstInternalId)}::uuid and status = 'active';`), '3');
 
+  const addressArgs = {
+    p_church_id: created.church_id,
+    p_address_display: 'Corso Synthetic 25, Torino',
+    p_locality: 'Torino', p_country_code: 'IT',
+    p_lat: 45.0712, p_lng: 7.6881,
+    p_expected_version: 2, p_client_key: randomUUID(),
+  };
+  await rpcFailure(clients[3], 'update_church_address', addressArgs);
+  await rpcFailure(clients[4], 'update_church_address', addressArgs);
+  const duplicateAddress = await rpc(clients[0], 'update_church_address', {
+    ...addressArgs, p_address_display: secondArgs.p_address_display,
+    p_locality: secondArgs.p_locality, p_lat: secondArgs.p_lat, p_lng: secondArgs.p_lng,
+    p_client_key: randomUUID(),
+  });
+  assert.equal(duplicateAddress.status, 'potential_duplicate');
+  assert.equal(duplicateAddress.content_version, 2);
+  runSql(container, `update app.church set status = 'hidden'
+    where id = ${sqlLiteral(firstInternalId)}::uuid;`);
+  runSql(container, `insert into app.route_measurement (
+    church_id, origin_place_id, distance_m, duration_s, provider_name
+  ) values (
+    ${sqlLiteral(firstInternalId)}::uuid,
+    (select id from private.user_place where owner_account_id = ${sqlLiteral(identities[2].id)}::uuid
+      and exact_address = 'Synthetic departure' limit 1),
+    12000, 1500, 'local-test'
+  );
+  insert into app.route_measurement (
+    church_id, origin_place_id, distance_m, duration_s, provider_name
+  ) values (
+    (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid),
+    (select id from private.user_place where owner_account_id = ${sqlLiteral(identities[2].id)}::uuid
+      and exact_address = 'Synthetic departure' limit 1),
+    9000, 1100, 'local-test'
+  );`);
+  const updatedAddress = await rpc(clients[1], 'update_church_address', addressArgs);
+  assert.equal(updatedAddress.status, 'saved');
+  assert.equal(updatedAddress.content_version, 3);
+  assert.deepEqual(await rpc(clients[1], 'update_church_address', addressArgs), updatedAddress);
+  await rpcFailure(clients[1], 'update_church_address', {
+    ...addressArgs, p_address_display: 'Reused key with different address',
+  });
+  await rpcFailure(clients[2], 'update_church_address', {
+    ...addressArgs, p_client_key: randomUUID(),
+  });
+  const addressNoOp = await rpc(clients[2], 'update_church_address', {
+    ...addressArgs, p_expected_version: 3, p_client_key: randomUUID(),
+  });
+  assert.equal(addressNoOp.content_version, 3);
+  runSql(container, `update app.church set status = 'published'
+    where id = ${sqlLiteral(firstInternalId)}::uuid;`);
+  const publicWithUpdatedAddress = await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
+    p_slug: firstArgs.p_slug,
+  });
+  assert.equal(publicWithUpdatedAddress.address, addressArgs.p_address_display);
+  assert.equal(publicWithUpdatedAddress.locality, addressArgs.p_locality);
+  assert.equal(publicWithUpdatedAddress.lat, addressArgs.p_lat);
+  assert.equal(publicWithUpdatedAddress.lng, addressArgs.p_lng);
+  const managedWithUpdatedAddress = (await rpc(clients[2], 'current_managed_churches'))
+    .find((church) => church.church_id === created.church_id);
+  assert.equal(managedWithUpdatedAddress.content_version, 3);
+  assert.equal(managedWithUpdatedAddress.lat, addressArgs.p_lat);
+  assert.equal(managedWithUpdatedAddress.lng, addressArgs.p_lng);
+  const routeOriginPublicId = runSql(container, `select public_id from private.user_place
+    where owner_account_id = ${sqlLiteral(identities[2].id)}::uuid
+      and exact_address = 'Synthetic departure' limit 1;`);
+  assert.deepEqual(await rpc(admin, 'route_worker_record_leg', {
+    p_church_id: created.church_id, p_church_version: 2,
+    p_origin_place_id: routeOriginPublicId, p_via_place_id: null,
+    p_distance_m: 12000, p_duration_s: 1500, p_provider_name: 'local-test',
+  }), { status: 'stale' });
+  assert.equal(runSql(container, `select count(*) from app.route_measurement
+    where church_id = ${sqlLiteral(firstInternalId)}::uuid;`), '0');
+  assert.equal(runSql(container, `select count(*) from app.route_measurement
+    where church_id = (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid);`), '1');
+  assert.equal(runSql(container, `select count(*) from app.church_admin_event
+    where church_id = ${sqlLiteral(firstInternalId)}::uuid
+      and event_type = 'church.address_updated';`), '1');
+  assert.equal(runSql(container, `select count(*) from app.notification
+    where event_type = 'church.address.updated'
+      and object_public_id = ${sqlLiteral(created.church_id)}::uuid
+      and safe_route = '/trips';`), '3');
+
   const archiveArgs = { p_church_id: created.church_id, p_client_key: randomUUID() };
   await rpcFailure(clients[3], 'request_church_archival', archiveArgs);
   const archiveRequest = await rpc(clients[0], 'request_church_archival', archiveArgs);
@@ -635,6 +717,7 @@ try {
     '- church source text edits are member-only, idempotent, version-checked, and public only through the deliberate projection',
     '- normalized-address and PostGIS proximity checks return the existing safe page instead of duplicating it',
     '- suspicious same-address geography fails closed for protected review',
+    '- church address edits invalidate only that church route measurements and reject in-flight stale results',
     '- administrator membership and pending invitations share a three-place cap; own-place transfer is atomic',
     '- invite acceptance requires the matching confirmed email, a valid token, and eligibility',
     '- a member may leave while another active administrator remains',
