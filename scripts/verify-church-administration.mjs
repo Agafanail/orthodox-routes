@@ -676,6 +676,118 @@ try {
     p_church_id: created.church_id,
   })).find((item) => item.service_id === recurringDate.service_id).status, 'cancelled');
 
+  const movingDate = recurringPublic.filter((item) => item.source_name === recurringArgs.p_source_name)[1];
+  const movingDateInternalId = runSql(container, `select id from app.service_occurrence
+    where public_id = ${sqlLiteral(movingDate.service_id)}::uuid;`);
+  const movingOldTime = sqlLiteral(movingDate.starts_at);
+  runSql(container, `insert into app.passenger_request (
+    author_account_id, church_id, service_occurrence_id, desired_arrival_at,
+    timezone, service_name_snapshot, total_passengers, child_seat_required,
+    return_required, remaining_passengers, terms_version
+  ) values (
+    ${sqlLiteral(identities[1].id)}::uuid,
+    (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid),
+    ${sqlLiteral(movingDateInternalId)}::uuid, ${movingOldTime}::timestamptz,
+    'Europe/Rome', ${sqlLiteral(recurringArgs.p_source_name)}, 1, false, false, 1,
+    ${sqlLiteral(`church-test-${suffix}`)}
+  );
+  insert into app.driver_offer_occurrence (
+    publication_key, author_account_id, church_id, service_occurrence_id,
+    departure_at, arrival_at, timezone, service_name_snapshot,
+    origin_place_id, total_seats, max_detour_km, children_allowed,
+    driver_child_seat_available, return_available
+  ) values (
+    ${sqlLiteral(randomUUID())}::uuid, ${sqlLiteral(identities[2].id)}::uuid,
+    (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid),
+    ${sqlLiteral(movingDateInternalId)}::uuid,
+    ${movingOldTime}::timestamptz - interval '2 hours',
+    ${movingOldTime}::timestamptz, 'Europe/Rome',
+    ${sqlLiteral(recurringArgs.p_source_name)},
+    (select id from private.user_place where owner_account_id = ${sqlLiteral(identities[2].id)}::uuid
+      and exact_address = 'Synthetic departure' limit 1),
+    2, 5, true, false, false
+  );`);
+  await rpcFailure(clients[1], 'preview_recurring_service_date_edit', {
+    p_service_id: movingDate.service_id,
+  });
+  const movingPreview = await rpc(clients[0], 'preview_recurring_service_date_edit', {
+    p_service_id: movingDate.service_id,
+  });
+  assert.equal(movingPreview.passenger_requests, 1);
+  assert.equal(movingPreview.driver_offers, 1);
+  const movedTime = new Date(Date.parse(movingDate.starts_at) + 24 * 60 * 60 * 1000).toISOString();
+  const moveArgs = {
+    p_service_id: movingDate.service_id, p_starts_at: movedTime,
+    p_expected_version: 1, p_client_key: randomUUID(),
+  };
+  await rpcFailure(clients[1], 'reschedule_recurring_service_date', moveArgs);
+  const movedDate = await rpc(clients[0], 'reschedule_recurring_service_date', moveArgs);
+  assert.equal(movedDate.version, 2);
+  assert.equal(movedDate.schedule_generation, 2);
+  const movedPublicDate = (await rpc(userClient(url, publicKey), 'published_church_schedule', {
+    p_church_id: created.church_id,
+  })).find((item) => item.service_id === movingDate.service_id);
+  assert.equal(Date.parse(movedPublicDate.starts_at), Date.parse(movedTime));
+  assert.equal(movedPublicDate.time_changed, true);
+  assert.deepEqual(await rpc(clients[0], 'reschedule_recurring_service_date', moveArgs), movedDate);
+  await rpcFailure(clients[0], 'reschedule_recurring_service_date', {
+    ...moveArgs, p_starts_at: movingDate.starts_at,
+  });
+  assert.equal(runSql(container, `select count(*) from app.service_exception
+    where service_occurrence_id = ${sqlLiteral(movingDateInternalId)}::uuid
+      and action = 'rescheduled'
+      and original_starts_at = ${movingOldTime}::timestamptz
+      and replacement_starts_at = ${sqlLiteral(movedTime)}::timestamptz;`), '1');
+  assert.equal(runSql(container, `select count(*) from app.passenger_request
+    where service_occurrence_id = ${sqlLiteral(movingDateInternalId)}::uuid
+      and desired_arrival_at = ${movingOldTime}::timestamptz
+      and service_generation_snapshot = 1;`), '1');
+  assert.equal(runSql(container, `select count(*) from app.notification
+    where event_type = 'church.service.rescheduled'
+      and object_public_id = ${sqlLiteral(movingDate.service_id)}::uuid
+      and safe_route = '/trips';`), '2');
+  const movedAgainTime = new Date(Date.parse(movedTime) + 24 * 60 * 60 * 1000).toISOString();
+  const movedAgain = await rpc(clients[0], 'reschedule_recurring_service_date', {
+    ...moveArgs, p_starts_at: movedAgainTime, p_expected_version: 2,
+    p_client_key: randomUUID(),
+  });
+  assert.equal(movedAgain.version, 3);
+  assert.equal(movedAgain.schedule_generation, 3);
+  assert.equal(runSql(container, `select count(*) from app.service_exception
+    where service_occurrence_id = ${sqlLiteral(movingDateInternalId)}::uuid
+      and action = 'rescheduled' and version = 2
+      and original_starts_at = ${movingOldTime}::timestamptz
+      and replacement_starts_at = ${sqlLiteral(movedAgainTime)}::timestamptz;`), '1');
+  const newDateOfferKey = randomUUID();
+  runSql(container, `insert into app.driver_offer_occurrence (
+    publication_key, author_account_id, church_id, service_occurrence_id,
+    departure_at, arrival_at, timezone, service_name_snapshot,
+    origin_place_id, total_seats, max_detour_km, children_allowed,
+    driver_child_seat_available, return_available
+  ) values (
+    ${sqlLiteral(newDateOfferKey)}::uuid, ${sqlLiteral(identities[3].id)}::uuid,
+    (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid),
+    ${sqlLiteral(movingDateInternalId)}::uuid,
+    ${sqlLiteral(movedAgainTime)}::timestamptz - interval '2 hours',
+    ${sqlLiteral(movedAgainTime)}::timestamptz, 'Europe/Rome',
+    ${sqlLiteral(recurringArgs.p_source_name)},
+    (select id from private.user_place where owner_account_id = ${sqlLiteral(identities[3].id)}::uuid
+      and exact_address = 'Synthetic custom departure' limit 1),
+    2, 5, true, false, false
+  );`);
+  assert.equal(runSql(container, `select count(*) from app.quality_match_candidate
+    where request_id in (select id from app.passenger_request
+      where service_occurrence_id = ${sqlLiteral(movingDateInternalId)}::uuid);`), '1');
+  runSql(container, `delete from app.driver_offer_occurrence
+    where publication_key = ${sqlLiteral(newDateOfferKey)}::uuid;`);
+  const cancelledMovedDate = await rpc(clients[0], 'cancel_recurring_service_date', {
+    p_service_id: movingDate.service_id, p_expected_version: 3, p_client_key: randomUUID(),
+  });
+  assert.equal(cancelledMovedDate.version, 4);
+  assert.equal(runSql(container, `select count(*) from app.service_exception
+    where service_occurrence_id = ${sqlLiteral(movingDateInternalId)}::uuid
+      and action in ('rescheduled', 'cancelled');`), '2');
+
   const duplicateArgs = churchArgs({
     p_client_key: randomUUID(), p_lat: 45.0705, p_lng: 7.6871,
     p_official_name: 'Duplicate Attempt', p_slug: `duplicate-church-${compactSuffix}`,
