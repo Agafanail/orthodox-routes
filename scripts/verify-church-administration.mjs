@@ -328,6 +328,21 @@ try {
     p_expected_source_version: 2, p_expected_translation_version: 1,
     p_client_key: randomUUID(),
   };
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_translated_text: 'N'.repeat(201), p_client_key: randomUUID(),
+  });
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_translated_text: 'Multiline\nchurch', p_client_key: randomUUID(),
+  });
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_field_name: 'description_source',
+    p_translated_text: 'D'.repeat(4001), p_client_key: randomUUID(),
+  });
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_object_type: 'service_occurrence',
+    p_object_public_id: service.service_id, p_field_name: 'source_name',
+    p_translated_text: 'S'.repeat(161), p_client_key: randomUUID(),
+  });
   await rpcFailure(clients[1], 'correct_church_content_translation', correctionArgs);
   const correction = await rpc(clients[0], 'correct_church_content_translation', correctionArgs);
   assert.equal(correction.translation_version, 2);

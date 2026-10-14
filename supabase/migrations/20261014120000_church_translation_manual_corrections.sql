@@ -135,8 +135,14 @@ begin
     or p_expected_translation_version is null or p_expected_translation_version < 1
     or p_target_language not in ('en', 'ru', 'it', 'ro', 'uk', 'de')
     or p_target_language is null or normalized_text is null
-    or char_length(normalized_text) > 8000
-    or translate(normalized_text, E'\n\r', '') ~ '[[:cntrl:]]' then
+    or (p_field_name in ('official_name', 'source_name') and (
+      char_length(normalized_text) > case when p_field_name = 'official_name' then 200 else 160 end
+      or normalized_text ~ '[[:cntrl:]]'
+    ))
+    or (p_field_name in ('description_source', 'source_description') and (
+      char_length(normalized_text) > 4000
+      or translate(normalized_text, E'\n\r', '') ~ '[[:cntrl:]]'
+    )) then
     raise exception using errcode = '22023', message = 'Translation correction input is invalid.';
   end if;
   input_digest := encode(extensions.digest(convert_to(jsonb_build_object(
