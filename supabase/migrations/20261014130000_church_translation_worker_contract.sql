@@ -98,6 +98,7 @@ begin
           select 1 from app.service_occurrence as service
           join app.church as church on church.id = service.church_id
           where service.id = source.object_id and service.status = 'scheduled'
+            and service.starts_at >= now()
             and church.status = 'published'
         ))
       )

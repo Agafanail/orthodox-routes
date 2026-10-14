@@ -401,7 +401,7 @@ Stores object type/ID, field name, source language, original text, monotonically
 
 ### 12.2 `app.content_translation`
 
-Unique `(content_source_id, source_version, target_language)`. Fields: translated text, source (`machine`, `manual`), provider/model metadata, status (`pending`, `ready`, `error`, `stale`), created/updated time, and manual editor. A partial unique rule ensures at most one current manual correction per target. Source version changes mark previous automatic rows stale; manual corrections are never overwritten.
+Unique `(content_source_id, source_version, target_language)`. Fields: translated text, source (`machine`, `manual`), provider/model metadata, status (`pending`, `processing`, `ready`, `error`, `stale`), attempt count, next attempt, lease token/deadline, safe error class, created/updated time, and manual editor. That key also permits at most one current manual correction per target/source version. Source version changes mark previous rows stale; manual corrections are never overwritten by machine results.
 
 ### 12.3 `app.translation_glossary_version`
 
@@ -411,7 +411,7 @@ The first executable translation migration allowlists church name/description an
 
 A protected correction operation resolves only those allowlisted source fields for a current equal church administrator. It checks both the original source version and the current translation content version before replacing a machine/pending row with a manual correction. The update and administrative event share a transaction, and a corrected row is not eligible for later machine overwrite. Provider delivery remains a separate slice.
 
-The service-role-only worker contract leases only current pending machine rows tied to published churches and scheduled concrete services. A short lease, five-attempt cap, bounded retry schedule, and safe error classes keep failed translations on the original-text fallback. Completion checks the current source and lease and classifies invalid output using the source field's size/control-character limits. Source edits and administrator corrections clear the lease, so a late provider result cannot replace stale or manual text. Provider calls, glossary content, and production quotas remain external work.
+The service-role-only worker contract leases only current pending machine rows tied to published churches and future scheduled concrete services. A short lease, five-attempt cap, bounded retry schedule, and safe error classes keep failed translations on the original-text fallback. Completion checks the current source and lease and classifies invalid output using the source field's size/control-character limits. Source edits and administrator corrections clear the lease, so a late provider result cannot replace stale or manual text. Provider calls, glossary content, and production quotas remain external work.
 
 ## 13. Complaints, blocking, audit, deletion, and owner operations
 

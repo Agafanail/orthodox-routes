@@ -508,6 +508,18 @@ try {
   assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
     p_lease_token: randomUUID(), p_limit: 1, p_translation_id: hiddenTranslationId,
   }), []);
+  const pastServicePublicId = runSql(container, `insert into app.service_occurrence (
+    church_id, source_name, starts_at, timezone
+  ) values (
+    (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid),
+    'Synthetic past service', now() - interval '1 day', 'Europe/Rome'
+  ) returning public_id;`);
+  const pastTranslationId = translationIdFor(
+    container, 'service_occurrence', pastServicePublicId, 'source_name', 'ru',
+  );
+  assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
+    p_lease_token: randomUUID(), p_limit: 1, p_translation_id: pastTranslationId,
+  }), []);
   assert.equal(runSql(container, `select count(*) from app.church_admin_event
     where church_id = (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid)
       and event_type = 'service.created';`), '1');
@@ -1556,6 +1568,24 @@ try {
             select id from app.church where created_by in (${accountList})
           )
         );
+        delete from app.content_translation where content_source_id in (
+          select source.id from app.content_source as source
+          where (source.object_type = 'church' and source.object_id in (
+            select id from app.church where created_by in (${accountList})
+          )) or (source.object_type = 'service_occurrence' and source.object_id in (
+            select id from app.service_occurrence where church_id in (
+              select id from app.church where created_by in (${accountList})
+            )
+          ))
+        );
+        delete from app.content_source as source
+        where (source.object_type = 'church' and source.object_id in (
+          select id from app.church where created_by in (${accountList})
+        )) or (source.object_type = 'service_occurrence' and source.object_id in (
+          select id from app.service_occurrence where church_id in (
+            select id from app.church where created_by in (${accountList})
+          )
+        ));
         delete from app.service_occurrence where church_id in (
           select id from app.church where created_by in (${accountList})
         );
