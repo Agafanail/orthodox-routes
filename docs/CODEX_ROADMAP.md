@@ -146,6 +146,7 @@ The complete Core campaign passed its final local, migration, security/privacy, 
 - Implement recurring and one-time services, exceptions, cancellations, and date/time fallback.
 - Support English, Russian, Italian, Romanian, Ukrainian, and German.
 - Add prepared translations for system content and stored automatic translations for approved dynamic church content.
+- The dynamic-content storage foundation versions only approved church and concrete-service source fields, marks old translations stale on edits, and provides anonymous published-only localized reads with original-text fallback. Provider delivery, protected manual correction, and the production UI remain separate work.
 
 ### 8. Privacy, terms, support, and operations
 

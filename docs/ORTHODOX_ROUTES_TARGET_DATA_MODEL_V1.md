@@ -407,6 +407,8 @@ Unique `(content_source_id, source_version, target_language)`. Fields: translate
 
 Stores controlled Orthodox terminology glossary version, languages, checksum, effective time, and provider reference if uploaded. Ride-private content is never linked to translation jobs.
 
+The first executable translation migration allowlists church name/description and concrete-service name/description as versioned sources. Source edits mark old translation rows stale and enqueue pending rows for the other five languages. Anonymous localized projections are published-only, expose the original alongside ready text, and fall back to the original while translation is pending. Direct table access remains protected; delivery and administrator correction operations follow separately.
+
 ## 13. Complaints, blocking, audit, deletion, and owner operations
 
 ### 13.1 `app.user_block`
