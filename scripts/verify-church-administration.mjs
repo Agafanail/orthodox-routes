@@ -236,6 +236,93 @@ try {
   assert.equal(publicSchedule[0].timezone, 'Europe/Rome');
   assert.equal(publicSchedule[0].status, 'scheduled');
   assert.equal(publicSchedule[0].time_changed, false);
+  assert.equal(runSql(container, `select count(*) from app.content_source
+    where object_type = 'church' and object_id = (select id from app.church
+      where public_id = ${sqlLiteral(created.church_id)}::uuid)
+      and field_name in ('official_name', 'description_source');`), '2');
+  assert.equal(runSql(container, `select count(*) from app.content_source
+    where object_type = 'service_occurrence'
+      and object_id = (select id from app.service_occurrence
+        where public_id = ${sqlLiteral(service.service_id)}::uuid)
+      and field_name in ('source_name', 'source_description');`), '2');
+  assert.match(runSql(container, `select app.sync_content_source(
+    'ride_comment', gen_random_uuid(), 'public_note', 'en', 'private');`,
+  { expectFailure: true }), /Translation source is not approved/);
+  assert.equal(runSql(container, `select source_version from app.content_source
+    where object_type = 'church' and object_id = (select id from app.church
+      where public_id = ${sqlLiteral(created.church_id)}::uuid)
+      and field_name = 'official_name';`), '2');
+  assert.equal(runSql(container, `select count(*) from app.content_translation as translation
+    join app.content_source as source on source.id = translation.content_source_id
+    where source.object_type = 'church' and source.object_id = (select id from app.church
+      where public_id = ${sqlLiteral(created.church_id)}::uuid)
+      and source.field_name = 'official_name'
+      and translation.source_version = 1 and translation.status = 'stale';`), '5');
+  assert.match(runSql(container, `set role anon;
+    select count(*) from app.content_translation;`, { expectFailure: true }),
+  /permission denied/);
+  const anonymousClient = userClient(url, publicKey);
+  const translatedChurchFallback = await rpc(anonymousClient,
+    'published_church_translated_content', {
+      p_slug: firstArgs.p_slug, p_language: 'ru',
+    });
+  assert.equal(translatedChurchFallback.display_name, editArgs.p_official_name);
+  assert.equal(translatedChurchFallback.description, editArgs.p_description_source);
+  await rpcFailure(anonymousClient, 'published_church_translated_content', {
+    p_slug: firstArgs.p_slug, p_language: 'fr',
+  });
+  runSql(container, `update app.content_translation as translation
+    set translated_text = 'Synthetic translated church', status = 'ready',
+      provider_name = 'synthetic', updated_at = clock_timestamp()
+    from app.content_source as source
+    where source.id = translation.content_source_id
+      and source.object_type = 'church'
+      and source.object_id = (select id from app.church
+        where public_id = ${sqlLiteral(created.church_id)}::uuid)
+      and source.field_name = 'official_name'
+      and translation.source_version = source.source_version
+      and translation.target_language = 'ru';
+  update app.content_translation as translation
+    set translated_text = 'Synthetic translated service', status = 'ready',
+      provider_name = 'synthetic', updated_at = clock_timestamp()
+    from app.content_source as source
+    where source.id = translation.content_source_id
+      and source.object_type = 'service_occurrence'
+      and source.object_id = (select id from app.service_occurrence
+        where public_id = ${sqlLiteral(service.service_id)}::uuid)
+      and source.field_name = 'source_name'
+      and translation.source_version = source.source_version
+      and translation.target_language = 'ru';`);
+  const translatedChurch = await rpc(anonymousClient, 'published_church_translated_content', {
+    p_slug: firstArgs.p_slug, p_language: 'ru',
+  });
+  assert.equal(translatedChurch.official_name, editArgs.p_official_name);
+  assert.equal(translatedChurch.display_name, 'Synthetic translated church');
+  assert.equal(translatedChurch.name_automatically_translated, true);
+  const translatedSchedule = await rpc(anonymousClient, 'published_church_schedule_translated', {
+    p_church_id: created.church_id, p_language: 'ru',
+  });
+  assert.equal(translatedSchedule[0].source_name, 'Synthetic translated service');
+  assert.equal(translatedSchedule[0].original_source_name, serviceArgs.p_source_name);
+  assert.equal(translatedSchedule[0].name_automatically_translated, true);
+  runSql(container, `update app.content_translation as translation
+    set translated_text = 'Synthetic corrected church', translation_source = 'manual',
+      manual_editor_id = ${sqlLiteral(identities[0].id)}::uuid,
+      updated_at = clock_timestamp()
+    from app.content_source as source
+    where source.id = translation.content_source_id
+      and source.object_type = 'church'
+      and source.object_id = (select id from app.church
+        where public_id = ${sqlLiteral(created.church_id)}::uuid)
+      and source.field_name = 'official_name'
+      and translation.source_version = source.source_version
+      and translation.target_language = 'ru';`);
+  assert.equal((await rpc(anonymousClient, 'published_church_translated_content', {
+    p_slug: firstArgs.p_slug, p_language: 'ru',
+  })).display_name, 'Synthetic corrected church');
+  assert.deepEqual(await rpc(anonymousClient, 'published_church_schedule_translated', {
+    p_church_id: randomUUID(), p_language: 'ru',
+  }), []);
   const churchWithSchedule = await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
     p_slug: firstArgs.p_slug,
   });
@@ -368,6 +455,19 @@ try {
   });
   assert.equal((await rpc(userClient(url, publicKey), 'published_church_schedule', {
     p_church_id: created.church_id,
+  }))[0].source_name, serviceEditArgs.p_source_name);
+  assert.equal(runSql(container, `select source_version from app.content_source
+    where object_type = 'service_occurrence'
+      and object_id = ${sqlLiteral(serviceInternalId)}::uuid
+      and field_name = 'source_name';`), '2');
+  assert.equal(runSql(container, `select count(*) from app.content_translation as translation
+    join app.content_source as source on source.id = translation.content_source_id
+    where source.object_type = 'service_occurrence'
+      and source.object_id = ${sqlLiteral(serviceInternalId)}::uuid
+      and source.field_name = 'source_name'
+      and translation.source_version = 1 and translation.status = 'stale';`), '5');
+  assert.equal((await rpc(anonymousClient, 'published_church_schedule_translated', {
+    p_church_id: created.church_id, p_language: 'ru',
   }))[0].source_name, serviceEditArgs.p_source_name);
   assert.equal(runSql(container, `select count(*) from app.passenger_request
     where service_occurrence_id = ${sqlLiteral(serviceInternalId)}::uuid

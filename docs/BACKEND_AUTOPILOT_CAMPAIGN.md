@@ -14,15 +14,15 @@
 | 2 | Agreement change proposal/answer workflow and remaining My Trips backend | Complete | PR #9; merge `24f70fa`; CI `35445507498` green |
 | 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | Complete | PR #10 merge `6beca9c`, CI `35708503854`; PR #11 merge `103be11`, CI `35711039875`; PR #12 merge `a890245`, CI `35713885218` |
 | 4 | Profile/account operations required by the approved personal area | Decision gate | PR #13 merge `7e3e8bb`, CI `37229664994`; PR #14 merge `4c4bf23`, CI `37230861925`; email recovery awaits the approved protective delay; deletion is checkpoint 7 |
-| 5 | Church creation, deduplication, equal administration, schedules, exceptions, cancellation, and archival | In progress | PR #15 merge `84349ca`, CI `37275264884`; PR #16 merge `ee6c2de`, CI `38260954869`; PR #17 merge `de08238`, CI `38261795981`; PR #18 merge `eef6022`, CI `38263557320`; PR #19 merge `2a0a3d9`, CI `38269546263`; PR #20 merge `f7019ec`, CI `38369019230`; PR #21 merge `e33e18d`, CI `38372163933`; PR #22 merge `d96ac6b`, CI `38374554868`; PR #23 merge `e61c45a`, CI `38417222760`; PR #24 merge `eff85e9`, CI `38421552090`; PR #25 merge `8a0e315`, CI `38423776272`; PR #26 merge `092f2fd`, CI `38426228904`; PR #27 merge `ecadac1`, CI `38535876480`; recurring-future cancellation is the current slice |
-| 6 | Stored dynamic-content translations and provider-independent translation jobs | Planned | Six-language approved content boundary; provider action remains external |
+| 5 | Church creation, deduplication, equal administration, schedules, exceptions, cancellation, and archival | In progress | PR #15 merge `84349ca`, CI `37275264884`; PR #16 merge `ee6c2de`, CI `38260954869`; PR #17 merge `de08238`, CI `38261795981`; PR #18 merge `eef6022`, CI `38263557320`; PR #19 merge `2a0a3d9`, CI `38269546263`; PR #20 merge `f7019ec`, CI `38369019230`; PR #21 merge `e33e18d`, CI `38372163933`; PR #22 merge `d96ac6b`, CI `38374554868`; PR #23 merge `e61c45a`, CI `38417222760`; PR #24 merge `eff85e9`, CI `38421552090`; PR #25 merge `8a0e315`, CI `38423776272`; PR #26 merge `092f2fd`, CI `38426228904`; PR #27 merge `ecadac1`, CI `38535876480`; PR #28 merge `0e5d74e`, CI `38539501734`; series editing and final archival remain |
+| 6 | Stored dynamic-content translations and provider-independent translation jobs | In progress | Six-language approved content boundary; storage/read foundation is the current slice; provider action remains external |
 | 7 | Complaints, personal blocking, account deletion, retention, protected support/owner operations, and audit | Planned | Roadmap phase 8 backend |
 | 8 | Minimal privacy-safe product analytics | Planned | Approved aggregate events only; no advertising trackers |
 | 9 | Backend cutover audit, multi-user/browser E2E expansion, migration upgrades, and final staging/main verification | Planned | Roadmap phases 9 and 11 backend |
 
 ## Current checkpoint
 
-Checkpoint 5. Complete church administration, editing, service schedules, exceptions, cancellation handling, and archival operations. The lost-email protective delay remains a separate product decision, and account deletion remains checkpoint 7.
+Checkpoint 6 translation foundation. Checkpoint 5 still needs remaining series editing and final protected archival/restore; the lost-email protective delay remains a separate product decision, and account deletion remains checkpoint 7.
 
 ## Remaining backend areas
 
@@ -67,6 +67,7 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - PR #25 merged as `8a0e315`; CI run `38423776272` passed all required checks after migration replay, one-date recurring cancellation integration, and browser regression. A protected exception cancels only the selected future occurrence, retains existing rides and the weekly source, notifies affected participants, and excludes the cancelled date from new matches.
 - PR #26 merged as `092f2fd`; CI run `38426228904` passed all required checks after migration replay, repeated one-date rescheduling integration, and browser regression. One recurring date can move repeatedly with generation-safe matching and retained ride snapshots, then be cancelled without losing exception history.
 - PR #27 merged as `ecadac1`; CI run `38535876480` passed all required checks after migration replay, one-date content editing integration, and browser regression. A protected exception changes only the selected date's source text; the weekly source and ride snapshots remain unchanged while affected participants are notified.
+- PR #28 merged as `0e5d74e`; CI run `38539501734` passed all required checks after migration replay, recurring-future cancellation integration, and browser regression. The selected and later weekly dates are cancelled without recreating them; earlier dates and immutable ride snapshots remain, while affected participants are notified.
 - The lost-email recovery flow is paused only at the approved owner/legal/security decision for the exact configurable protective delay required by Backend Architecture §8 and Target Data Model §23. Independent campaign checkpoints continue.
 - No campaign checkpoint is complete until its PR is merged through all required green checks.
 
