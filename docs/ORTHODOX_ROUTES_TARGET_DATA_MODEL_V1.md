@@ -183,6 +183,8 @@ A recurring date can instead be rescheduled with the same impact boundary. The s
 
 A recurring date can also have its source name/description edited independently of the weekly template. Each content exception records the prior and replacement text for that concrete date. Version checking and church/service locks serialize the edit with ride publication; existing ride snapshots remain intact and affected future participants receive durable notifications.
 
+Cancelling a selected weekly slot and all later slots advances the series version and truncates its end bound (or stops the source when the selection is its start). Materialized future dates at or after the selected source-local slot receive independent cancellation exceptions, immutable ride snapshots remain, and affected participants receive per-date durable notifications. Earlier slots are not cancelled and the worker cannot recreate later dates.
+
 ### 5.6 `app.church_image`
 
 Stores church, opaque Storage object key for cleaned master, prepared variant manifest, media type, dimensions, checksum, attribution/rights statement, processing status, uploader, and lifecycle timestamps. Only one `current` image per church. The untouched upload is not retained.

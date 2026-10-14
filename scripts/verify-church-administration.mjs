@@ -821,6 +821,96 @@ try {
     where service_occurrence_id = ${sqlLiteral(movingDateInternalId)}::uuid
       and action in ('content_updated', 'rescheduled', 'cancelled');`), '3');
 
+  const openDates = (await rpc(userClient(url, publicKey), 'published_church_schedule', {
+    p_church_id: created.church_id,
+  })).filter((item) => item.source_name === 'Synthetic Open Weekly Service');
+  assert.ok(openDates.length >= 3);
+  const futureCutoff = openDates[2];
+  const futureCutoffInternalId = runSql(container, `select id from app.service_occurrence
+    where public_id = ${sqlLiteral(futureCutoff.service_id)}::uuid;`);
+  const futureCutoffTime = sqlLiteral(futureCutoff.starts_at);
+  assert.equal(runSql(container, `select count(*) from app.passenger_request
+    where author_account_id = ${sqlLiteral(identities[1].id)}::uuid
+      and church_id = (select id from app.church
+        where public_id = ${sqlLiteral(created.church_id)}::uuid)
+      and desired_arrival_at = ${futureCutoffTime}::timestamptz
+      and status in ('active', 'partial', 'fulfilled', 'restore');`), '0');
+  runSql(container, `insert into app.passenger_request (
+    author_account_id, church_id, service_occurrence_id, desired_arrival_at,
+    timezone, service_name_snapshot, total_passengers, child_seat_required,
+    return_required, remaining_passengers, terms_version
+  ) values (
+    ${sqlLiteral(identities[1].id)}::uuid,
+    (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid),
+    ${sqlLiteral(futureCutoffInternalId)}::uuid, ${futureCutoffTime}::timestamptz,
+    'Europe/Rome', 'Synthetic Open Weekly Service', 1, false, false, 1,
+    ${sqlLiteral(`church-test-${suffix}`)}
+  );
+  insert into app.driver_offer_occurrence (
+    publication_key, author_account_id, church_id, service_occurrence_id,
+    departure_at, arrival_at, timezone, service_name_snapshot,
+    origin_place_id, total_seats, max_detour_km, children_allowed,
+    driver_child_seat_available, return_available
+  ) values (
+    ${sqlLiteral(randomUUID())}::uuid, ${sqlLiteral(identities[2].id)}::uuid,
+    (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid),
+    ${sqlLiteral(futureCutoffInternalId)}::uuid,
+    ${futureCutoffTime}::timestamptz - interval '2 hours',
+    ${futureCutoffTime}::timestamptz, 'Europe/Rome', 'Synthetic Open Weekly Service',
+    (select id from private.user_place where owner_account_id = ${sqlLiteral(identities[2].id)}::uuid
+      and exact_address = 'Synthetic departure' limit 1),
+    2, 5, true, false, false
+  );`);
+  await rpcFailure(clients[1], 'preview_recurring_service_future_cancellation', {
+    p_service_id: futureCutoff.service_id,
+  });
+  const futurePreview = await rpc(clients[0], 'preview_recurring_service_future_cancellation', {
+    p_service_id: futureCutoff.service_id,
+  });
+  assert.ok(futurePreview.service_count >= 2);
+  assert.equal(futurePreview.passenger_requests, 1);
+  assert.equal(futurePreview.driver_offers, 1);
+  assert.equal(futurePreview.series_version, 1);
+  const futureCancelArgs = {
+    p_service_id: futureCutoff.service_id, p_expected_series_version: 1,
+    p_client_key: randomUUID(),
+  };
+  await rpcFailure(clients[1], 'cancel_recurring_service_future', futureCancelArgs);
+  const futureCancelled = await rpc(clients[0], 'cancel_recurring_service_future', futureCancelArgs);
+  assert.equal(futureCancelled.cancelled_service_count, futurePreview.service_count);
+  assert.equal(futureCancelled.series_version, 2);
+  assert.deepEqual(await rpc(clients[0], 'cancel_recurring_service_future', futureCancelArgs),
+    futureCancelled);
+  await rpcFailure(clients[0], 'cancel_recurring_service_future', {
+    ...futureCancelArgs, p_client_key: randomUUID(),
+  });
+  assert.equal(runSql(container, `select count(*) from app.service_occurrence
+    where source_series_id = (select id from app.service_series
+      where public_id = ${sqlLiteral(openSeries.series_id)}::uuid)
+      and status = 'scheduled';`), '2');
+  assert.equal(runSql(container, `select count(*) from app.service_exception
+    where source_series_id = (select id from app.service_series
+      where public_id = ${sqlLiteral(openSeries.series_id)}::uuid)
+      and action = 'cancelled';`), String(futurePreview.service_count));
+  assert.equal(runSql(container, `select (ends_on = ${sqlLiteral(futurePreview.from_local_date)}::date
+    - 1)::text from app.service_series
+    where public_id = ${sqlLiteral(openSeries.series_id)}::uuid;`), 'true');
+  assert.equal(runSql(container, `select count(*) from app.notification
+    where event_type = 'church.service.cancelled'
+      and object_public_id = ${sqlLiteral(futureCutoff.service_id)}::uuid
+      and safe_route = '/trips';`), '2');
+  const afterFuturePublic = await rpc(userClient(url, publicKey), 'published_church_schedule', {
+    p_church_id: created.church_id,
+  });
+  assert.equal(afterFuturePublic.find((item) => item.service_id === openDates[0].service_id).status,
+    'scheduled');
+  assert.equal(afterFuturePublic.find((item) => item.service_id === futureCutoff.service_id).status,
+    'cancelled');
+  assert.equal(runSql(container, `select count(*) from app.passenger_request
+    where service_occurrence_id = ${sqlLiteral(futureCutoffInternalId)}::uuid
+      and desired_arrival_at = ${futureCutoffTime}::timestamptz;`), '1');
+  assert.equal(await rpc(admin, 'service_schedule_worker_materialize'), 0);
+
   const duplicateArgs = churchArgs({
     p_client_key: randomUUID(), p_lat: 45.0705, p_lng: 7.6871,
     p_official_name: 'Duplicate Attempt', p_slug: `duplicate-church-${compactSuffix}`,
