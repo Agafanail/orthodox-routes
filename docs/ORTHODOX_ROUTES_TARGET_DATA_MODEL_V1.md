@@ -411,6 +411,8 @@ The first executable translation migration allowlists church name/description an
 
 A protected correction operation resolves only those allowlisted source fields for a current equal church administrator. It checks both the original source version and the current translation content version before replacing a machine/pending row with a manual correction. The update and administrative event share a transaction, and a corrected row is not eligible for later machine overwrite. Provider delivery remains a separate slice.
 
+The service-role-only worker contract leases only current pending machine rows tied to published churches and scheduled concrete services. A short lease, five-attempt cap, bounded retry schedule, and safe error classes keep failed translations on the original-text fallback. Completion checks the current source and lease and classifies invalid output using the source field's size/control-character limits. Source edits and administrator corrections clear the lease, so a late provider result cannot replace stale or manual text. Provider calls, glossary content, and production quotas remain external work.
+
 ## 13. Complaints, blocking, audit, deletion, and owner operations
 
 ### 13.1 `app.user_block`

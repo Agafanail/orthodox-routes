@@ -148,6 +148,7 @@ The complete Core campaign passed its final local, migration, security/privacy, 
 - Add prepared translations for system content and stored automatic translations for approved dynamic church content.
 - The dynamic-content storage foundation versions only approved church and concrete-service source fields, marks old translations stale on edits, and provides anonymous published-only localized reads with original-text fallback. Provider delivery and the production UI remain separate work.
 - A current equal administrator can inspect a single approved source and correct a target-language translation. Source and translation versions protect against silent overwrites, the original remains separate, and the corrected text is available through published-only localized reads. Provider delivery and the production UI remain separate.
+- The provider-independent translation worker claims only current approved text for published churches and scheduled concrete services. It uses short leases, bounded retries, safe failure states, and source/version checks; a late machine result cannot replace a manual correction. The external adapter and production UI remain separate.
 
 ### 8. Privacy, terms, support, and operations
 
