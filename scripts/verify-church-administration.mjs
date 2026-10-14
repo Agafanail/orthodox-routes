@@ -825,10 +825,16 @@ try {
     p_church_id: created.church_id,
   })).filter((item) => item.source_name === 'Synthetic Open Weekly Service');
   assert.ok(openDates.length >= 3);
-  const futureCutoff = openDates[1];
+  const futureCutoff = openDates[2];
   const futureCutoffInternalId = runSql(container, `select id from app.service_occurrence
     where public_id = ${sqlLiteral(futureCutoff.service_id)}::uuid;`);
   const futureCutoffTime = sqlLiteral(futureCutoff.starts_at);
+  assert.equal(runSql(container, `select count(*) from app.passenger_request
+    where author_account_id = ${sqlLiteral(identities[1].id)}::uuid
+      and church_id = (select id from app.church
+        where public_id = ${sqlLiteral(created.church_id)}::uuid)
+      and desired_arrival_at = ${futureCutoffTime}::timestamptz
+      and status in ('active', 'partial', 'fulfilled', 'restore');`), '0');
   runSql(container, `insert into app.passenger_request (
     author_account_id, church_id, service_occurrence_id, desired_arrival_at,
     timezone, service_name_snapshot, total_passengers, child_seat_required,
@@ -881,7 +887,7 @@ try {
   assert.equal(runSql(container, `select count(*) from app.service_occurrence
     where source_series_id = (select id from app.service_series
       where public_id = ${sqlLiteral(openSeries.series_id)}::uuid)
-      and status = 'scheduled';`), '1');
+      and status = 'scheduled';`), '2');
   assert.equal(runSql(container, `select count(*) from app.service_exception
     where source_series_id = (select id from app.service_series
       where public_id = ${sqlLiteral(openSeries.series_id)}::uuid)
