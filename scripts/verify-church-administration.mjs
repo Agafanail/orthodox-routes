@@ -305,21 +305,78 @@ try {
   assert.equal(translatedSchedule[0].source_name, 'Synthetic translated service');
   assert.equal(translatedSchedule[0].original_source_name, serviceArgs.p_source_name);
   assert.equal(translatedSchedule[0].name_automatically_translated, true);
-  runSql(container, `update app.content_translation as translation
-    set translated_text = 'Synthetic corrected church', translation_source = 'manual',
-      manual_editor_id = ${sqlLiteral(identities[0].id)}::uuid,
-      updated_at = clock_timestamp()
-    from app.content_source as source
-    where source.id = translation.content_source_id
-      and source.object_type = 'church'
-      and source.object_id = (select id from app.church
-        where public_id = ${sqlLiteral(created.church_id)}::uuid)
-      and source.field_name = 'official_name'
-      and translation.source_version = source.source_version
-      and translation.target_language = 'ru';`);
-  assert.equal((await rpc(anonymousClient, 'published_church_translated_content', {
+  await rpcFailure(anonymousClient, 'managed_church_translation_source', {
+    p_object_type: 'church', p_object_public_id: created.church_id,
+    p_field_name: 'official_name',
+  });
+  await rpcFailure(clients[1], 'managed_church_translation_source', {
+    p_object_type: 'church', p_object_public_id: created.church_id,
+    p_field_name: 'official_name',
+  });
+  const managedTranslation = await rpc(clients[0], 'managed_church_translation_source', {
+    p_object_type: 'church', p_object_public_id: created.church_id,
+    p_field_name: 'official_name',
+  });
+  assert.equal(managedTranslation.source_version, 2);
+  assert.equal(managedTranslation.original_text, editArgs.p_official_name);
+  assert.equal(managedTranslation.translations.find((item) => item.target_language === 'ru')
+    .content_version, 1);
+  const correctionArgs = {
+    p_object_type: 'church', p_object_public_id: created.church_id,
+    p_field_name: 'official_name', p_target_language: 'ru',
+    p_translated_text: 'Synthetic corrected church',
+    p_expected_source_version: 2, p_expected_translation_version: 1,
+    p_client_key: randomUUID(),
+  };
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_translated_text: 'N'.repeat(201), p_client_key: randomUUID(),
+  });
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_translated_text: 'Multiline\nchurch', p_client_key: randomUUID(),
+  });
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_field_name: 'description_source',
+    p_translated_text: 'D'.repeat(4001), p_client_key: randomUUID(),
+  });
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_object_type: 'service_occurrence',
+    p_object_public_id: service.service_id, p_field_name: 'source_name',
+    p_translated_text: 'S'.repeat(161), p_client_key: randomUUID(),
+  });
+  await rpcFailure(clients[1], 'correct_church_content_translation', correctionArgs);
+  const correction = await rpc(clients[0], 'correct_church_content_translation', correctionArgs);
+  assert.equal(correction.translation_version, 2);
+  assert.deepEqual(await rpc(clients[0], 'correct_church_content_translation', correctionArgs),
+    correction);
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_client_key: randomUUID(),
+  });
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_translated_text: 'Different text',
+  });
+  await rpcFailure(clients[0], 'correct_church_content_translation', {
+    ...correctionArgs, p_target_language: 'en', p_client_key: randomUUID(),
+  });
+  assert.equal(runSql(container, `select count(*) from app.church_admin_event
+    where church_id = (select id from app.church
+      where public_id = ${sqlLiteral(created.church_id)}::uuid)
+      and event_type = 'translation.corrected';`), '1');
+  const correctedPublicChurch = await rpc(anonymousClient, 'published_church_translated_content', {
     p_slug: firstArgs.p_slug, p_language: 'ru',
-  })).display_name, 'Synthetic corrected church');
+  });
+  assert.equal(correctedPublicChurch.display_name, 'Synthetic corrected church');
+  assert.equal(correctedPublicChurch.name_automatically_translated, false);
+  const serviceCorrection = await rpc(clients[0], 'correct_church_content_translation', {
+    p_object_type: 'service_occurrence', p_object_public_id: service.service_id,
+    p_field_name: 'source_name', p_target_language: 'ru',
+    p_translated_text: 'Synthetic corrected service',
+    p_expected_source_version: 1, p_expected_translation_version: 1,
+    p_client_key: randomUUID(),
+  });
+  assert.equal(serviceCorrection.translation_version, 2);
+  assert.equal((await rpc(anonymousClient, 'published_church_schedule_translated', {
+    p_church_id: created.church_id, p_language: 'ru',
+  }))[0].source_name, 'Synthetic corrected service');
   assert.deepEqual(await rpc(anonymousClient, 'published_church_schedule_translated', {
     p_church_id: randomUUID(), p_language: 'ru',
   }), []);
