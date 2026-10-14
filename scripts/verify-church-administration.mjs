@@ -57,6 +57,18 @@ function runSql(container, statement, { expectFailure = false } = {}) {
   return result.stdout.trim();
 }
 
+function translationIdFor(container, objectType, publicId, fieldName, targetLanguage) {
+  const objectTable = objectType === 'church' ? 'app.church' : 'app.service_occurrence';
+  return runSql(container, `select translation.id from app.content_translation as translation
+    join app.content_source as source on source.id = translation.content_source_id
+    where source.object_type = ${sqlLiteral(objectType)}
+      and source.object_id = (select id from ${objectTable}
+        where public_id = ${sqlLiteral(publicId)}::uuid)
+      and source.field_name = ${sqlLiteral(fieldName)}
+      and source.source_version = translation.source_version
+      and translation.target_language = ${sqlLiteral(targetLanguage)};`);
+}
+
 function userClient(url, publicKey) {
   return createClient(url, publicKey, {
     auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
@@ -377,6 +389,79 @@ try {
   assert.equal((await rpc(anonymousClient, 'published_church_schedule_translated', {
     p_church_id: created.church_id, p_language: 'ru',
   }))[0].source_name, 'Synthetic corrected service');
+  const churchDescriptionTranslationId = translationIdFor(
+    container, 'church', created.church_id, 'description_source', 'ru',
+  );
+  const firstTranslationLease = randomUUID();
+  const workerClaimArgs = {
+    p_lease_token: firstTranslationLease, p_limit: 1,
+    p_translation_id: churchDescriptionTranslationId,
+  };
+  await rpcFailure(anonymousClient, 'translation_worker_claim', workerClaimArgs);
+  await rpcFailure(clients[0], 'translation_worker_claim', workerClaimArgs);
+  assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
+    ...workerClaimArgs, p_translation_id: translationIdFor(
+      container, 'church', created.church_id, 'official_name', 'ru',
+    ),
+  }), []);
+  const claimedTranslation = await rpc(admin, 'translation_worker_claim', workerClaimArgs);
+  assert.equal(claimedTranslation.length, 1);
+  assert.equal(claimedTranslation[0].claimed_translation_id, churchDescriptionTranslationId);
+  assert.equal(claimedTranslation[0].claimed_field_name, 'description_source');
+  assert.equal(claimedTranslation[0].claimed_original_text, editArgs.p_description_source);
+  assert.equal(claimedTranslation[0].claimed_attempt_count, 1);
+  assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
+    ...workerClaimArgs, p_lease_token: randomUUID(),
+  }), []);
+  const invalidTranslation = await rpc(admin, 'translation_worker_complete', {
+    p_translation_id: churchDescriptionTranslationId, p_lease_token: firstTranslationLease,
+    p_outcome: 'success', p_translated_text: 'D'.repeat(4001),
+    p_provider_name: 'synthetic',
+  });
+  assert.equal(invalidTranslation.status, 'retry');
+  assert.equal(runSql(container, `select last_safe_error from app.content_translation
+    where id = ${sqlLiteral(churchDescriptionTranslationId)}::uuid;`), 'invalid_output');
+  runSql(container, `update app.content_translation set next_attempt_at = now() - interval '1 second'
+    where id = ${sqlLiteral(churchDescriptionTranslationId)}::uuid;`);
+  const secondTranslationLease = randomUUID();
+  const retriedTranslation = await rpc(admin, 'translation_worker_claim', {
+    ...workerClaimArgs, p_lease_token: secondTranslationLease,
+  });
+  assert.equal(retriedTranslation[0].claimed_attempt_count, 2);
+  const completedTranslation = await rpc(admin, 'translation_worker_complete', {
+    p_translation_id: churchDescriptionTranslationId, p_lease_token: secondTranslationLease,
+    p_outcome: 'success', p_translated_text: 'Synthetic translated description',
+    p_provider_name: 'synthetic', p_provider_model: 'test-v1',
+  });
+  assert.equal(completedTranslation.status, 'ready');
+  assert.equal((await rpc(anonymousClient, 'published_church_translated_content', {
+    p_slug: firstArgs.p_slug, p_language: 'ru',
+  })).description, 'Synthetic translated description');
+  const serviceDescriptionTranslationId = translationIdFor(
+    container, 'service_occurrence', service.service_id, 'source_description', 'ru',
+  );
+  const serviceTranslationLease = randomUUID();
+  assert.equal((await rpc(admin, 'translation_worker_claim', {
+    p_lease_token: serviceTranslationLease, p_limit: 1,
+    p_translation_id: serviceDescriptionTranslationId,
+  })).length, 1);
+  const serviceDescriptionCorrection = await rpc(clients[0],
+    'correct_church_content_translation', {
+      p_object_type: 'service_occurrence', p_object_public_id: service.service_id,
+      p_field_name: 'source_description', p_target_language: 'ru',
+      p_translated_text: 'Synthetic manually corrected description',
+      p_expected_source_version: 1, p_expected_translation_version: 1,
+      p_client_key: randomUUID(),
+    });
+  assert.equal(serviceDescriptionCorrection.translation_version, 2);
+  assert.equal((await rpc(admin, 'translation_worker_complete', {
+    p_translation_id: serviceDescriptionTranslationId, p_lease_token: serviceTranslationLease,
+    p_outcome: 'success', p_translated_text: 'Late machine description',
+    p_provider_name: 'synthetic',
+  })).status, 'superseded');
+  assert.equal((await rpc(anonymousClient, 'published_church_schedule_translated', {
+    p_church_id: created.church_id, p_language: 'ru',
+  }))[0].description, 'Synthetic manually corrected description');
   assert.deepEqual(await rpc(anonymousClient, 'published_church_schedule_translated', {
     p_church_id: randomUUID(), p_language: 'ru',
   }), []);
@@ -389,11 +474,54 @@ try {
   }), []);
   runSql(container, `update app.church set status = 'hidden'
     where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
+  const hiddenTranslationId = translationIdFor(
+    container, 'church', created.church_id, 'description_source', 'de',
+  );
+  assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
+    p_lease_token: randomUUID(), p_limit: 1, p_translation_id: hiddenTranslationId,
+  }), []);
   assert.deepEqual(await rpc(userClient(url, publicKey), 'published_church_schedule', {
     p_church_id: created.church_id,
   }), []);
   runSql(container, `update app.church set status = 'published'
     where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
+  const expiredLease = randomUUID();
+  assert.equal((await rpc(admin, 'translation_worker_claim', {
+    p_lease_token: expiredLease, p_limit: 1, p_translation_id: hiddenTranslationId,
+  })).length, 1);
+  runSql(container, `update app.content_translation
+    set lease_deadline = now() - interval '1 second'
+    where id = ${sqlLiteral(hiddenTranslationId)}::uuid;`);
+  const reclaimedLease = randomUUID();
+  assert.equal((await rpc(admin, 'translation_worker_claim', {
+    p_lease_token: reclaimedLease, p_limit: 1, p_translation_id: hiddenTranslationId,
+  }))[0].claimed_attempt_count, 2);
+  assert.equal((await rpc(admin, 'translation_worker_complete', {
+    p_translation_id: hiddenTranslationId, p_lease_token: expiredLease,
+    p_outcome: 'success', p_translated_text: 'Late translation',
+    p_provider_name: 'synthetic',
+  })).status, 'superseded');
+  assert.equal((await rpc(admin, 'translation_worker_complete', {
+    p_translation_id: hiddenTranslationId, p_lease_token: reclaimedLease,
+    p_outcome: 'permanent_failure',
+  })).status, 'error');
+  assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
+    p_lease_token: randomUUID(), p_limit: 1, p_translation_id: hiddenTranslationId,
+  }), []);
+  const pastServicePublicId = randomUUID();
+  runSql(container, `insert into app.service_occurrence (
+    public_id, church_id, source_name, starts_at, timezone
+  ) values (
+    ${sqlLiteral(pastServicePublicId)}::uuid,
+    (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid),
+    'Synthetic past service', now() - interval '1 day', 'Europe/Rome'
+  );`);
+  const pastTranslationId = translationIdFor(
+    container, 'service_occurrence', pastServicePublicId, 'source_name', 'ru',
+  );
+  assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
+    p_lease_token: randomUUID(), p_limit: 1, p_translation_id: pastTranslationId,
+  }), []);
   assert.equal(runSql(container, `select count(*) from app.church_admin_event
     where church_id = (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid)
       and event_type = 'service.created';`), '1');
@@ -1442,6 +1570,24 @@ try {
             select id from app.church where created_by in (${accountList})
           )
         );
+        delete from app.content_translation where content_source_id in (
+          select source.id from app.content_source as source
+          where (source.object_type = 'church' and source.object_id in (
+            select id from app.church where created_by in (${accountList})
+          )) or (source.object_type = 'service_occurrence' and source.object_id in (
+            select id from app.service_occurrence where church_id in (
+              select id from app.church where created_by in (${accountList})
+            )
+          ))
+        );
+        delete from app.content_source as source
+        where (source.object_type = 'church' and source.object_id in (
+          select id from app.church where created_by in (${accountList})
+        )) or (source.object_type = 'service_occurrence' and source.object_id in (
+          select id from app.service_occurrence where church_id in (
+            select id from app.church where created_by in (${accountList})
+          )
+        ));
         delete from app.service_occurrence where church_id in (
           select id from app.church where created_by in (${accountList})
         );
