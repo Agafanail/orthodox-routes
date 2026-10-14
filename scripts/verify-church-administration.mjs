@@ -508,12 +508,14 @@ try {
   assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
     p_lease_token: randomUUID(), p_limit: 1, p_translation_id: hiddenTranslationId,
   }), []);
-  const pastServicePublicId = runSql(container, `insert into app.service_occurrence (
-    church_id, source_name, starts_at, timezone
+  const pastServicePublicId = randomUUID();
+  runSql(container, `insert into app.service_occurrence (
+    public_id, church_id, source_name, starts_at, timezone
   ) values (
+    ${sqlLiteral(pastServicePublicId)}::uuid,
     (select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid),
     'Synthetic past service', now() - interval '1 day', 'Europe/Rome'
-  ) returning public_id;`);
+  );`);
   const pastTranslationId = translationIdFor(
     container, 'service_occurrence', pastServicePublicId, 'source_name', 'ru',
   );
