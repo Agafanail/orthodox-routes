@@ -6,7 +6,7 @@
 // matching changes, and that no counterpart exact geography reaches a participant through it.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
@@ -53,6 +53,20 @@ function runSql(container, statement) {
   );
   if (result.status !== 0) fail(`A matching database assertion failed.\n${result.stderr}`);
   return result.stdout.trim();
+}
+
+function runConcurrentSql(container, statement) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('docker',
+      ['exec', '-i', container, 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At', '-f', '-'],
+      { stdio: ['pipe', 'pipe', 'pipe'] });
+    let diagnostics = '';
+    child.stdout.resume();
+    child.stderr.on('data', (chunk) => { diagnostics += chunk; });
+    child.on('error', reject);
+    child.on('close', (code) => resolve({ code, diagnostics }));
+    child.stdin.end(statement);
+  });
 }
 
 function userClient(url, publicKey) {
@@ -586,6 +600,12 @@ assert.equal(
   true,
   'The blocked driver must match before the block exists.',
 );
+const blockedPlaceId = (await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
+  .find((item) => item.request_id === request.request_id).place_options[0].place_id;
+const pendingBeforeBlock = await rpc(clients[3], 'submit_driver_response', {
+  p_client_key: randomUUID(), p_occurrence_id: blockedOccurrence.occurrence_id,
+  p_offered_passenger_count: 1, p_place_id: blockedPlaceId, p_request_id: request.request_id,
+});
 runSql(container, `
   insert into app.personal_block (blocker_account_id, blocked_account_id)
   values (${sqlLiteral(identities[0].id)}::uuid, ${sqlLiteral(identities[3].id)}::uuid);
@@ -602,6 +622,41 @@ assert.equal(
   false,
   'A block must suppress the suggestion in both directions.',
 );
+const blockedDriverArgs = {
+  p_client_key: randomUUID(), p_occurrence_id: blockedOccurrence.occurrence_id,
+  p_offered_passenger_count: 1, p_place_id: blockedPlaceId, p_request_id: request.request_id,
+};
+const blockedError = await expectRpcFailure(clients[3], 'submit_driver_response', blockedDriverArgs);
+assert.equal(blockedError.message, 'Both participants must remain eligible.');
+await expectRpcFailure(clients[0], 'submit_passenger_response', {
+  p_client_key: randomUUID(), p_occurrence_id: blockedOccurrence.occurrence_id,
+  p_request_id: request.request_id,
+});
+await expectRpcFailure(clients[0], 'confirm_ride_response', {
+  p_client_key: randomUUID(), p_response_id: pendingBeforeBlock.response_id,
+});
+assert.equal(runSql(container, `select confirmed_seats from app.driver_offer_occurrence
+  where public_id = ${sqlLiteral(blockedOccurrence.occurrence_id)}::uuid;`), '0');
+
+// Either the block or confirmation may win, but both must never commit together.
+runSql(container, `update app.personal_block set ended_at = clock_timestamp()
+  where blocker_account_id = ${sqlLiteral(identities[0].id)}::uuid
+    and blocked_account_id = ${sqlLiteral(identities[3].id)}::uuid and ended_at is null;`);
+const [raceBlock, raceConfirmation] = await Promise.all([
+  runConcurrentSql(container, `insert into app.personal_block (blocker_account_id, blocked_account_id)
+    values (${sqlLiteral(identities[0].id)}::uuid, ${sqlLiteral(identities[3].id)}::uuid);`),
+  callRpc(clients[0], 'confirm_ride_response', {
+    p_client_key: randomUUID(), p_response_id: pendingBeforeBlock.response_id,
+  }),
+]);
+assert.equal(Number(raceBlock.code === 0) + Number(!raceConfirmation.error), 1,
+  'Exactly one of blocking and confirmation must commit.');
+if (!raceConfirmation.error) {
+  assert.match(raceBlock.diagnostics, /Cancel the future agreement before blocking/);
+  await rpc(clients[0], 'cancel_ride_agreement', {
+    p_client_key: randomUUID(), p_agreement_id: raceConfirmation.data.agreement_id,
+  });
+}
 
 // ------------------------------------------------------------------ recomputation
 
@@ -652,6 +707,11 @@ const agreement = await rpc(clients[0], 'confirm_ride_response', {
   p_response_id: response.response_id,
 });
 assert.equal(agreement.status, 'confirmed');
+const futureBlockDenied = await runConcurrentSql(container, `insert into app.personal_block
+  (blocker_account_id, blocked_account_id)
+  values (${sqlLiteral(identities[1].id)}::uuid, ${sqlLiteral(identities[0].id)}::uuid);`);
+assert.notEqual(futureBlockDenied.code, 0);
+assert.match(futureBlockDenied.diagnostics, /Cancel the future agreement before blocking/);
 
 // Later matching input changes must never cancel a confirmed agreement.
 runSql(container, `

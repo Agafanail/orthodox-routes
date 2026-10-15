@@ -421,6 +421,8 @@ The application-owned runner authenticates a separate internal scheduler call, v
 
 Unique active `(blocker_account_id, blocked_account_id)`, distinct accounts, created/ended timestamps. Protected eligibility/matching functions enforce blocks without revealing them to the blocked person beyond safe unavailable states.
 
+The executable relation is `app.personal_block`. Its protected shared response-eligibility check rejects either direction of an active block for submission, positive answers, confirmation, and accepted agreement changes. A pair-scoped transaction lock serializes this check with active block insertion/reactivation. A block guard refuses a pair with a future confirmed/change-pending agreement, using its active condition snapshot; existing commitments must be cancelled first. Matching already excludes the pair. Ordinary clients still have no table access, and actor-facing block/unblock operations remain a separate slice.
+
 ### 13.2 `ops.complaint`
 
 Fields: opaque case ID, target type/ID, reporter account or verified reporter-email reference, category, protected description, status (`received`, `reviewing`, `needs_information`, `resolved`, `closed`), decision/reason, legal-hold flag, retention due, and timestamps. Email receives only a safe case reference, not a full copied ride.
