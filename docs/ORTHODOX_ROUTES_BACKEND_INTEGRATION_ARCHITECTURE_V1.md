@@ -417,6 +417,10 @@ Offline support is limited to the application shell, an understandable offline s
 - Maintain a controlled Orthodox terminology glossary.
 - Never send ride comments, complaints, contacts, exact places, or private agreement content for translation.
 
+The executable backend now implements versioned source/translation storage, administrator correction, protected worker leasing/completion, and the Google Cloud Translation v3 NMT adapter. The adapter uses the official Google auth library with an explicit operator-provided ADC file, a fixed HTTPS endpoint, known languages, and `text/plain`. Dispatch requires owner-configured monthly character and batch limits. A service-only preparation transaction reserves source characters once per attempt in a shared UTC-month counter and selects a versioned glossary reference. Missing configuration disables dispatch; provider credentials, approved glossary content, provider-side quota configuration, and real staging verification remain external gates. No production provider is configured by this implementation.
+
+The adapter follows Google's [translateText REST contract](https://docs.cloud.google.com/translate/docs/reference/rest/v3/projects/translateText) and [client-library authentication guidance](https://docs.cloud.google.com/docs/authentication/client-libraries), checked on 15 October 2026. A glossary must belong to the configured project and model location; the application rejects a mismatched reference before dispatch.
+
 ## 14. Analytics, monitoring, and audit
 
 Cloudflare Web Analytics provides coarse privacy-preserving traffic and performance information. Do not add Google Analytics, Meta Pixel, advertising identifiers, session replay, heatmaps, advertising cookies, or unnecessary click-level events.
