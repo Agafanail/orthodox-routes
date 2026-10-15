@@ -531,11 +531,36 @@ try {
   assert.deepEqual(await rpc(userClient(url, publicKey), 'published_church_schedule', {
     p_church_id: created.church_id, p_limit: 0,
   }), []);
-  runSql(container, `update app.church set status = 'hidden'
-    where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
   const hiddenTranslationId = translationIdFor(
     container, 'church', created.church_id, 'description_source', 'de',
   );
+  const hiddenLease = randomUUID();
+  assert.equal((await rpc(admin, 'translation_worker_claim', {
+    p_lease_token: hiddenLease, p_limit: 1, p_translation_id: hiddenTranslationId,
+  })).length, 1);
+  const hiddenExpiredId = translationIdFor(
+    container, 'church', created.church_id, 'description_source', 'ro',
+  );
+  assert.equal((await rpc(admin, 'translation_worker_claim', {
+    p_lease_token: randomUUID(), p_limit: 1, p_translation_id: hiddenExpiredId,
+  })).length, 1);
+  runSql(container, `update app.church set status = 'hidden'
+    where public_id = ${sqlLiteral(created.church_id)}::uuid;
+    update app.content_translation set lease_deadline = now() - interval '1 second'
+    where id = ${sqlLiteral(hiddenExpiredId)}::uuid;`);
+  assert.equal((await rpc(admin, 'translation_worker_prepare', {
+    p_translation_id: hiddenTranslationId, p_lease_token: hiddenLease,
+    p_monthly_character_limit: 100000000,
+  })).status, 'superseded');
+  assert.equal(runSql(container, `select (status = 'pending' and attempt_count = 0
+    and lease_token is null and lease_deadline is null)::text from app.content_translation
+    where id = ${sqlLiteral(hiddenTranslationId)}::uuid;`), 'true');
+  assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
+    p_lease_token: randomUUID(), p_limit: 1, p_translation_id: hiddenExpiredId,
+  }), []);
+  assert.equal(runSql(container, `select (status = 'pending' and attempt_count = 1
+    and lease_token is null and lease_deadline is null and last_safe_error = 'lease_expired')::text
+    from app.content_translation where id = ${sqlLiteral(hiddenExpiredId)}::uuid;`), 'true');
   assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
     p_lease_token: randomUUID(), p_limit: 1, p_translation_id: hiddenTranslationId,
   }), []);
@@ -543,7 +568,9 @@ try {
     p_church_id: created.church_id,
   }), []);
   runSql(container, `update app.church set status = 'published'
-    where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
+    where public_id = ${sqlLiteral(created.church_id)}::uuid;
+    update app.content_translation set next_attempt_at = now() - interval '1 second'
+    where id = ${sqlLiteral(hiddenTranslationId)}::uuid;`);
   const expiredLease = randomUUID();
   assert.equal((await rpc(admin, 'translation_worker_claim', {
     p_lease_token: expiredLease, p_limit: 1, p_translation_id: hiddenTranslationId,

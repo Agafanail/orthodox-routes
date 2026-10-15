@@ -62,6 +62,14 @@ begin
         and service.starts_at >= now() and church.status = 'published'
     ))
   ) then
+    -- No new dispatch can occur. Do not consume an unreserved attempt or refund an old reservation.
+    update app.content_translation set
+      status = case when budget_reserved_attempt = attempt_count and attempt_count >= 5
+        then 'error' else 'pending' end,
+      attempt_count = case when budget_reserved_attempt = attempt_count
+        then attempt_count else attempt_count - 1 end,
+      next_attempt_at = now() + interval '5 minutes', updated_at = clock_timestamp()
+    where id = translation_row.id;
     return jsonb_build_object('status', 'superseded');
   end if;
 
@@ -111,3 +119,78 @@ revoke all on function api.translation_worker_prepare(uuid, uuid, integer)
 grant execute on function api.translation_worker_prepare(uuid, uuid, integer) to service_role;
 comment on function api.translation_worker_prepare(uuid, uuid, integer) is
   'Service-only idempotent monthly character reservation and versioned glossary selection for a live lease.';
+
+-- Release every expired lease, including content that is no longer public/eligible.
+create or replace function api.translation_worker_claim(
+  p_lease_token uuid, p_limit integer default 10, p_translation_id uuid default null
+)
+returns table (
+  claimed_translation_id uuid, claimed_source_id uuid, claimed_source_version integer,
+  claimed_source_language text, claimed_target_language text, claimed_field_name text,
+  claimed_original_text text, claimed_attempt_count integer
+)
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if p_lease_token is null or p_limit is null or p_limit not between 1 and 50 then
+    raise exception using errcode = '22023', message = 'Translation worker claim is invalid.';
+  end if;
+
+  with expired as (
+    select translation.id from app.content_translation as translation
+    where translation.status = 'processing' and translation.lease_deadline <= now()
+    order by translation.lease_deadline, translation.id
+    for update of translation skip locked
+    limit 50
+  )
+  update app.content_translation as translation
+  set status = case when translation.attempt_count >= 5 then 'error' else 'pending' end,
+    last_safe_error = 'lease_expired', updated_at = clock_timestamp()
+  from expired where translation.id = expired.id;
+
+  return query
+  with candidate as (
+    select translation.id
+    from app.content_translation as translation
+    join app.content_source as source on source.id = translation.content_source_id
+    where (p_translation_id is null or translation.id = p_translation_id)
+      and translation.translation_source = 'machine'
+      and translation.attempt_count < 5
+      and (
+        (translation.status = 'pending' and translation.next_attempt_at <= now())
+        or (translation.status = 'processing' and translation.lease_deadline <= now())
+      )
+      and translation.source_version = source.source_version
+      and source.original_text is not null
+      and source.source_language <> translation.target_language
+      and (
+        (source.object_type = 'church' and exists (
+          select 1 from app.church as church
+          where church.id = source.object_id and church.status = 'published'
+        ))
+        or (source.object_type = 'service_occurrence' and exists (
+          select 1 from app.service_occurrence as service
+          join app.church as church on church.id = service.church_id
+          where service.id = source.object_id and service.status = 'scheduled'
+            and service.starts_at >= now() and church.status = 'published'
+        ))
+      )
+    order by translation.next_attempt_at, translation.created_at, translation.id
+    for update of translation skip locked
+    limit p_limit
+  ), leased as (
+    update app.content_translation as translation
+    set status = 'processing', lease_token = p_lease_token,
+      lease_deadline = now() + interval '60 seconds',
+      attempt_count = translation.attempt_count + 1, updated_at = clock_timestamp()
+    from candidate where translation.id = candidate.id
+    returning translation.*
+  )
+  select leased.id, source.id, source.source_version, source.source_language,
+    leased.target_language, source.field_name, source.original_text, leased.attempt_count
+  from leased join app.content_source as source on source.id = leased.content_source_id;
+end;
+$$;

@@ -26,6 +26,7 @@ describe('Google translation configuration', () => {
   it.each([
     ['GOOGLE_TRANSLATION_PROJECT_ID', '../other-project'],
     ['GOOGLE_TRANSLATION_LOCATION', 'https://untrusted.example'],
+    ['GOOGLE_TRANSLATION_LOCATION', 'europe-west1'],
     ['GOOGLE_APPLICATION_CREDENTIALS', 'relative.json'],
     ['TRANSLATION_MONTHLY_CHARACTER_LIMIT', ''],
     ['TRANSLATION_MONTHLY_CHARACTER_LIMIT', '0'],
@@ -33,5 +34,10 @@ describe('Google translation configuration', () => {
   ])('fails closed for unsafe or missing %s', (name, value) => {
     vi.stubEnv(name, value);
     expect(getGoogleTranslationConfig()).toBeNull();
+  });
+
+  it('accepts the global endpoint location without a glossary', () => {
+    vi.stubEnv('GOOGLE_TRANSLATION_LOCATION', 'global');
+    expect(getGoogleTranslationConfig()?.location).toBe('global');
   });
 });

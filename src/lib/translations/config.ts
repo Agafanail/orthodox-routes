@@ -16,7 +16,7 @@ export function getGoogleTranslationConfig(): GoogleTranslationConfig | null {
   const monthlyCharacterLimit = Number(process.env.TRANSLATION_MONTHLY_CHARACTER_LIMIT?.trim());
   const batchLimit = Number(process.env.TRANSLATION_BATCH_LIMIT?.trim());
   if (!projectId || !/^(?:[a-z][a-z0-9-]{4,28}[a-z0-9]|[0-9]{6,20})$/.test(projectId)
-    || !location || !/^[a-z][a-z0-9-]{1,39}$/.test(location)
+    || (location !== 'global' && location !== 'us-central1')
     || !credentialsFile || !isAbsolute(credentialsFile) || credentialsFile.length > 1024
     || /[\u0000-\u001f\u007f]/.test(credentialsFile)
     || !Number.isSafeInteger(monthlyCharacterLimit)
