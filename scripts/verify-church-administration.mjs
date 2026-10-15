@@ -156,6 +156,11 @@ try {
     where account_id in (${identities.slice(0, 4).map((identity) => `${sqlLiteral(identity.id)}::uuid`).join(', ')});
   `);
 
+  await rpc(clients[0], 'update_notification_preference', {
+    p_client_key: randomUUID(), p_ride_email_enabled: false, p_web_push_enabled: false,
+  });
+  assert.equal((await rpc(clients[0], 'current_notification_preferences')).has_effective_external_channel, false);
+
   const anonymousCreate = await fetch(`${url}/rest/v1/rpc/create_church`, {
     method: 'POST', headers: { apikey: publicKey, 'content-type': 'application/json' },
     body: JSON.stringify(churchArgs()),
@@ -172,6 +177,14 @@ try {
   assert.equal(created.slug, firstArgs.p_slug);
   assert.equal(created.safe_route, `/churches/${firstArgs.p_slug}`);
   assert.deepEqual(await rpc(clients[0], 'create_church', firstArgs), created);
+  const missingRideChannel = await rpcFailure(clients[0], 'publish_passenger_request', {
+    p_child_seat_required: false, p_children_count: 0,
+    p_church_id: created.church_id, p_client_key: randomUUID(),
+    p_desired_arrival_at: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+    p_places: [], p_public_note: null, p_return_required: false,
+    p_service_occurrence_id: null, p_timezone: 'UTC', p_total_passengers: 1,
+  });
+  assert.match(missingRideChannel.message, /effective external notification channel/i);
   await rpcFailure(clients[0], 'create_church', {
     ...firstArgs, p_official_name: 'Changed input with reused key',
   });
@@ -1593,6 +1606,15 @@ try {
   assert.equal(runSql(container, `select count(*) from app.church_admin_event
     where church_id = ${sqlLiteral(firstInternalId)}::uuid
        and event_type in ('church.created', 'membership.joined', 'church.content_updated');`), '3');
+
+  assert.equal((await rpc(clients[0], 'current_notification_preferences')).ride_email_enabled, false);
+  assert.equal((await rpc(clients[0], 'current_notification_preferences')).web_push_enabled, false);
+  assert.equal(runSql(container, `select count(*) from pg_proc as function_row
+    join pg_namespace as namespace on namespace.oid = function_row.pronamespace
+    where namespace.nspname in ('app', 'api')
+      and (function_row.proname like '%church%' or function_row.proname like '%service%'
+        or function_row.proname = 'managed_translation_target')
+      and function_row.prokind = 'f' and function_row.prosrc like '%app.require_transport_actor()%';`), '0');
 
   process.stdout.write([
     'Church administration foundation verification passed:',
