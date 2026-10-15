@@ -184,6 +184,13 @@ export function getNotificationWorkerSecret() {
     : null;
 }
 
+export function getTranslationWorkerSecret() {
+  const secret = process.env.TRANSLATION_WORKER_SECRET?.trim();
+  return secret && secret.length >= 32 && secret.length <= 256 && !/[\u0000-\u001f\u007f]/.test(secret)
+    ? secret
+    : null;
+}
+
 export function getWebPushNotificationConfig(): WebPushNotificationConfig | null {
   const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
   const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();

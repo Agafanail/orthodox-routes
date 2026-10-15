@@ -413,6 +413,8 @@ A protected correction operation resolves only those allowlisted source fields f
 
 The service-role-only worker contract leases only current pending machine rows tied to published churches and future scheduled concrete services. A short lease, five-attempt cap, bounded retry schedule, and safe error classes keep failed translations on the original-text fallback. Completion checks the current source and lease and classifies invalid output using the source field's size/control-character limits. Source edits and administrator corrections clear the lease, so a late provider result cannot replace stale or manual text. Provider calls, glossary content, and production quotas remain external work.
 
+The application-owned runner authenticates a separate internal scheduler call, validates the narrow claimed payload, and passes only approved original text, language/field metadata, and a stable source-version key to a replaceable adapter. Internal source and translation IDs stay in the worker's database boundary. It does not claim work without an adapter and privileged database client, reports counters rather than source text, and records provider failures only as generic safe classes. The configured external provider remains a separate slice.
+
 ## 13. Complaints, blocking, audit, deletion, and owner operations
 
 ### 13.1 `app.user_block`

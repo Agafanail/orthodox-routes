@@ -8,6 +8,7 @@ import {
   getResendNotificationConfig,
   getResendWebhookSecret,
   getServerSupabaseConfig,
+  getTranslationWorkerSecret,
   getWebPushNotificationConfig,
   hasPublicSupabaseConfigurationIntent,
   isSafePublicSupabaseKey,
@@ -25,7 +26,7 @@ const originalBirdSmsSender = process.env.BIRD_SMS_SENDER;
 const notificationVariables = [
   'NOTIFICATION_WORKER_SECRET', 'RESEND_API_KEY', 'RESEND_NOTIFICATION_FROM',
   'RESEND_WEBHOOK_SECRET', 'VAPID_KEY_VERSION', 'VAPID_PRIVATE_KEY',
-  'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT',
+  'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT', 'TRANSLATION_WORKER_SECRET',
 ] as const;
 const originalNotificationVariables = Object.fromEntries(
   notificationVariables.map((name) => [name, process.env[name]]),
@@ -179,6 +180,19 @@ describe('notification provider configuration', () => {
     expect(getResendWebhookSecret()).toBeNull();
     expect(getNotificationWorkerSecret()).toBeNull();
     expect(getWebPushNotificationConfig()).toBeNull();
+  });
+});
+
+describe('translation worker configuration', () => {
+  it('accepts only a bounded server-side secret', () => {
+    process.env.TRANSLATION_WORKER_SECRET = 'translation-worker-secret-'.repeat(2);
+    expect(getTranslationWorkerSecret()).toBe(process.env.TRANSLATION_WORKER_SECRET);
+    process.env.TRANSLATION_WORKER_SECRET = 'short';
+    expect(getTranslationWorkerSecret()).toBeNull();
+    process.env.TRANSLATION_WORKER_SECRET = 'x'.repeat(300);
+    expect(getTranslationWorkerSecret()).toBeNull();
+    process.env.TRANSLATION_WORKER_SECRET = `${'x'.repeat(32)}\nunsafe`;
+    expect(getTranslationWorkerSecret()).toBeNull();
   });
 });
 
