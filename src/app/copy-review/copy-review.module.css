@@ -27,6 +27,8 @@
   --or-marker-border: #858b87;
   --or-control-text: #2f3431;
   --or-focus: #1f6fb2;
+  /* The unread mark of the notification history: the same blue in a second role (4 Oct 2026). */
+  --or-unread: #1f6fb2;
   --or-role-driver-bg: #e7ecf7;
   --or-role-driver: #3a4e7a;
   --or-role-passenger-bg: #f4eee5;
@@ -2464,4 +2466,339 @@
 .tripsBack {
   display: flex;
   margin-bottom: var(--or-space-3);
+}
+
+/* ------------------------ group 6: the notification history and the lightweight profile (IA §17, §20) */
+
+/* The unread count on the bell (IA §17.2): visible number, words for AT; neutral, never green (DS §5). */
+.navIcon {
+  position: relative;
+  display: inline-flex;
+}
+
+.navCount {
+  position: absolute;
+  top: -6px;
+  left: calc(100% - 8px);
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--or-radius-pill);
+  background: var(--or-control-text);
+  color: var(--or-surface);
+  padding: 0 var(--or-space-1);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-semibold);
+  line-height: 1;
+}
+
+.notificationSection + .notificationSection {
+  margin-top: var(--or-space-6);
+}
+
+.notificationList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--or-space-2);
+  margin: var(--or-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The row of one event: when it happened and, for an old one, what became of the object since. */
+.notificationHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--or-space-2);
+}
+
+.notificationTime {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--or-space-2);
+  color: var(--or-text-subtle);
+  font-size: var(--or-size-secondary);
+}
+
+/*
+ * The unread mark before the time. It is the second sign — the heading «Новые» above is the first.
+ *
+ * Owner decision of 4 October 2026: the dot is blue, because a dot in the text colour read as
+ * punctuation rather than as something new. No new colour value enters the system — this is the one
+ * blue `DS §3.1` already defines (`focus`, 5,28:1 on white), given a second role under its own
+ * token name. The focus ring is a 3 px outline around a control and the mark is a filled 8 px dot,
+ * so the two never read as the same thing. Green stays out of it: the closed list of §5 is unchanged.
+ */
+.notification[data-unread='yes'] .notificationTime::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: var(--or-radius-pill);
+  background: var(--or-unread);
+}
+
+/* The event itself is what the person decides on: decision size, text colour (DS §3.4). */
+.notificationText {
+  margin: var(--or-space-2) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--or-text);
+  font-size: var(--or-size-data);
+}
+
+.notification[data-unread='yes'] .notificationText {
+  font-weight: var(--or-weight-medium);
+}
+
+/* On a computer the history is one column at the reading measure of DS §4: no site header here. */
+.accountDesktop {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  overflow-y: auto;
+  padding: var(--or-space-8);
+}
+
+/* ------------------------------------------------------------------------------ the profile */
+
+/* One long screen (IA §20): sections 32 px apart, the phone spacing of DS §3.2. */
+.profileSection {
+  margin-top: var(--or-space-8);
+}
+
+.profileSection .textField {
+  margin-top: 0;
+}
+
+.profileSection .cardAction {
+  margin-top: var(--or-space-2);
+}
+
+/* A quiet action at the content edge, the way the place actions of group 2 sit. */
+.profileSection .quietButton,
+.notification .quietButton {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+/* The notification rule appears under the switch that stayed on, so it needs no top rule of its own. */
+.channelRuleLive .channelRule {
+  margin-top: var(--or-space-2);
+}
+
+/* The contact label and its confirmation plate share one line: label left, plate right. */
+.profileRowHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--or-space-2);
+}
+
+.profileLabel {
+  overflow-wrap: anywhere;
+  color: var(--or-text);
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-medium);
+}
+
+/*
+ * A shown value and its quiet action on one line: the value is the content, the action is a way to
+ * change it, so the action sits at the right edge and is smaller than the value (owner review of
+ * 15 October 2026 — at the body size it outweighed the value it belongs to). The wrap keeps the
+ * action reachable at 200 % text.
+ */
+.profileValueRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--or-space-1) var(--or-space-4);
+}
+
+.profileValue {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--or-text);
+  font-size: var(--or-size-data);
+}
+
+.profileLabel + .profileValueRow,
+.profileRowHead + .profileValueRow {
+  margin-top: var(--or-space-1);
+}
+
+.profileValueRow .quietButton {
+  margin-left: auto;
+  font-size: var(--or-size-secondary);
+  font-weight: var(--or-weight-regular);
+}
+
+/* The language selector: the field height of DS §3.5, the control border, the native list. */
+.select {
+  display: block;
+  width: 100%;
+  min-height: var(--or-height-field);
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  color: var(--or-text);
+  font: inherit;
+  padding: 0 var(--or-space-3);
+}
+
+/*
+ * A switch. The design system has no such control yet; this one keeps to its rules: the label is
+ * the accessible name, the track is a neutral control colour and not green (closed list, DS §5),
+ * the visible border has control contrast, and the target is 44 px high.
+ */
+.switchRow {
+  display: flex;
+  min-height: var(--or-target-min);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--or-space-4);
+  margin-top: var(--or-space-4);
+}
+
+.switchLabel {
+  overflow-wrap: anywhere;
+  font-size: var(--or-size-data);
+  font-weight: var(--or-weight-medium);
+}
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 52px;
+  height: 32px;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-pill);
+  background: var(--or-surface);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* The invisible 44 px target around the 32 px track (DS §3.5, DESIGN_DECISIONS 17). */
+.switch::after {
+  content: '';
+  position: absolute;
+  inset: -6px 0;
+}
+
+.switchThumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--or-radius-pill);
+  background: var(--or-border-control);
+  transition: left 120ms ease;
+}
+
+.switch[aria-checked='true'] {
+  border-color: var(--or-control-text);
+  background: var(--or-control-text);
+}
+
+.switch[aria-checked='true'] .switchThumb {
+  left: 23px;
+  background: var(--or-surface);
+}
+
+.switch[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switchThumb {
+    transition: none;
+  }
+}
+
+/* Why the browser channel is not delivering: a quiet note, never an error surface (IA §17.5). */
+.channelNote {
+  margin-top: var(--or-space-2);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface-subtle);
+  color: var(--or-text-secondary);
+  padding: var(--or-space-3) var(--or-space-4);
+  font-size: var(--or-size-secondary);
+}
+
+.channelNote p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.channelNoteTitle {
+  color: var(--or-text);
+  font-weight: var(--or-weight-medium);
+}
+
+.channelNoteTitle + p {
+  margin-top: var(--or-space-1);
+}
+
+.channelRuleLive:empty {
+  display: none;
+}
+
+/*
+ * The rule of IA §17.1 under the switches. Ordinary secondary text while nothing happened; after a
+ * refused switch-off it is the answer, and takes the attention pair of DS §3.1 — warm, not red:
+ * the person did nothing wrong.
+ */
+.channelRule {
+  margin: var(--or-space-4) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-secondary);
+}
+
+.channelRule[data-refused] {
+  border-radius: var(--or-radius-control);
+  background: var(--or-status-pending-bg);
+  color: var(--or-status-pending);
+  padding: var(--or-space-3) var(--or-space-4);
+  font-weight: var(--or-weight-medium);
+}
+
+/*
+ * Review-only bar above a group 6 screen: the way back from an opened object, or a note that the
+ * object belongs to a later phase. It is part of the review page, never of the simulated screen.
+ */
+.returnBar {
+  display: flex;
+  flex: 0 0 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--or-space-2) var(--or-space-4);
+}
+
+.returnBar p {
+  margin: 0;
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-secondary);
+}
+
+.returnBar button {
+  min-height: var(--or-target-min);
+  border: 1px solid var(--or-primary);
+  border-radius: var(--or-radius-control);
+  background: var(--or-primary-pale);
+  color: var(--or-primary);
+  cursor: pointer;
+  padding: 0 var(--or-space-4);
+  font-size: var(--or-size-secondary);
+  font-weight: var(--or-weight-medium);
 }
