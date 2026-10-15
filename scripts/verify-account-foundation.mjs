@@ -435,6 +435,7 @@ try {
   assert.deepEqual(exportA.notifications, []);
   assert.deepEqual(exportA.push_subscriptions, []);
   assert.deepEqual(exportA.places, []);
+  assert.deepEqual(exportA.personal_blocks, []);
   assert.deepEqual(exportA.owned_transport, {
     driver_occurrences: [], driver_series: [], passenger_requests: [],
   });
