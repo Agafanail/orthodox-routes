@@ -68,7 +68,16 @@ type SampleId =
   | 'trips-listings'
   | 'trips-history'
   | 'trips-empty'
-  | 'trips-desktop';
+  | 'trips-desktop'
+  | 'notifications'
+  | 'notifications-outcome'
+  | 'notifications-empty'
+  | 'profile'
+  | 'profile-notifications'
+  | 'profile-push-off'
+  | 'profile-last-channel'
+  | 'profile-both-off'
+  | 'notifications-desktop';
 
 type SourceMark = 'IA' | 'PS' | 'DS' | 'Решение' | 'Утверждено' | 'Проект';
 
@@ -89,9 +98,11 @@ type Sample = {
    * `church` — group 1; `request` — an entry point into the one interactive passenger form;
    * `offer` — an entry point into the one interactive driver form (group 3); `map` — an entry
    * point into the one interactive ride map of a board group (group 4); `trips` — an entry point
-   * into the one interactive «Мои поездки» (group 5, not yet reviewed).
+   * into the one interactive «Мои поездки» (group 5); `account` — an entry point into the two
+   * personal pages of group 6, the notification history and the lightweight profile (reviewed on
+   * 4 and 15 October 2026).
    */
-  group: 'church' | 'request' | 'offer' | 'map' | 'trips';
+  group: 'church' | 'request' | 'offer' | 'map' | 'trips' | 'account';
   label: string;
   title: string;
   description: string;
@@ -435,6 +446,86 @@ const samples: ReadonlyArray<Sample> = [
     description:
       'Одно представительное состояние для компьютера, а не повтор всех мобильных: утверждённая композиция IA §29.3 — разделы и список слева, выбранная поездка справа. Иерархия та же, что на телефоне: короткие карточки, группы объявлений по тому, что опубликовано, смысловые группы внутри открытой поездки, никаких повторов состояния. Шапки сайта в этой рамке нет: в группу 5 она не входит.',
   },
+
+  /*
+   * Group 6: the two personal pages of Phase 6 — the in-app notification history (IA §17.2) and the
+   * lightweight profile with its notification settings (IA §20, §20.2). Two pages, nine entry
+   * points; reviewed by the owner on 4 and 15 October 2026. The later profile blocks of IA §20 — blocked users, data
+   * export, help, legal documents, account deletion — are not on these screens: they belong to
+   * later phases and to their own review groups, not to this one.
+   */
+  {
+    id: 'notifications',
+    group: 'account',
+    label: '41 · Уведомления',
+    title: 'Уведомления: «Новые» и «Ранее»',
+    description:
+      'История событий, а не настройки (IA §7.2, §17.2). Заголовок, число непрочитанных, разделы «Новые» и «Ранее»; у каждого события — время, безличный текст из корпуса 4.9, у событий конкретного храма — строка «храм · город» и «Открыть» к объекту. Среди событий два добавленных 15 октября 2026 года — «Нашлось подходящее объявление» и «Регулярная поездка заканчивается»: их тексты остаются «Проект» до итогового просмотра. Экран работает: «Открыть» ведёт на экран группы 5 или на доску поездок группы 1, а прочитанное событие переходит в «Ранее»; «Вернуться к уведомлениям» над экраном — часть проверки, а не продукта.',
+  },
+  {
+    id: 'notifications-outcome',
+    group: 'account',
+    label: '42 · Уведомления: итог события',
+    title: 'Уведомления: событие осталось, а поездка с тех пор изменилась',
+    description:
+      'Та же страница у другого аккаунта. Уведомление не исчезает, когда меняется то, о чём оно сообщало: оно остаётся в истории и показывает итог плашкой — «Подтверждено», «Принято», «Отклонено», «Отменено», «Время прошло», «Выполнено» (IA §17.2). Четыре названия — состояния из 3.3, «Принято» и «Выполнено» утверждены владельцем 15 октября 2026 года. Цвет — две семьи: зелёный у состоявшегося, красный у несостоявшегося; «Время прошло» остаётся серым.',
+  },
+  {
+    id: 'notifications-empty',
+    group: 'account',
+    label: '43 · Уведомления: пусто',
+    title: 'Уведомления: ничего ещё не произошло',
+    description:
+      'Пустое состояние истории с формулировкой `notifications.empty`, утверждённой 15 октября 2026 года: она называет состояние и случаи, когда уведомление появится. Разделов «Новые» и «Ранее» на пустой странице нет.',
+  },
+  {
+    id: 'profile',
+    group: 'account',
+    label: '44 · Профиль',
+    title: 'Профиль: один длинный экран',
+    description:
+      'Лёгкий профиль шестого этапа (IA §20): имя текстом с тихим «Изменить имя», подтверждённые email и телефон с тихими действиями изменения, язык, блок «Настройки уведомлений» и «Выйти на этом устройстве». Пояснений под полями нет. Фамилии, фотографии, даты рождения, адреса, прихода и машины здесь нет и быть не должно. Заблокированные, выгрузка данных, помощь, документы и удаление аккаунта — блоки IA §20 более поздних этапов, в эту группу не входят и на экране намеренно отсутствуют.',
+  },
+  {
+    id: 'profile-notifications',
+    group: 'account',
+    label: '45 · Настройки уведомлений',
+    title: 'Профиль: блок «Настройки уведомлений», обычное состояние',
+    description:
+      'Тот же профиль, открытый сразу на блоке настроек — так работает пункт меню «Настройки уведомлений», который прокручивает к этому блоку, а не открывает отдельную страницу (IA §20.2). Уведомления в браузере и по email включены. Под переключателями ничего нет: пояснение появляется только после попытки выключить последнее уведомление (состояние 47). Переключатели работают.',
+  },
+  {
+    id: 'profile-push-off',
+    group: 'account',
+    label: '46 · В браузере выключены, email включён',
+    title: 'Профиль: уведомления в браузере выключены или недоступны, email работает',
+    description:
+      'Обычное допустимое состояние, а не ошибка. Переключатель над экраном выбирает, почему уведомлений в браузере нет: человек их выключил (под переключателем ничего нет), браузер их запретил или не поддерживает (PS §21.4; тексты 4.14). В двух последних случаях переключатель включить нельзя, и причина стоит рядом с ним (DS §11). Разрешение браузера здесь не запрашивается.',
+  },
+  {
+    id: 'profile-last-channel',
+    group: 'account',
+    label: '47 · Последний канал выключить нельзя',
+    title: 'Профиль: попытка выключить единственный оставшийся внешний канал',
+    description:
+      'Состояние после того, как человек с активным объявлением, ожидающим ответом или предстоящей поездкой попытался выключить email, когда уведомления в браузере уже выключены. Переключатель остаётся включённым, а под ним появляется утверждённое пояснение «Выключить нельзя: …», которое озвучивается вспомогательным технологиям — молча вернуть переключатель на место нельзя (IA §17.1, §20.2).',
+  },
+  {
+    id: 'profile-both-off',
+    group: 'account',
+    label: '48 · Оба канала выключены',
+    title: 'Профиль: оба внешних канала выключены — активных поездок нет',
+    description:
+      'У аккаунта нет активного объявления, ожидающего ответа и будущей поездки, поэтому оба необязательных внешних уведомления выключены, и это допустимо. История внутри приложения включена всегда. Под переключателями ничего нет: об обязательных системных письмах экран не пишет (IA §17.1, поправка к §20.2 от 15 октября 2026 года).',
+  },
+  {
+    id: 'notifications-desktop',
+    group: 'account',
+    label: '49 · Уведомления на компьютере',
+    title: 'Та же история уведомлений в раскладке компьютера',
+    description:
+      'Одно представительное состояние для компьютера, а не повтор всех восьми: те же события в колонке меры чтения DS §4, чтобы проверить, как длинные безличные фразы живут на широкой строке. Открываемый объект — предмет других групп, поэтому правой колонки IA §29.3 здесь нет. Шапки сайта в этой рамке нет: в группу 6 она не входит.',
+  },
 ];
 
 /* ------------------------------------------------------------------ proposed and approved copy */
@@ -644,7 +735,12 @@ function PhoneFrame({ children, label, textZoom }: { children: React.ReactNode; 
   );
 }
 
-function MobileNavigation({ active }: { active: 'Храмы' | 'Поездки' }) {
+function MobileNavigation({ active, unread }: {
+  /** The profile is reached from the menu, not from the bar (IA §7.2): it highlights no item. */
+  active: 'Храмы' | 'Поездки' | 'Уведомления' | null;
+  /** The unread count of IA §17.2 on the bell; only the group 6 screens pass one. */
+  unread?: number;
+}) {
   const items = [
     [copy.navChurches, 'pin'],
     [copy.navTrips, 'car'],
@@ -653,18 +749,25 @@ function MobileNavigation({ active }: { active: 'Храмы' | 'Поездки' 
 
   return (
     <nav className={styles.mobileNav} aria-label="Основные разделы">
-      {items.map(([label, icon]) => (
-        <a
-          key={label}
-          href={`#${label}`}
-          className={active === label ? styles.navActive : undefined}
-          aria-current={active === label ? 'page' : undefined}
-          onClick={(event) => event.preventDefault()}
-        >
-          <Icon name={icon} />
-          <span>{label}</span>
-        </a>
-      ))}
+      {items.map(([label, icon]) => {
+        const count = label === copy.navNotifications && unread ? unread : 0;
+        return (
+          <a
+            key={label}
+            href={`#${label}`}
+            className={active === label ? styles.navActive : undefined}
+            aria-current={active === label ? 'page' : undefined}
+            aria-label={count > 0 ? `${label}: ${unreadNew(count)}` : undefined}
+            onClick={(event) => event.preventDefault()}
+          >
+            <span className={styles.navIcon}>
+              <Icon name={icon} />
+              {count > 0 && <span className={styles.navCount} aria-hidden="true">{count}</span>}
+            </span>
+            <span>{label}</span>
+          </a>
+        );
+      })}
     </nav>
   );
 }
@@ -4436,6 +4539,714 @@ function MyTripsScreen({ seed, textZoom }: { seed: TripsSeed; textZoom: boolean 
   );
 }
 
+/* ----------------- group 6: the notification history and the lightweight profile (IA §17, §20) */
+
+/**
+ * The wording of the in-app notification history (copy 4.9, IA §17.2–17.3), reviewed by the owner on
+ * 4 and 15 October 2026 — see the marks of the key for what is approved and what is still a
+ * proposal. The event texts are impersonal on purpose: the grammatical gender of the other person
+ * is unknown (copy 7.5). The templates keep the corpus placeholders so the key shows the master
+ * text and the screen shows it filled; `fillEvent` does the substitution.
+ */
+const notificationsCopy = {
+  title: 'Уведомления',
+  sectionNew: 'Новые',
+  sectionEarlier: 'Ранее',
+  /*
+   * Replaced on the owner review of 4 October 2026: «Пока ничего не произошло. Здесь появятся
+   * ответы на ваши просьбы и предложения.» said the state twice and never said when a notification
+   * would actually appear. The first sentence now names the state plainly, the second names the
+   * occasions, taken from the events of `IA §17.3` that reach an ordinary parishioner first.
+   */
+  empty:
+    'Здесь пока нет уведомлений. Они появятся, когда вам ответят на просьбу или предложение, подтвердят или отменят поездку.',
+  open: 'Открыть',
+
+  /* The fifteen in-app event texts of copy 4.9, in the order of the table. */
+  eventResponseToRequest: 'Водитель предлагает подвезти вас {date}',
+  eventResponseToOffer: 'Пассажир просит подвезти {date}',
+  eventCounterOffer: 'Водитель предлагает {seats} из {needed} мест',
+  eventAccepted: 'Поездка {date} подтверждена. Контакты открыты.',
+  eventDriverDeclined: 'Водитель отказался подвезти {date}',
+  eventPassengerDeclined: 'Пассажир отказался от поездки {date}',
+  eventChangeProposed: 'Вам предлагают изменить условия поездки {date}',
+  eventChangeAccepted: 'Новые условия приняты',
+  eventAgreementCancelled: 'Поездка {date} отменена',
+  eventTripCancelled: 'Водитель отменил поездку {date}',
+  /*
+   * Two different events, worded by the owner on 15 October 2026: a changed schedule and a cancelled
+   * service are not the same news for someone who has a ride to it. The service name stands in
+   * guillemets and is never inflected, so no case has to be guessed.
+   */
+  eventServiceChanged: 'Изменилось расписание службы «{service}». Проверьте свою поездку.',
+  eventServiceCancelled: 'Служба «{service}» отменена. Проверьте свою поездку.',
+  /*
+   * Two events of `PS §21.2` that copy 4.9 had no text for. Proposed here for the first time and
+   * still `Проект`: a suitable listing has been found, and a regular trip is about to end. Both are
+   * impersonal (copy 7.5); the second says what can be done about it, and «Открыть» leads to where.
+   */
+  eventMatch: 'Нашлось подходящее объявление на {date}',
+  eventSeriesEnding: 'Регулярная поездка заканчивается {date}. Её можно продлить ещё на 8 недель.',
+  eventReminder: 'Поездка завтра, {time} по вашему времени',
+  eventOutcomeQuestion: 'Поездка состоялась?',
+  eventAdminInvite: 'Вас приглашают управлять страницей храма «{church}»',
+  eventTermsChanged: 'Условия использования изменились. Их нужно принять перед следующим действием.',
+
+  /*
+   * The eventual result an old notification shows (IA §17.2: «принято, отклонено, отменено,
+   * истекло или уже выполнено»). Copy 4.9 has no keys for these plates. Four of them are the state
+   * names of copy 3.3 the person already meets in «Мои поездки»; «Принято» and «Выполнено» are
+   * proposed here for the two results 3.3 has no word for — accepted new conditions, and an action
+   * the notification asked for that is already done.
+   */
+  outcomeConfirmed: 'Подтверждено',
+  outcomeAccepted: 'Принято',
+  outcomeDeclined: 'Отклонено',
+  outcomeCancelled: 'Отменено',
+  outcomeExpired: 'Время прошло',
+  outcomeDone: 'Выполнено',
+} as const;
+
+/** `nav.notifications.unread` (copy 4.1): the count the bell and the page title carry. */
+const unreadPlural = { one: 'новое', few: 'новых', many: 'новых' };
+const unreadNew = (count: number) => pluralRu(count, unreadPlural);
+
+/** Substitutes the corpus placeholders of one event template; unknown placeholders stay visible. */
+const fillEvent = (template: string, params: Record<string, string>) =>
+  template.replace(/\{(\w+)\}/g, (match, name: string) => params[name] ?? match);
+
+/** The accessible name of «Открыть», which otherwise repeats on every row of the history. */
+const openEventName = (text: string) => `${notificationsCopy.open}: ${text}`;
+
+/**
+ * The wording of the lightweight profile (copy 4.11, IA §20–20.3) and of the push states it has to
+ * show (IA §20.2, PS §21.4; the state texts come from copy 4.14), reviewed by the owner on 4 and
+ * 15 October 2026 — see the marks of the key for what is approved and what is still a proposal.
+ */
+const profileCopy = {
+  title: 'Профиль',
+  name: 'Имя',
+  /* A proposed action: copy 4.11 has no key for it, and IA §20.1 says the person changes the name. */
+  nameChange: 'Изменить имя',
+  email: 'Email',
+  verified: 'Подтверждён',
+  emailChange: 'Изменить email',
+  phone: 'Телефон',
+  phoneChange: 'Изменить телефон',
+  language: 'Язык',
+
+  notificationsTitle: 'Настройки уведомлений',
+  push: 'Уведомления в браузере',
+  emailNotifications: 'Уведомления по email',
+
+  /*
+   * Shown only after a refused switch-off (owner review of 15 October 2026). The former sentence —
+   * «Пока у вас есть активные объявления или предстоящие поездки, одно из двух остаётся включённым:
+   * уведомления по email или в браузере. Так вы вовремя узнаете, что вам ответили или что поездка
+   * изменилась.» — was a standing paragraph and too long. The rule is unchanged (`IA §17.1`,
+   * `PS §21.4`); the words now say the refusal first and the reason after it.
+   *
+   * Variant «Б» chosen by the owner on 15 October 2026: «вы ждёте ответа или у вас есть поездка»
+   * covers all three cases of `IA §17.1` in plain words. The first draft named «активное
+   * объявление или предстоящая поездка» and left out a person who only answered somebody else's
+   * listing: for them it said something untrue. The owner of a listing also waits for answers, and
+   * a confirmed trip is the second half of the sentence.
+   */
+  required:
+    'Выключить нельзя: вы ждёте ответа или у вас есть поездка. Так вы не пропустите ответ.',
+
+  /*
+   * What the profile says under a browser channel that is not delivering (PS §21.4). Blocked and
+   * unsupported come from copy 4.14 as they stand. A switch the person simply turned off says
+   * nothing: during normal operation the area under the switches is empty (owner decision of
+   * 15 October 2026), and the sentence that used to stand there is kept only as a removed text.
+   */
+  pushBlockedTitle: 'Уведомления запрещены в браузере',
+  pushBlockedBody:
+    'Разрешить их можно в настройках браузера для этого сайта. Пока уведомления выключены, важные сообщения приходят по email.',
+  pushUnsupported:
+    'Этот браузер не поддерживает уведомления. Важные сообщения будут приходить по email.',
+
+  signOut: 'Выйти на этом устройстве',
+
+  /*
+   * Taken off the screen by the owner and kept only so the review key can show what was removed and
+   * a later assembly does not restore it: the name explanation, the phone-change consequence (it
+   * belongs to the moment of changing the number), the sign-out explanation, the sentence about
+   * letters that cannot be disabled, and the standing form of the notification rule.
+   */
+  removedNameHint: 'Так вас видят другие участники. Фамилия и фотография не показываются.',
+  removedPhoneChangeHint:
+    'Новый номер начнёт действовать только после подтверждения по SMS. До этого действует прежний.',
+  removedSystem: 'Письма о входе, безопасности и изменениях документов отключить нельзя.',
+  removedSignOutHint: 'Другие устройства останутся в аккаунте. Аккаунт не удаляется.',
+  removedPushOffEmailOn: 'Пока уведомления выключены, важные сообщения приходят по email.',
+  removedRequiredDraft:
+    'Выключить нельзя: у вас есть активное объявление или предстоящая поездка. Так вы не пропустите ответ.',
+  removedRequired:
+    'Пока у вас есть активные объявления или предстоящие поездки, одно из двух остаётся включённым: уведомления по email или в браузере. Так вы вовремя узнаете, что вам ответили или что поездка изменилась.',
+} as const;
+
+/** The six interface languages of IA §23.1, each named in itself. Content, not copy under review. */
+const interfaceLanguages: ReadonlyArray<{ code: string; name: string }> = [
+  { code: 'ru', name: 'Русский' },
+  { code: 'en', name: 'English' },
+  { code: 'it', name: 'Italiano' },
+  { code: 'ro', name: 'Română' },
+  { code: 'uk', name: 'Українська' },
+  { code: 'de', name: 'Deutsch' },
+];
+
+type NotificationOutcome = 'confirmed' | 'accepted' | 'declined' | 'cancelled' | 'expired' | 'done';
+
+const outcomeText: Record<NotificationOutcome, string> = {
+  confirmed: notificationsCopy.outcomeConfirmed,
+  accepted: notificationsCopy.outcomeAccepted,
+  declined: notificationsCopy.outcomeDeclined,
+  cancelled: notificationsCopy.outcomeCancelled,
+  expired: notificationsCopy.outcomeExpired,
+  done: notificationsCopy.outcomeDone,
+};
+
+/**
+ * The plate tones of the outcomes, after the owner decision of 4 October 2026: two colours carry
+ * the result — green for everything that went through, red for everything that did not. No new
+ * token value enters the system: the three positives reuse the two approved green pairs of
+ * `DS §3.1` («Подтверждено» and the calmer completed ground of `DESIGN_DECISIONS` 35), and the two
+ * negatives reuse the muted destructive pair already approved for «Отменено» in group 5.
+ *
+ * «Время прошло» stays grey: nothing happened, well or badly, and `DESIGN_DECISIONS` 35 kept that
+ * difference on purpose. The owner did not name it among the two colours — it waits for his word.
+ */
+const outcomeTone: Record<NotificationOutcome, TripTone> = {
+  confirmed: 'confirmed',
+  accepted: 'confirmed',
+  declined: 'cancelled',
+  cancelled: 'cancelled',
+  expired: 'expired',
+  done: 'completed',
+};
+
+type NotificationItem = {
+  id: string;
+  /** The filled event text, exactly as the person reads it. */
+  text: string;
+  /** Sample content: when it happened, in the person's own words of time. */
+  time: string;
+  /** Sample content: the church the object belongs to; the text itself names only the date. */
+  context?: string;
+  unread?: boolean;
+  /** IA §17.2: what became of the object since — the notification itself stays. */
+  outcome?: NotificationOutcome;
+  /**
+   * The state of an already assembled group that stands for the object this notification is about,
+   * so «Открыть» goes somewhere real (owner review of 15 October 2026). Events whose object belongs
+   * to a later phase — a church page invitation, the changed Terms — have none.
+   */
+  target?: SampleId;
+  /** Review-only: what the missing target would be, said outside the simulated screen. */
+  laterObject?: string;
+};
+
+const pokrovFull = 'Покров Пресвятой Богородицы · Catanzaro';
+const georgeFull = 'Храм великомученика Георгия · Crotone';
+
+/**
+ * Content fixtures. Two accounts of one page: the first has a live week of events, the second has
+ * a history whose objects have since been accepted, declined, cancelled, expired or completed.
+ * Names, dates and churches are sample content, not copy under review.
+ */
+const notificationAccounts: Record<'live' | 'outcome', ReadonlyArray<NotificationItem>> = {
+  live: [
+    {
+      id: 'response-to-request',
+      target: 'trips-needs-passenger',
+      text: fillEvent(notificationsCopy.eventResponseToRequest, { date: '23 августа' }),
+      time: 'сегодня, 14:20',
+      context: pokrovFull,
+      unread: true,
+    },
+    {
+      id: 'accepted',
+      target: 'trips-upcoming-passenger',
+      text: fillEvent(notificationsCopy.eventAccepted, { date: '22 августа' }),
+      time: 'сегодня, 9:05',
+      context: pokrovFull,
+      unread: true,
+    },
+    {
+      id: 'service-changed',
+      target: 'trips-upcoming-passenger',
+      text: fillEvent(notificationsCopy.eventServiceChanged, { service: 'Божественная литургия 30 августа' }),
+      time: 'сегодня, 8:30',
+      context: pokrovFull,
+      unread: true,
+    },
+    {
+      id: 'reminder',
+      target: 'trips-upcoming-passenger',
+      text: fillEvent(notificationsCopy.eventReminder, { time: '18:00' }),
+      time: 'вчера, 18:00',
+      context: pokrovFull,
+    },
+    {
+      id: 'counter-offer',
+      target: 'trips-needs-passenger',
+      text: fillEvent(notificationsCopy.eventCounterOffer, { seats: '1', needed: '2' }),
+      time: 'вчера, 12:10',
+      context: georgeFull,
+    },
+    {
+      id: 'match',
+      target: 'board',
+      text: fillEvent(notificationsCopy.eventMatch, { date: '30 августа' }),
+      time: 'вчера, 9:15',
+      context: pokrovFull,
+    },
+    {
+      id: 'service-cancelled',
+      target: 'trips-upcoming-passenger',
+      text: fillEvent(notificationsCopy.eventServiceCancelled, { service: 'Всенощное бдение 29 августа' }),
+      time: '19 августа',
+      context: georgeFull,
+    },
+    {
+      id: 'response-to-offer',
+      target: 'trips-needs-driver',
+      text: fillEvent(notificationsCopy.eventResponseToOffer, { date: '30 августа' }),
+      time: '18 августа',
+      context: pokrovFull,
+    },
+    {
+      id: 'series-ending',
+      target: 'trips-listings',
+      text: fillEvent(notificationsCopy.eventSeriesEnding, { date: '13 сентября' }),
+      time: '16 августа',
+      context: pokrovFull,
+    },
+    {
+      id: 'admin-invite',
+      laterObject: 'управление страницей храма (этап 7)',
+      text: fillEvent(notificationsCopy.eventAdminInvite, { church: 'Покров Пресвятой Богородицы' }),
+      time: '15 августа',
+    },
+    {
+      id: 'terms-changed',
+      laterObject: 'принятие новой редакции Условий (этап 8)',
+      text: notificationsCopy.eventTermsChanged,
+      time: '12 августа',
+    },
+  ],
+  outcome: [
+    {
+      id: 'agreement-cancelled',
+      target: 'trips-history',
+      text: fillEvent(notificationsCopy.eventAgreementCancelled, { date: '23 августа' }),
+      time: 'сегодня, 7:40',
+      context: pokrovFull,
+      unread: true,
+    },
+    {
+      id: 'accepted-then-cancelled',
+      target: 'trips-history',
+      text: fillEvent(notificationsCopy.eventAccepted, { date: '23 августа' }),
+      time: '20 августа',
+      context: pokrovFull,
+      outcome: 'cancelled',
+    },
+    {
+      id: 'change-accepted',
+      target: 'trips-upcoming-passenger',
+      text: notificationsCopy.eventChangeAccepted,
+      time: '19 августа',
+      context: georgeFull,
+    },
+    {
+      id: 'change-proposed',
+      target: 'trips-upcoming-passenger',
+      text: fillEvent(notificationsCopy.eventChangeProposed, { date: '29 августа' }),
+      time: '19 августа',
+      context: georgeFull,
+      outcome: 'accepted',
+    },
+    {
+      id: 'response-confirmed',
+      target: 'trips-upcoming-passenger',
+      text: fillEvent(notificationsCopy.eventResponseToRequest, { date: '30 августа' }),
+      time: '18 августа',
+      context: pokrovFull,
+      outcome: 'confirmed',
+    },
+    {
+      id: 'request-declined',
+      target: 'trips-listings',
+      text: fillEvent(notificationsCopy.eventResponseToOffer, { date: '29 августа' }),
+      time: '17 августа',
+      context: pokrovFull,
+      outcome: 'declined',
+    },
+    {
+      id: 'outcome-question',
+      target: 'trips-history',
+      text: notificationsCopy.eventOutcomeQuestion,
+      time: '16 августа',
+      context: pokrovFull,
+      outcome: 'done',
+    },
+    {
+      id: 'driver-declined',
+      target: 'trips-listings',
+      text: fillEvent(notificationsCopy.eventDriverDeclined, { date: '16 августа' }),
+      time: '14 августа',
+      context: georgeFull,
+    },
+    {
+      id: 'passenger-declined',
+      target: 'trips-waiting',
+      text: fillEvent(notificationsCopy.eventPassengerDeclined, { date: '16 августа' }),
+      time: '13 августа',
+      context: pokrovFull,
+    },
+    {
+      id: 'counter-offer-expired',
+      target: 'trips-history',
+      text: fillEvent(notificationsCopy.eventCounterOffer, { seats: '2', needed: '3' }),
+      time: '9 августа',
+      context: georgeFull,
+      outcome: 'expired',
+    },
+    {
+      id: 'trip-cancelled',
+      target: 'trips-history',
+      text: fillEvent(notificationsCopy.eventTripCancelled, { date: '9 августа' }),
+      time: '7 августа',
+      context: pokrovFull,
+    },
+  ],
+};
+
+type NotificationsSeed = {
+  account: 'live' | 'outcome' | 'empty';
+  desktop?: boolean;
+};
+
+const notificationsSeeds: Partial<Record<SampleId, NotificationsSeed>> = {
+  notifications: { account: 'live' },
+  'notifications-outcome': { account: 'outcome' },
+  'notifications-empty': { account: 'empty' },
+  'notifications-desktop': { account: 'live', desktop: true },
+};
+
+/** One row of the history: when, what, where, and the way to the object. */
+function NotificationRow({ item, onOpen }: { item: NotificationItem; onOpen: () => void }) {
+  return (
+    <li className={`${styles.card} ${styles.notification}`} data-notification={item.id} data-unread={item.unread ? 'yes' : undefined}>
+      <div className={styles.notificationHead}>
+        <span className={styles.notificationTime}>{item.time}</span>
+        {item.outcome && <TripBadge text={outcomeText[item.outcome]} tone={outcomeTone[item.outcome]} />}
+      </div>
+      <p className={styles.notificationText}>{item.text}</p>
+      {item.context && <p className={styles.secondary}>{item.context}</p>}
+      <div className={styles.cardAction}>
+        <button type="button" className={styles.quietButton} aria-label={openEventName(item.text)} onClick={onOpen}>
+          {notificationsCopy.open}
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * The notification history (IA §17.2): always on, never a settings screen. «Новые» holds what the
+ * person has not opened yet, «Ранее» the rest. «Открыть» leads to the object the event is about —
+ * the trip or the listing — and the row is read from then on; the host owns the read marks and the
+ * way there, because the object is a screen of another group.
+ */
+function NotificationsScreen({ seed, read, onOpen, textZoom }: {
+  seed: NotificationsSeed;
+  read: ReadonlyArray<string>;
+  onOpen: (item: NotificationItem) => void;
+  textZoom: boolean;
+}) {
+  const items = (seed.account === 'empty' ? [] : notificationAccounts[seed.account])
+    .map((item) => (item.unread && read.includes(item.id) ? { ...item, unread: false } : item));
+  const fresh = items.filter((item) => item.unread);
+  const earlier = items.filter((item) => !item.unread);
+
+  const section = (kind: 'new' | 'earlier', rows: ReadonlyArray<NotificationItem>) =>
+    rows.length > 0 && (
+      <section className={styles.notificationSection} data-notifications-section={kind}>
+        <h2 className={styles.groupTitle}>
+          {kind === 'new' ? notificationsCopy.sectionNew : notificationsCopy.sectionEarlier}
+        </h2>
+        <ul className={styles.notificationList}>
+          {rows.map((item) => <NotificationRow key={item.id} item={item} onOpen={() => onOpen(item)} />)}
+        </ul>
+      </section>
+    );
+
+  const content = (
+    <>
+      <h1 className={styles.pageTitle}>{notificationsCopy.title}</h1>
+      {fresh.length > 0 && <p className={styles.secondary} data-unread-count>{unreadNew(fresh.length)}</p>}
+      {items.length === 0 ? (
+        <div className={styles.emptyState} data-notifications-empty>
+          <p>{notificationsCopy.empty}</p>
+        </div>
+      ) : (
+        <>
+          {section('new', fresh)}
+          {section('earlier', earlier)}
+        </>
+      )}
+    </>
+  );
+
+  if (seed.desktop) {
+    return (
+      <section
+        className={styles.desktopFrame}
+        role="region"
+        aria-label="Уведомления на компьютере"
+        data-product-screen
+        data-text-zoom={textZoom ? '200' : undefined}
+      >
+        <main className={`${styles.mobileContent} ${styles.accountDesktop}`}>{content}</main>
+      </section>
+    );
+  }
+
+  return (
+    <PhoneFrame label="Уведомления" textZoom={textZoom}>
+      <main className={styles.mobileContent}>{content}</main>
+      <MobileNavigation active="Уведомления" unread={fresh.length} />
+    </PhoneFrame>
+  );
+}
+
+/* ------------------------------------------------------------------------------ the profile */
+
+type PushState = 'on' | 'off' | 'blocked' | 'unsupported';
+
+type ProfileSeed = {
+  push: PushState;
+  email: boolean;
+  /** IA §17.1: an active listing, a pending response or a future agreement exists. */
+  activity: boolean;
+  /** Opens the page on the notification block, as the menu entry of IA §20.2 does. */
+  focus?: boolean;
+  /** The person has just tried to switch off the last external channel. */
+  attempted?: 'push' | 'email';
+  /** The review-only switch of state 46 between the three reasons the browser channel is off. */
+  pushVariants?: boolean;
+};
+
+const profileSeeds: Partial<Record<SampleId, ProfileSeed>> = {
+  profile: { push: 'on', email: true, activity: true },
+  'profile-notifications': { push: 'on', email: true, activity: true, focus: true },
+  'profile-push-off': { push: 'off', email: true, activity: true, focus: true, pushVariants: true },
+  'profile-last-channel': { push: 'off', email: true, activity: true, focus: true, attempted: 'email' },
+  'profile-both-off': { push: 'off', email: false, activity: false, focus: true },
+};
+
+const pushVariantLabel: Record<Exclude<PushState, 'on'>, string> = {
+  off: 'Выключены',
+  blocked: 'Запрещены в браузере',
+  unsupported: 'Не поддерживаются',
+};
+
+/**
+ * A switch the design system has no control for yet: a neutral track — green stays in the closed
+ * list of DS §5 — with the label as its accessible name. A browser channel the browser itself
+ * forbids or lacks cannot be switched on here, and the reason stands beside it (DS §11).
+ */
+function SwitchRow({ id, label, checked, disabled, onToggle }: {
+  id: string;
+  label: string;
+  checked: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className={styles.switchRow} data-switch={id}>
+      <span id={`${id}-label`} className={styles.switchLabel}>{label}</span>
+      <button
+        type="button"
+        role="switch"
+        className={styles.switch}
+        aria-checked={checked}
+        aria-labelledby={`${id}-label`}
+        aria-disabled={disabled ? 'true' : undefined}
+        onClick={disabled ? undefined : onToggle}
+      >
+        <span className={styles.switchThumb} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The lightweight profile of Phase 6 (IA §20): one long screen, no separate settings page. The
+ * notification block enforces IA §17.1 in the open: while the person has transport activity, the
+ * last external channel stays on and the rule under the switches says why — the switch is never
+ * quietly put back.
+ */
+function ProfileScreen({ seed, textZoom }: { seed: ProfileSeed; textZoom: boolean }) {
+  const [language, setLanguage] = useState('ru');
+  const [push, setPush] = useState<PushState>(seed.push);
+  const [email, setEmail] = useState(seed.email);
+  const [refused, setRefused] = useState<'push' | 'email' | null>(seed.attempted ?? null);
+  const notificationsRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    if (seed.focus) notificationsRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [seed.focus]);
+
+  const pushOn = push === 'on';
+  const pushLocked = push === 'blocked' || push === 'unsupported';
+
+  /* IA §17.1: with transport activity, the last external channel cannot go off. */
+  const lastChannel = (channel: 'push' | 'email') =>
+    seed.activity && (channel === 'push' ? pushOn && !email : email && !pushOn);
+
+  const togglePush = () => {
+    if (pushOn && lastChannel('push')) { setRefused('push'); return; }
+    setRefused(null);
+    setPush(pushOn ? 'off' : 'on');
+  };
+  const toggleEmail = () => {
+    if (email && lastChannel('email')) { setRefused('email'); return; }
+    setRefused(null);
+    setEmail(!email);
+  };
+
+  /* Review-only: the reason the browser channel is off, for state 46. Not part of the product screen. */
+  const variantSwitch = seed.pushVariants ? (
+    <div className={styles.variantSwitch} role="group" aria-label="Почему уведомлений в браузере нет">
+      {(['off', 'blocked', 'unsupported'] as const).map((variant) => (
+        <button
+          key={variant}
+          type="button"
+          aria-pressed={push === variant}
+          onClick={() => { setPush(variant); setRefused(null); }}
+        >
+          {pushVariantLabel[variant]}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  const pushNote = push === 'blocked' ? (
+    <div className={styles.channelNote} data-push-note="blocked">
+      <p className={styles.channelNoteTitle}>{profileCopy.pushBlockedTitle}</p>
+      <p>{profileCopy.pushBlockedBody}</p>
+    </div>
+  ) : push === 'unsupported' ? (
+    <div className={styles.channelNote} data-push-note="unsupported">
+      <p>{profileCopy.pushUnsupported}</p>
+    </div>
+  ) : null;
+
+  /*
+   * Owner review of 15 October 2026: the rule is not a standing paragraph. It appears only at the
+   * moment it matters — the person has just tried to switch off the last way of being reached while
+   * they have an active listing or a trip — and sits right under the switch that stayed on, in a
+   * live region so assistive technology hears it. Nothing is said before that, and nothing is said
+   * about system letters at all.
+   */
+  const refusal = (which: 'push' | 'email') => (
+    <div role="status" className={styles.channelRuleLive}>
+      {refused === which && (
+        <p className={styles.channelRule} data-channel-rule data-refused={which}>
+          {profileCopy.required}
+        </p>
+      )}
+    </div>
+  );
+
+  return (
+    <div className={styles.tripsStage}>
+      {variantSwitch}
+      <PhoneFrame label="Профиль" textZoom={textZoom}>
+        <main className={styles.mobileContent}>
+          <h1 className={styles.pageTitle}>{profileCopy.title}</h1>
+
+          {/*
+           * Owner review of 15 October 2026. The name is shown, not typed: this is an existing
+           * profile, and a field that is always editable reads as if the name could be lost by
+           * touching it. Changing it is a quiet action, like the two contacts below (IA §20.1: the
+           * person changes it themselves). The explanation under the field was removed as needless,
+           * and the phone's «Новый номер начнёт действовать…» moved out: it belongs to the moment the
+           * person changes the number, which is a later group, not to a profile that only shows it.
+           */}
+          <section className={styles.profileSection} data-profile-section="name">
+            <span className={styles.profileLabel}>{profileCopy.name}</span>
+            <div className={styles.profileValueRow}>
+              <p className={styles.profileValue}>Мария</p>
+              <button type="button" className={styles.quietButton}>{profileCopy.nameChange}</button>
+            </div>
+          </section>
+
+          <section className={styles.profileSection} data-profile-section="email">
+            <div className={styles.profileRowHead}>
+              <span className={styles.profileLabel}>{profileCopy.email}</span>
+              <TripBadge text={profileCopy.verified} tone="confirmed" />
+            </div>
+            <div className={styles.profileValueRow}>
+              <p className={styles.profileValue}>maria.k@example.com</p>
+              <button type="button" className={styles.quietButton}>{profileCopy.emailChange}</button>
+            </div>
+          </section>
+
+          <section className={styles.profileSection} data-profile-section="phone">
+            <div className={styles.profileRowHead}>
+              <span className={styles.profileLabel}>{profileCopy.phone}</span>
+              <TripBadge text={profileCopy.verified} tone="confirmed" />
+            </div>
+            <div className={styles.profileValueRow}>
+              <p className={styles.profileValue}>+39 345 678 45 67</p>
+              <button type="button" className={styles.quietButton}>{profileCopy.phoneChange}</button>
+            </div>
+          </section>
+
+          <section className={styles.profileSection} data-profile-section="language">
+            <label className={styles.textField}>
+              <span>{profileCopy.language}</span>
+              <select className={styles.select} value={language} onChange={(event) => setLanguage(event.target.value)}>
+                {interfaceLanguages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
+          </section>
+
+          {/* IA §20.2: the settings live here; the menu entry «Настройки уведомлений» scrolls to this block. */}
+          <section
+            ref={notificationsRef}
+            id="notifications"
+            className={styles.profileSection}
+            data-profile-section="notifications"
+            aria-labelledby="notifications-title"
+          >
+            <h2 id="notifications-title" className={styles.sectionTitle}>{profileCopy.notificationsTitle}</h2>
+            <SwitchRow id="push" label={profileCopy.push} checked={pushOn} disabled={pushLocked} onToggle={togglePush} />
+            {pushNote}
+            {refusal('push')}
+            <SwitchRow id="email" label={profileCopy.emailNotifications} checked={email} onToggle={toggleEmail} />
+            {refusal('email')}
+          </section>
+
+          {/* The explanation under the action was removed on 4 October 2026: the action says it. */}
+          <section className={styles.profileSection} data-profile-section="session">
+            <div className={styles.cardAction}>
+              <button type="button" className={styles.secondaryButton}>{profileCopy.signOut}</button>
+            </div>
+          </section>
+        </main>
+        <MobileNavigation active={null} />
+      </PhoneFrame>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ review-only source key */
 
 /*
@@ -4902,6 +5713,113 @@ const tripsEmptyRows: ReadonlyArray<StringSource> = [
   },
 ];
 
+/*
+ * Group 6: the notification history and the lightweight profile, reviewed by the owner on 4 and
+ * 15 October 2026. `Утверждено` marks a string he saw on the assembled screens and accepted or
+ * worded himself; `IA` names the text an approved document already fixes; `Решение` marks a text he
+ * took off the screen. `Проект` stays only where the review is deferred or the text is new: the
+ * church-page invitation (church administration group), the changed Terms (legal group), and the two
+ * events added on 15 October 2026 — a suitable listing found, a regular trip about to end — which
+ * wait for the final manual review of the group. The whole push column of copy 4.9 is `Проект`
+ * and belongs to the later PWA / Web Push review.
+ */
+
+const notificationsChromeRows: ReadonlyArray<StringSource> = [
+  { text: notificationsCopy.title, mark: 'IA', note: 'IA §17.2, копия 4.9; история событий, а не настройки (IA §7.2)' },
+  { text: copy.navNotifications, mark: 'IA', note: 'IA §7.2; тот же пункт нижней навигации, что и в группе 1' },
+  { text: `{count} ${unreadPlural.one} / ${unreadPlural.few}`, mark: 'Утверждено', note: '`nav.notifications.unread` (4.1): строка под заголовком и имя пункта навигации со счётчиком для вспомогательных технологий («Уведомления: 3 новых»)' },
+  { text: notificationsCopy.sectionNew, mark: 'IA', note: 'IA §17.2; непрочитанные' },
+  { text: notificationsCopy.sectionEarlier, mark: 'IA', note: 'IA §17.2; прочитанные' },
+  { text: notificationsCopy.open, mark: 'Утверждено', note: '`notifications.open`; ведёт к самому объекту — поездке или объявлению (IA §17.2), где её можно посмотреть и изменить, а не к отдельной странице уведомления: строка списка и есть всё уведомление. В проверке ведёт на экраны группы 5. Для вспомогательных технологий — «Открыть: {текст события}»' },
+];
+
+const notificationsLiveRows: ReadonlyArray<StringSource> = [
+  ...notificationsChromeRows,
+  { text: notificationsCopy.eventResponseToRequest, mark: 'Утверждено', note: 'копия 4.9, новый отклик на просьбу; безличная форма, род второй стороны неизвестен (7.5)' },
+  { text: notificationsCopy.eventAccepted, mark: 'Утверждено', note: 'копия 4.9, принято' },
+  { text: notificationsCopy.eventServiceChanged, mark: 'Утверждено', note: 'копия 4.9, изменение службы; формулировка владельца от 15 октября 2026 года вместо «Служба {service} в храме изменена…»: название службы в кавычках и без склонения; расписание изменилось — служба состоится' },
+  { text: notificationsCopy.eventServiceCancelled, mark: 'Утверждено', note: 'копия 4.9, отмена службы; формулировка владельца от 15 октября 2026 года — отдельное событие, а не вариант изменения (IA §17.3 «изменение или отмена связанной службы»)' },
+  { text: notificationsCopy.eventMatch, mark: 'Проект', note: 'новое событие PS §21.2 «качественное совпадение»; в корпусе 4.9 текста не было. «Открыть» ведёт к объявлению на доске поездок. Проверяется на итоговом просмотре группы 6' },
+  { text: notificationsCopy.eventSeriesEnding, mark: 'Проект', note: 'новое событие PS §21.2 «окончание восьминедельного срока регулярного предложения»; в корпусе 4.9 текста не было. Называет, что можно сделать (продлить); «Открыть» ведёт к объявлению. «Серия» в интерфейсе запрещена (3.4). Проверяется на итоговом просмотре группы 6' },
+  { text: 'Служба {service} в храме изменена. Проверьте время своей поездки.', mark: 'Решение', note: 'заменена 15 октября 2026 года двумя формулировками выше: изменение и отмена службы — разные события' },
+  { text: notificationsCopy.eventReminder, mark: 'Утверждено', note: 'копия 4.9, напоминание примерно за 24 часа (IA §17.3); в «Моих поездках» та же мысль звучит «Поездка завтра»' },
+  { text: notificationsCopy.eventCounterOffer, mark: 'Утверждено', note: 'копия 4.9, встречное предложение; IA §12.5' },
+  { text: notificationsCopy.eventResponseToOffer, mark: 'Утверждено', note: 'копия 4.9, новый отклик на предложение' },
+  { text: notificationsCopy.eventAdminInvite, mark: 'Проект', note: 'копия 4.9, приглашение администратора (IA §17.3); само управление храмом — этап 7, в группу не входит' },
+  { text: notificationsCopy.eventTermsChanged, mark: 'Проект', note: 'копия 4.9, изменение Условий (IA §17.3, §25.5); сами юридические экраны — этап 8, в группу не входят' },
+  { text: 'Покров Пресвятой Богородицы · Catanzaro', mark: 'Утверждено', note: '`notifications.context` = «{храм} · {город}»; образец утверждён владельцем 15 октября 2026 года для событий, связанных с конкретным храмом. Только публичные сведения: ни адреса, ни места встречи, ни сведений об участнике. У общих событий (Условия) строки нет; у приглашения администратора её нет, потому что фраза уже называет храм' },
+];
+
+const notificationsOutcomeRows: ReadonlyArray<StringSource> = [
+  ...notificationsChromeRows,
+  { text: notificationsCopy.eventAgreementCancelled, mark: 'Утверждено', note: 'копия 4.9, отмена договорённости (IA §14.1)' },
+  { text: notificationsCopy.eventTripCancelled, mark: 'Утверждено', note: 'копия 4.9, отмена всей поездки или даты (IA §14.3)' },
+  { text: notificationsCopy.eventChangeProposed, mark: 'Утверждено', note: 'копия 4.9, предложены изменения (IA §13.3); совпадает с `change.pending.theirs` 4.7.3' },
+  { text: notificationsCopy.eventChangeAccepted, mark: 'Утверждено', note: 'копия 4.9, изменения подтверждены' },
+  { text: notificationsCopy.eventDriverDeclined, mark: 'Утверждено', note: 'копия 4.9, отказ водителя' },
+  { text: notificationsCopy.eventPassengerDeclined, mark: 'Утверждено', note: 'копия 4.9, отказ пассажира' },
+  { text: notificationsCopy.eventOutcomeQuestion, mark: 'IA', note: 'IA §16.4, копия 4.9 и 4.7.5 (`outcome.question`, утверждена в группе 5); здесь — как событие истории' },
+  { text: notificationsCopy.eventResponseToRequest, mark: 'Утверждено', note: 'копия 4.9; здесь с итогом «Подтверждено»' },
+  { text: notificationsCopy.eventResponseToOffer, mark: 'Утверждено', note: 'копия 4.9; здесь с итогом «Отклонено»' },
+  { text: notificationsCopy.eventAccepted, mark: 'Утверждено', note: 'копия 4.9; здесь с итогом «Отменено» — поездку отменили позже' },
+  { text: notificationsCopy.eventCounterOffer, mark: 'Утверждено', note: 'копия 4.9; здесь с итогом «Время прошло»' },
+  { text: notificationsCopy.outcomeConfirmed, mark: 'IA', note: 'плашка итога (IA §17.2 «принято» для отклика): название состояния `confirmed` из 3.3; ключа в 4.9 нет. Зелёная пара «Подтверждено» из DS §3.1' },
+  { text: notificationsCopy.outcomeAccepted, mark: 'Утверждено', note: 'плашка итога для принятых изменений условий; в 3.3 такого состояния нет — новое слово. Та же зелёная пара: решение владельца 4 октября 2026 года — два цвета на все итоги' },
+  { text: notificationsCopy.outcomeDeclined, mark: 'IA', note: 'плашка итога: `declined` из 3.3. С 4 октября 2026 года красная, как «Отменено»' },
+  { text: notificationsCopy.outcomeCancelled, mark: 'IA', note: 'плашка итога: `cancelled` из 3.3. Красная пара DS §3.1, та же, что в «Моих поездках»' },
+  { text: notificationsCopy.outcomeExpired, mark: 'IA', note: 'плашка итога (IA §17.2 «истекло»): `expired` из 3.3. Остаётся серой: ничего не произошло ни хорошего, ни плохого (решение 35). Владелец среди двух цветов её не называл — ждёт его слова' },
+  { text: notificationsCopy.outcomeDone, mark: 'Утверждено', note: 'плашка итога (IA §17.2 «уже выполнено»): действие, о котором просило уведомление, уже сделано; в 3.3 такого состояния нет — новое слово. Зелёная пара «Завершено» из решения 35' },
+];
+
+const notificationsEmptyRows: ReadonlyArray<StringSource> = [
+  { text: notificationsCopy.title, mark: 'IA', note: 'IA §17.2, копия 4.9' },
+  { text: copy.navNotifications, mark: 'IA', note: 'IA §7.2' },
+  { text: notificationsCopy.empty, mark: 'Утверждено', note: '`notifications.empty` = `empty.notifications` (4.9, 5.4), переписана 4 октября 2026 года: первая фраза называет состояние, вторая — случаи, когда уведомление появится. Разделов «Новые» и «Ранее» на пустой странице нет' },
+  {
+    text: 'Пока ничего не произошло. Здесь появятся ответы на ваши просьбы и предложения.',
+    mark: 'Решение',
+    note: 'снято 4 октября 2026 года: состояние было названо дважды, а когда ждать уведомления — не сказано',
+  },
+];
+
+const profileChromeRows: ReadonlyArray<StringSource> = [
+  { text: profileCopy.title, mark: 'IA', note: 'IA §20, копия 4.11; один длинный экран, пункт меню «Профиль» (IA §7.2)' },
+  { text: profileCopy.name, mark: 'IA', note: 'IA §20.1, копия 4.11. Имя показано текстом, а не полем ввода (решение владельца 15 октября 2026 года): профиль уже создан' },
+  { text: profileCopy.nameChange, mark: 'Утверждено', note: '`profile.name.change`; утверждено владельцем 15 октября 2026 года как тихое действие рядом с показанным именем (IA §20.1: имя человек меняет сам). Сам путь изменения имени в группу не входит' },
+  { text: profileCopy.email, mark: 'IA', note: 'IA §20, копия 4.11' },
+  { text: profileCopy.verified, mark: 'Утверждено', note: '`profile.email.verified`; плашка у email и у телефона — одно слово на оба подтверждённых контакта' },
+  { text: profileCopy.emailChange, mark: 'IA', note: 'IA §19.7, копия 4.11; тихое действие справа от значения, мельче самого значения. Сам путь замены email — своя группа' },
+  { text: profileCopy.phone, mark: 'IA', note: 'IA §20, копия 4.11' },
+  { text: profileCopy.phoneChange, mark: 'IA', note: 'IA §19.8, копия 4.11; тихое действие справа от значения. Сам путь замены и SMS — своя группа. `profile.phone.taken` живёт внутри него и здесь не показывается' },
+  { text: profileCopy.language, mark: 'IA', note: 'IA §20, §23.1, копия 4.11; шесть языков, каждый назван на себе самом' },
+  { text: profileCopy.notificationsTitle, mark: 'IA', note: 'IA §20.2, §7.2, копия 4.11; блок профиля, к которому прокручивает пункт меню — не отдельная страница' },
+  { text: profileCopy.push, mark: 'IA', note: 'IA §20.2, копия 4.11; переключатель' },
+  { text: profileCopy.emailNotifications, mark: 'IA', note: 'IA §20.2, копия 4.11; переключатель' },
+  {
+    text: profileCopy.required,
+    mark: 'Утверждено',
+    note: '`profile.notifications.required`, переписана 15 октября 2026 года; вариант «Б» выбран владельцем в тот же день. Показывается только после попытки выключить последнее уведомление, пока у человека есть активное объявление, ожидающий ответ или будущая поездка: под переключателем, который остался включённым, и озвучивается вспомогательным технологиям. Одна фраза покрывает все три случая IA §17.1: владелец объявления тоже ждёт ответа. Без такой попытки на экране её нет. Правило IA §17.1 и PS §21.4 не менялось',
+  },
+  { text: profileCopy.signOut, mark: 'IA', note: 'IA §20.3, копия 4.11 и 4.1 (`nav.sign_out`); вторичное действие, не деструктивное' },
+  { text: profileCopy.removedNameHint, mark: 'Решение', note: 'снято 15 октября 2026 года как лишнее: `profile.name.hint`. Правило IA §20.1 (публично только имя) осталось правилом, но экран его не повторяет' },
+  { text: profileCopy.removedPhoneChangeHint, mark: 'Решение', note: 'снято с профиля 15 октября 2026 года: `profile.phone.change.hint` нужна тому, кто меняет номер, а не тому, кто его не менял. Живёт внутри пути замены телефона — своей группы' },
+  { text: profileCopy.removedSystem, mark: 'Решение', note: 'снято 15 октября 2026 года: `profile.notifications.system`. Правило IA §17.1 (системные письма отключить нельзя) осталось поведением, но на экране настроек не пишется; IA §20.2 и копия 4.11 исправлены этой же работой' },
+  { text: profileCopy.removedSignOutHint, mark: 'Решение', note: 'снято 4 октября 2026 года как лишнее: «Выйти на этом устройстве» говорит это самим названием' },
+  { text: profileCopy.removedRequiredDraft, mark: 'Решение', note: 'первый черновик короткой формулировки, снят 15 октября 2026 года: не называл человека, который только откликнулся на чужое объявление, и для него был неправдой' },
+  { text: profileCopy.removedRequired, mark: 'Решение', note: 'снято 15 октября 2026 года: стоячий длинный абзац под переключателями. Правило показывается только после попытки выключить последнее уведомление' },
+];
+
+const profilePushOffRows: ReadonlyArray<StringSource> = [
+  ...profileChromeRows,
+  { text: profileCopy.removedPushOffEmailOn, mark: 'Решение', note: 'снято 15 октября 2026 года: под выключенным самим человеком переключателем в обычной работе ничего нет. Тексты `push.blocked.*` и `push.unsupported` 4.14 остаются, потому что принадлежат состояниям запрета и отсутствия поддержки' },
+  { text: profileCopy.pushBlockedTitle, mark: 'IA', note: '`push.blocked.title` (4.14, IA §27.14); в профиле — причина рядом с переключателем, который включить нельзя (DS §11)' },
+  { text: profileCopy.pushBlockedBody, mark: 'IA', note: '`push.blocked.body` (4.14, IA §17.5); не ошибка — обычное состояние' },
+  { text: profileCopy.pushUnsupported, mark: 'IA', note: '`push.unsupported` (4.14, IA §27.14)' },
+  { text: 'Требуется установка приложения', mark: 'Проект', note: 'четвёртое состояние push по PS §21.4 (нужна установка PWA) на экране не показано: установка и её тексты — своя группа' },
+];
+
+const profileBothOffRows: ReadonlyArray<StringSource> = profileChromeRows;
+
 const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   catalog: [
     { text: copy.catalogTitle, mark: 'IA', note: 'IA §8' },
@@ -5020,6 +5938,17 @@ const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   'trips-history': tripsHistoryRows,
   'trips-empty': tripsEmptyRows,
   'trips-desktop': [...tripsUpcomingPassengerRows, ...tripsChangePendingRows],
+
+  /* Group 6, the notification history and the lightweight profile: reviewed on 4 and 15 October 2026. */
+  notifications: notificationsLiveRows,
+  'notifications-outcome': notificationsOutcomeRows,
+  'notifications-empty': notificationsEmptyRows,
+  profile: profileChromeRows,
+  'profile-notifications': profileChromeRows,
+  'profile-push-off': profilePushOffRows,
+  'profile-last-channel': profileChromeRows,
+  'profile-both-off': profileBothOffRows,
+  'notifications-desktop': notificationsLiveRows,
 };
 
 function SourcePanel({ sample }: { sample: SampleId }) {
@@ -5084,6 +6013,45 @@ function SourcePanel({ sample }: { sample: SampleId }) {
           отвечать — это вопрос к проекции, а не к словам.
         </p>
       )}
+      {(sample.startsWith('notifications') || sample.startsWith('profile')) && (
+        <p>
+          Состояния 41–49 — две страницы шестого этапа: история уведомлений (IA §17.2) и лёгкий
+          профиль с настройками уведомлений (IA §20, §20.2). Уведомления — это история событий;
+          настройки живут в профиле, и пункт меню «Настройки уведомлений» прокручивает к их блоку.
+          Тексты событий взяты из корпуса 4.9; итог старого события показан плашкой, ключи плашек
+          добавлены в 4.9 по итогам просмотра. Заблокированные, выгрузка данных, помощь, документы
+          и удаление аккаунта, установка приложения и запрос разрешения браузера в группу не
+          входят.
+        </p>
+      )}
+      {sample.startsWith('notifications') && (
+        <p>
+          Отдельной страницы одного уведомления в продукте нет: строка списка и есть весь его текст,
+          а «Открыть» ведёт к самому объекту — к поездке, объявлению или доске поездок, где человек
+          может её посмотреть и изменить (IA §17.2). Здесь каждое событие открывает экран группы 5
+          «Мои поездки» или группы 1 «Поездки храма»; «Вернуться к уведомлениям» над экраном — часть
+          проверки, а не продукта. Два события — приглашение управлять страницей храма и новая
+          редакция Условий — ведут к экранам более поздних этапов, и для них показано только
+          пояснение. Строка «храм · город» под событием — утверждённый образец для событий,
+          связанных с конкретным храмом; у общих событий её нет.
+        </p>
+      )}
+      {(sample.startsWith('notifications') || sample.startsWith('profile')) && (
+        <p>
+          <strong>Просмотр владельца 4 и 15 октября 2026 года.</strong> Правки внесены: отметка
+          непрочитанного синяя; итоги событий в двух цветах; пустое состояние переписано; имя в
+          профиле показано текстом, а не полем; «Изменить» у имени, email и телефона — тихое
+          действие справа от значения; пояснения под именем, телефоном и «Выйти на этом
+          устройстве» сняты; строка о системных письмах снята; под переключателями в обычной работе
+          ничего нет, правило об одном уведомлении показывается только после попытки выключить
+          последнее; изменение и отмена службы — два разных события. Строки, которые владелец
+          принял или сформулировал сам, утверждены <strong>15 октября 2026 года</strong>.
+          Остаются «Проект»: приглашение управлять страницей храма (проверяется с экранами
+          управления храмом), изменение Условий (с юридическими экранами), тексты push (с
+          экранами PWA и Web Push) и два новых события — «Нашлось подходящее объявление» и
+          «Регулярная поездка заканчивается» — до итогового просмотра группы 6.
+        </p>
+      )}
       <dl className={styles.sourceList}>
         {rows.map((row) => (
           <div key={`${row.text}-${row.note ?? ''}`}>
@@ -5116,12 +6084,38 @@ export function CopyReview() {
   const [chosen, setChosen] = useState<SampleId | null>(null);
   const [textZoom, setTextZoom] = useState(false);
   /*
+   * Group 6: a notification is opened into the screen of the group that owns its object, and the
+   * review needs a way back and to remember what was already read. Both live here, outside the
+   * simulated screens, because the screens of the other groups do not know about notifications.
+   */
+  const [readEvents, setReadEvents] = useState<ReadonlyArray<string>>([]);
+  const [returnTo, setReturnTo] = useState<SampleId | null>(null);
+  const [reviewNote, setReviewNote] = useState<string | null>(null);
+  /*
    * The board and the map are the same semantic filter (IA §9.3), so it is kept here rather than in
    * either screen: only then can the owner walk the transition and see the filter arrive with him.
    */
   const [boardFilter, setBoardFilter] = useState<BoardFilter>(copy.boardFilterAll);
   const fromAddress = useSyncExternalStore(subscribeToAddress, readAddress, () => null);
   const sample = chosen ?? fromAddress ?? 'catalog';
+
+  const openEvent = (item: NotificationItem) => {
+    setReadEvents((current) => (current.includes(item.id) ? current : [...current, item.id]));
+    if (item.target) {
+      setReviewNote(null);
+      setReturnTo(sample);
+      setChosen(item.target);
+    } else {
+      setReviewNote(
+        `«Открыть» здесь вело бы на экран, которого в этой проверке нет: ${item.laterObject ?? 'объект другого этапа'}.`,
+      );
+    }
+  };
+
+  const backToNotifications = () => {
+    setChosen(returnTo);
+    setReturnTo(null);
+  };
 
   function screen() {
     switch (sample) {
@@ -5142,6 +6136,26 @@ export function CopyReview() {
        * the form keeps everything the person has typed, forwards and backwards alike.
        */
       default:
+        if (sample.startsWith('notifications')) {
+          return (
+            <NotificationsScreen
+              key={sample}
+              seed={notificationsSeeds[sample] ?? { account: 'live' }}
+              read={readEvents}
+              onOpen={openEvent}
+              textZoom={textZoom}
+            />
+          );
+        }
+        if (sample.startsWith('profile')) {
+          return (
+            <ProfileScreen
+              key={sample}
+              seed={profileSeeds[sample] ?? { push: 'on', email: true, activity: true }}
+              textZoom={textZoom}
+            />
+          );
+        }
         if (sample.startsWith('trips-')) {
           return (
             <MyTripsScreen
@@ -5181,7 +6195,12 @@ export function CopyReview() {
         key={item.id}
         type="button"
         aria-pressed={sample === item.id}
-        onClick={() => setChosen(item.id)}
+        onClick={() => {
+          setChosen(item.id);
+          setReadEvents([]);
+          setReturnTo(null);
+          setReviewNote(null);
+        }}
       >
         {item.label}
       </button>
@@ -5190,8 +6209,8 @@ export function CopyReview() {
   return (
     <div className={styles.reviewRoot}>
       <header className={styles.reviewHeader}>
-        <p>Временная поверхность проверки · группы 1, 2A, 2B, 3, 4 и 5 просмотрены</p>
-        <h1>Проверка русской копии: храм, просьба пассажира, предложение водителя, карта поездок и «Мои поездки»</h1>
+        <p>Временная поверхность проверки · группы 1, 2A, 2B, 3, 4, 5 и 6 просмотрены</p>
+        <h1>Проверка русской копии: храм, просьба пассажира, предложение водителя, карта поездок, «Мои поездки», уведомления и профиль</h1>
         <p>
           Мобильные экраны шириной 390 px. Состояния 1–4 — первая группа после правок владельца от
           22 августа 2026 года. Состояния 5–14 — одна форма просьбы пассажира из четырёх смысловых
@@ -5234,14 +6253,31 @@ export function CopyReview() {
           что действительно возвращает проекция «Моих поездок»; сервера за экраном нет. Договорённость с предложенными
           изменениями не утверждает, что отвечать должны вы: данные этого не знают.
         </p>
+        <p>
+          Состояния 41–49 — группа 6: история уведомлений и лёгкий профиль шестого этапа, две
+          страницы и девять точек входа. «Уведомления» — история событий с разделами «Новые» и
+          «Ранее», числом непрочитанных и переходом к объекту; старое событие не исчезает, когда
+          поездка меняется, а показывает итог. Профиль — один длинный экран: имя, подтверждённые
+          email и телефон, язык, блок «Настройки уведомлений» и выход на этом устройстве. Пока есть
+          активное объявление, ожидающий ответ или предстоящая поездка, последний внешний канал
+          выключить нельзя — переключатель остаётся, а под ним сразу появляется объяснение, почему. Экраны
+          работают: «Открыть» ведёт к поездке или объявлению группы 5 либо к доске поездок, переключатели
+          переключаются. Разрешение браузера, установка приложения, замена email и телефона,
+          заблокированные, выгрузка и удаление аккаунта в группу не входят.{' '}
+          <strong>Группа просмотрена владельцем 4 и 15 октября 2026 года; принятые строки
+          утверждены 15 октября 2026 года.</strong> Остаются «Проект»: приглашение управлять
+          страницей храма, изменение Условий, тексты push и два добавленных события — подходящее
+          объявление и скорое окончание регулярной поездки.
+        </p>
       </header>
       <nav className={styles.reviewControls} aria-label="Выбор экрана проверки">
         <div>{choose('church')}</div>
         <div>{choose('request')}</div>
         <div>{choose('offer')}</div>
         <div>{choose('map')}</div>
+        <div>{choose('trips')}</div>
         <div>
-          {choose('trips')}
+          {choose('account')}
           <button
             type="button"
             className={styles.zoomToggle}
@@ -5253,6 +6289,21 @@ export function CopyReview() {
         </div>
       </nav>
       <div className={styles.reviewStage} data-sample-id={sample} data-text-zoom={textZoom ? '200' : 'off'}>
+        {/* Review-only: never inside the simulated screen. */}
+        {returnTo && (
+          <div className={styles.returnBar} data-return-bar>
+            <button type="button" onClick={backToNotifications}>← Вернуться к уведомлениям</button>
+            <p>
+              Вы открыли объект уведомления: экран принадлежит{' '}
+              {sample.startsWith('trips-') ? 'группе 5 «Мои поездки»' : 'группе 1 «Поездки храма»'}.
+            </p>
+          </div>
+        )}
+        {reviewNote && !returnTo && (
+          <div className={styles.returnBar} data-review-note>
+            <p>{reviewNote}</p>
+          </div>
+        )}
         {screen()}
         <SourcePanel sample={sample} />
       </div>
