@@ -1324,6 +1324,72 @@ try {
   assert.equal(second.status, 'created');
   assert.equal((await rpc(clients[1], 'current_managed_churches'))[0].church_id, second.church_id);
 
+  const publicReader = userClient(url, publicKey);
+  const readSecondChurch = () => rpc(publicReader, 'transport_church_by_slug', {
+    p_slug: secondArgs.p_slug,
+  });
+  assert.equal((await readSecondChurch()).public_contact_details, undefined);
+  const contactArgs = {
+    p_church_id: second.church_id,
+    p_public_contact_details: 'Church office: office@example.invalid\nhttps://parish.example.invalid',
+    p_expected_version: 1, p_client_key: randomUUID(),
+  };
+  await rpcFailure(publicReader, 'update_church_public_contacts', contactArgs);
+  await rpcFailure(admin, 'update_church_public_contacts', contactArgs);
+  await rpcFailure(clients[0], 'update_church_public_contacts', contactArgs);
+  await rpcFailure(clients[4], 'update_church_public_contacts', contactArgs);
+  for (const invalidContact of ['x'.repeat(4001), 'Office\u0001details']) {
+    await rpcFailure(clients[1], 'update_church_public_contacts', {
+      ...contactArgs, p_public_contact_details: invalidContact, p_client_key: randomUUID(),
+    });
+  }
+  const contactsSaved = await rpc(clients[1], 'update_church_public_contacts', contactArgs);
+  assert.equal(contactsSaved.content_version, 2);
+  assert.deepEqual(await rpc(clients[1], 'update_church_public_contacts', contactArgs), contactsSaved);
+  await rpcFailure(clients[1], 'update_church_public_contacts', {
+    ...contactArgs, p_public_contact_details: 'Changed retry input',
+  });
+  await rpcFailure(clients[1], 'update_church_public_contacts', {
+    ...contactArgs, p_client_key: randomUUID(),
+  });
+  const publicWithContacts = await readSecondChurch();
+  assert.equal(publicWithContacts.public_contact_details, contactArgs.p_public_contact_details);
+  for (const identity of identities) assert.equal(JSON.stringify(publicWithContacts).includes(identity.email), false);
+  assert.equal((await rpc(clients[1], 'current_managed_churches'))
+    .find((item) => item.church_id === second.church_id).public_contact_details,
+  contactArgs.p_public_contact_details);
+  assert.equal((await rpc(clients[1], 'update_church_public_contacts', {
+    ...contactArgs, p_expected_version: 2, p_client_key: randomUUID(),
+  })).content_version, 2);
+  assert.equal(runSql(container, `select count(*) from app.church_admin_event
+    where church_id = (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid)
+      and event_type = 'church.content_updated';`), '1');
+  assert.equal(runSql(container, `select count(*) from app.content_source
+    where object_type = 'church'
+      and object_id = (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid)
+      and (field_name not in ('official_name', 'description_source')
+        or original_text like '%office@example.invalid%' or source_version <> 1);`), '0');
+  for (const unavailableStatus of ['hidden', 'archived']) {
+    runSql(container, `update app.church set status = ${sqlLiteral(unavailableStatus)}
+      where public_id = ${sqlLiteral(second.church_id)}::uuid;`);
+    assert.equal(await readSecondChurch(), null);
+    if (unavailableStatus === 'archived') {
+      await rpcFailure(clients[1], 'update_church_public_contacts', {
+        ...contactArgs, p_expected_version: 2, p_client_key: randomUUID(),
+      });
+    }
+  }
+  runSql(container, `update app.church set status = 'published'
+    where public_id = ${sqlLiteral(second.church_id)}::uuid;`);
+  const contactsCleared = await rpc(clients[1], 'update_church_public_contacts', {
+    ...contactArgs, p_public_contact_details: '   ', p_expected_version: 2, p_client_key: randomUUID(),
+  });
+  assert.equal(contactsCleared.content_version, 3);
+  assert.equal((await readSecondChurch()).public_contact_details, undefined);
+  // An old successful retry cannot restore contacts after a newer removal.
+  assert.deepEqual(await rpc(clients[1], 'update_church_public_contacts', contactArgs), contactsSaved);
+  assert.equal((await readSecondChurch()).public_contact_details, undefined);
+
   const firstInternalId = runSql(container,
     `select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
   runSql(container, `
@@ -1621,6 +1687,7 @@ try {
     '- only fully eligible actors can publish a church page',
     '- creation is actor-derived, idempotent, and immediately creates the first equal administrator place',
     '- church source text edits are member-only, idempotent, version-checked, and public only through the deliberate projection',
+    '- optional public church contacts are separate from private accounts, removable, member-only, and excluded from translation',
     '- normalized-address and PostGIS proximity checks return the existing safe page instead of duplicating it',
     '- suspicious same-address geography fails closed for protected review',
     '- church address edits invalidate only that church route measurements and reject in-flight stale results',
