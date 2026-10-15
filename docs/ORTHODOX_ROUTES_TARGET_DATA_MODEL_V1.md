@@ -138,6 +138,8 @@ The internal `needs_administrator` condition belongs to a restricted operational
 
 Church creation/administration uses the confirmed-user eligibility guard without requiring an optional external ride channel. Existing church membership, versions, and idempotency remain authoritative. The transport guard composes the same eligibility check with effective-channel enforcement for new ride actions; church operations never silently enable notification preferences.
 
+Church administration events atomically feed restricted `ops.audit_event` records targeting the public church identifier. Only action/time/actor and allowlisted changed field names are copied; invitation tokens, public text/contacts, and subject-account details are excluded. Historical rows keep source timestamps and unknown transaction IDs remain null.
+
 ### 5.2 `app.church_slug_history`
 
 Unique `(church_id, slug)` plus global unique active slug. Supports safe redirects without exposing archived content.

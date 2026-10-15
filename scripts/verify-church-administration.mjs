@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
@@ -1673,6 +1674,54 @@ try {
     where church_id = ${sqlLiteral(firstInternalId)}::uuid
        and event_type in ('church.created', 'membership.joined', 'church.content_updated');`), '3');
 
+  assert.equal(runSql(container, `select count(*) from app.church_admin_event as event
+    left join ops.audit_event as audit on audit.event_key = 'church-admin-event:' || event.id::text
+    join app.church as church on church.id = event.church_id
+    where audit.id is null or audit.target_type <> 'church' or audit.target_id <> church.public_id
+      or audit.action_type <> event.event_type or audit.occurred_at <> event.occurred_at
+      or audit.actor_account_id is distinct from event.actor_account_id
+      or audit.transaction_id <> event.xmin::text;`), '0');
+  const churchAudit = JSON.parse(runSql(container, `select coalesce(jsonb_agg(to_jsonb(audit)), '[]'::jsonb)
+    from ops.audit_event as audit where target_type = 'church';`));
+  assert.ok(churchAudit.length > 10);
+  for (const event of churchAudit) {
+    assert.deepEqual(Object.keys(event).sort(), ['id', 'event_key', 'occurred_at', 'actor_kind',
+      'actor_account_id', 'action_type', 'target_type', 'target_id', 'result', 'changed_fields',
+      'transaction_id', 'schema_version'].sort());
+    assert.equal(event.result, 'success');
+  }
+  for (const forbidden of [...identities.map((identity) => identity.email),
+    contactArgs.p_public_contact_details, firstToken, declineToken, editArgs.p_description_source]) {
+    assert.equal(JSON.stringify(churchAudit).includes(forbidden), false);
+  }
+  const rolledBackAuditId = randomUUID();
+  runSql(container, `begin;
+    insert into app.church_admin_event (id, church_id, event_type)
+    values (${sqlLiteral(rolledBackAuditId)}::uuid, ${sqlLiteral(firstInternalId)}::uuid, 'invite.expired');
+    rollback;`);
+  assert.equal(runSql(container, `select count(*) from ops.audit_event
+    where event_key = 'church-admin-event:' || ${sqlLiteral(rolledBackAuditId)};`), '0');
+  const historicalAuditId = randomUUID();
+  const historicalTime = '2026-01-01T10:00:00Z';
+  // Model a pre-capture installation, then apply the actual migration to its old event.
+  runSql(container, `alter table app.church_admin_event disable trigger audit_church_admin_event;
+    insert into app.church_admin_event (id, church_id, event_type, occurred_at)
+    values (${sqlLiteral(historicalAuditId)}::uuid, ${sqlLiteral(firstInternalId)}::uuid,
+      'invite.expired', ${sqlLiteral(historicalTime)}::timestamptz);
+    alter table app.church_admin_event enable trigger audit_church_admin_event;`);
+  const churchAuditMigration = readFileSync(new URL(
+    '../supabase/migrations/20261015180000_church_administration_audit.sql', import.meta.url,
+  ), 'utf8');
+  runSql(container, churchAuditMigration);
+  const historicalAudit = JSON.parse(runSql(container, `select to_jsonb(audit) from ops.audit_event as audit
+    where event_key = 'church-admin-event:' || ${sqlLiteral(historicalAuditId)};`));
+  assert.equal(new Date(historicalAudit.occurred_at).toISOString(), new Date(historicalTime).toISOString());
+  assert.equal(historicalAudit.transaction_id, null);
+  assert.equal(historicalAudit.actor_kind, 'system');
+  runSql(container, churchAuditMigration);
+  assert.deepEqual(JSON.parse(runSql(container, `select to_jsonb(audit) from ops.audit_event as audit
+    where event_key = 'church-admin-event:' || ${sqlLiteral(historicalAuditId)};`)), historicalAudit);
+
   assert.equal((await rpc(clients[0], 'current_notification_preferences')).ride_email_enabled, false);
   assert.equal((await rpc(clients[0], 'current_notification_preferences')).web_push_enabled, false);
   assert.equal(runSql(container, `select count(*) from pg_proc as function_row
@@ -1688,6 +1737,7 @@ try {
     '- creation is actor-derived, idempotent, and immediately creates the first equal administrator place',
     '- church source text edits are member-only, idempotent, version-checked, and public only through the deliberate projection',
     '- optional public church contacts are separate from private accounts, removable, member-only, and excluded from translation',
+    '- church/admin/schedule actions atomically produce minimized audit with rollback and historical-backfill safety',
     '- normalized-address and PostGIS proximity checks return the existing safe page instead of duplicating it',
     '- suspicious same-address geography fails closed for protected review',
     '- church address edits invalidate only that church route measurements and reject in-flight stale results',
