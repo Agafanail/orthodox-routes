@@ -1662,6 +1662,29 @@ try {
     where invite.public_id = ${sqlLiteral(retryInvite.invite_id)}::uuid;`),
   `expired:cancelled:${'0'.repeat(64)}`);
 
+  const assertInvitationExpiryAudit = (inviteId) => assert.equal(runSql(container, `
+    select count(*) from app.church_admin_invite as invite
+    join ops.audit_event as audit on audit.event_key = 'church-invite-expired:' || invite.id::text
+    where invite.public_id = ${sqlLiteral(inviteId)}::uuid
+      and audit.action_type = 'invite.expired' and audit.actor_kind = 'system'
+      and audit.actor_account_id is null and audit.occurred_at = invite.decided_at
+      and audit.transaction_id = invite.xmin::text;`), '1');
+  assertInvitationExpiryAudit(retryInvite.invite_id);
+  const lazyExpiryInvite = await rpc(clients[3], 'invite_church_admin', inviteArgs(identities[0].email));
+  runSql(container, `with timing as (select clock_timestamp() - interval '8 days' as moment)
+    update app.church_admin_invite as invite
+    set issued_at = timing.moment, expires_at = timing.moment + interval '7 days',
+      last_sent_at = timing.moment
+    from timing where invite.public_id = ${sqlLiteral(lazyExpiryInvite.invite_id)}::uuid;`);
+  assert.equal(await rpc(clients[3], 'resend_church_admin_invite', {
+    p_invite_id: lazyExpiryInvite.invite_id,
+  }), false);
+  assertInvitationExpiryAudit(lazyExpiryInvite.invite_id);
+  assert.equal(await rpc(clients[3], 'resend_church_admin_invite', {
+    p_invite_id: lazyExpiryInvite.invite_id,
+  }), false);
+  assertInvitationExpiryAudit(lazyExpiryInvite.invite_id);
+
   assert.equal(runSql(container, `select count(*) from information_schema.role_table_grants
     where grantee in ('anon', 'authenticated', 'service_role')
       and table_schema in ('app', 'private')

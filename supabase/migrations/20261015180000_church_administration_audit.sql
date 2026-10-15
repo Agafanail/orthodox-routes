@@ -78,6 +78,29 @@ $$;
 create or replace trigger audit_church_admin_event after insert on app.church_admin_event
   for each row execute function app.audit_church_admin_event();
 
+-- Both lazy expiry and the mail worker change invitation state without a source event.
+create or replace function app.audit_church_invitation_expiry()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into ops.audit_event (
+    event_key, occurred_at, actor_kind, action_type, target_type, target_id, changed_fields
+  )
+  select 'church-invite-expired:' || new.id::text, new.decided_at,
+    'system', 'invite.expired', 'church', church.public_id,
+    array['administrator_invitation']::text[]
+  from app.church as church where church.id = new.church_id
+  on conflict (event_key) do nothing;
+  return new;
+end;
+$$;
+create or replace trigger audit_church_invitation_expiry after update of state on app.church_admin_invite
+  for each row when (old.state = 'pending' and new.state = 'expired')
+  execute function app.audit_church_invitation_expiry();
+
 -- Reapplication safely repairs missing historical captures without rewriting existing facts.
 insert into ops.audit_event (
   event_key, occurred_at, actor_kind, actor_account_id, action_type,
@@ -91,5 +114,16 @@ from app.church_admin_event as event join app.church as church on church.id = ev
 where true
 on conflict (event_key) do nothing;
 
+insert into ops.audit_event (
+  event_key, occurred_at, actor_kind, action_type, target_type, target_id, changed_fields, transaction_id
+)
+select 'church-invite-expired:' || invite.id::text, invite.decided_at,
+  'system', 'invite.expired', 'church', church.public_id,
+  array['administrator_invitation']::text[], null
+from app.church_admin_invite as invite join app.church as church on church.id = invite.church_id
+where invite.state = 'expired'
+on conflict (event_key) do nothing;
+
 revoke all on function app.church_audit_changed_fields(text) from public, anon, authenticated, service_role;
 revoke all on function app.audit_church_admin_event() from public, anon, authenticated, service_role;
+revoke all on function app.audit_church_invitation_expiry() from public, anon, authenticated, service_role;
