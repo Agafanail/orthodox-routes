@@ -160,6 +160,7 @@ The complete Core campaign passed its final local, migration, security/privacy, 
 - The existing private block relation is now enforced at the shared response/confirmation boundary, not only in quality matching. Pair-scoped locking prevents a concurrent block and future agreement from both committing; a future confirmed commitment must be cancelled first. Actor-facing blocking operations, complaints, and deletion remain unfinished.
 - Keep voluntary external project support separate from prohibited ride payments and commissions.
 - Add the support form, owner runbook, protected administrative operations, and audit logging.
+- A restricted minimized audit foundation captures agreement events and private block transitions atomically, backfills known history without fabricating old transaction IDs, and rejects event rewrites. Public/client/service-role table access remains revoked. Case-scoped owner operations, remaining domain hooks, and legally approved retention/deletion remain separate work.
 - Add minimal product analytics without advertising trackers.
 - Obtain appropriate legal review before broad public launch.
 

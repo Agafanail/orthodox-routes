@@ -713,6 +713,61 @@ const futureBlockDenied = await runConcurrentSql(container, `insert into app.per
 assert.notEqual(futureBlockDenied.code, 0);
 assert.match(futureBlockDenied.diagnostics, /Cancel the future agreement before blocking/);
 
+// The restricted audit contains only allowlisted metadata and shares the business transaction.
+assert.equal(runSql(container, `select count(*) from ops.audit_event as audit
+  join app.agreement_event as event on audit.event_key = 'agreement-event:' || event.id::text
+  where audit.target_id = ${sqlLiteral(agreement.agreement_id)}::uuid
+    and audit.action_type = 'agreement.confirmed' and audit.actor_account_id = ${sqlLiteral(identities[0].id)}::uuid
+    and audit.transaction_id = event.xmin::text and audit.occurred_at = event.created_at;`), '1');
+assert.equal(runSql(container, `select count(*) from app.agreement_event as event
+  left join ops.audit_event as audit on audit.event_key = 'agreement-event:' || event.id::text
+  where audit.id is null;`), '0');
+const auditFixtureId = randomUUID();
+runSql(container, `insert into app.personal_block (id, blocker_account_id, blocked_account_id)
+  values (${sqlLiteral(auditFixtureId)}::uuid,
+    ${sqlLiteral(identities[1].id)}::uuid, ${sqlLiteral(identities[2].id)}::uuid);
+  update app.personal_block set ended_at = clock_timestamp() where id = ${sqlLiteral(auditFixtureId)}::uuid;
+  update app.personal_block set ended_at = null where id = ${sqlLiteral(auditFixtureId)}::uuid;
+  update app.personal_block set ended_at = clock_timestamp() where id = ${sqlLiteral(auditFixtureId)}::uuid;
+  update app.personal_block set ended_at = ended_at where id = ${sqlLiteral(auditFixtureId)}::uuid;`);
+const auditRows = JSON.parse(runSql(container, `select jsonb_agg(to_jsonb(audit)
+  order by occurred_at, id) from ops.audit_event as audit where target_id = ${sqlLiteral(auditFixtureId)}::uuid;`));
+assert.deepEqual(auditRows.map((row) => row.action_type).sort(), [
+  'personal_block.created', 'personal_block.ended', 'personal_block.ended', 'personal_block.reactivated',
+].sort());
+assert.deepEqual(Object.keys(auditRows[0]).sort(), [
+  'id', 'event_key', 'occurred_at', 'actor_kind', 'actor_account_id', 'action_type',
+  'target_type', 'target_id', 'result', 'changed_fields', 'transaction_id', 'schema_version',
+].sort());
+for (const identity of identities) {
+  for (const protectedValue of [identity.email, identity.phone]) {
+    assert.equal(JSON.stringify(auditRows).includes(protectedValue), false);
+  }
+}
+const rewriteDenied = await runConcurrentSql(container, `update ops.audit_event
+  set occurred_at = occurred_at + interval '1 second' where id = ${sqlLiteral(auditRows[0].id)}::uuid;`);
+assert.notEqual(rewriteDenied.code, 0);
+assert.match(rewriteDenied.diagnostics, /Audit events cannot be rewritten/);
+const rolledBackBlockId = randomUUID();
+runSql(container, `begin;
+  insert into app.personal_block (id, blocker_account_id, blocked_account_id)
+  values (${sqlLiteral(rolledBackBlockId)}::uuid,
+    ${sqlLiteral(identities[2].id)}::uuid, ${sqlLiteral(identities[3].id)}::uuid);
+  rollback;`);
+assert.equal(runSql(container, `select count(*) from ops.audit_event
+  where target_id = ${sqlLiteral(rolledBackBlockId)}::uuid;`), '0');
+for (const role of ['anon', 'authenticated', 'service_role']) {
+  const deniedAuditRead = await runConcurrentSql(container, `set role ${role}; select count(*) from ops.audit_event;`);
+  assert.notEqual(deniedAuditRead.code, 0);
+  assert.match(deniedAuditRead.diagnostics, /permission denied/);
+}
+assert.equal(runSql(container, `select count(*) from information_schema.role_table_grants
+  where grantee in ('anon', 'authenticated', 'service_role') and table_schema = 'ops'
+    and table_name = 'audit_event' and privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE');`), '0');
+assert.equal(runSql(container, `select (relation.relrowsecurity and relation.relforcerowsecurity)::text
+  from pg_class as relation join pg_namespace as namespace on namespace.oid = relation.relnamespace
+  where namespace.nspname = 'ops' and relation.relname = 'audit_event';`), 'true');
+
 // Later matching input changes must never cancel a confirmed agreement.
 runSql(container, `
   update app.driver_offer_occurrence set max_detour_km = 0
