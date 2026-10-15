@@ -90,7 +90,7 @@ SMS используется только для проверки телефон
 
 ## Локальный запуск
 
-Требуется Node.js 20.9 или новее.
+Requires Node.js 22 or newer; CI uses Node.js 24.
 
 ```bash
 npm install
