@@ -15,14 +15,14 @@
 | 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | Complete | PR #10 merge `6beca9c`, CI `35708503854`; PR #11 merge `103be11`, CI `35711039875`; PR #12 merge `a890245`, CI `35713885218` |
 | 4 | Profile/account operations required by the approved personal area | Decision gate | PR #13 merge `7e3e8bb`, CI `37229664994`; PR #14 merge `4c4bf23`, CI `37230861925`; email recovery awaits the approved protective delay; deletion is checkpoint 7 |
 | 5 | Church creation, deduplication, equal administration, schedules, exceptions, cancellation, and archival | In progress | PR #15 merge `84349ca`, CI `37275264884`; PR #16 merge `ee6c2de`, CI `38260954869`; PR #17 merge `de08238`, CI `38261795981`; PR #18 merge `eef6022`, CI `38263557320`; PR #19 merge `2a0a3d9`, CI `38269546263`; PR #20 merge `f7019ec`, CI `38369019230`; PR #21 merge `e33e18d`, CI `38372163933`; PR #22 merge `d96ac6b`, CI `38374554868`; PR #23 merge `e61c45a`, CI `38417222760`; PR #24 merge `eff85e9`, CI `38421552090`; PR #25 merge `8a0e315`, CI `38423776272`; PR #26 merge `092f2fd`, CI `38426228904`; PR #27 merge `ecadac1`, CI `38535876480`; PR #28 merge `0e5d74e`, CI `38539501734`; series editing and final archival remain |
-| 6 | Stored dynamic-content translations and provider-independent translation jobs | In progress | PR #29 merge `e3dc89a`, CI `38541776937`; PR #30 merge `95b376f`, CI `38580405642`; protected worker leasing is the current slice; provider action remains external |
+| 6 | Stored dynamic-content translations and provider-independent translation jobs | In progress | PR #29 merge `e3dc89a`, CI `38541776937`; PR #30 merge `95b376f`, CI `38580405642`; PR #31 merge `c6bdde8`, CI `38585558644`; protected application runner is the current slice; provider action remains external |
 | 7 | Complaints, personal blocking, account deletion, retention, protected support/owner operations, and audit | Planned | Roadmap phase 8 backend |
 | 8 | Minimal privacy-safe product analytics | Planned | Approved aggregate events only; no advertising trackers |
 | 9 | Backend cutover audit, multi-user/browser E2E expansion, migration upgrades, and final staging/main verification | Planned | Roadmap phases 9 and 11 backend |
 
 ## Current checkpoint
 
-Checkpoint 6 provider-independent translation worker leasing. Checkpoint 5 still needs remaining series editing and final protected archival/restore; the lost-email protective delay remains a separate product decision, and account deletion remains checkpoint 7.
+Checkpoint 6 provider-independent translation application runner. Checkpoint 5 still needs remaining series editing and final protected archival/restore; the lost-email protective delay remains a separate product decision, and account deletion remains checkpoint 7.
 
 ## Remaining backend areas
 
@@ -70,6 +70,7 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - PR #28 merged as `0e5d74e`; CI run `38539501734` passed all required checks after migration replay, recurring-future cancellation integration, and browser regression. The selected and later weekly dates are cancelled without recreating them; earlier dates and immutable ride snapshots remain, while affected participants are notified.
 - PR #29 merged as `e3dc89a`; CI run `38541776937` passed all required checks after migration replay, translation-source/read integration, and browser regression. Only approved church and concrete-service fields enter versioned translation storage; source edits stale old rows, direct table access is denied, and published-only localized reads fall back to originals.
 - PR #30 merged as `95b376f`; CI run `38580405642` passed all required checks after migration replay, administrator correction integration, and browser regression. Current equal administrators can correct only approved translations with source/translation version checks and field-specific limits; a manual correction remains separate from the source and publicly visible only within the published boundary.
+- PR #31 merged as `c6bdde8`; CI run `38585558644` passed all required checks after migration replay, worker lease/retry integration, and browser regression. Only current approved published text can be leased, errors retain original fallback, late results cannot overwrite manual corrections, and expired leases are bounded and reclaimed.
 - The lost-email recovery flow is paused only at the approved owner/legal/security decision for the exact configurable protective delay required by Backend Architecture §8 and Target Data Model §23. Independent campaign checkpoints continue.
 - No campaign checkpoint is complete until its PR is merged through all required green checks.
 
