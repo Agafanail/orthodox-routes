@@ -105,6 +105,12 @@ npm run lint
 npm run build
 ```
 
+## Personal block enforcement
+
+The existing private `app.personal_block` relation suppresses matching and now rejects direct responses, positive answers, confirmations, and accepted agreement changes through their shared server check. Failures use a neutral eligibility message, not the identity of a blocker. Pair-scoped transaction locking serializes acceptance with block insertion/reactivation; a future confirmed agreement must be cancelled first. No table grant or public profile is added. Actor-facing block/unblock operations remain separate backend work.
+
+`test:matching` verifies both response directions, late confirmation, unchanged capacity after rejection, future-commitment refusal, and a concurrent block-versus-confirmation race using synthetic data.
+
 ## Local database foundation
 
 Docker Desktop or another compatible Docker engine is required only for backend/database work. Ordinary frontend installation, development, tests, lint, and production builds do not require Docker, Supabase environment variables, or a running database.
