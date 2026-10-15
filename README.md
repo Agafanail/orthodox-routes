@@ -107,9 +107,11 @@ npm run build
 
 ## Personal block enforcement
 
-The existing private `app.personal_block` relation suppresses matching and now rejects direct responses, positive answers, confirmations, and accepted agreement changes through their shared server check. Failures use a neutral eligibility message, not the identity of a blocker. Pair-scoped transaction locking serializes acceptance with block insertion/reactivation; a future confirmed agreement must be cancelled first. No table grant or public profile is added. Actor-facing block/unblock operations remain separate backend work.
+The private `app.personal_block` relation suppresses matching and rejects direct responses, positive answers, confirmations, and accepted agreement changes through their shared server check. Failures use a neutral eligibility message, not the identity of a blocker. Pair-scoped transaction locking serializes acceptance with block insertion/reactivation; a future confirmed agreement must be cancelled first. No table grant or public profile is added.
 
-`test:matching` verifies both response directions, late confirmation, unchanged capacity after rejection, future-commitment refusal, and a concurrent block-versus-confirmation race using synthetic data.
+`api.set_ride_counterparty_block` derives the counterpart only from a response or agreement in which the authenticated confirmed user participated. It sets or ends only that user's block, requires an actor-scoped idempotency key, and cannot target an arbitrary account or act through church-administration privileges. An old retry never reverses a newer action. `api.my_ride_counterparty_block` returns only the caller's own setting, never the other person's block. No notification is sent and the action creates no new ride commitment or external-channel requirement. The account export includes only the caller's block history, known counterpart name, and timestamps, without counterpart IDs or contacts. Production controls remain UI work.
+
+`test:matching` verifies participant authority, anonymous/service-role/unrelated denial, actor-scoped retries and state isolation, export privacy, both response directions, late confirmation, unchanged capacity after rejection, future-commitment refusal, and a concurrent block-versus-confirmation race using synthetic data.
 
 ## Local database foundation
 

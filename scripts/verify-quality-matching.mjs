@@ -606,10 +606,74 @@ const pendingBeforeBlock = await rpc(clients[3], 'submit_driver_response', {
   p_client_key: randomUUID(), p_occurrence_id: blockedOccurrence.occurrence_id,
   p_offered_passenger_count: 1, p_place_id: blockedPlaceId, p_request_id: request.request_id,
 });
-runSql(container, `
-  insert into app.personal_block (blocker_account_id, blocked_account_id)
-  values (${sqlLiteral(identities[0].id)}::uuid, ${sqlLiteral(identities[3].id)}::uuid);
-`);
+const blockReference = {
+  p_interaction_type: 'response', p_interaction_id: pendingBeforeBlock.response_id,
+};
+const initialBlockArgs = { ...blockReference, p_blocked: true, p_client_key: randomUUID() };
+await expectRpcFailure(anonymous, 'my_ride_counterparty_block', blockReference);
+await expectRpcFailure(anonymous, 'set_ride_counterparty_block', initialBlockArgs);
+await expectRpcFailure(worker, 'set_ride_counterparty_block', initialBlockArgs);
+await expectRpcFailure(clients[2], 'my_ride_counterparty_block', blockReference);
+await expectRpcFailure(clients[2], 'set_ride_counterparty_block', initialBlockArgs);
+await expectRpcFailure(clients[0], 'set_ride_counterparty_block', {
+  ...initialBlockArgs, p_interaction_id: randomUUID(), p_client_key: randomUUID(),
+});
+await expectRpcFailure(clients[0], 'set_ride_counterparty_block', {
+  ...initialBlockArgs, p_interaction_type: 'church', p_client_key: randomUUID(),
+});
+await expectRpcFailure(clients[0], 'set_ride_counterparty_block', {
+  ...initialBlockArgs, p_blocked: null, p_client_key: randomUUID(),
+});
+assert.deepEqual(await rpc(clients[0], 'my_ride_counterparty_block', blockReference), { blocked: false });
+assert.deepEqual(await rpc(clients[0], 'set_ride_counterparty_block', initialBlockArgs), { blocked: true });
+assert.deepEqual(await Promise.all([0, 1].map(() => rpc(clients[0],
+  'set_ride_counterparty_block', initialBlockArgs))), [{ blocked: true }, { blocked: true }]);
+await expectRpcFailure(clients[0], 'set_ride_counterparty_block', {
+  ...initialBlockArgs, p_blocked: false,
+});
+assert.equal(runSql(container, `select count(*) from app.personal_block
+  where blocker_account_id = ${sqlLiteral(identities[0].id)}::uuid
+    and blocked_account_id = ${sqlLiteral(identities[3].id)}::uuid and ended_at is null;`), '1');
+// A counterparty learns only their own setting, never the first person's block.
+assert.deepEqual(await rpc(clients[3], 'my_ride_counterparty_block', blockReference), { blocked: false });
+await rpc(clients[3], 'set_ride_counterparty_block', {
+  ...blockReference, p_blocked: true, p_client_key: randomUUID(),
+});
+await rpc(clients[0], 'set_ride_counterparty_block', {
+  ...blockReference, p_blocked: false, p_client_key: randomUUID(),
+});
+assert.deepEqual(await rpc(clients[0], 'my_ride_counterparty_block', blockReference), { blocked: false });
+assert.deepEqual(await rpc(clients[3], 'my_ride_counterparty_block', blockReference), { blocked: true });
+assert.equal((await rpc(clients[0], 'list_quality_matches', { p_church_id: churchId }))
+  .some((item) => item.occurrence_id === blockedOccurrence.occurrence_id), false);
+// Replaying an older action returns its result but cannot undo a newer unblock.
+assert.deepEqual(await rpc(clients[0], 'set_ride_counterparty_block', initialBlockArgs), { blocked: true });
+assert.deepEqual(await rpc(clients[0], 'my_ride_counterparty_block', blockReference), { blocked: false });
+await rpc(clients[0], 'set_ride_counterparty_block', {
+  ...initialBlockArgs, p_client_key: randomUUID(),
+});
+await rpc(clients[3], 'set_ride_counterparty_block', {
+  ...blockReference, p_blocked: false, p_client_key: randomUUID(),
+});
+const blockExport = (await rpc(clients[0], 'export_current_account_data')).personal_blocks;
+assert.equal(blockExport.length, 2);
+assert.deepEqual(Object.keys(blockExport[0]).sort(),
+  ['block_id', 'counterparty_name', 'created_at', 'ended_at'].sort());
+assert.equal(blockExport[0].counterparty_name, identities[3].name);
+for (const protectedValue of [identities[3].id, identities[3].email, identities[3].phone]) {
+  assert.equal(JSON.stringify(blockExport).includes(protectedValue), false);
+}
+const counterpartyExport = (await rpc(clients[3], 'export_current_account_data')).personal_blocks;
+assert.equal(counterpartyExport.length, 1);
+assert.ok(counterpartyExport.every((item) => !blockExport.some((own) => own.block_id === item.block_id)));
+assert.deepEqual((await rpc(clients[2], 'export_current_account_data')).personal_blocks, []);
+runSql(container, `update app.account set status = 'restricted'
+  where id = ${sqlLiteral(identities[3].id)}::uuid;`);
+await expectRpcFailure(clients[3], 'set_ride_counterparty_block', {
+  ...initialBlockArgs, p_client_key: randomUUID(),
+});
+runSql(container, `update app.account set status = 'active'
+  where id = ${sqlLiteral(identities[3].id)}::uuid;`);
 assert.equal(
   (await rpc(clients[0], 'list_quality_matches', { p_church_id: churchId }))
     .some((item) => item.occurrence_id === blockedOccurrence.occurrence_id),
@@ -639,9 +703,9 @@ assert.equal(runSql(container, `select confirmed_seats from app.driver_offer_occ
   where public_id = ${sqlLiteral(blockedOccurrence.occurrence_id)}::uuid;`), '0');
 
 // Either the block or confirmation may win, but both must never commit together.
-runSql(container, `update app.personal_block set ended_at = clock_timestamp()
-  where blocker_account_id = ${sqlLiteral(identities[0].id)}::uuid
-    and blocked_account_id = ${sqlLiteral(identities[3].id)}::uuid and ended_at is null;`);
+await rpc(clients[0], 'set_ride_counterparty_block', {
+  ...blockReference, p_blocked: false, p_client_key: randomUUID(),
+});
 const [raceBlock, raceConfirmation] = await Promise.all([
   runConcurrentSql(container, `insert into app.personal_block (blocker_account_id, blocked_account_id)
     values (${sqlLiteral(identities[0].id)}::uuid, ${sqlLiteral(identities[3].id)}::uuid);`),
@@ -707,6 +771,10 @@ const agreement = await rpc(clients[0], 'confirm_ride_response', {
   p_response_id: response.response_id,
 });
 assert.equal(agreement.status, 'confirmed');
+const agreementBlockReference = { p_interaction_type: 'agreement', p_interaction_id: agreement.agreement_id };
+await expectRpcFailure(clients[0], 'set_ride_counterparty_block', {
+  ...agreementBlockReference, p_blocked: true, p_client_key: randomUUID(),
+});
 const futureBlockDenied = await runConcurrentSql(container, `insert into app.personal_block
   (blocker_account_id, blocked_account_id)
   values (${sqlLiteral(identities[1].id)}::uuid, ${sqlLiteral(identities[0].id)}::uuid);`);
@@ -736,6 +804,14 @@ assert.ok((await rpc(anonymous, 'list_active_driver_occurrences', { p_church_id:
 assert.ok((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId })).length >= 1);
 
 // ------------------------------------------------------------------ cleanup
+
+await rpc(clients[0], 'cancel_ride_agreement', {
+  p_client_key: randomUUID(), p_agreement_id: agreement.agreement_id,
+});
+assert.deepEqual(await rpc(clients[0], 'set_ride_counterparty_block', {
+  ...agreementBlockReference, p_blocked: true, p_client_key: randomUUID(),
+}), { blocked: true });
+assert.deepEqual(await rpc(clients[1], 'my_ride_counterparty_block', agreementBlockReference), { blocked: false });
 
 for (const identity of identities) await admin.auth.admin.deleteUser(identity.id);
 
