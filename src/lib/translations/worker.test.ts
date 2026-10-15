@@ -19,7 +19,7 @@ const jobRow = {
 function clientWith(outcome: { status: string } = { status: 'ready' }) {
   const rpc = vi.fn(async (name: string) => name === 'translation_worker_claim'
     ? { data: [jobRow], error: null }
-    : { data: outcome, error: null });
+    : { data: name === 'translation_worker_prepare' ? { status: 'reserved' } : outcome, error: null });
   const client = { schema: () => ({ rpc }) } as TranslationWorkerClient;
   return { client, rpc };
 }
@@ -41,14 +41,18 @@ describe('translation worker job boundary', () => {
 
   it('does not claim without an injected adapter and a privileged database client', async () => {
     const { client, rpc } = clientWith();
-    expect(await processTranslationJobs(10, { client })).toMatchObject({
+    expect(await processTranslationJobs(10, { client, adapter: null })).toMatchObject({
       configured: false, claimed: 0,
     });
     expect(rpc).not.toHaveBeenCalled();
     const adapter: TranslationAdapter = { translate: vi.fn() };
-    expect(await processTranslationJobs(10, { adapter, client: null })).toMatchObject({
+    expect(await processTranslationJobs(10, { adapter, client: null, monthlyCharacterLimit: 10000 })).toMatchObject({
       configured: false, claimed: 0,
     });
+    expect(await processTranslationJobs(10, { adapter, client })).toMatchObject({
+      configured: false, claimed: 0,
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('sends only one approved source to the adapter and completes the same lease', async () => {
@@ -58,10 +62,11 @@ describe('translation worker job boundary', () => {
     });
     const result = await processTranslationJobs(1, {
       adapter: { translate }, client,
+      monthlyCharacterLimit: 10000,
       leaseToken: 'c9ad043c-8184-47d9-a5d8-2a171e13fdf7',
     });
     expect(result).toEqual({ configured: true, claimed: 1, ready: 1, retry: 0,
-      error: 0, superseded: 0, failed: 0 });
+      error: 0, superseded: 0, deferred: 0, failed: 0 });
     expect(rpc).toHaveBeenNthCalledWith(1, 'translation_worker_claim', {
       p_lease_token: 'c9ad043c-8184-47d9-a5d8-2a171e13fdf7', p_limit: 1,
     });
@@ -70,7 +75,11 @@ describe('translation worker job boundary', () => {
       text: 'Orthodox Church',
       idempotencyKey: createHash('sha256').update(`${translationId}:3`).digest('hex'),
     }, expect.any(AbortSignal));
-    expect(rpc).toHaveBeenNthCalledWith(2, 'translation_worker_complete', {
+    expect(rpc).toHaveBeenNthCalledWith(2, 'translation_worker_prepare', {
+      p_translation_id: translationId,
+      p_lease_token: 'c9ad043c-8184-47d9-a5d8-2a171e13fdf7', p_monthly_character_limit: 10000,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(3, 'translation_worker_complete', {
       p_translation_id: translationId,
       p_lease_token: 'c9ad043c-8184-47d9-a5d8-2a171e13fdf7',
       p_outcome: 'success', p_translated_text: 'Православный храм',
@@ -81,10 +90,10 @@ describe('translation worker job boundary', () => {
   it('records only a safe failure class when the provider throws', async () => {
     const { client, rpc } = clientWith({ status: 'retry' });
     const translate = vi.fn().mockRejectedValue(new Error('secret provider diagnostic'));
-    expect(await processTranslationJobs(1, { adapter: { translate }, client })).toMatchObject({
+    expect(await processTranslationJobs(1, { adapter: { translate }, client, monthlyCharacterLimit: 10000 })).toMatchObject({
       claimed: 1, retry: 1, failed: 0,
     });
-    expect(rpc.mock.calls[1]).toEqual(['translation_worker_complete', expect.objectContaining({
+    expect(rpc.mock.calls[2]).toEqual(['translation_worker_complete', expect.objectContaining({
       p_outcome: 'temporary_failure', p_translation_id: translationId,
     })]);
     expect(JSON.stringify(rpc.mock.calls)).not.toContain('secret provider diagnostic');
@@ -94,7 +103,7 @@ describe('translation worker job boundary', () => {
     const rpc = vi.fn(async () => ({ data: [{ ...jobRow, claimed_field_name: 'ride_comment' }], error: null }));
     const client = { schema: () => ({ rpc }) } as TranslationWorkerClient;
     const translate = vi.fn();
-    expect(await processTranslationJobs(1, { adapter: { translate }, client })).toMatchObject({
+    expect(await processTranslationJobs(1, { adapter: { translate }, client, monthlyCharacterLimit: 10000 })).toMatchObject({
       claimed: 1, failed: 1,
     });
     expect(translate).not.toHaveBeenCalled();
@@ -104,12 +113,12 @@ describe('translation worker job boundary', () => {
   it('claims the next job only after completing the current lease', async () => {
     const { client, rpc } = clientWith();
     const translate = vi.fn().mockResolvedValue({ text: 'Translated', providerName: 'synthetic' });
-    expect(await processTranslationJobs(2, { adapter: { translate }, client })).toMatchObject({
+    expect(await processTranslationJobs(2, { adapter: { translate }, client, monthlyCharacterLimit: 10000 })).toMatchObject({
       claimed: 2, ready: 2,
     });
     expect(rpc.mock.calls.map(([name]) => name)).toEqual([
-      'translation_worker_claim', 'translation_worker_complete',
-      'translation_worker_claim', 'translation_worker_complete',
+      'translation_worker_claim', 'translation_worker_prepare', 'translation_worker_complete',
+      'translation_worker_claim', 'translation_worker_prepare', 'translation_worker_complete',
     ]);
   });
 
@@ -124,15 +133,29 @@ describe('translation worker job boundary', () => {
       });
       const pending = processTranslationJobs(1, {
         adapter: { translate }, client, timeoutMs: 100,
+        monthlyCharacterLimit: 10000,
       });
       await vi.advanceTimersByTimeAsync(100);
       expect(await pending).toMatchObject({ claimed: 1, retry: 1, failed: 0 });
       expect(signal?.aborted).toBe(true);
-      expect(rpc.mock.calls[1]).toEqual(['translation_worker_complete', expect.objectContaining({
+      expect(rpc.mock.calls[2]).toEqual(['translation_worker_complete', expect.objectContaining({
         p_outcome: 'temporary_failure',
       })]);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('does not call the provider or claim more work after the shared budget is exhausted', async () => {
+    const rpc = vi.fn(async (name: string) => ({
+      data: name === 'translation_worker_claim' ? [jobRow] : { status: 'deferred' }, error: null,
+    }));
+    const client = { schema: () => ({ rpc }) } as TranslationWorkerClient;
+    const translate = vi.fn();
+    expect(await processTranslationJobs(10, {
+      adapter: { translate }, client, monthlyCharacterLimit: 10000,
+    })).toMatchObject({ claimed: 1, deferred: 1, ready: 0 });
+    expect(translate).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(2);
   });
 });

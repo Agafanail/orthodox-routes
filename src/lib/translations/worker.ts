@@ -1,14 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createPrivilegedSupabaseClient } from '@/lib/supabase/server-privileged';
+import { getGoogleTranslationConfig } from './config';
+import { createGoogleTranslationAdapter } from './google';
+import { TRANSLATION_LANGUAGES, validSourceText } from './contract';
+import type { TranslationAdapter, TranslationGlossary } from './contract';
+export type { TranslationAdapter, TranslationRequest } from './contract';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const LANGUAGES = new Set(['en', 'ru', 'it', 'ro', 'uk', 'de']);
-const FIELD_LIMITS: Record<string, number> = {
-  official_name: 200,
-  source_name: 160,
-  description_source: 4000,
-  source_description: 4000,
-};
 
 type RpcResult = { data: unknown; error: unknown };
 export type TranslationWorkerClient = {
@@ -28,37 +26,13 @@ export type TranslationJob = {
   attemptCount: number;
 };
 
-export type TranslationRequest = {
-  text: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  fieldName: string;
-  idempotencyKey: string;
-};
-
-export type TranslationAdapter = {
-  translate(request: TranslationRequest, signal: AbortSignal): Promise<{
-    text: string;
-    providerName: string;
-    model?: string;
-    glossaryVersion?: number;
-  }>;
-};
-
 type Dependencies = {
   adapter?: TranslationAdapter | null;
   client?: TranslationWorkerClient | null;
   leaseToken?: string;
   timeoutMs?: number;
+  monthlyCharacterLimit?: number;
 };
-
-function validSourceText(fieldName: string, value: string) {
-  const length = Array.from(value).length;
-  if (length < 1 || length > FIELD_LIMITS[fieldName]) return false;
-  return fieldName === 'official_name' || fieldName === 'source_name'
-    ? !/[\u0000-\u001f\u007f]/.test(value)
-    : !/[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f]/.test(value);
-}
 
 export function parseTranslationJob(value: unknown): TranslationJob | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -68,12 +42,11 @@ export function parseTranslationJob(value: unknown): TranslationJob | null {
     || typeof item.claimed_source_version !== 'number'
     || !Number.isInteger(item.claimed_source_version) || item.claimed_source_version < 1
     || typeof item.claimed_source_language !== 'string'
-    || !LANGUAGES.has(item.claimed_source_language)
+    || !TRANSLATION_LANGUAGES.has(item.claimed_source_language)
     || typeof item.claimed_target_language !== 'string'
-    || !LANGUAGES.has(item.claimed_target_language)
+    || !TRANSLATION_LANGUAGES.has(item.claimed_target_language)
     || item.claimed_source_language === item.claimed_target_language
     || typeof item.claimed_field_name !== 'string'
-    || !Object.hasOwn(FIELD_LIMITS, item.claimed_field_name)
     || typeof item.claimed_original_text !== 'string'
     || !validSourceText(item.claimed_field_name, item.claimed_original_text)
     || typeof item.claimed_attempt_count !== 'number'
@@ -91,16 +64,22 @@ export function parseTranslationJob(value: unknown): TranslationJob | null {
   };
 }
 
-export async function processTranslationJobs(limit = 10, dependencies: Dependencies = {}) {
+export async function processTranslationJobs(limit?: number, dependencies: Dependencies = {}) {
   const empty = { configured: false, claimed: 0, ready: 0, retry: 0, error: 0,
-    superseded: 0, failed: 0 };
-  const adapter = dependencies.adapter ?? null;
-  if (!adapter) return empty;
+    superseded: 0, deferred: 0, failed: 0 };
+  const config = dependencies.adapter === undefined ? getGoogleTranslationConfig() : null;
+  const adapter = dependencies.adapter === undefined
+    ? config ? createGoogleTranslationAdapter(config) : null
+    : dependencies.adapter;
+  const monthlyCharacterLimit = dependencies.monthlyCharacterLimit ?? config?.monthlyCharacterLimit;
+  if (!adapter || typeof monthlyCharacterLimit !== 'number' || !Number.isInteger(monthlyCharacterLimit)
+    || monthlyCharacterLimit < 1 || monthlyCharacterLimit > 100_000_000) return empty;
   const client = dependencies.client === undefined
     ? createPrivilegedSupabaseClient() as TranslationWorkerClient | null
     : dependencies.client;
   if (!client) return empty;
-  const batchLimit = Number.isInteger(limit) ? Math.max(1, Math.min(limit, 50)) : 10;
+  const requestedLimit = limit ?? config?.batchLimit ?? 10;
+  const batchLimit = Number.isInteger(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 50)) : 10;
   const timeoutMs = Math.max(1, Math.min(dependencies.timeoutMs ?? 20_000, 20_000));
   const api = client.schema('api');
   const outcome = { ...empty, configured: true };
@@ -126,6 +105,36 @@ export async function processTranslationJobs(limit = 10, dependencies: Dependenc
       outcome.failed += 1;
       continue;
     }
+    let glossary: TranslationGlossary | undefined;
+    try {
+      const preparation = await api.rpc('translation_worker_prepare', {
+        p_translation_id: job.translationId, p_lease_token: leaseToken,
+        p_monthly_character_limit: monthlyCharacterLimit,
+      });
+      if (preparation.error || !preparation.data || typeof preparation.data !== 'object'
+        || Array.isArray(preparation.data)) throw new Error('Translation preparation failed.');
+      const prepared = preparation.data as Record<string, unknown>;
+      if (prepared.status === 'deferred') {
+        outcome.deferred += 1;
+        break;
+      }
+      if (prepared.status === 'superseded') {
+        outcome.superseded += 1;
+        continue;
+      }
+      if (prepared.status !== 'reserved') throw new Error('Translation preparation failed.');
+      if (prepared.glossary !== null && prepared.glossary !== undefined) {
+        const value = prepared.glossary as Record<string, unknown>;
+        if (typeof value.resource !== 'string' || typeof value.version !== 'number'
+          || !Number.isInteger(value.version) || value.version < 1) {
+          throw new Error('Translation glossary is unavailable.');
+        }
+        glossary = { resource: value.resource, version: value.version };
+      }
+    } catch {
+      outcome.failed += 1;
+      break;
+    }
     let completionArgs: Record<string, unknown> = {
       p_translation_id: job.translationId,
       p_lease_token: leaseToken,
@@ -147,6 +156,7 @@ export async function processTranslationJobs(limit = 10, dependencies: Dependenc
         fieldName: job.fieldName,
         idempotencyKey: createHash('sha256')
           .update(`${job.translationId}:${job.sourceVersion}`).digest('hex'),
+        ...(glossary ? { glossary } : {}),
       }, controller.signal), timedOut]);
       completionArgs = {
         ...completionArgs,

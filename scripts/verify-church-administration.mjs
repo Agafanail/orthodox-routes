@@ -96,6 +96,7 @@ const { publicKey, serviceRoleKey, url } = readLocalConfig();
 const container = findDatabaseContainer();
 const suffix = `${Date.now()}-${process.pid}`;
 const compactSuffix = suffix.replaceAll('-', '');
+const translationGlossaryReference = `projects/synthetic-project/locations/us-central1/glossaries/test-${compactSuffix}`;
 const password = `Church-${suffix}-Aa1!`;
 const identities = Array.from({ length: 5 }, (_, index) => ({
   email: `church-admin-${index + 1}-${suffix}@example.test`,
@@ -410,6 +411,34 @@ try {
   assert.equal(claimedTranslation[0].claimed_field_name, 'description_source');
   assert.equal(claimedTranslation[0].claimed_original_text, editArgs.p_description_source);
   assert.equal(claimedTranslation[0].claimed_attempt_count, 1);
+  runSql(container, `insert into app.translation_glossary_version (
+    source_language, target_language, checksum, provider_reference
+  ) values ('en', 'ru', ${sqlLiteral('a'.repeat(64))}, ${sqlLiteral(translationGlossaryReference)});`);
+  const glossaryVersion = Number(runSql(container, `select id from app.translation_glossary_version
+    where provider_reference = ${sqlLiteral(translationGlossaryReference)};`));
+  const prepareArgs = {
+    p_translation_id: churchDescriptionTranslationId, p_lease_token: firstTranslationLease,
+    p_monthly_character_limit: 1000000,
+  };
+  await rpcFailure(anonymousClient, 'translation_worker_prepare', prepareArgs);
+  await rpcFailure(clients[0], 'translation_worker_prepare', prepareArgs);
+  await rpcFailure(admin, 'translation_worker_prepare', {
+    ...prepareArgs, p_monthly_character_limit: 0,
+  });
+  const usageBefore = Number(runSql(container, `select coalesce((select reserved_characters
+    from ops.translation_monthly_usage
+    where month_start = date_trunc('month', now() at time zone 'UTC')::date), 0);`));
+  const prepared = await rpc(admin, 'translation_worker_prepare', prepareArgs);
+  assert.deepEqual(prepared, { status: 'reserved', glossary: {
+    resource: translationGlossaryReference, version: glossaryVersion,
+  } });
+  assert.deepEqual(await rpc(admin, 'translation_worker_prepare', prepareArgs), prepared);
+  const sourceCharacters = Array.from(editArgs.p_description_source).length;
+  assert.equal(Number(runSql(container, `select reserved_characters from ops.translation_monthly_usage
+    where month_start = date_trunc('month', now() at time zone 'UTC')::date;`)),
+  usageBefore + sourceCharacters);
+  assert.match(runSql(container, `set role service_role;
+    select * from ops.translation_monthly_usage;`, { expectFailure: true }), /permission denied/);
   assert.deepEqual(await rpc(admin, 'translation_worker_claim', {
     ...workerClaimArgs, p_lease_token: randomUUID(),
   }), []);
@@ -428,6 +457,9 @@ try {
     ...workerClaimArgs, p_lease_token: secondTranslationLease,
   });
   assert.equal(retriedTranslation[0].claimed_attempt_count, 2);
+  assert.equal((await rpc(admin, 'translation_worker_prepare', {
+    ...prepareArgs, p_lease_token: secondTranslationLease,
+  })).status, 'reserved');
   const completedTranslation = await rpc(admin, 'translation_worker_complete', {
     p_translation_id: churchDescriptionTranslationId, p_lease_token: secondTranslationLease,
     p_outcome: 'success', p_translated_text: 'Synthetic translated description',
@@ -437,6 +469,32 @@ try {
   assert.equal((await rpc(anonymousClient, 'published_church_translated_content', {
     p_slug: firstArgs.p_slug, p_language: 'ru',
   })).description, 'Synthetic translated description');
+  const budgetJobs = ['it', 'uk'].map((language) => ({
+    translationId: translationIdFor(container, 'church', created.church_id, 'description_source', language),
+    leaseToken: randomUUID(),
+  }));
+  for (const job of budgetJobs) {
+    assert.equal((await rpc(admin, 'translation_worker_claim', {
+      p_translation_id: job.translationId, p_lease_token: job.leaseToken, p_limit: 1,
+    })).length, 1);
+  }
+  const concurrentBudget = usageBefore + sourceCharacters * 3;
+  const budgetResults = await Promise.all(budgetJobs.map((job) => rpc(admin, 'translation_worker_prepare', {
+    p_translation_id: job.translationId, p_lease_token: job.leaseToken,
+    p_monthly_character_limit: concurrentBudget,
+  })));
+  assert.deepEqual(budgetResults.map((item) => item.status).sort(), ['deferred', 'reserved']);
+  assert.equal(Number(runSql(container, `select reserved_characters from ops.translation_monthly_usage
+    where month_start = date_trunc('month', now() at time zone 'UTC')::date;`)), concurrentBudget);
+  const deferredJob = budgetJobs[budgetResults.findIndex((item) => item.status === 'deferred')];
+  assert.equal(runSql(container, `select (status = 'pending' and attempt_count = 0
+    and lease_token is null and lease_deadline is null)::text from app.content_translation
+    where id = ${sqlLiteral(deferredJob.translationId)}::uuid;`), 'true');
+  const reservedJob = budgetJobs[budgetResults.findIndex((item) => item.status === 'reserved')];
+  await rpc(admin, 'translation_worker_complete', {
+    p_translation_id: reservedJob.translationId, p_lease_token: reservedJob.leaseToken,
+    p_outcome: 'permanent_failure',
+  });
   const serviceDescriptionTranslationId = translationIdFor(
     container, 'service_occurrence', service.service_id, 'source_description', 'ru',
   );
@@ -1588,6 +1646,8 @@ try {
             select id from app.church where created_by in (${accountList})
           )
         ));
+        delete from app.translation_glossary_version
+        where provider_reference = ${sqlLiteral(translationGlossaryReference)};
         delete from app.service_occurrence where church_id in (
           select id from app.church where created_by in (${accountList})
         );
