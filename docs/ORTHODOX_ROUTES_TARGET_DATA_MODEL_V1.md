@@ -122,6 +122,7 @@ Loss of both verified contacts is not a recovery type. The old identity is never
 | `slug` | Unique current slug; history table preserves redirects | Public |
 | `official_name`, `source_language` | Required | Public |
 | `description_source` | Optional; versioned through content source | Public |
+| `public_contact_details` | Optional administrator-supplied plain text; never inherited from account contacts or machine-translated | Public only for a published church |
 | `address_display`, `locality`, `country_code` | Required after confirmation | Public |
 | `place_id` | Optional; retain only where current provider terms permit | System-only |
 | `location` | `geography(Point, 4326)`; required | Public church geography |

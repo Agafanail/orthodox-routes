@@ -115,6 +115,8 @@ The private `app.personal_block` relation suppresses matching and rejects direct
 
 ## Local database foundation
 
+Optional public church contacts use `api.update_church_public_contacts` and the shared `content_version`. The bounded plain-text field is entered deliberately by a current administrator, never populated from private account contacts, never fetched as an external URL, and never sent to translation. Blank input removes it; the public projection omits empty details and returns no hidden/archived page. The current production UI does not yet render or edit this field.
+
 Church creation/administration and translation correction require confirmed-user eligibility and the existing membership checks, independently of optional ride-notification preferences. A person with no ride commitments may keep both ordinary external channels off without losing church-administration access. Publishing/responding/confirming transport still requires an effective external channel; administrative actions never silently enable a preference. The church integration runs its eligible administrator with both channels off and verifies that transport remains refused.
 
 Docker Desktop or another compatible Docker engine is required only for backend/database work. Ordinary frontend installation, development, tests, lint, and production builds do not require Docker, Supabase environment variables, or a running database.
