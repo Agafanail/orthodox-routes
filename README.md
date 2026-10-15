@@ -180,6 +180,12 @@ The configured Core church board requires a matching published `app.church` row.
 
 The `/auth` route displays a safe unavailable state when the public local Auth variables are absent. Ordinary public routes, tests, lint, and production builds do not require the Auth stack, `.env.local`, production secrets, or a remote Supabase project.
 
+## Localized catalog backend
+
+`api.search_published_churches` searches original names and current ready translations in all supported languages, plus locality/country code. Its optional `p_language` defaults to English and adds a localized `display_name` and automatic-translation flag without replacing `official_name` or the existing geographic fields. Explicit proximity still takes precedence; otherwise localized names determine alphabetical order. Pending, failed, stale, and hidden-church text never enters search results. No provider call occurs during a read.
+
+`test:geography` covers cross-language discovery, localized order, original fallback, manual/machine flags, proximity, viewport/limit preservation, anonymous/authenticated parity, and stale/hidden exclusions. The current Russian prototype UI still displays official names; production language selection and localized cards remain separate UI work.
+
 ## GitHub Actions CI
 
 GitHub Actions runs on pushes to `main` and pull requests targeting `main`. The frontend job preserves the clean-install tests, lint, and production build. A separate database-foundation job starts the local Core API stack and proves both a clean replay of every committed migration and a representative upgrade from the last pre-cutover migration with existing transport data. A separate local-auth job starts the same committed local Auth/Data API configuration and runs the focused Auth, account/eligibility, phone-verification, contextual-draft, transport, agreement, My Trips, concurrency, and disclosure boundary tests. The isolated Core browser E2E job installs Chromium, rebuilds the same disposable local stack, and runs the multi-session privacy and agreement regression through the configured Next.js application. All local-stack jobs always stop their isolated services; none requires a Supabase account, access token, remote project, SMTP/SMS credentials, or repository secrets.

@@ -407,6 +407,8 @@ Unique `(content_source_id, source_version, target_language)`. Fields: translate
 
 Stores controlled Orthodox terminology glossary version, languages, checksum, effective time, and provider reference if uploaded. Ride-private content is never linked to translation jobs.
 
+The unified public catalog searches original church names and all current ready name translations. Its optional supported language selects a separate display name and automatic-translation flag; official names stay unchanged. Without explicit proximity, results sort by that localized display name with a stable public-ID tie-breaker. Stale, pending, failed, and non-published content are excluded, and reads never invoke a translation provider. The original eight catalog arguments remain in order with a ninth default-English language argument.
+
 The first executable translation migration allowlists church name/description and concrete-service name/description as versioned sources. Source edits mark old translation rows stale and enqueue pending rows for the other five languages. Anonymous localized projections are published-only, expose the original alongside ready text, and fall back to the original while translation is pending. Direct table access remains protected; delivery follows separately.
 
 A protected correction operation resolves only those allowlisted source fields for a current equal church administrator. It checks both the original source version and the current translation content version before replacing a machine/pending row with a manual correction. The update and administrative event share a transaction, and a corrected row is not eligible for later machine overwrite. Provider delivery remains a separate slice.
