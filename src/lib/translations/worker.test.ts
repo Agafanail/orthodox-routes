@@ -19,7 +19,9 @@ const jobRow = {
 function clientWith(outcome: { status: string } = { status: 'ready' }) {
   const rpc = vi.fn(async (name: string) => name === 'translation_worker_claim'
     ? { data: [jobRow], error: null }
-    : { data: name === 'translation_worker_prepare' ? { status: 'reserved' } : outcome, error: null });
+    : { data: name === 'translation_worker_prepare' ? {
+      status: 'reserved', dispatch_deadline: new Date(Date.now() + 60_000).toISOString(),
+    } : outcome, error: null });
   const client = { schema: () => ({ rpc }) } as TranslationWorkerClient;
   return { client, rpc };
 }
@@ -157,5 +159,19 @@ describe('translation worker job boundary', () => {
     })).toMatchObject({ claimed: 1, deferred: 1, ready: 0 });
     expect(translate).not.toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not dispatch when the prepared lease deadline has already passed', async () => {
+    const rpc = vi.fn(async (name: string) => ({
+      data: name === 'translation_worker_claim' ? [jobRow] : {
+        status: 'reserved', dispatch_deadline: new Date(Date.now() - 1000).toISOString(),
+      }, error: null,
+    }));
+    const client = { schema: () => ({ rpc }) } as TranslationWorkerClient;
+    const translate = vi.fn();
+    expect(await processTranslationJobs(1, {
+      adapter: { translate }, client, monthlyCharacterLimit: 10000,
+    })).toMatchObject({ claimed: 1, superseded: 1, ready: 0 });
+    expect(translate).not.toHaveBeenCalled();
   });
 });

@@ -106,6 +106,7 @@ export async function processTranslationJobs(limit?: number, dependencies: Depen
       continue;
     }
     let glossary: TranslationGlossary | undefined;
+    let dispatchDeadline: number;
     try {
       const preparation = await api.rpc('translation_worker_prepare', {
         p_translation_id: job.translationId, p_lease_token: leaseToken,
@@ -123,6 +124,13 @@ export async function processTranslationJobs(limit?: number, dependencies: Depen
         continue;
       }
       if (prepared.status !== 'reserved') throw new Error('Translation preparation failed.');
+      dispatchDeadline = typeof prepared.dispatch_deadline === 'string'
+        ? Date.parse(prepared.dispatch_deadline) : NaN;
+      if (!Number.isFinite(dispatchDeadline)) throw new Error('Translation deadline is unavailable.');
+      if (dispatchDeadline <= Date.now() + 1000) {
+        outcome.superseded += 1;
+        continue;
+      }
       if (prepared.glossary !== null && prepared.glossary !== undefined) {
         const value = prepared.glossary as Record<string, unknown>;
         if (typeof value.resource !== 'string' || typeof value.version !== 'number'
@@ -147,7 +155,7 @@ export async function processTranslationJobs(limit?: number, dependencies: Depen
         deadline = setTimeout(() => {
           controller.abort();
           reject(new Error('Translation deadline exceeded.'));
-        }, timeoutMs);
+        }, Math.max(1, Math.min(timeoutMs, dispatchDeadline - Date.now() - 1000)));
       });
       const result = await Promise.race([adapter.translate({
         text: job.originalText,

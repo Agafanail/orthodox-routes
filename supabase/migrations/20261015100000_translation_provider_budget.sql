@@ -43,7 +43,7 @@ begin
   if translation_row.id is null or translation_row.status <> 'processing'
     or translation_row.translation_source <> 'machine'
     or translation_row.lease_token is distinct from p_lease_token
-    or translation_row.lease_deadline <= now() then
+    or translation_row.lease_deadline <= clock_timestamp() then
     return jsonb_build_object('status', 'superseded');
   end if;
   select * into source_row from app.content_source as source
@@ -71,6 +71,9 @@ begin
     on conflict do nothing;
     select usage.reserved_characters into current_usage
     from ops.translation_monthly_usage as usage where usage.month_start = usage_month for update;
+    if translation_row.lease_deadline <= clock_timestamp() then
+      return jsonb_build_object('status', 'superseded');
+    end if;
     if current_usage + source_characters > p_monthly_character_limit then
       update app.content_translation set status = 'pending',
         attempt_count = attempt_count - 1, next_attempt_at = now() + interval '5 minutes',
@@ -95,6 +98,7 @@ begin
   end if;
   return jsonb_build_object(
     'status', 'reserved',
+    'dispatch_deadline', translation_row.lease_deadline,
     'glossary', case when glossary_row.id is null then null else jsonb_build_object(
       'resource', glossary_row.provider_reference, 'version', glossary_row.id
     ) end

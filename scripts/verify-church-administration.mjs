@@ -429,7 +429,8 @@ try {
     from ops.translation_monthly_usage
     where month_start = date_trunc('month', now() at time zone 'UTC')::date), 0);`));
   const prepared = await rpc(admin, 'translation_worker_prepare', prepareArgs);
-  assert.deepEqual(prepared, { status: 'reserved', glossary: {
+  assert.ok(Date.parse(prepared.dispatch_deadline) > Date.now());
+  assert.deepEqual(prepared, { status: 'reserved', dispatch_deadline: prepared.dispatch_deadline, glossary: {
     resource: translationGlossaryReference, version: glossaryVersion,
   } });
   assert.deepEqual(await rpc(admin, 'translation_worker_prepare', prepareArgs), prepared);
