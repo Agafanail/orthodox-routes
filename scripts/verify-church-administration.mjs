@@ -1739,15 +1739,26 @@ try {
   const churchAuditMigration = readFileSync(new URL(
     '../supabase/migrations/20261015180000_church_administration_audit.sql', import.meta.url,
   ), 'utf8');
+  const expiredInviteAuditKey = runSql(container, `select 'church-invite-expired:' || id::text
+    from app.church_admin_invite where public_id = ${sqlLiteral(lazyExpiryInvite.invite_id)}::uuid;`);
+  const originalExpiryTime = runSql(container, `select decided_at from app.church_admin_invite
+    where public_id = ${sqlLiteral(lazyExpiryInvite.invite_id)}::uuid;`);
+  runSql(container, `delete from ops.audit_event where event_key = ${sqlLiteral(expiredInviteAuditKey)};`);
   runSql(container, churchAuditMigration);
   const historicalAudit = JSON.parse(runSql(container, `select to_jsonb(audit) from ops.audit_event as audit
     where event_key = 'church-admin-event:' || ${sqlLiteral(historicalAuditId)};`));
   assert.equal(new Date(historicalAudit.occurred_at).toISOString(), new Date(historicalTime).toISOString());
   assert.equal(historicalAudit.transaction_id, null);
   assert.equal(historicalAudit.actor_kind, 'system');
+  const backfilledExpiry = JSON.parse(runSql(container, `select to_jsonb(audit) from ops.audit_event as audit
+    where event_key = ${sqlLiteral(expiredInviteAuditKey)};`));
+  assert.equal(new Date(backfilledExpiry.occurred_at).toISOString(), new Date(originalExpiryTime).toISOString());
+  assert.equal(backfilledExpiry.transaction_id, null);
   runSql(container, churchAuditMigration);
   assert.deepEqual(JSON.parse(runSql(container, `select to_jsonb(audit) from ops.audit_event as audit
     where event_key = 'church-admin-event:' || ${sqlLiteral(historicalAuditId)};`)), historicalAudit);
+  assert.deepEqual(JSON.parse(runSql(container, `select to_jsonb(audit) from ops.audit_event as audit
+    where event_key = ${sqlLiteral(expiredInviteAuditKey)};`)), backfilledExpiry);
 
   assert.equal((await rpc(clients[0], 'current_notification_preferences')).ride_email_enabled, false);
   assert.equal((await rpc(clients[0], 'current_notification_preferences')).web_push_enabled, false);
