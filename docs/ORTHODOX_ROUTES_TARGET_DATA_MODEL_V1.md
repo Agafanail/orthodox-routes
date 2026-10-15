@@ -450,6 +450,8 @@ Append-oriented fields:
 
 It excludes full email, phone, exact address/coordinate, private comment, OTP, token, secret, and full before/after payloads. Critical business rows and their audit event are inserted in the same transaction where practical.
 
+The first executable audit slice captures successful agreement lifecycle events and private block creation/end/reactivation through protected triggers in the source transaction. It uses fixed action/target and field-name allowlists, opaque IDs, an account/system actor classification, a source deduplication key, transaction correlation, and schema version. Historical source facts retain their original timestamp with an unknown/null transaction ID. All ordinary application roles, including the service role, have no table grants, and forced RLS is enabled. Updates cannot rewrite an event; account-reference clearing remains possible for deletion. The relation deliberately has no free-form metadata payload. Operator/case fields, remaining domain hooks, and legally approved retention/deletion are later slices, not enabled production operations.
+
 ### 13.4 `ops.owner_operation`
 
 Stores prepare/execute lifecycle, operation type, safe target preview, target fingerprint, support reference, reason, short-lived token hash, expiry, prepared/executed actor, result, and audit event. No free-form SQL is stored or accepted.

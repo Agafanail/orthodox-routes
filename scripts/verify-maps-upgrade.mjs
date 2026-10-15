@@ -118,6 +118,13 @@ const upgraded = passengerAgreements.find((agreement) => agreement.agreement_id 
 assert.ok(upgraded, 'A confirmed agreement must survive the geographic migration.');
 assert.equal(upgraded.status, 'confirmed');
 
+// Historical audit preserves source time without inventing the original transaction ID.
+assert.equal(runSql(container, `select count(*) from ops.audit_event as audit
+  join app.agreement_event as event on audit.event_key = 'agreement-event:' || event.id::text
+  where audit.target_id = ${sqlLiteral(state.agreementId)}::uuid
+    and audit.action_type = 'agreement.confirmed' and audit.occurred_at = event.created_at
+    and audit.transaction_id is null;`), '1');
+
 const disclosure = await rpc(clients[0], 'get_agreement_exact_place', { p_agreement_id: state.agreementId });
 assert.equal(disclosure.exact_meeting_label, 'Legacy exact meeting place');
 // The driver departure place is backfilled from the occurrence the agreement was confirmed on.
