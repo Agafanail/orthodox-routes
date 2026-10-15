@@ -115,6 +115,8 @@ The private `app.personal_block` relation suppresses matching and rejects direct
 
 ## Local database foundation
 
+Church creation/administration and translation correction require confirmed-user eligibility and the existing membership checks, independently of optional ride-notification preferences. A person with no ride commitments may keep both ordinary external channels off without losing church-administration access. Publishing/responding/confirming transport still requires an effective external channel; administrative actions never silently enable a preference. The church integration runs its eligible administrator with both channels off and verifies that transport remains refused.
+
 Docker Desktop or another compatible Docker engine is required only for backend/database work. Ordinary frontend installation, development, tests, lint, and production builds do not require Docker, Supabase environment variables, or a running database.
 
 The local database workflow uses the project-pinned Supabase CLI:

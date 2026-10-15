@@ -135,6 +135,8 @@ A deduplication constraint cannot rely on address text alone. Use a normalized a
 
 The internal `needs_administrator` condition belongs to a restricted operational case, not this public status field. Public responses translate any affected page state into approved plain-language availability and next steps.
 
+Church creation/administration uses the confirmed-user eligibility guard without requiring an optional external ride channel. Existing church membership, versions, and idempotency remain authoritative. The transport guard composes the same eligibility check with effective-channel enforcement for new ride actions; church operations never silently enable notification preferences.
+
 ### 5.2 `app.church_slug_history`
 
 Unique `(church_id, slug)` plus global unique active slug. Supports safe redirects without exposing archived content.
