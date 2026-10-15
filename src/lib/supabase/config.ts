@@ -186,7 +186,9 @@ export function getNotificationWorkerSecret() {
 
 export function getTranslationWorkerSecret() {
   const secret = process.env.TRANSLATION_WORKER_SECRET?.trim();
-  return secret && secret.length >= 32 && secret.length <= 256 && !/[\u0000-\u001f\u007f]/.test(secret)
+  const notificationSecret = process.env.NOTIFICATION_WORKER_SECRET?.trim();
+  return secret && secret !== notificationSecret
+    && secret.length >= 32 && secret.length <= 256 && !/[\u0000-\u001f\u007f]/.test(secret)
     ? secret
     : null;
 }

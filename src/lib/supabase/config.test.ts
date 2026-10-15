@@ -194,6 +194,12 @@ describe('translation worker configuration', () => {
     process.env.TRANSLATION_WORKER_SECRET = `${'x'.repeat(32)}\nunsafe`;
     expect(getTranslationWorkerSecret()).toBeNull();
   });
+
+  it('rejects reuse of the normalized notification worker secret', () => {
+    process.env.NOTIFICATION_WORKER_SECRET = 'shared-worker-secret-'.repeat(2);
+    process.env.TRANSLATION_WORKER_SECRET = ` ${process.env.NOTIFICATION_WORKER_SECRET} `;
+    expect(getTranslationWorkerSecret()).toBeNull();
+  });
 });
 
 describe('Bird SMS configuration', () => {
