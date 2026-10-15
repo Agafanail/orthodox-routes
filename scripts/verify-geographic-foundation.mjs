@@ -277,6 +277,93 @@ const bounded = await rpc(anonymous, 'search_published_churches', {
 assert.equal(bounded.length, 1);
 assert.equal(bounded[0].church_id, nearChurchId);
 
+// Current stored translations are searchable in every supported language, independently of
+// the display language. No provider request occurs during a catalog read.
+const localizedTerm = `Localized${suffix.replaceAll('-', '')}`;
+const alternateTerm = `Alternate${suffix.replaceAll('-', '')}`;
+runSql(container, `update app.content_translation as translation
+  set status = 'ready', translated_text = case when church.public_id = ${sqlLiteral(nearChurchId)}::uuid
+      then ${sqlLiteral(`A ${localizedTerm}`)} else ${sqlLiteral(`Z ${localizedTerm}`)} end,
+    translation_source = case when church.public_id = ${sqlLiteral(nearChurchId)}::uuid
+      then 'manual' else 'machine' end
+  from app.content_source as source join app.church as church on church.id = source.object_id
+  where translation.content_source_id = source.id and source.object_type = 'church'
+    and source.field_name = 'official_name' and translation.source_version = source.source_version
+    and translation.target_language = 'ru'
+    and church.public_id in (${sqlLiteral(nearChurchId)}::uuid, ${sqlLiteral(farChurchId)}::uuid);
+  update app.content_translation as translation
+  set status = 'ready', translated_text = ${sqlLiteral(alternateTerm)}
+  from app.content_source as source join app.church as church on church.id = source.object_id
+  where translation.content_source_id = source.id and source.object_type = 'church'
+    and source.field_name = 'official_name' and translation.source_version = source.source_version
+    and translation.target_language = 'it' and church.public_id = ${sqlLiteral(nearChurchId)}::uuid;`);
+const localizedCatalog = await rpc(anonymous, 'search_published_churches', {
+  p_query: localizedTerm, p_language: 'ru',
+});
+assert.deepEqual(localizedCatalog.map((church) => church.church_id), [nearChurchId, farChurchId]);
+assert.equal(localizedCatalog[0].display_name, `A ${localizedTerm}`);
+assert.equal(localizedCatalog[0].official_name, `Near Church ${searchTerm}`);
+assert.equal(localizedCatalog[0].name_automatically_translated, false);
+assert.equal(localizedCatalog[1].name_automatically_translated, true);
+assert.deepEqual(Object.keys(localizedCatalog[0]).sort(), [
+  'church_id', 'slug', 'official_name', 'display_name', 'name_automatically_translated',
+  'address', 'locality', 'country_code', 'timezone', 'lat', 'lng', 'distance_m',
+].sort());
+assert.deepEqual(await rpc(clients[0], 'search_published_churches', {
+  p_query: localizedTerm, p_language: 'ru',
+}), localizedCatalog);
+assert.equal((await rpc(anonymous, 'search_published_churches', {
+  p_query: alternateTerm, p_language: 'ru',
+}))[0].display_name, `A ${localizedTerm}`);
+const originalFallback = await rpc(anonymous, 'search_published_churches', { p_query: localizedTerm });
+assert.equal(originalFallback[0].church_id, farChurchId);
+assert.equal(originalFallback[0].display_name, originalFallback[0].official_name);
+assert.equal(originalFallback[0].name_automatically_translated, false);
+assert.equal((await rpc(anonymous, 'search_published_churches', {
+  p_query: searchTerm, p_language: 'ru', p_limit: 1,
+})).length, 1);
+assert.equal((await rpc(anonymous, 'search_published_churches', {
+  p_query: localizedTerm, p_language: 'ru', p_lat: 38.12, p_lng: 13.36,
+}))[0].church_id, farChurchId);
+assert.equal((await rpc(anonymous, 'search_published_churches', {
+  p_query: localizedTerm, p_language: 'ru',
+  p_east: 8.0, p_north: 45.5, p_south: 44.5, p_west: 7.0,
+}))[0].church_id, nearChurchId);
+await expectRpcFailure(anonymous, 'search_published_churches', { p_language: 'fr' });
+await expectRpcFailure(anonymous, 'search_published_churches', { p_language: null });
+for (const unavailableStatus of ['pending', 'error']) {
+  runSql(container, `update app.content_translation as translation
+    set status = ${sqlLiteral(unavailableStatus)}
+    from app.content_source as source join app.church as church on church.id = source.object_id
+    where translation.content_source_id = source.id and source.object_type = 'church'
+      and source.field_name = 'official_name' and translation.source_version = source.source_version
+      and translation.target_language = 'it' and church.public_id = ${sqlLiteral(nearChurchId)}::uuid;`);
+  assert.deepEqual(await rpc(anonymous, 'search_published_churches', { p_query: alternateTerm }), []);
+}
+runSql(container, `update app.content_translation as translation set status = 'ready'
+  from app.content_source as source join app.church as church on church.id = source.object_id
+  where translation.content_source_id = source.id and source.object_type = 'church'
+    and source.field_name = 'official_name' and translation.source_version = source.source_version
+    and translation.target_language = 'it' and church.public_id = ${sqlLiteral(nearChurchId)}::uuid;`);
+runSql(container, `update app.church set status = 'hidden'
+  where public_id = ${sqlLiteral(farChurchId)}::uuid;`);
+assert.deepEqual((await rpc(anonymous, 'search_published_churches', {
+  p_query: localizedTerm, p_language: 'ru',
+})).map((church) => church.church_id), [nearChurchId]);
+runSql(container, `update app.church set status = 'published'
+  where public_id = ${sqlLiteral(farChurchId)}::uuid;
+  update app.church set official_name = official_name || ' Revised'
+  where public_id = ${sqlLiteral(nearChurchId)}::uuid;`);
+assert.deepEqual(await rpc(anonymous, 'search_published_churches', {
+  p_query: alternateTerm, p_language: 'ru',
+}), []);
+const revisedCatalog = await rpc(anonymous, 'search_published_churches', {
+  p_query: searchTerm, p_language: 'ru',
+});
+const revisedNear = revisedCatalog.find((church) => church.church_id === nearChurchId);
+assert.equal(revisedNear.display_name, `Near Church ${searchTerm} Revised`);
+assert.equal(revisedNear.name_automatically_translated, false);
+
 const churchMap = await rpc(anonymous, 'transport_church_by_slug', { p_slug: `geo-near-${suffix}` });
 assert.equal(churchMap.church_id, nearChurchId);
 assert.equal(churchMap.lat, 45.0703);
