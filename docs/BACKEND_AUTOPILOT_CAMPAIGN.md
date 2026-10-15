@@ -22,7 +22,7 @@
 
 ## Current checkpoint
 
-Checkpoint 5 deliberately public church contacts: separate optional administrator-entered text from private account contacts, with current membership, shared versions, retry safety, removal, and published-only reads. Church authority was repaired through PR #39 without weakening transport or membership checks. Minimized agreement/private-block audit capture and historical backfill merged through PR #38. Parallel approved copy-review PR #37 was preserved. Checkpoint 5 still needs remaining series editing, church photographs, and final protected archival/restore; prepared server/system translations also need a completeness audit. The lost-email protective delay remains a separate product decision.
+Checkpoint 7 minimized church-administration audit capture/backfill is prepared on top of checkpoint 5 public-contact PR #40, which is still in CI after a whitespace-only removal fix. Church authority was repaired through PR #39 without weakening transport or membership checks. Agreement/private-block audit merged through PR #38. Parallel approved copy-review PR #37 was preserved. A provider-independent image processor is separately committed on `codex/church-image-processing` (660 local tests passed); it has no storage/publication integration yet. Checkpoint 5 still needs remaining series editing, church photographs, and final protected archival/restore; prepared server/system translations also need a completeness audit. The lost-email protective delay remains a separate product decision.
 
 ## Remaining backend areas
 
