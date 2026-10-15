@@ -3,6 +3,7 @@ alter table app.church add column public_contact_details text,
   add constraint church_public_contacts_safe check (
     public_contact_details is null or (
       char_length(public_contact_details) between 1 and 4000
+      and btrim(public_contact_details, E' \n\r') <> ''
       and translate(public_contact_details, E'\n\r', '') !~ '[[:cntrl:]]'
     )
   );
@@ -29,7 +30,7 @@ set search_path = ''
 as $$
 declare
   actor_id uuid := app.require_eligible_actor();
-  normalized_contacts text := nullif(btrim(p_public_contact_details), '');
+  normalized_contacts text := nullif(btrim(p_public_contact_details, E' \n\r'), '');
   input_digest text;
   existing_result jsonb;
   church_row app.church%rowtype;

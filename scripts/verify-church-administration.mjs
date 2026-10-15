@@ -1360,7 +1360,8 @@ try {
     .find((item) => item.church_id === second.church_id).public_contact_details,
   contactArgs.p_public_contact_details);
   assert.equal((await rpc(clients[1], 'update_church_public_contacts', {
-    ...contactArgs, p_expected_version: 2, p_client_key: randomUUID(),
+    ...contactArgs, p_public_contact_details: ` \n${contactArgs.p_public_contact_details}\r\n `,
+    p_expected_version: 2, p_client_key: randomUUID(),
   })).content_version, 2);
   assert.equal(runSql(container, `select count(*) from app.church_admin_event
     where church_id = (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid)
@@ -1383,10 +1384,13 @@ try {
   runSql(container, `update app.church set status = 'published'
     where public_id = ${sqlLiteral(second.church_id)}::uuid;`);
   const contactsCleared = await rpc(clients[1], 'update_church_public_contacts', {
-    ...contactArgs, p_public_contact_details: '   ', p_expected_version: 2, p_client_key: randomUUID(),
+    ...contactArgs, p_public_contact_details: ' \n \r\n ', p_expected_version: 2, p_client_key: randomUUID(),
   });
   assert.equal(contactsCleared.content_version, 3);
   assert.equal((await readSecondChurch()).public_contact_details, undefined);
+  assert.equal((await rpc(clients[1], 'update_church_public_contacts', {
+    ...contactArgs, p_public_contact_details: '\r\n ', p_expected_version: 3, p_client_key: randomUUID(),
+  })).content_version, 3);
   // An old successful retry cannot restore contacts after a newer removal.
   assert.deepEqual(await rpc(clients[1], 'update_church_public_contacts', contactArgs), contactsSaved);
   assert.equal((await readSecondChurch()).public_contact_details, undefined);
