@@ -31,7 +31,7 @@ describe('Russian copy review surface', () => {
     expect(existsSync(resolve(process.cwd(), 'src/app/design-preview/fonts/Onest-Variable.ttf'))).toBe(true);
   });
 
-  it('offers the reviewed screens, the request, offer, map and trips states, with the switch outside them', () => {
+  it('offers the reviewed screens, the request, offer, map, trips and account states, with the switch outside them', () => {
     render(<CopyReviewPage />);
 
     const selector = screen.getByRole('navigation', { name: 'Выбор экрана проверки' });
@@ -76,6 +76,15 @@ describe('Russian copy review surface', () => {
       '38 · История',
       '39 · Пустые состояния',
       '40 · Мои поездки на компьютере',
+      '41 · Уведомления',
+      '42 · Уведомления: итог события',
+      '43 · Уведомления: пусто',
+      '44 · Профиль',
+      '45 · Настройки уведомлений',
+      '46 · В браузере выключены, email включён',
+      '47 · Последний канал выключить нельзя',
+      '48 · Оба канала выключены',
+      '49 · Уведомления на компьютере',
       'Текст 200 %',
     ]);
     expect(productScreen().contains(selector)).toBe(false);
@@ -876,7 +885,7 @@ describe('Passenger request review states', () => {
 
     // The simulated product screen has its own header, so pick the review chrome one.
     const header = screen.getAllByRole('banner').find((node) => !node.closest('[data-product-screen]'))!;
-    expect(header.textContent).toContain('группы 1, 2A, 2B, 3, 4 и 5 просмотрены');
+    expect(header.textContent).toContain('группы 1, 2A, 2B, 3, 4, 5 и 6 просмотрены');
     expect(header.textContent).toContain('Последние детали');
     expect(header.textContent).not.toContain('ждёт просмотра');
     expect(header.textContent).not.toContain('ждут просмотра');
