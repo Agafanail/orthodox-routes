@@ -15,7 +15,7 @@ const role = 'orthodox_routes_church_operator';
 const operatorLogin = 'orthodox_routes_church_operator_test';
 const otherRole = 'orthodox_routes_church_operator_test_other';
 const ids = Object.fromEntries(['church', 'churchPublic', 'passenger', 'driver', 'meeting', 'origin',
-  'request', 'offer', 'snapshot', 'response', 'agreement', 'archiveRequest'].map((name) => [name, randomUUID()]));
+  'request', 'offer', 'snapshot', 'response', 'agreement', 'archiveRequest', 'legal'].map((name) => [name, randomUUID()]));
 const slug = `owner-test-${ids.church}`;
 const sqlState = (stderr) => /ERROR:\s+([A-Z0-9]{5})/.exec(stderr)?.[1] ?? 'unknown';
 
@@ -54,6 +54,74 @@ const executeSql = (operation, token = operation.token) =>
 const execute = (operation) => JSON.parse(sql(asOperator(executeSql(operation))));
 const churchStatus = () => sql(`select status from app.church where id = ${literal(ids.church)}::uuid;`);
 const publicRead = () => sql(`set role anon; select api.transport_church_by_slug(${literal(slug)}) is null;`);
+
+async function waitForDatabaseCondition(condition) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    if (sql(`select ${condition};`) === 't') return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('The synthetic concurrency barrier was not reached.');
+}
+
+async function verifyRegularPublicationRace() {
+  const gateKey = 197042611;
+  const gate = spawn('docker', args('postgres'), { windowsHide: true, timeout: 20_000 });
+  gate.stderr.resume();
+  const gateClosed = new Promise((resolve) => gate.on('close', resolve));
+  const gateReady = new Promise((resolve, reject) => {
+    const deadline = setTimeout(() => reject(new Error('The synthetic publication gate did not open.')), 5_000);
+    let output = '';
+    gate.stdout.on('data', (data) => {
+      output += data;
+      if (output.includes('SYNTHETIC_GATE_READY')) { clearTimeout(deadline); resolve(); }
+    });
+    gate.on('error', (error) => { clearTimeout(deadline); reject(error); });
+  });
+  let publisher; let archival;
+  try {
+    gate.stdin.write(`begin; select pg_advisory_xact_lock(${gateKey});\n\\echo SYNTHETIC_GATE_READY\n`);
+    await gateReady;
+    sql(`create function app.synthetic_owner_series_gate() returns trigger language plpgsql as $$
+      begin
+        if new.church_id = ${literal(ids.church)}::uuid then perform pg_advisory_xact_lock(${gateKey}); end if;
+        return new;
+      end; $$;
+      create trigger synthetic_owner_series_gate before insert on app.driver_offer_series
+        for each row execute function app.synthetic_owner_series_gate();`);
+    const operation = prepare();
+    const origin = { address: 'Synthetic Owner Series Origin', locality: 'Synthetic City',
+      country_code: 'IT', lat: 45.0, lng: 7.61, source_kind: 'user_confirmed_geocode' };
+    publisher = asyncSql(`set application_name = 'synthetic-owner-series-publish';
+      select set_config('request.jwt.claim.sub', ${literal(ids.driver)}, false);
+      set role authenticated;
+      select api.publish_driver_series(${literal(ids.churchPublic)}::uuid,
+        array[0,1,2,3,4,5,6]::smallint[], '09:00'::time, '10:00'::time, 'UTC',
+        current_date + 3, current_date + 3, 2, 5, false, false, false, null,
+        ${literal(JSON.stringify(origin))}::jsonb, ${literal(randomUUID())}::uuid);`);
+    await waitForDatabaseCondition(`exists (select 1 from pg_locks as lock
+      join pg_stat_activity as activity on activity.pid = lock.pid
+      where activity.application_name = 'synthetic-owner-series-publish' and not lock.granted)`);
+    archival = asyncSql(asOperator(`set application_name = 'synthetic-owner-series-archive'; ${executeSql(operation)}`));
+    // Before either insert's FK exists, the archive must already wait for the publisher's church lock.
+    await waitForDatabaseCondition(`exists (select 1 from pg_locks as lock
+      join pg_stat_activity as activity on activity.pid = lock.pid
+      where activity.application_name = 'synthetic-owner-series-archive' and not lock.granted)`);
+    gate.stdin.end('commit;\n\\quit\n');
+    const results = await Promise.all([publisher, archival]);
+    assert.equal(results[0].code, 0, 'The real regular-publication RPC must finish.');
+    assert.equal(results[1].state, 'PT409');
+    assert.equal(churchStatus(), 'published');
+    assert.equal(sql(`select count(*) from app.driver_offer_occurrence where church_id = ${literal(ids.church)}::uuid
+      and status = 'active';`), '1');
+  } finally {
+    if (!gate.stdin.destroyed && !gate.stdin.writableEnded) gate.stdin.end('rollback;\n\\quit\n');
+    await gateClosed;
+    await Promise.all([publisher, archival].filter(Boolean));
+    sql(`drop trigger if exists synthetic_owner_series_gate on app.driver_offer_series;
+      drop function if exists app.synthetic_owner_series_gate();`);
+  }
+}
 
 try {
   sql(`begin;
@@ -218,7 +286,17 @@ try {
     assert.equal(race[0].state, 'PT409');
     assert.equal(sql(`select count(*) from app.passenger_request where id = ${literal(raceRequest)}::uuid;`), '1');
   }
-  process.stdout.write('Protected church lifecycle verification passed: role isolation, safe preview, token/actor/expiry, freshness, future-work guards, atomic archive/restore/audit, replay, and publication concurrency.\n');
+  sql(`delete from app.passenger_request where id = ${literal(raceRequest)}::uuid;
+    update auth.users set email_confirmed_at = now() where id = ${literal(ids.driver)}::uuid;
+    update app.account set adult_declared_at = now() where id = ${literal(ids.driver)}::uuid;
+    update private.account_contact set phone_e164 = '+393990000099', phone_verified_at = now()
+      where account_id = ${literal(ids.driver)}::uuid;
+    insert into app.legal_document_version(id, document_type, version, language_codes, effective_at, status, content_hash)
+      values (${literal(ids.legal)}::uuid, 'terms', ${literal(slug)}, array['en'], now(), 'published', repeat('a',64));
+    insert into app.legal_acceptance(account_id, document_version_id, acceptance_type, evidence_language, evidence_context)
+      values (${literal(ids.driver)}::uuid, ${literal(ids.legal)}::uuid, 'terms_explicit', 'en', 'account_foundation_v1');`);
+  if (churchStatus() === 'archived') execute(prepare('restore_church'));
+  await verifyRegularPublicationRace();
 } finally {
   // Exact synthetic fixture scope only; no remote target, truncation, or unrelated records.
   sql(`begin;
@@ -226,10 +304,13 @@ try {
     delete from ops.audit_event where target_id = ${literal(ids.churchPublic)}::uuid;
     delete from app.ride_agreement where id = ${literal(ids.agreement)}::uuid;
     delete from app.ride_response where id = ${literal(ids.response)}::uuid;
+    alter table app.ride_condition_snapshot disable trigger prevent_ride_snapshot_update;
     delete from app.ride_condition_snapshot where id = ${literal(ids.snapshot)}::uuid;
+    alter table app.ride_condition_snapshot enable trigger prevent_ride_snapshot_update;
     delete from app.driver_offer_occurrence where church_id = ${literal(ids.church)}::uuid;
+    delete from app.driver_offer_series where church_id = ${literal(ids.church)}::uuid;
     delete from app.passenger_request where church_id = ${literal(ids.church)}::uuid;
-    delete from private.user_place where id in (${literal(ids.meeting)}::uuid, ${literal(ids.origin)}::uuid);
+    delete from private.user_place where owner_account_id in (${literal(ids.passenger)}::uuid, ${literal(ids.driver)}::uuid);
     delete from app.church_archive_request where church_id = ${literal(ids.church)}::uuid;
     delete from app.church_admin_membership where church_id = ${literal(ids.church)}::uuid;
     delete from app.content_translation where content_source_id in (select id from app.content_source
@@ -237,8 +318,10 @@ try {
     delete from app.content_source where object_type = 'church' and object_id = ${literal(ids.church)}::uuid;
     delete from app.church where id = ${literal(ids.church)}::uuid;
     delete from app.account where id in (${literal(ids.passenger)}::uuid, ${literal(ids.driver)}::uuid);
+    delete from app.legal_document_version where id = ${literal(ids.legal)}::uuid;
     delete from auth.users where id in (${literal(ids.passenger)}::uuid, ${literal(ids.driver)}::uuid);
     drop role if exists ${otherRole};
     drop role if exists ${operatorLogin};
     commit;`);
 }
+process.stdout.write('Protected church lifecycle verification passed: role isolation, safe preview, token/actor/expiry, freshness, future-work guards, atomic archive/restore/audit, replay, real regular-publication concurrency, and exact cleanup.\n');

@@ -18,6 +18,24 @@ end;
 $$;
 grant usage on schema ops to orthodox_routes_church_operator;
 
+-- Regular driver publication has no service reference, but must still hold the church
+-- share lock before resolving a place or inserting a series. Preserve its existing ACL.
+do $$
+declare
+  publication regprocedure := 'api.publish_driver_series(uuid,smallint[],time,time,text,date,date,integer,integer,boolean,boolean,boolean,text,jsonb,uuid)'::regprocedure;
+  definition text;
+  unlocked_lookup text := 'where church.public_id = p_church_id and church.status = ''published'';';
+begin
+  definition := pg_get_functiondef(publication);
+  if position(unlocked_lookup in definition) = 0
+    or position(unlocked_lookup in substring(definition from position(unlocked_lookup in definition) + length(unlocked_lookup))) > 0 then
+    raise exception using errcode = '55000', message = 'Unexpected regular driver publication definition.';
+  end if;
+  execute replace(definition, unlocked_lookup,
+    'where church.public_id = p_church_id and church.status = ''published'' for share;');
+end;
+$$;
+
 alter table ops.audit_event drop constraint audit_event_actor_kind_check;
 alter table ops.audit_event add constraint audit_event_actor_kind_check
   check (actor_kind in ('account', 'system', 'operator'));
