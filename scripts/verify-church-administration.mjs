@@ -1527,7 +1527,11 @@ try {
   const racedPhotos = await Promise.all(racingPhotos.map((intent) => admin.schema('api')
     .rpc('complete_church_image_replacement', { p_replacement_id: intent.replacement_id })));
   assert.equal(racedPhotos.filter((result) => result.error === null).length, 1);
-  assert.equal(racedPhotos.filter((result) => result.error?.code === '40001').length, 1);
+  const failedRacingPhoto = racedPhotos.find((result) => result.error !== null)?.error;
+  assert.equal(failedRacingPhoto?.code, 'PT409', JSON.stringify({
+    code: failedRacingPhoto?.code, details: failedRacingPhoto?.details,
+    hint: failedRacingPhoto?.hint, message: failedRacingPhoto?.message,
+  }));
   const winningPhoto = racedPhotos.find((result) => result.error === null).data;
   assert.equal(winningPhoto.content_version, 6);
   assert.deepEqual(await rpc(admin, 'complete_church_image_replacement', finishPhoto), photoSaved);

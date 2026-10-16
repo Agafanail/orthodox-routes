@@ -154,7 +154,7 @@ begin
       and account_id = actor_id and status in ('active', 'transferring')
   ) then raise exception using errcode = '42501', message = 'Church administration is unavailable.'; end if;
   if church_row.content_version <> p_expected_version then
-    raise exception using errcode = '40001', message = 'Church content changed; reload it before editing.';
+    raise exception using errcode = 'PT409', message = 'Church content changed; reload it before editing.';
   end if;
   insert into private.church_image_replacement (
     actor_account_id, church_id, client_key, input_digest, upload_sha256,
@@ -194,7 +194,7 @@ begin
     raise exception using errcode = '42501', message = 'Church administration is unavailable.';
   end if;
   if church_row.content_version <> replacement.expected_content_version then
-    raise exception using errcode = '40001', message = 'Church content changed; reload it before editing.';
+    raise exception using errcode = 'PT409', message = 'Church content changed; reload it before editing.';
   end if;
   return replacement;
 end;
