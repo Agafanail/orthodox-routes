@@ -135,6 +135,33 @@ const churchArgs = (overrides = {}) => ({
 });
 
 try {
+  // Reapplying the real code-only migration must preserve every API body, signature, and ACL.
+  const conflictMigration = readFileSync(new URL(
+    '../supabase/migrations/20261016160000_church_version_http_conflicts.sql', import.meta.url,
+  ), 'utf8');
+  runSql(container, `begin;
+    create temporary table conflict_api_snapshot on commit drop as
+      select routine.oid, pg_get_functiondef(routine.oid) as definition, routine.proacl
+      from pg_proc as routine join pg_namespace as namespace on namespace.oid = routine.pronamespace
+      where namespace.nspname = 'api' and routine.prokind = 'f';
+    ${conflictMigration}
+    do $verify$
+    begin
+      if exists (select 1 from conflict_api_snapshot as snapshot
+        join pg_proc as routine on routine.oid = snapshot.oid
+        where pg_get_functiondef(routine.oid) is distinct from snapshot.definition
+          or routine.proacl is distinct from snapshot.proacl) then
+        raise exception 'Conflict migration reapplication changed API definitions or grants.';
+      end if;
+      if exists (select 1 from pg_proc as routine
+        join pg_namespace as namespace on namespace.oid = routine.pronamespace
+        where namespace.nspname = 'api' and routine.prokind = 'f'
+          and position('errcode = ''40001''' in pg_get_functiondef(routine.oid)) > 0) then
+        raise exception 'Application version conflict still uses serialization SQLSTATE.';
+      end if;
+    end;
+    $verify$;
+    commit;`);
   for (const identity of identities) {
     const created = await admin.auth.admin.createUser({
       email: identity.email, email_confirm: true, password,
@@ -230,9 +257,10 @@ try {
   await rpcFailure(clients[0], 'update_church_content', {
     ...editArgs, p_official_name: 'Reused key with different content',
   });
-  await rpcFailure(clients[0], 'update_church_content', {
+  const staleChurchContent = await rpcFailure(clients[0], 'update_church_content', {
     ...editArgs, p_client_key: randomUUID(),
   });
+  assert.equal(staleChurchContent.code, 'PT409');
   const editedPublicChurch = await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
     p_slug: firstArgs.p_slug,
   });
@@ -746,9 +774,10 @@ try {
   await rpcFailure(clients[0], 'update_one_off_service_content', {
     ...serviceEditArgs, p_source_name: 'Reused key with changed service content',
   });
-  await rpcFailure(clients[0], 'update_one_off_service_content', {
+  const staleServiceContent = await rpcFailure(clients[0], 'update_one_off_service_content', {
     ...serviceEditArgs, p_client_key: randomUUID(),
   });
+  assert.equal(staleServiceContent.code, 'PT409');
   assert.equal((await rpc(userClient(url, publicKey), 'published_church_schedule', {
     p_church_id: created.church_id,
   }))[0].source_name, serviceEditArgs.p_source_name);
@@ -1627,9 +1656,10 @@ try {
   await rpcFailure(clients[1], 'update_church_address', {
     ...addressArgs, p_address_display: 'Reused key with different address',
   });
-  await rpcFailure(clients[2], 'update_church_address', {
+  const staleChurchAddress = await rpcFailure(clients[2], 'update_church_address', {
     ...addressArgs, p_client_key: randomUUID(),
   });
+  assert.equal(staleChurchAddress.code, 'PT409');
   const addressNoOp = await rpc(clients[2], 'update_church_address', {
     ...addressArgs, p_expected_version: 3, p_client_key: randomUUID(),
   });
