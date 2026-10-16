@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
+import { createOwnerQuery } from './church-owner-command.mjs';
 
 // This verifier has no remote URL/credential option: only the exact disposable local container.
 const inventory = spawnSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
@@ -50,8 +51,11 @@ const prepareSql = (action = 'archive_church', reference = 'SYNTHETIC-OWNER-CASE
     ${literal(reference)}, ${literal(action === 'archive_church' ? 'reviewed_archival' : 'reviewed_restoration')});`;
 const prepare = (action) => JSON.parse(sql(asOperator(prepareSql(action))));
 const executeSql = (operation, token = operation.token) =>
-  `select ops.execute_church_lifecycle(${literal(operation.operation_id)}::uuid, ${literal(token)});`;
+  `select ops.execute_church_lifecycle($1::uuid, $2::text)\n\\bind ${literal(operation.operation_id)} ${literal(token)} \\g\n`;
 const execute = (operation) => JSON.parse(sql(asOperator(executeSql(operation))));
+const outcomeSql = (operation) =>
+  `select ops.church_lifecycle_result($1::uuid)\n\\bind ${literal(operation.operation_id)} \\g\n`;
+const outcome = (operation) => JSON.parse(sql(asOperator(outcomeSql(operation))));
 const churchStatus = () => sql(`select status from app.church where id = ${literal(ids.church)}::uuid;`);
 const publicRead = () => sql(`set role anon; select api.transport_church_by_slug(${literal(slug)}) is null;`);
 
@@ -154,9 +158,16 @@ try {
 
   assert.equal(sql(asOperator('select session_user::text;')), operatorLogin);
   assert.equal(sql(asOperator('select session_user::text;', otherRole)), otherRole);
+  // Exercise the real runner's psql conditional/exit syntax without any remote connection.
+  // The broad fixture identity must be refused before the parameter-bearing call is sent.
+  const refusedRunnerQuery = createOwnerQuery({ service: 'unused_local_fixture', childEnv: {} },
+    (_command, _args, settings) => spawnSync('docker', args('postgres'), { ...settings, env: process.env }));
+  assert.throws(() => refusedRunnerQuery('select ops.church_lifecycle_result($1::uuid)', [randomUUID()]),
+    /Protected church operation failed/);
   for (const denied of ['anon', 'authenticated', 'service_role']) {
     sql(`set role ${denied}; ${prepareSql()}`, '42501');
     sql(`set role ${denied}; select ops.execute_church_lifecycle(${literal(randomUUID())}::uuid, repeat('a',64));`, '42501');
+    sql(`set role ${denied}; select ops.church_lifecycle_result(${literal(randomUUID())}::uuid);`, '42501');
   }
   for (const table of ['ops.owner_operation', 'ops.audit_event', 'app.church', 'private.account_contact']) {
     sql(asOperator(`select * from ${table};`), '42501');
@@ -167,6 +178,10 @@ try {
   assert.equal(sql(`select relrowsecurity and relforcerowsecurity from pg_class
     where oid = 'ops.owner_operation'::regclass;`), 't');
   const first = prepare();
+  assert.deepEqual(outcome(first), { operation_id: first.operation_id, operation_type: 'archive_church',
+    church_id: ids.churchPublic, state: 'prepared' });
+  sql(asOperator(outcomeSql(first), otherRole), '42501');
+  sql(asOperator(outcomeSql({ operation_id: randomUUID() })), '42501');
   assert.equal(first.preview.administrator_count, 1);
   assert.equal(first.preview.pending_archival_requests, 1);
   assert.deepEqual(Object.keys(first.preview).sort(), ['church_id', 'slug', 'official_name', 'status',
@@ -185,6 +200,7 @@ try {
   sql(`update ops.owner_operation set prepared_at = now() - interval '16 minutes',
     expires_at = now() - interval '1 minute' where id = ${literal(expired.operation_id)}::uuid;`);
   sql(asOperator(executeSql(expired)), '42501');
+  assert.equal(outcome(expired).state, 'expired');
 
   const requestInsert = (requestId) => `insert into app.passenger_request(id, author_account_id, church_id,
     desired_arrival_at, timezone, total_passengers, child_seat_required, return_required,
@@ -241,6 +257,8 @@ try {
     cancelled_by_account_id = passenger_account_id where id = ${literal(ids.agreement)}::uuid;`);
   const archival = prepare();
   const archived = execute(archival);
+  assert.deepEqual(outcome(archival), { operation_id: archival.operation_id, operation_type: 'archive_church',
+    church_id: ids.churchPublic, state: 'succeeded' });
   assert.equal(archived.status, 'archived');
   assert.equal(publicRead(), 't');
   assert.deepEqual(execute(archival), archived);
@@ -260,6 +278,7 @@ try {
   assert.equal(publicRead(), 'f');
   assert.deepEqual(execute(archival), archived);
   assert.equal(churchStatus(), 'published');
+  assert.equal(outcome(archival).state, 'succeeded');
   assert.equal(sql(`select count(*) from ops.audit_event where event_key =
     'owner-operation:' || ${literal(archival.operation_id)};`), '1');
   const audit = JSON.parse(sql(`select to_jsonb(event) from ops.audit_event as event
