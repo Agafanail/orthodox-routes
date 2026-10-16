@@ -66,13 +66,18 @@ jobs:
         run: npm ci
 
       - name: Start local Core stack
-        run: npm run auth:start
+        run: npm run storage:start
 
       - name: Rebuild database from migrations
         run: npm run db:reset
 
       - name: Verify representative Maps upgrade
         run: npm run test:maps-upgrade
+
+      - name: Verify private church-image Storage integration
+        env:
+          CHURCH_IMAGE_STORAGE_INTEGRATION: 1
+        run: npm test -- src/lib/church-images/storage.integration.test.ts
 
       - name: Stop local Core stack
         if: always()

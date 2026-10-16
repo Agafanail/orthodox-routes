@@ -22,7 +22,7 @@
 
 ## Current checkpoint
 
-Checkpoint 5 protected church-photo replacement metadata merged through PR #44 (`0a83876`, CI `38925896862`): rights acknowledgement, actor-derived expiring intents, service-only staging/completion, shared versions, atomic supersession/audit, and published-only safe metadata. Its concurrency regression exposed PostgREST's repeated-transaction behavior for application-raised `40001`; the image contract now uses application HTTP 409 (`PT409`). The current `codex/church-version-conflicts` follow-up applies the same code-only repair to 11 existing church/service/translation functions while preserving guards and ACLs. A separate local `codex/church-image-storage` slice contains private-object upload/read verification, delivery, and isolated Storage CI; it is not merged. Cleanup and production upload activation remain unfinished. Remaining series editing, final archival/restore, server/system translation completeness, and final privacy/export coverage audits remain. The lost-email protective delay is a separate product decision.
+Checkpoint 5 protected church-photo metadata merged through PR #44 (`0a83876`, CI `38925896862`). Its concurrency regression exposed PostgREST's repeated-transaction behavior for application-raised `40001`; PR #45 (`90c82db`, CI `38927858891`) repairs the remaining 12 conflict guards in 11 existing church/service/translation functions using HTTP 409 (`PT409`), preserving bodies and ACLs. The current `codex/church-image-storage` slice adds private immutable-object upload, bounded streamed checksum verification, published-variant delivery, and isolated local Storage CI. Remote/staging provisioning, operational upload activation, cleanup, and backup rehearsal remain unfinished. Remaining series editing, final archival/restore, server/system translation completeness, and final privacy/export coverage audits remain. The lost-email protective delay is a separate product decision.
 
 ## Remaining backend areas
 
@@ -89,5 +89,7 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - No campaign checkpoint is complete until its PR is merged through all required green checks.
 
 - PR #44 merged as `0a83876`; final-head CI `38925896862` passed all four required checks, including cleanup. Protected church-image metadata verifies rights acknowledgement, eligibility/membership revocation, expiry, strict manifests, forced RLS/grants, shared versions, one-winner concurrency, replay safety, published-only metadata, and minimized audit. Application conflicts use `PT409` to avoid the confirmed PostgREST serialization-retry bug; synthetic manifests remain distinct from Storage proof.
+
+- PR #45 merged as `90c82db`; final-head CI `38927858891` passed all four required checks, including cleanup. Application version conflicts return bounded HTTP 409 instead of triggering PostgREST serialization retries. The real migration reapplication preserves every API definition and ACL. Local tests (663), lint, build, syntax, and diff checks passed. The complete local-auth job fell from 12m25s to 2m13s with stronger stale-request assertions.
 
 Update this file after every merged checkpoint with the PR, merge commit, CI run, current checkpoint, and any genuine gate.

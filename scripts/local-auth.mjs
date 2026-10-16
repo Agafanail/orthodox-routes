@@ -7,9 +7,10 @@ const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
 );
 
+const withStorage = process.argv.slice(2).includes('--storage');
 const excludedServices = [
   'realtime',
-  'storage-api',
+  ...(withStorage ? [] : ['storage-api']),
   'imgproxy',
   'postgres-meta',
   'studio',
@@ -111,7 +112,7 @@ updateLocalEnv(apiUrl, publicKey);
 
 process.stdout.write(
   [
-    'Local Auth is ready.',
+    withStorage ? 'Local Auth and private Storage are ready.' : 'Local Auth is ready.',
     'Application environment: .env.local updated with public local values only.',
     'Mail catcher: http://127.0.0.1:54324',
   ].join('\n') + '\n',

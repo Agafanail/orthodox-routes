@@ -35,6 +35,7 @@
     "db:reset": "supabase db reset --local",
     "db:stop": "supabase stop",
     "auth:start": "node scripts/local-auth.mjs",
+    "storage:start": "node scripts/local-auth.mjs --storage",
     "auth:verify": "node scripts/verify-local-auth.mjs",
     "auth:stop": "supabase stop"
   },

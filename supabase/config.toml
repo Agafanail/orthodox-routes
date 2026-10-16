@@ -36,7 +36,9 @@ enabled = false
 enabled = true
 
 [storage]
-enabled = false
+# The ordinary auth:start wrapper still excludes Storage. The explicit storage:start wrapper uses
+# this local-only service for synthetic private-object integration and never pushes this config.
+enabled = true
 
 [auth]
 enabled = true
