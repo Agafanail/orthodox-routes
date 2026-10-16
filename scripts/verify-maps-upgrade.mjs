@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
-import { haversineMetres, syntheticPlace } from './synthetic-geo.mjs';
+import { containsExactCoordinate, haversineMetres, syntheticPlace } from './synthetic-geo.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 const upgradeStatePath = fileURLToPath(new URL('../supabase/.temp/maps-upgrade.json', import.meta.url));
@@ -53,15 +53,6 @@ function runSql(container, statement) {
   );
   if (result.status !== 0) fail(`An upgrade database assertion failed.\n${result.stderr}`);
   return result.stdout.trim();
-}
-
-function containsExactCoordinate(value, exactLat, exactLng) {
-  if (Array.isArray(value)) {
-    return value.some((item) => containsExactCoordinate(item, exactLat, exactLng));
-  }
-  if (!value || typeof value !== 'object') return false;
-  if (value.lat === exactLat && value.lng === exactLng) return true;
-  return Object.values(value).some((item) => containsExactCoordinate(item, exactLat, exactLng));
 }
 
 function userClient(url, publicKey) {
