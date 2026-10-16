@@ -26,3 +26,15 @@ export function haversineMetres(fromLat, fromLng, toLat, toLng) {
     + Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) * Math.sin(deltaLng / 2) ** 2;
   return 2 * earthRadius * Math.asin(Math.min(1, Math.sqrt(a)));
 }
+
+/** Compare a complete geographic point, not one coincidentally unchanged axis. */
+export function containsExactCoordinate(value, exactLat, exactLng) {
+  const same = (candidate, exact) => typeof candidate === 'number' && Math.abs(candidate - exact) < 1e-9;
+  if (Array.isArray(value)) {
+    if (value.length === 2 && same(value[0], exactLng) && same(value[1], exactLat)) return true;
+    return value.some((item) => containsExactCoordinate(item, exactLat, exactLng));
+  }
+  if (!value || typeof value !== 'object') return false;
+  if (same(value.lat, exactLat) && same(value.lng, exactLng)) return true;
+  return Object.values(value).some((item) => containsExactCoordinate(item, exactLat, exactLng));
+}
