@@ -50,9 +50,16 @@ const prepareSql = (action = 'archive_church', reference = 'SYNTHETIC-OWNER-CASE
   `select ops.prepare_church_lifecycle(${literal(ids.churchPublic)}::uuid, ${literal(action)},
     ${literal(reference)}, ${literal(action === 'archive_church' ? 'reviewed_archival' : 'reviewed_restoration')});`;
 const prepare = (action) => JSON.parse(sql(asOperator(prepareSql(action))));
-const executeSql = (operation, token = operation.token) =>
-  `select ops.execute_church_lifecycle($1::uuid, $2::text)\n\\bind ${literal(operation.operation_id)} ${literal(token)} \\g\n`;
+const startAttempt = (operation) => JSON.parse(sql(asOperator(
+  `select ops.begin_church_lifecycle_attempt($1::uuid, $2::text)\n\\bind ${literal(operation.operation_id)} ${literal(operation.token)} \\g\n`,
+))).attempt_id;
+const executeSql = (operation, token = operation.token, attemptId = startAttempt(operation)) =>
+  `select ops.execute_church_lifecycle($1::uuid, $2::text, $3::uuid)\n\\bind ${literal(operation.operation_id)} ${literal(token)} ${literal(attemptId)} \\g\n`;
 const execute = (operation) => JSON.parse(sql(asOperator(executeSql(operation))));
+const expectRefusal = (operation, token = operation.token) => {
+  assert.deepEqual(JSON.parse(sql(asOperator(executeSql(operation, token)))),
+    { operation_id: operation.operation_id, execution_result: 'refused' });
+};
 const outcomeSql = (operation) =>
   `select ops.church_lifecycle_result($1::uuid)\n\\bind ${literal(operation.operation_id)} \\g\n`;
 const outcome = (operation) => JSON.parse(sql(asOperator(outcomeSql(operation))));
@@ -114,7 +121,8 @@ async function verifyRegularPublicationRace() {
     gate.stdin.end('commit;\n\\quit\n');
     const results = await Promise.all([publisher, archival]);
     assert.equal(results[0].code, 0, 'The real regular-publication RPC must finish.');
-    assert.equal(results[1].state, 'PT409');
+    assert.equal(results[1].code, 0);
+    assert.equal(JSON.parse(results[1].stdout).execution_result, 'refused');
     assert.equal(churchStatus(), 'published');
     assert.equal(sql(`select count(*) from app.driver_offer_occurrence where church_id = ${literal(ids.church)}::uuid
       and status = 'active';`), '1');
@@ -166,20 +174,24 @@ try {
     /Protected church operation failed/);
   for (const denied of ['anon', 'authenticated', 'service_role']) {
     sql(`set role ${denied}; ${prepareSql()}`, '42501');
-    sql(`set role ${denied}; select ops.execute_church_lifecycle(${literal(randomUUID())}::uuid, repeat('a',64));`, '42501');
+    sql(`set role ${denied}; select ops.execute_church_lifecycle(${literal(randomUUID())}::uuid, repeat('a',64), ${literal(randomUUID())}::uuid);`, '42501');
+    sql(`set role ${denied}; select ops.begin_church_lifecycle_attempt(${literal(randomUUID())}::uuid, repeat('a',64));`, '42501');
     sql(`set role ${denied}; select ops.church_lifecycle_result(${literal(randomUUID())}::uuid);`, '42501');
   }
   for (const table of ['ops.owner_operation', 'ops.audit_event', 'app.church', 'private.account_contact']) {
     sql(asOperator(`select * from ${table};`), '42501');
   }
   sql(asOperator(`select ops.church_lifecycle_state(${literal(ids.church)}::uuid);`), '42501');
+  sql(asOperator(`select ops.apply_church_lifecycle(${literal(randomUUID())}::uuid, repeat('a',64));`), '42501');
   sql(asOperator(prepareSql('drop_church')), '22023');
   sql(asOperator(prepareSql('archive_church', 'private@example.test')), '22023');
   assert.equal(sql(`select relrowsecurity and relforcerowsecurity from pg_class
     where oid = 'ops.owner_operation'::regclass;`), 't');
   const first = prepare();
   assert.deepEqual(outcome(first), { operation_id: first.operation_id, operation_type: 'archive_church',
-    church_id: ids.churchPublic, state: 'prepared' });
+    church_id: ids.churchPublic, state: 'prepared', latest_attempt: null });
+  sql(asOperator(`select ops.begin_church_lifecycle_attempt(${literal(first.operation_id)}::uuid,
+    ${literal(first.token)});`, otherRole), '42501');
   sql(asOperator(outcomeSql(first), otherRole), '42501');
   sql(asOperator(outcomeSql({ operation_id: randomUUID() })), '42501');
   assert.equal(first.preview.administrator_count, 1);
@@ -192,15 +204,68 @@ try {
   }
   assert.equal(sql(`select token_hash <> ${literal(first.token)} and token_hash ~ '^[0-9a-f]{64}$'
     from ops.owner_operation where id = ${literal(first.operation_id)}::uuid;`), 't');
-  sql(asOperator(executeSql(first, 'f'.repeat(64))), '42501');
+  expectRefusal(first, 'f'.repeat(64));
   sql(asOperator(executeSql(first), otherRole), '42501');
   sql(`update app.church set content_version = content_version + 1 where id = ${literal(ids.church)}::uuid;`);
-  sql(asOperator(executeSql(first)), 'PT409');
+  expectRefusal(first);
   const expired = prepare();
   sql(`update ops.owner_operation set prepared_at = now() - interval '16 minutes',
     expires_at = now() - interval '1 minute' where id = ${literal(expired.operation_id)}::uuid;`);
-  sql(asOperator(executeSql(expired)), '42501');
+  expectRefusal(expired);
   assert.equal(outcome(expired).state, 'expired');
+
+  // A start must already be committed, not be rolled back with the execution transaction.
+  sql(asOperator(`do $$ declare attempt jsonb; begin
+    attempt := ops.begin_church_lifecycle_attempt(${literal(first.operation_id)}::uuid, ${literal(first.token)});
+    perform ops.execute_church_lifecycle(${literal(first.operation_id)}::uuid, ${literal(first.token)},
+      (attempt->>'attempt_id')::uuid);
+    end; $$;`), '42501');
+  sql(asOperator(`select ops.begin_church_lifecycle_attempt(${literal(first.operation_id)}::uuid, repeat('f',64));`), '42501');
+  sql(asOperator(`select ops.execute_church_lifecycle(${literal(first.operation_id)}::uuid, ${literal(first.token)},
+    ${literal(randomUUID())}::uuid);`), '42501');
+
+  const failing = prepare();
+  const failedAttempt = startAttempt(failing);
+  const privateError = `Synthetic private failure ${failing.token}`;
+  try {
+    sql(`create function app.synthetic_owner_failure() returns trigger language plpgsql as $$ begin
+      if new.id = ${literal(failing.operation_id)}::uuid then raise exception using message = ${literal(privateError)}; end if;
+      return new; end; $$;
+      create trigger synthetic_owner_failure before update on ops.owner_operation
+        for each row execute function app.synthetic_owner_failure();`);
+    const result = sql(asOperator(executeSql(failing, failing.token, failedAttempt)));
+    assert.deepEqual(JSON.parse(result), { operation_id: failing.operation_id, execution_result: 'error' });
+    assert.equal(result.includes(failing.token), false);
+    assert.equal(churchStatus(), 'published');
+    assert.equal(outcome(failing).state, 'prepared');
+    assert.equal(outcome(failing).latest_attempt.state, 'error');
+    assert.equal(sql(`select status from app.church_archive_request where id = ${literal(ids.archiveRequest)}::uuid;`), 'pending');
+    assert.equal(sql(`select count(*) from ops.audit_event where target_id = ${literal(ids.churchPublic)}::uuid;`), '0');
+  } finally {
+    sql('drop trigger if exists synthetic_owner_failure on ops.owner_operation; drop function if exists app.synthetic_owner_failure();');
+  }
+  assert.equal(JSON.parse(sql(asOperator(executeSql(failing, failing.token, failedAttempt)))).execution_result, 'error');
+  assert.equal(churchStatus(), 'published', 'Replaying a finished failure must not execute a now-valid transition.');
+  assert.equal(sql(`select count(*) from ops.audit_event
+    where event_key = ${literal(`owner-attempt:${failedAttempt}:finished`)};`), '1');
+
+  const interrupted = prepare();
+  const interruptedAttempt = startAttempt(interrupted);
+  try {
+    sql(`create function app.synthetic_owner_failure() returns trigger language plpgsql as $$ begin
+      if new.id = ${literal(interrupted.operation_id)}::uuid then perform pg_sleep(1); end if;
+      return new; end; $$;
+      create trigger synthetic_owner_failure before update on ops.owner_operation
+        for each row execute function app.synthetic_owner_failure();`);
+    sql(asOperator(`set statement_timeout = '100ms'; ${executeSql(interrupted, interrupted.token, interruptedAttempt)}`), '57014');
+    assert.equal(churchStatus(), 'published');
+    assert.equal(outcome(interrupted).state, 'prepared');
+    assert.deepEqual(outcome(interrupted).latest_attempt, { attempt_id: interruptedAttempt, state: 'unfinished' });
+    assert.equal(sql(`select count(*) from ops.audit_event
+      where event_key = ${literal(`owner-attempt:${interruptedAttempt}:started`)};`), '1');
+  } finally {
+    sql('drop trigger if exists synthetic_owner_failure on ops.owner_operation; drop function if exists app.synthetic_owner_failure();');
+  }
 
   const requestInsert = (requestId) => `insert into app.passenger_request(id, author_account_id, church_id,
     desired_arrival_at, timezone, total_passengers, child_seat_required, return_required,
@@ -208,10 +273,10 @@ try {
     ${literal(ids.church)}::uuid, now() + interval '3 days', 'UTC', 1, false, false, 1, 'synthetic-owner-test');`;
   const beforeNewRide = prepare();
   sql(requestInsert(ids.request));
-  sql(asOperator(executeSql(beforeNewRide)), 'PT409');
+  expectRefusal(beforeNewRide);
   const blocked = prepare();
   assert.equal(blocked.preview.passenger_requests, 1);
-  sql(asOperator(executeSql(blocked)), 'PT409');
+  expectRefusal(blocked);
   sql(`insert into app.driver_offer_occurrence(id, publication_key, author_account_id, church_id,
     departure_at, arrival_at, timezone, origin_place_id, total_seats, max_detour_km,
     children_allowed, driver_child_seat_available, return_available) values
@@ -237,7 +302,7 @@ try {
   const responseBlocked = prepare();
   assert.equal(responseBlocked.preview.driver_offers, 1);
   assert.equal(responseBlocked.preview.pending_responses, 1);
-  sql(asOperator(executeSql(responseBlocked)), 'PT409');
+  expectRefusal(responseBlocked);
   sql(`update app.ride_response set status = 'accepted' where id = ${literal(ids.response)}::uuid;
     insert into app.ride_agreement(id, response_id, driver_occurrence_id, passenger_request_id,
       driver_account_id, passenger_account_id, confirmed_passenger_count, active_snapshot_id,
@@ -252,13 +317,23 @@ try {
   assert.equal(agreementBlocked.preview.passenger_requests, 0);
   assert.equal(agreementBlocked.preview.driver_offers, 0);
   assert.equal(agreementBlocked.preview.agreements, 1);
-  sql(asOperator(executeSql(agreementBlocked)), 'PT409');
+  expectRefusal(agreementBlocked);
   sql(`update app.ride_agreement set status = 'cancelled', cancelled_at = clock_timestamp(),
     cancelled_by_account_id = passenger_account_id where id = ${literal(ids.agreement)}::uuid;`);
   const archival = prepare();
-  const archived = execute(archival);
-  assert.deepEqual(outcome(archival), { operation_id: archival.operation_id, operation_type: 'archive_church',
-    church_id: ids.churchPublic, state: 'succeeded' });
+  const archivalAttempt = startAttempt(archival);
+  const concurrentArchive = await Promise.all([
+    asyncSql(asOperator(executeSql(archival, archival.token, archivalAttempt))),
+    asyncSql(asOperator(executeSql(archival, archival.token, archivalAttempt))),
+  ]);
+  assert.equal(concurrentArchive[0].code, 0);
+  assert.equal(concurrentArchive[1].code, 0);
+  const archived = JSON.parse(concurrentArchive[0].stdout);
+  assert.deepEqual(JSON.parse(concurrentArchive[1].stdout), archived);
+  assert.equal(outcome(archival).state, 'succeeded');
+  assert.equal(outcome(archival).latest_attempt.state, 'success');
+  assert.equal(sql(`select count(*) from ops.audit_event
+    where event_key = ${literal(`owner-attempt:${archivalAttempt}:finished`)};`), '1');
   assert.equal(archived.status, 'archived');
   assert.equal(publicRead(), 't');
   assert.deepEqual(execute(archival), archived);
@@ -269,10 +344,10 @@ try {
     where church_id = ${literal(ids.church)}::uuid;`);
   const missingAdministrator = prepare('restore_church');
   assert.equal(missingAdministrator.preview.administrator_count, 0);
-  sql(asOperator(executeSql(missingAdministrator)), 'PT409');
+  expectRefusal(missingAdministrator);
   sql(`update app.church_admin_membership set status = 'active', ended_at = null
     where church_id = ${literal(ids.church)}::uuid;`);
-  sql(asOperator(executeSql(missingAdministrator)), 'PT409');
+  expectRefusal(missingAdministrator);
   const restoration = prepare('restore_church');
   assert.equal(execute(restoration).status, 'published');
   assert.equal(publicRead(), 'f');
@@ -281,6 +356,14 @@ try {
   assert.equal(outcome(archival).state, 'succeeded');
   assert.equal(sql(`select count(*) from ops.audit_event where event_key =
     'owner-operation:' || ${literal(archival.operation_id)};`), '1');
+  sql(`insert into ops.audit_event(event_key, actor_kind, actor_account_id, action_type, target_type,
+    target_id, result, changed_fields) values ('synthetic-refused-domain', 'account', ${literal(ids.passenger)}::uuid,
+    'church.content_updated', 'church', ${literal(ids.churchPublic)}::uuid, 'refused', array['content_version']);`, '23514');
+  for (const protectedValue of [first.token, failing.token, interrupted.token, archival.token, privateError]) {
+    assert.equal(sql(`select coalesce(bool_and(position(${literal(protectedValue)} in to_jsonb(event)::text) = 0), true)
+      from ops.audit_event as event where target_type = 'owner_operation' and target_id in (
+        select id from ops.owner_operation where church_id = ${literal(ids.church)}::uuid);`), 't');
+  }
   const audit = JSON.parse(sql(`select to_jsonb(event) from ops.audit_event as event
     where event_key = 'owner-operation:' || ${literal(archival.operation_id)};`));
   assert.equal(audit.actor_kind, 'operator');
@@ -297,12 +380,14 @@ try {
     asyncSql(`begin; select * from app.assert_transport_reference(${literal(ids.churchPublic)}::uuid,
       null, now() + interval '3 days'); ${requestInsert(raceRequest)} commit;`),
   ]);
-  assert.equal(race.filter((result) => result.code === 0).length, 1);
+  assert.equal(race.filter((result, index) => result.code === 0
+    && (index === 1 || JSON.parse(result.stdout).status === 'archived')).length, 1);
   if (churchStatus() === 'archived') {
     assert.equal(race[1].state, 'P0002');
     assert.equal(sql(`select count(*) from app.passenger_request where id = ${literal(raceRequest)}::uuid;`), '0');
   } else {
-    assert.equal(race[0].state, 'PT409');
+    assert.equal(race[0].code, 0);
+    assert.equal(JSON.parse(race[0].stdout).execution_result, 'refused');
     assert.equal(sql(`select count(*) from app.passenger_request where id = ${literal(raceRequest)}::uuid;`), '1');
   }
   sql(`delete from app.passenger_request where id = ${literal(raceRequest)}::uuid;
@@ -319,6 +404,10 @@ try {
 } finally {
   // Exact synthetic fixture scope only; no remote target, truncation, or unrelated records.
   sql(`begin;
+    drop trigger if exists synthetic_owner_failure on ops.owner_operation;
+    drop function if exists app.synthetic_owner_failure();
+    delete from ops.audit_event where target_type = 'owner_operation' and target_id in (
+      select id from ops.owner_operation where church_id = ${literal(ids.church)}::uuid);
     delete from ops.owner_operation where church_id = ${literal(ids.church)}::uuid;
     delete from ops.audit_event where target_id = ${literal(ids.churchPublic)}::uuid;
     delete from app.ride_agreement where id = ${literal(ids.agreement)}::uuid;

@@ -118,8 +118,15 @@ export async function runOwnerCommand(options, { query, confirm, output, interac
       if (state?.operation_id !== options.statusId || !['prepared', 'expired', 'succeeded'].includes(state.state)
         || typeof state.church_id !== 'string' || !UUID.test(state.church_id)
         || !['archive_church', 'restore_church'].includes(state.operation_type)) throw failure();
+      let latestAttempt = null;
+      if (state.latest_attempt !== null) {
+        if (!state.latest_attempt || typeof state.latest_attempt.attempt_id !== 'string'
+          || !UUID.test(state.latest_attempt.attempt_id)
+          || !['unfinished', 'success', 'refused', 'error'].includes(state.latest_attempt.state)) throw failure();
+        latestAttempt = { attempt_id: state.latest_attempt.attempt_id, state: state.latest_attempt.state };
+      }
       output(JSON.stringify({ environment, operation_id: state.operation_id, operation_type: state.operation_type,
-        church_id: state.church_id, state: state.state }));
+        church_id: state.church_id, state: state.state, latest_attempt: latestAttempt }));
       return { status: state.state, operationId: state.operation_id };
     }
     const reason = options.action === 'archive_church' ? 'reviewed_archival' : 'reviewed_restoration';
@@ -132,7 +139,14 @@ export async function runOwnerCommand(options, { query, confirm, output, interac
       output('Cancelled. No church transition was executed.');
       return { status: 'cancelled', operationId: safe.operation_id };
     }
-    const result = query('select ops.execute_church_lifecycle($1::uuid, $2::text)', [safe.operation_id, prepared.token]);
+    const attempt = query('select ops.begin_church_lifecycle_attempt($1::uuid, $2::text)',
+      [safe.operation_id, prepared.token]);
+    if (attempt?.operation_id !== safe.operation_id || typeof attempt.attempt_id !== 'string'
+      || !UUID.test(attempt.attempt_id)) throw failure();
+    output(JSON.stringify({ operation_id: safe.operation_id, attempt_id: attempt.attempt_id }));
+    // A separate committed connection records the start before any transition request is sent.
+    const result = query('select ops.execute_church_lifecycle($1::uuid, $2::text, $3::uuid)',
+      [safe.operation_id, prepared.token, attempt.attempt_id]);
     const expectedStatus = options.action === 'archive_church' ? 'archived' : 'published';
     if (result?.operation_id !== safe.operation_id || result.church_id !== options.churchId
       || result.status !== expectedStatus) throw failure();

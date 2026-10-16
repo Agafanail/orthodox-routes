@@ -2272,18 +2272,22 @@ try {
   const churchAuditMigration = readFileSync(new URL(
     '../supabase/migrations/20261015180000_church_administration_audit.sql', import.meta.url,
   ), 'utf8');
-  // Reapply the actual historical capture/backfill without downgrading a later action allowlist.
+  // Reapply actual historical capture/backfill without downgrading any later audit shape.
   const replayChurchAudit = () => runSql(container, `begin;
-    create temporary table current_audit_action_constraint on commit drop as
-      select pg_get_constraintdef(oid) as definition from pg_constraint
-      where conrelid = 'ops.audit_event'::regclass and conname = 'audit_event_action_type_check';
+    create temporary table current_audit_constraints on commit drop as
+      select conname, pg_get_constraintdef(oid) as definition from pg_constraint
+      where conrelid = 'ops.audit_event'::regclass and conname in (
+        'audit_event_action_type_check', 'audit_event_target_type_check', 'audit_event_target_shape',
+        'audit_event_changed_fields_check');
     ${churchAuditMigration}
     do $restore_constraint$
-    declare current_definition text;
+    declare current_constraint record;
     begin
-      select definition into strict current_definition from current_audit_action_constraint;
-      alter table ops.audit_event drop constraint audit_event_action_type_check;
-      execute 'alter table ops.audit_event add constraint audit_event_action_type_check ' || current_definition;
+      for current_constraint in select * from current_audit_constraints loop
+        execute format('alter table ops.audit_event drop constraint %I', current_constraint.conname);
+        execute format('alter table ops.audit_event add constraint %I %s',
+          current_constraint.conname, current_constraint.definition);
+      end loop;
     end;
     $restore_constraint$;
     commit;`);
