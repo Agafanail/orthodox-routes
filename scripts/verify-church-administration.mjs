@@ -1481,6 +1481,125 @@ try {
     where series.public_id = ${sqlLiteral(futureContentSeries.series_id)}::uuid
       and service.source_name = ${sqlLiteral(futureContentWinner.source_name)};`), String(futureContentPreview.service_count + 2));
 
+  const futureTimePreviewArgs = { p_service_id: futureContentSelected.service_id };
+  await rpcFailure(futureContentReader, 'preview_recurring_service_future_time', futureTimePreviewArgs);
+  await rpcFailure(clients[1], 'preview_recurring_service_future_time', futureTimePreviewArgs);
+  await rpcFailure(admin, 'preview_recurring_service_future_time', futureTimePreviewArgs);
+  let futureTimePreview = await rpc(clients[0], 'preview_recurring_service_future_time', futureTimePreviewArgs);
+  assert.equal(futureTimePreview.local_start_time, '11:45:00');
+  assert.equal(futureTimePreview.timezone, 'Europe/Rome');
+  assert.equal(futureTimePreview.passenger_requests, 1);
+  assert.equal(futureTimePreview.driver_offers, 1);
+  const futureTimeInput = (preview) => ({
+    p_service_id: futureContentSelected.service_id, p_local_start_time: '12:20:00',
+    p_expected_series_version: preview.series_version,
+    p_expected_schedule_updated_at: preview.schedule_updated_at, p_client_key: randomUUID(),
+  });
+  const staleFutureTime = futureTimeInput(futureTimePreview);
+  const futureTimeException = await rpc(clients[0], 'preview_recurring_service_date_edit', {
+    p_service_id: futureContentDates[3].service_id,
+  });
+  await rpc(clients[0], 'reschedule_recurring_service_date', {
+    p_service_id: futureContentDates[3].service_id,
+    p_starts_at: new Date(Date.parse(futureContentDates[3].starts_at) + 20 * 60 * 1000).toISOString(),
+    p_expected_version: futureTimeException.version, p_client_key: randomUUID(),
+  });
+  await rpcConflict(clients[0], 'reschedule_recurring_service_future', staleFutureTime);
+  futureTimePreview = await rpc(clients[0], 'preview_recurring_service_future_time', futureTimePreviewArgs);
+  const futureTimeArgs = futureTimeInput(futureTimePreview);
+  await rpcFailure(futureContentReader, 'reschedule_recurring_service_future', futureTimeArgs);
+  await rpcFailure(clients[1], 'reschedule_recurring_service_future', futureTimeArgs);
+  await rpcFailure(admin, 'reschedule_recurring_service_future', futureTimeArgs);
+  await rpcFailure(clients[0], 'reschedule_recurring_service_future', {
+    ...futureTimeArgs, p_local_start_time: null,
+  });
+  await rpcFailure(clients[0], 'reschedule_recurring_service_future', {
+    ...futureTimeArgs, p_expected_schedule_updated_at: null,
+  });
+  // Force a collision on a later date: earlier loop work, notifications, and exceptions must roll back.
+  const collisionFutureTime = runSql(container, `select ((local_date + '12:20:00'::time)
+    at time zone timezone)::text from app.service_occurrence
+    where public_id = ${sqlLiteral(futureContentDates[3].service_id)}::uuid;`);
+  const collisionFutureService = await rpc(clients[0], 'create_one_off_service', {
+    p_church_id: created.church_id, p_source_name: futureContentWinner.source_name,
+    p_source_description: null, p_starts_at: collisionFutureTime, p_client_key: randomUUID(),
+  });
+  const collisionFuturePreview = await rpc(clients[0], 'preview_recurring_service_future_time', futureTimePreviewArgs);
+  const collisionFutureArgs = futureTimeInput(collisionFuturePreview);
+  assert.equal((await rpcFailure(clients[0], 'reschedule_recurring_service_future', collisionFutureArgs)).code, '23505');
+  assert.equal(runSql(container, `select schedule_generation from app.service_occurrence
+    where public_id = ${sqlLiteral(futureContentSelected.service_id)}::uuid;`), '1');
+  assert.equal(runSql(container, `select count(*) from app.notification
+    where event_type = 'church.service.rescheduled'
+      and object_public_id = ${sqlLiteral(futureContentSelected.service_id)}::uuid;`), '0');
+  assert.equal(runSql(container, `select count(*) from private.church_operation
+    where operation_type = 'reschedule_recurring_service_future'
+      and client_key = ${sqlLiteral(collisionFutureArgs.p_client_key)}::uuid;`), '0');
+  // Delete only the collision fixture; real service history is never deleted by this API.
+  runSql(container, `delete from app.content_translation where content_source_id in (
+      select source.id from app.content_source as source
+      where source.object_type = 'service_occurrence' and source.object_id = (
+        select id from app.service_occurrence where public_id = ${sqlLiteral(collisionFutureService.service_id)}::uuid));
+    delete from app.content_source where object_type = 'service_occurrence' and object_id = (
+      select id from app.service_occurrence where public_id = ${sqlLiteral(collisionFutureService.service_id)}::uuid);
+    delete from app.service_occurrence where public_id = ${sqlLiteral(collisionFutureService.service_id)}::uuid;`);
+  const futureTimeSaved = await rpc(clients[0], 'reschedule_recurring_service_future', collisionFutureArgs);
+  assert.equal(futureTimeSaved.series_version, 4);
+  assert.equal(futureTimeSaved.rescheduled_service_count, collisionFuturePreview.service_count);
+  assert.deepEqual(await rpc(clients[0], 'reschedule_recurring_service_future', collisionFutureArgs), futureTimeSaved);
+  await rpcFailure(clients[0], 'reschedule_recurring_service_future', {
+    ...collisionFutureArgs, p_local_start_time: '12:25:00',
+  });
+  await rpcConflict(clients[0], 'reschedule_recurring_service_future', {
+    ...collisionFutureArgs, p_client_key: randomUUID(),
+  });
+  const afterFutureTimePreview = await rpc(clients[0], 'preview_recurring_service_future_time', futureTimePreviewArgs);
+  const futureTimeNoOp = await rpc(clients[0], 'reschedule_recurring_service_future',
+    futureTimeInput(afterFutureTimePreview));
+  assert.equal(futureTimeNoOp.series_version, 4);
+  assert.equal(futureTimeNoOp.rescheduled_service_count, 0);
+  assert.equal(runSql(container, `select count(*) from app.service_occurrence as service
+    where service.source_series_id = (select id from app.service_series
+      where public_id = ${sqlLiteral(futureContentSeries.series_id)}::uuid)
+      and service.status = 'scheduled'
+      and service.local_date >= ${sqlLiteral(afterFutureTimePreview.from_local_date)}::date
+      and service.starts_at = (service.local_date + '12:20:00'::time) at time zone service.timezone
+      and service.schedule_generation >= 2;`), String(futureTimeSaved.rescheduled_service_count));
+  assert.equal(runSql(container, `select count(*) from app.service_occurrence
+    where public_id in (${sqlLiteral(futureContentDates[0].service_id)}::uuid,
+      ${sqlLiteral(futureContentCancelledDate.service_id)}::uuid)
+      and schedule_generation = 1;`), '2');
+  assert.equal(runSql(container, `select count(*) from app.passenger_request
+    where service_occurrence_id = ${sqlLiteral(futureContentInternalId)}::uuid
+      and desired_arrival_at = ${sqlLiteral(futureContentSelected.starts_at)}::timestamptz
+      and service_generation_snapshot = 1;`), '1');
+  assert.equal(runSql(container, `select count(*) from app.driver_offer_occurrence
+    where service_occurrence_id = ${sqlLiteral(futureContentInternalId)}::uuid
+      and arrival_at = ${sqlLiteral(futureContentSelected.starts_at)}::timestamptz
+      and service_generation_snapshot = 1;`), '1');
+  assert.equal(runSql(container, `select count(*) from app.notification
+    where event_type = 'church.service.rescheduled'
+      and object_public_id = ${sqlLiteral(futureContentSelected.service_id)}::uuid
+      and safe_route = '/trips';`), '2');
+  assert.equal(runSql(container, `select app.materialize_service_series(id, now() + interval '21 days')
+    from app.service_series where public_id = ${sqlLiteral(futureContentSeries.series_id)}::uuid;`), '1');
+  assert.equal(runSql(container, `select count(*) from app.service_occurrence as service
+    join app.service_series as series on series.id = service.source_series_id
+    where series.public_id = ${sqlLiteral(futureContentSeries.series_id)}::uuid
+      and service.local_start_time = '12:20:00'::time
+      and service.starts_at = (service.local_date + '12:20:00'::time) at time zone service.timezone;`), '1');
+  const futureTimeRacePreview = await rpc(clients[0], 'preview_recurring_service_future_time', futureTimePreviewArgs);
+  const futureTimeRace = await Promise.all(['12:30:00', '12:40:00'].map((time) => clients[0].schema('api')
+    .rpc('reschedule_recurring_service_future', {
+      ...futureTimeInput(futureTimeRacePreview), p_local_start_time: time,
+    }).abortSignal(AbortSignal.timeout(10_000))));
+  assert.equal(futureTimeRace.filter((item) => !item.error).length, 1);
+  assert.equal(futureTimeRace.filter((item) => item.status === 409 && item.error?.code === 'PT409').length, 1);
+  assert.deepEqual(await rpc(clients[0], 'reschedule_recurring_service_future', collisionFutureArgs), futureTimeSaved);
+  const futureTimeWinner = await rpc(clients[0], 'preview_recurring_service_future_time', futureTimePreviewArgs);
+  assert.ok(['12:30:00', '12:40:00'].includes(futureTimeWinner.local_start_time));
+  assert.equal(futureTimeWinner.series_version, 5);
+
   const duplicateArgs = churchArgs({
     p_client_key: randomUUID(), p_lat: 45.0705, p_lng: 7.6871,
     p_official_name: 'Duplicate Attempt', p_slug: `duplicate-church-${compactSuffix}`,
@@ -2188,6 +2307,7 @@ try {
     '- optional public church contacts are separate from private accounts, removable, member-only, and excluded from translation',
     '- church-photo metadata replacement requires rights acknowledgement, current eligibility/membership, versions, and trusted processing',
     '- selected-and-future recurring source edits reject stale previews, retain ride snapshots, and notify affected participants',
+    '- future weekly time edits preserve ride generations and roll back all dates on a conflicting target',
     '- church/admin/schedule actions atomically produce minimized audit with rollback and historical-backfill safety',
     '- normalized-address and PostGIS proximity checks return the existing safe page instead of duplicating it',
     '- suspicious same-address geography fails closed for protected review',
