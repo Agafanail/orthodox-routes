@@ -1470,6 +1470,19 @@ try {
   assert.deepEqual(publicPhoto.variants.map((file) => file.role), ['480', '960', '1600']);
   for (const file of publicPhoto.variants) assert.deepEqual(Object.keys(file).sort(),
     ['role', 'content_type', 'width', 'height'].sort());
+  const publishedPhotoObjectArgs = {
+    p_church_id: second.church_id, p_image_id: photoSaved.image_id, p_role: '480',
+  };
+  await rpcFailure(publicReader, 'published_church_image_object', publishedPhotoObjectArgs);
+  await rpcFailure(clients[1], 'published_church_image_object', publishedPhotoObjectArgs);
+  const publishedPhotoObject = await rpc(admin, 'published_church_image_object', publishedPhotoObjectArgs);
+  assert.deepEqual(publishedPhotoObject, photoManifest.files.find((file) => file.role === '480'));
+  assert.equal(await rpc(admin, 'published_church_image_object', {
+    ...publishedPhotoObjectArgs, p_image_id: randomUUID(),
+  }), null);
+  assert.equal(await rpc(admin, 'published_church_image_object', {
+    ...publishedPhotoObjectArgs, p_role: 'master',
+  }), null);
   assert.equal(runSql(container, `select upload_sha256 is null from private.church_image_replacement
     where id = ${sqlLiteral(photoIntent.replacement_id)}::uuid;`), 't');
 
@@ -1527,6 +1540,9 @@ try {
     runSql(container, `update app.church set status = ${sqlLiteral(status)}
       where public_id = ${sqlLiteral(second.church_id)}::uuid;`);
     assert.equal(await rpc(publicReader, 'published_church_image', { p_church_id: second.church_id }), null);
+    assert.equal(await rpc(admin, 'published_church_image_object', {
+      ...publishedPhotoObjectArgs, p_image_id: winningPhoto.image_id,
+    }), null);
     if (status === 'archived') await rpcFailure(clients[1], 'prepare_church_image_replacement', {
       ...photoArgs, p_expected_version: 6, p_client_key: randomUUID(),
     });
@@ -1546,6 +1562,10 @@ try {
   assert.equal(runSql(container, `select count(*) from information_schema.role_table_grants
     where grantee in ('anon', 'authenticated', 'service_role')
       and (table_schema, table_name) in (('app', 'church_image'), ('private', 'church_image_replacement'));`), '0');
+  assert.equal(runSql(container, `select has_function_privilege(
+    'service_role', 'api.published_church_image_object(uuid,uuid,text)', 'execute')::text;`), 't');
+  assert.equal(runSql(container, `select has_function_privilege(
+    'authenticated', 'api.published_church_image_object(uuid,uuid,text)', 'execute')::text;`), 'f');
 
   const firstInternalId = runSql(container,
     `select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
