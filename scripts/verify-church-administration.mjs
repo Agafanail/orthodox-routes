@@ -104,6 +104,12 @@ async function rpcFailure(client, name, args = {}) {
   return result.error;
 }
 
+async function rpcConflict(client, name, args) {
+  const result = await client.schema('api').rpc(name, args).abortSignal(AbortSignal.timeout(10_000));
+  assert.equal(result.status, 409, `${name} must return a conflict within the request deadline.`);
+  assert.equal(result.error?.code, 'PT409');
+}
+
 const { publicKey, serviceRoleKey, url } = readLocalConfig();
 const container = findDatabaseContainer();
 const suffix = `${Date.now()}-${process.pid}`;
@@ -257,10 +263,9 @@ try {
   await rpcFailure(clients[0], 'update_church_content', {
     ...editArgs, p_official_name: 'Reused key with different content',
   });
-  const staleChurchContent = await rpcFailure(clients[0], 'update_church_content', {
+  await rpcConflict(clients[0], 'update_church_content', {
     ...editArgs, p_client_key: randomUUID(),
   });
-  assert.equal(staleChurchContent.code, 'PT409');
   const editedPublicChurch = await rpc(userClient(url, publicKey), 'transport_church_by_slug', {
     p_slug: firstArgs.p_slug,
   });
@@ -774,10 +779,9 @@ try {
   await rpcFailure(clients[0], 'update_one_off_service_content', {
     ...serviceEditArgs, p_source_name: 'Reused key with changed service content',
   });
-  const staleServiceContent = await rpcFailure(clients[0], 'update_one_off_service_content', {
+  await rpcConflict(clients[0], 'update_one_off_service_content', {
     ...serviceEditArgs, p_client_key: randomUUID(),
   });
-  assert.equal(staleServiceContent.code, 'PT409');
   assert.equal((await rpc(userClient(url, publicKey), 'published_church_schedule', {
     p_church_id: created.church_id,
   }))[0].source_name, serviceEditArgs.p_source_name);
@@ -1557,6 +1561,7 @@ try {
     .rpc('complete_church_image_replacement', { p_replacement_id: intent.replacement_id })));
   assert.equal(racedPhotos.filter((result) => result.error === null).length, 1);
   const failedRacingPhoto = racedPhotos.find((result) => result.error !== null)?.error;
+  assert.equal(racedPhotos.find((result) => result.error !== null)?.status, 409);
   assert.equal(failedRacingPhoto?.code, 'PT409', JSON.stringify({
     code: failedRacingPhoto?.code, details: failedRacingPhoto?.details,
     hint: failedRacingPhoto?.hint, message: failedRacingPhoto?.message,
@@ -1656,10 +1661,9 @@ try {
   await rpcFailure(clients[1], 'update_church_address', {
     ...addressArgs, p_address_display: 'Reused key with different address',
   });
-  const staleChurchAddress = await rpcFailure(clients[2], 'update_church_address', {
+  await rpcConflict(clients[2], 'update_church_address', {
     ...addressArgs, p_client_key: randomUUID(),
   });
-  assert.equal(staleChurchAddress.code, 'PT409');
   const addressNoOp = await rpc(clients[2], 'update_church_address', {
     ...addressArgs, p_expected_version: 3, p_client_key: randomUUID(),
   });
