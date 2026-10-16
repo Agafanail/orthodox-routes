@@ -492,6 +492,8 @@ There is no full owner dashboard. Rare operations use prebuilt, narrowly scoped 
 
 There is no free-form production SQL input. High-impact operations use prepare/execute: prepare resolves the target and displays a safe preview; execute requires a short-lived single-use operation token, support-case reference, reason, separate operational authentication, and least-privilege function. Every result is audited and identity changes revoke sessions. An emergency Supabase procedure is documented but normal manual row editing is prohibited.
 
+The first executable owner contract covers church archival/restoration only. A separate NOLOGIN group may execute two hardened `ops` functions but has no direct table access; application roles/service keys cannot use this boundary. The database binds preparation/execution to the authenticated login fingerprint, stores only a capability hash, expires unused capabilities after 15 minutes, and checks current state/future transport under the church lock before an atomic transition/result/audit. Synthetic local CI tests this inactive contract, not real operational authentication. No login, production credential, protected runner, or remote provisioning is activated. See [Protected church lifecycle operations](BACKEND_OWNER_OPERATIONS.md) for the boundary and remaining activation work.
+
 ## 17. Migration from the browser prototype
 
 Do not import `localStorage` ride data. Migrate domain rules, validators, state machines, and test scenarios—not browser records without trustworthy identity or provenance.

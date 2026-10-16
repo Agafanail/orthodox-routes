@@ -2269,12 +2269,27 @@ try {
   const churchAuditMigration = readFileSync(new URL(
     '../supabase/migrations/20261015180000_church_administration_audit.sql', import.meta.url,
   ), 'utf8');
+  // Reapply the actual historical capture/backfill without downgrading a later action allowlist.
+  const replayChurchAudit = () => runSql(container, `begin;
+    create temporary table current_audit_action_constraint on commit drop as
+      select pg_get_constraintdef(oid) as definition from pg_constraint
+      where conrelid = 'ops.audit_event'::regclass and conname = 'audit_event_action_type_check';
+    ${churchAuditMigration}
+    do $restore_constraint$
+    declare current_definition text;
+    begin
+      select definition into strict current_definition from current_audit_action_constraint;
+      alter table ops.audit_event drop constraint audit_event_action_type_check;
+      execute 'alter table ops.audit_event add constraint audit_event_action_type_check ' || current_definition;
+    end;
+    $restore_constraint$;
+    commit;`);
   const expiredInviteAuditKey = runSql(container, `select 'church-invite-expired:' || id::text
     from app.church_admin_invite where public_id = ${sqlLiteral(lazyExpiryInvite.invite_id)}::uuid;`);
   const originalExpiryTime = runSql(container, `select decided_at from app.church_admin_invite
     where public_id = ${sqlLiteral(lazyExpiryInvite.invite_id)}::uuid;`);
   runSql(container, `delete from ops.audit_event where event_key = ${sqlLiteral(expiredInviteAuditKey)};`);
-  runSql(container, churchAuditMigration);
+  replayChurchAudit();
   const historicalAudit = JSON.parse(runSql(container, `select to_jsonb(audit) from ops.audit_event as audit
     where event_key = 'church-admin-event:' || ${sqlLiteral(historicalAuditId)};`));
   assert.equal(new Date(historicalAudit.occurred_at).toISOString(), new Date(historicalTime).toISOString());
@@ -2284,7 +2299,7 @@ try {
     where event_key = ${sqlLiteral(expiredInviteAuditKey)};`));
   assert.equal(new Date(backfilledExpiry.occurred_at).toISOString(), new Date(originalExpiryTime).toISOString());
   assert.equal(backfilledExpiry.transaction_id, null);
-  runSql(container, churchAuditMigration);
+  replayChurchAudit();
   assert.deepEqual(JSON.parse(runSql(container, `select to_jsonb(audit) from ops.audit_event as audit
     where event_key = 'church-admin-event:' || ${sqlLiteral(historicalAuditId)};`)), historicalAudit);
   assert.deepEqual(JSON.parse(runSql(container, `select to_jsonb(audit) from ops.audit_event as audit

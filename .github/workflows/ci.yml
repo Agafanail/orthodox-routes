@@ -142,6 +142,9 @@ jobs:
       - name: Verify church administration foundation
         run: npm run test:church-admin
 
+      - name: Verify protected church lifecycle operations
+        run: npm run test:church-owner
+
       - name: Stop local Auth
         if: always()
         run: npm run auth:stop
