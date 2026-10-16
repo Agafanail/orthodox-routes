@@ -1340,6 +1340,147 @@ try {
       and desired_arrival_at = ${futureCutoffTime}::timestamptz;`), '1');
   assert.equal(await rpc(admin, 'service_schedule_worker_materialize'), 0);
 
+  const futureContentReader = userClient(url, publicKey);
+  const futureContentSeries = await rpc(clients[0], 'create_recurring_service', {
+    ...recurringArgs, p_source_name: 'Synthetic Future Content Source',
+    p_local_start_time: '11:45:00', p_ends_on: null, p_client_key: randomUUID(),
+  });
+  const futureContentDates = (await rpc(futureContentReader, 'published_church_schedule', {
+    p_church_id: created.church_id, p_limit: 100,
+  })).filter((item) => item.source_name === 'Synthetic Future Content Source');
+  assert.ok(futureContentDates.length >= 4);
+  const futureContentSelected = futureContentDates[1];
+  const futureContentCancelledDate = futureContentDates[2];
+  await rpc(clients[0], 'cancel_recurring_service_date', {
+    p_service_id: futureContentCancelledDate.service_id, p_expected_version: 1, p_client_key: randomUUID(),
+  });
+  const futureContentInternalId = runSql(container, `select id from app.service_occurrence
+    where public_id = ${sqlLiteral(futureContentSelected.service_id)}::uuid;`);
+  runSql(container, `insert into app.passenger_request (
+    author_account_id, church_id, service_occurrence_id, desired_arrival_at, timezone,
+    service_name_snapshot, total_passengers, child_seat_required, return_required,
+    remaining_passengers, terms_version
+  ) select author_account_id, church_id, ${sqlLiteral(futureContentInternalId)}::uuid,
+    ${sqlLiteral(futureContentSelected.starts_at)}::timestamptz, timezone,
+    'Synthetic Future Content Source', total_passengers, child_seat_required, return_required,
+    remaining_passengers, terms_version from app.passenger_request
+    where service_occurrence_id = ${sqlLiteral(futureCutoffInternalId)}::uuid;
+  insert into app.driver_offer_occurrence (
+    publication_key, author_account_id, church_id, service_occurrence_id, departure_at,
+    arrival_at, timezone, service_name_snapshot, origin_place_id, total_seats,
+    max_detour_km, children_allowed, driver_child_seat_available, return_available
+  ) select gen_random_uuid(), author_account_id, church_id,
+    ${sqlLiteral(futureContentInternalId)}::uuid,
+    ${sqlLiteral(futureContentSelected.starts_at)}::timestamptz - interval '2 hours',
+    ${sqlLiteral(futureContentSelected.starts_at)}::timestamptz, timezone,
+    'Synthetic Future Content Source', origin_place_id, total_seats, max_detour_km,
+    children_allowed, driver_child_seat_available, return_available
+  from app.driver_offer_occurrence
+  where service_occurrence_id = ${sqlLiteral(futureCutoffInternalId)}::uuid;`);
+  const futureContentPreviewArgs = { p_service_id: futureContentSelected.service_id };
+  await rpcFailure(futureContentReader, 'preview_recurring_service_future_content', futureContentPreviewArgs);
+  await rpcFailure(clients[1], 'preview_recurring_service_future_content', futureContentPreviewArgs);
+  await rpcFailure(admin, 'preview_recurring_service_future_content', futureContentPreviewArgs);
+  let futureContentPreview = await rpc(clients[0], 'preview_recurring_service_future_content', futureContentPreviewArgs);
+  assert.equal(futureContentPreview.series_id, futureContentSeries.series_id);
+  assert.equal(futureContentPreview.source_name, 'Synthetic Future Content Source');
+  assert.equal(futureContentPreview.passenger_requests, 1);
+  assert.equal(futureContentPreview.driver_offers, 1);
+  assert.equal(futureContentPreview.service_count, futureContentDates.length - 2);
+  const futureContentInput = (preview) => ({
+    p_service_id: futureContentSelected.service_id,
+    p_source_name: 'Synthetic Updated Future Content', p_source_description: 'Synthetic future description',
+    p_expected_series_version: preview.series_version,
+    p_expected_schedule_updated_at: preview.schedule_updated_at, p_client_key: randomUUID(),
+  });
+  const staleFutureContent = futureContentInput(futureContentPreview);
+  // A date-only edit must invalidate the whole-series preview even though its source version stays unchanged.
+  await rpc(clients[0], 'update_recurring_service_date_content', {
+    p_service_id: futureContentDates[3].service_id, p_source_name: 'Synthetic Date Override',
+    p_source_description: null, p_expected_version: 1, p_client_key: randomUUID(),
+  });
+  await rpcConflict(clients[0], 'update_recurring_service_future_content', staleFutureContent);
+  futureContentPreview = await rpc(clients[0], 'preview_recurring_service_future_content', futureContentPreviewArgs);
+  const futureContentSaveArgs = futureContentInput(futureContentPreview);
+  await rpcFailure(futureContentReader, 'update_recurring_service_future_content', futureContentSaveArgs);
+  await rpcFailure(clients[1], 'update_recurring_service_future_content', futureContentSaveArgs);
+  await rpcFailure(admin, 'update_recurring_service_future_content', futureContentSaveArgs);
+  await rpcFailure(clients[0], 'update_recurring_service_future_content', {
+    ...futureContentSaveArgs, p_source_name: ' ',
+  });
+  await rpcFailure(clients[0], 'update_recurring_service_future_content', {
+    ...futureContentSaveArgs, p_expected_schedule_updated_at: null,
+  });
+  const futureContentSaved = await rpc(clients[0], 'update_recurring_service_future_content', futureContentSaveArgs);
+  assert.equal(futureContentSaved.series_version, 2);
+  assert.equal(futureContentSaved.updated_service_count, futureContentPreview.service_count);
+  assert.deepEqual(await rpc(clients[0], 'update_recurring_service_future_content', futureContentSaveArgs),
+    futureContentSaved);
+  await rpcFailure(clients[0], 'update_recurring_service_future_content', {
+    ...futureContentSaveArgs, p_source_name: 'Changed retry input',
+  });
+  await rpcConflict(clients[0], 'update_recurring_service_future_content', {
+    ...futureContentSaveArgs, p_client_key: randomUUID(),
+  });
+  const futureContentAfter = await rpc(futureContentReader, 'published_church_schedule', {
+    p_church_id: created.church_id, p_limit: 100,
+  });
+  assert.equal(futureContentAfter.find((item) => item.service_id === futureContentDates[0].service_id).source_name,
+    'Synthetic Future Content Source');
+  assert.equal(futureContentAfter.find((item) => item.service_id === futureContentCancelledDate.service_id).source_name,
+    'Synthetic Future Content Source');
+  assert.equal(futureContentAfter.find((item) => item.service_id === futureContentCancelledDate.service_id).status,
+    'cancelled');
+  for (const date of futureContentDates.filter((item) => item.service_id !== futureContentDates[0].service_id
+    && item.service_id !== futureContentCancelledDate.service_id)) {
+    const updated = futureContentAfter.find((item) => item.service_id === date.service_id);
+    assert.equal(updated.source_name, futureContentSaveArgs.p_source_name);
+    assert.equal(Date.parse(updated.starts_at), Date.parse(date.starts_at));
+  }
+  assert.equal(runSql(container, `select count(*) from app.passenger_request
+    where service_occurrence_id = ${sqlLiteral(futureContentInternalId)}::uuid
+      and desired_arrival_at = ${sqlLiteral(futureContentSelected.starts_at)}::timestamptz
+      and service_name_snapshot = 'Synthetic Future Content Source';`), '1');
+  assert.equal(runSql(container, `select count(*) from app.driver_offer_occurrence
+    where service_occurrence_id = ${sqlLiteral(futureContentInternalId)}::uuid
+      and arrival_at = ${sqlLiteral(futureContentSelected.starts_at)}::timestamptz
+      and service_name_snapshot = 'Synthetic Future Content Source';`), '1');
+  assert.equal(runSql(container, `select count(*) from app.notification
+    where event_type = 'church.service.updated'
+      and object_public_id = ${sqlLiteral(futureContentSelected.service_id)}::uuid
+      and safe_route = '/trips';`), '2');
+  assert.equal(runSql(container, `select source_version from app.content_source
+    where object_type = 'service_occurrence' and object_id = ${sqlLiteral(futureContentInternalId)}::uuid
+      and field_name = 'source_name';`), '2');
+  assert.equal(runSql(container, `select count(*) from app.service_exception
+    where service_occurrence_id = (select id from app.service_occurrence
+      where public_id = ${sqlLiteral(futureContentDates[3].service_id)}::uuid)
+      and action = 'content_updated';`), '2');
+  const currentFutureContentPreview = await rpc(clients[0], 'preview_recurring_service_future_content', futureContentPreviewArgs);
+  const noOpFutureContent = await rpc(clients[0], 'update_recurring_service_future_content',
+    futureContentInput(currentFutureContentPreview));
+  assert.equal(noOpFutureContent.series_version, 2);
+  assert.equal(noOpFutureContent.updated_service_count, 0);
+  assert.equal((await rpc(clients[0], 'preview_recurring_service_future_content', futureContentPreviewArgs))
+    .schedule_updated_at, currentFutureContentPreview.schedule_updated_at);
+  const futureContentRace = await Promise.all(['A', 'B'].map((name) => clients[0].schema('api')
+    .rpc('update_recurring_service_future_content', {
+      ...futureContentInput(currentFutureContentPreview), p_source_name: `Synthetic Future Content Winner ${name}`,
+    }).abortSignal(AbortSignal.timeout(10_000))));
+  assert.equal(futureContentRace.filter((item) => !item.error).length, 1);
+  assert.equal(futureContentRace.filter((item) => item.status === 409 && item.error?.code === 'PT409').length, 1);
+  assert.deepEqual(await rpc(clients[0], 'update_recurring_service_future_content', futureContentSaveArgs),
+    futureContentSaved);
+  const futureContentWinner = await rpc(clients[0], 'preview_recurring_service_future_content', futureContentPreviewArgs);
+  assert.match(futureContentWinner.source_name, /^Synthetic Future Content Winner [AB]$/);
+  assert.equal(futureContentWinner.series_version, 3);
+  assert.equal(runSql(container, `select app.materialize_service_series(id, now() + interval '14 days')
+    from app.service_series where public_id = ${sqlLiteral(futureContentSeries.series_id)}::uuid;`), '2');
+  assert.equal(runSql(container, `select count(*) from app.service_occurrence as service
+    join app.service_series as series on series.id = service.source_series_id
+    where series.public_id = ${sqlLiteral(futureContentSeries.series_id)}::uuid
+      and service.source_name = ${sqlLiteral(futureContentWinner.source_name)};`), String(futureContentPreview.service_count + 2));
+
   const duplicateArgs = churchArgs({
     p_client_key: randomUUID(), p_lat: 45.0705, p_lng: 7.6871,
     p_official_name: 'Duplicate Attempt', p_slug: `duplicate-church-${compactSuffix}`,
@@ -2046,6 +2187,7 @@ try {
     '- church source text edits are member-only, idempotent, version-checked, and public only through the deliberate projection',
     '- optional public church contacts are separate from private accounts, removable, member-only, and excluded from translation',
     '- church-photo metadata replacement requires rights acknowledgement, current eligibility/membership, versions, and trusted processing',
+    '- selected-and-future recurring source edits reject stale previews, retain ride snapshots, and notify affected participants',
     '- church/admin/schedule actions atomically produce minimized audit with rollback and historical-backfill safety',
     '- normalized-address and PostGIS proximity checks return the existing safe page instead of duplicating it',
     '- suspicious same-address geography fails closed for protected review',
