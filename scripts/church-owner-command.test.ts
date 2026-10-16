@@ -4,6 +4,7 @@ import { createOwnerQuery, loadOperatorConfiguration, operatorIdentityQuery, par
 
 const churchId = '11111111-1111-4111-8111-111111111111';
 const operationId = '22222222-2222-4222-8222-222222222222';
+const attemptId = '33333333-3333-4333-8333-333333333333';
 const token = 'a'.repeat(64);
 const options = { churchId, action: 'archive_church', reference: 'SYNTHETIC-CASE', execute: false };
 const prepared = () => ({ operation_id: operationId, operation_type: 'archive_church', token,
@@ -13,6 +14,7 @@ const prepared = () => ({ operation_id: operationId, operation_type: 'archive_ch
     passenger_requests: 0, driver_offers: 0, pending_responses: 0, agreements: 0, private_extra: 'never print',
   } });
 const setup = () => ({ query: vi.fn().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce(prepared())
+  .mockReturnValueOnce({ operation_id: operationId, attempt_id: attemptId })
   .mockReturnValueOnce({ operation_id: operationId, church_id: churchId, status: 'archived', secret: token }),
   confirm: vi.fn().mockResolvedValue(`EXECUTE ${operationId}`), output: vi.fn(), interactive: true, environment: 'staging' });
 
@@ -120,8 +122,10 @@ describe('protected owner command', () => {
   it('executes only the confirmed capability and prints a projected result', async () => {
     const dependencies = setup();
     expect((await runOwnerCommand({ ...options, execute: true }, dependencies)).status).toBe('archived');
-    expect(dependencies.query.mock.calls[2][0]).not.toContain(token);
+    expect(dependencies.query.mock.calls[2][0]).toContain('begin_church_lifecycle_attempt');
     expect(dependencies.query.mock.calls[2][1]).toEqual([operationId, token]);
+    expect(dependencies.query.mock.calls[3][0]).not.toContain(token);
+    expect(dependencies.query.mock.calls[3][1]).toEqual([operationId, token, attemptId]);
     expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
     expect(dependencies.confirm.mock.calls[0][0]).toContain(`EXECUTE ${operationId}`);
   });
@@ -145,10 +149,55 @@ describe('protected owner command', () => {
   it('reads only own operation outcome without preparing or executing again', async () => {
     const dependencies = setup(); dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })
       .mockReturnValueOnce({ operation_id: operationId, church_id: churchId, operation_type: 'archive_church',
-        state: 'succeeded', token, other_private: 'never print' });
+        state: 'succeeded', latest_attempt: { attempt_id: attemptId, state: 'success', token }, token, other_private: 'never print' });
     expect((await runOwnerCommand({ statusId: operationId }, dependencies)).status).toBe('succeeded');
     expect(dependencies.query.mock.calls[1][0]).toContain('ops.church_lifecycle_result');
     expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
     expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain('never print');
+  });
+
+  it('never submits a transition if the durable attempt start fails or is malformed', async () => {
+    const dependencies = setup(); dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce(prepared()).mockReturnValueOnce({ operation_id: operationId, attempt_id: token });
+    await expect(runOwnerCommand({ ...options, execute: true }, dependencies)).rejects.toThrow();
+    expect(dependencies.query).toHaveBeenCalledTimes(3);
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
+
+  it('preserves an interrupted attempt identifier without retrying an ambiguous transition', async () => {
+    const dependencies = setup(); dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce(prepared()).mockReturnValueOnce({ operation_id: operationId, attempt_id: attemptId })
+      .mockImplementationOnce(() => { throw new Error(`private: ${token}`); });
+    await expect(runOwnerCommand({ ...options, execute: true }, dependencies)).rejects.toThrow();
+    expect(dependencies.query).toHaveBeenCalledTimes(4);
+    expect(dependencies.output.mock.calls.flat().join('\n')).toContain(attemptId);
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
+
+  it('projects unfinished attempts without calling them failures or retrying them', async () => {
+    const dependencies = setup(); dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce({ operation_id: operationId, church_id: churchId, operation_type: 'archive_church',
+        state: 'prepared', latest_attempt: { attempt_id: attemptId, state: 'unfinished', secret: token } });
+    expect((await runOwnerCommand({ statusId: operationId }, dependencies)).status).toBe('prepared');
+    expect(dependencies.output.mock.calls.flat().join('\n')).toContain('unfinished');
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+    expect(dependencies.query).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a committed refusal or forward an execution error payload', async () => {
+    const dependencies = setup(); dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce(prepared()).mockReturnValueOnce({ operation_id: operationId, attempt_id: attemptId })
+      .mockReturnValueOnce({ operation_id: operationId, execution_result: 'refused', private_error: token });
+    await expect(runOwnerCommand({ ...options, execute: true }, dependencies)).rejects.toThrow();
+    expect(dependencies.query).toHaveBeenCalledTimes(4);
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
+
+  it('rejects unrecognized attempt states before printing a status response', async () => {
+    const dependencies = setup(); dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce({ operation_id: operationId, church_id: churchId, operation_type: 'archive_church',
+        state: 'prepared', latest_attempt: { attempt_id: attemptId, state: token } });
+    await expect(runOwnerCommand({ statusId: operationId }, dependencies)).rejects.toThrow();
+    expect(dependencies.output).not.toHaveBeenCalled();
   });
 });
