@@ -154,7 +154,7 @@ begin
       and account_id = actor_id and status in ('active', 'transferring')
   ) then raise exception using errcode = '42501', message = 'Church administration is unavailable.'; end if;
   if church_row.content_version <> p_expected_version then
-    raise exception using errcode = '40001', message = 'Church content changed; reload it before editing.';
+    raise exception using errcode = 'PT409', message = 'Church content changed; reload it before editing.';
   end if;
   insert into private.church_image_replacement (
     actor_account_id, church_id, client_key, input_digest, upload_sha256,
@@ -178,9 +178,7 @@ declare
 begin
   select * into replacement from private.church_image_replacement where id = p_replacement_id;
   if not found then raise exception using errcode = '42501', message = 'Church photograph preparation is unavailable.'; end if;
-  if not pg_try_advisory_xact_lock(hashtextextended('church-admin-slots:' || replacement.church_id::text, 0)) then
-    raise exception using errcode = '40001', message = 'Church content is being edited; retry after reloading.';
-  end if;
+  perform pg_advisory_xact_lock(hashtextextended('church-admin-slots:' || replacement.church_id::text, 0));
   select * into church_row from app.church where id = replacement.church_id for update;
   select * into replacement from private.church_image_replacement where id = p_replacement_id for update;
   -- A committed result remains replayable without reapplying an old image or authorizing a new action.
@@ -196,7 +194,7 @@ begin
     raise exception using errcode = '42501', message = 'Church administration is unavailable.';
   end if;
   if church_row.content_version <> replacement.expected_content_version then
-    raise exception using errcode = '40001', message = 'Church content changed; reload it before editing.';
+    raise exception using errcode = 'PT409', message = 'Church content changed; reload it before editing.';
   end if;
   return replacement;
 end;

@@ -1515,7 +1515,7 @@ try {
     .rpc('complete_church_image_replacement', { p_replacement_id: intent.replacement_id })));
   assert.equal(racedPhotos.filter((result) => result.error === null).length, 1);
   const failedRacingPhoto = racedPhotos.find((result) => result.error !== null)?.error;
-  assert.equal(failedRacingPhoto?.code, '40001', JSON.stringify({
+  assert.equal(failedRacingPhoto?.code, 'PT409', JSON.stringify({
     code: failedRacingPhoto?.code, details: failedRacingPhoto?.details,
     hint: failedRacingPhoto?.hint, message: failedRacingPhoto?.message,
   }));
