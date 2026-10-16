@@ -1443,10 +1443,10 @@ try {
   assert.deepEqual((await rpc(admin, 'inspect_church_image_replacement', finishPhoto)).manifest, photoManifest);
   await rpcFailure(admin, 'stage_church_image_replacement', { ...stagePhoto, p_manifest: syntheticImageManifest() });
   assert.equal(await rpc(publicReader, 'published_church_image', { p_church_id: second.church_id }), null);
-  runSql(container, `update private.account_contact set phone_verified = false
+  runSql(container, `update private.account_contact set phone_verified_at = null
     where account_id = ${sqlLiteral(identities[1].id)}::uuid;`);
   await rpcFailure(admin, 'complete_church_image_replacement', finishPhoto);
-  runSql(container, `update private.account_contact set phone_verified = true
+  runSql(container, `update private.account_contact set phone_verified_at = clock_timestamp()
     where account_id = ${sqlLiteral(identities[1].id)}::uuid;`);
   runSql(container, `update app.church_admin_membership set status = 'ended', ended_at = clock_timestamp()
     where account_id = ${sqlLiteral(identities[1].id)}::uuid
