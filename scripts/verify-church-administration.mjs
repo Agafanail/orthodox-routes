@@ -1601,9 +1601,9 @@ try {
     where grantee in ('anon', 'authenticated', 'service_role')
       and (table_schema, table_name) in (('app', 'church_image'), ('private', 'church_image_replacement'));`), '0');
   assert.equal(runSql(container, `select has_function_privilege(
-    'service_role', 'api.published_church_image_object(uuid,uuid,text)', 'execute')::text;`), 't');
+    'service_role', 'api.published_church_image_object(uuid,uuid,text)', 'execute')::text;`), 'true');
   assert.equal(runSql(container, `select has_function_privilege(
-    'authenticated', 'api.published_church_image_object(uuid,uuid,text)', 'execute')::text;`), 'f');
+    'authenticated', 'api.published_church_image_object(uuid,uuid,text)', 'execute')::text;`), 'false');
 
   const firstInternalId = runSql(container,
     `select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
