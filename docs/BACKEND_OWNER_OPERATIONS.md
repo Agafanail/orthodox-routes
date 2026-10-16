@@ -29,7 +29,7 @@ The fingerprint covers current church metadata/version, current administrator sl
 
 ## Verification and remaining work
 
-`npm run test:church-owner` connects only through the exact disposable local Docker database container. It has no remote URL or credential option. Synthetic session-authorization fixtures verify the database boundary; they are not evidence of real operator authentication or production readiness. The verifier checks ordinary/service-role denial, forced RLS, table isolation, safe preview, wrong token/operator, expiry, stale state, every future-work class, archive/restore/history/audit/replay, missing-administrator refusal, and archive-versus-publication concurrency. Exact fixture cleanup is mandatory.
+`npm run test:church-owner` connects only through the exact disposable local Docker database container. It has no remote URL or credential option. Separate synthetic local login roles verify the database session boundary; they are not evidence of remote operator authentication or production readiness. The verifier checks ordinary/service-role denial, forced RLS, table isolation, safe preview, wrong token/operator, expiry, stale state, every future-work class, archive/restore/history/audit/replay, missing-administrator refusal, and archive-versus-publication concurrency. Exact fixture/role cleanup is mandatory.
 
 Required CI runs the contract test after the existing church-administration suite. Historical audit-backfill replay preserves the current action constraint, rather than downgrading the later schema. No production data or provider is involved.
 

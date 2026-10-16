@@ -6,10 +6,11 @@ import { spawn, spawnSync } from 'node:child_process';
 const inventory = spawnSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
 const container = inventory.stdout?.split(/\r?\n/).find((name) => name === 'supabase_db_orthodox-routes');
 if (inventory.status !== 0 || !container) throw new Error('The local-only owner-operation test database is unavailable.');
-const args = ['exec', '-i', container, 'psql', '-U', 'postgres', '-d', 'postgres',
+const args = (actor) => ['exec', '-i', container, 'psql', '-U', actor, '-d', 'postgres',
   '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=sqlstate', '-qAt', '-f', '-'];
 const literal = (value) => `'${String(value).replaceAll("'", "''")}'`;
 const role = 'orthodox_routes_church_operator';
+const operatorLogin = 'orthodox_routes_church_operator_test';
 const otherRole = 'orthodox_routes_church_operator_test_other';
 const ids = Object.fromEntries(['church', 'churchPublic', 'passenger', 'driver', 'meeting', 'origin',
   'request', 'offer', 'snapshot', 'response', 'agreement', 'archiveRequest'].map((name) => [name, randomUUID()]));
@@ -17,7 +18,9 @@ const slug = `owner-test-${ids.church}`;
 const sqlState = (stderr) => /ERROR:\s+([A-Z0-9]{5})/.exec(stderr)?.[1] ?? 'unknown';
 
 function sql(statement, expectedError = null) {
-  const result = spawnSync('docker', args, { input: statement, encoding: 'utf8', timeout: 20_000 });
+  const actor = typeof statement === 'string' ? 'postgres' : statement.actor;
+  const input = typeof statement === 'string' ? statement : statement.input;
+  const result = spawnSync('docker', args(actor), { input, encoding: 'utf8', timeout: 20_000 });
   if (expectedError) {
     assert.notEqual(result.status, 0, 'An owner-boundary refusal unexpectedly succeeded.');
     assert.equal(sqlState(result.stderr), expectedError);
@@ -28,16 +31,18 @@ function sql(statement, expectedError = null) {
 }
 function asyncSql(statement) {
   return new Promise((resolve, reject) => {
-    const child = spawn('docker', args, { windowsHide: true, timeout: 20_000 });
+    const actor = typeof statement === 'string' ? 'postgres' : statement.actor;
+    const input = typeof statement === 'string' ? statement : statement.input;
+    const child = spawn('docker', args(actor), { windowsHide: true, timeout: 20_000 });
     let stdout = ''; let stderr = '';
     child.stdout.on('data', (data) => { stdout += data; });
     child.stderr.on('data', (data) => { stderr += data; });
     child.on('error', reject);
     child.on('close', (code) => resolve({ code, stdout: stdout.trim(), state: sqlState(stderr) }));
-    child.stdin.end(statement);
+    child.stdin.end(input);
   });
 }
-const asOperator = (statement, actor = role) => `set session authorization ${actor}; ${statement}`;
+const asOperator = (input, actor = operatorLogin) => ({ input, actor });
 const prepareSql = (action = 'archive_church', reference = 'SYNTHETIC-OWNER-CASE') =>
   `select ops.prepare_church_lifecycle(${literal(ids.churchPublic)}::uuid, ${literal(action)},
     ${literal(reference)}, ${literal(action === 'archive_church' ? 'reviewed_archival' : 'reviewed_restoration')});`;
@@ -72,16 +77,19 @@ try {
     insert into private.user_place(id, owner_account_id, exact_address, public_area_name) values
       (${literal(ids.meeting)}::uuid, ${literal(ids.passenger)}::uuid, 'Synthetic Private Meeting', 'Synthetic Area'),
       (${literal(ids.origin)}::uuid, ${literal(ids.driver)}::uuid, 'Synthetic Private Origin', 'Synthetic Area');
-    create role ${otherRole} nologin;
-    grant ${role} to ${otherRole};
+    create role ${operatorLogin} login;
+    create role ${otherRole} login;
+    grant ${role} to ${operatorLogin}, ${otherRole};
     commit;`);
 
+  assert.equal(sql(asOperator('select session_user::text;')), operatorLogin);
+  assert.equal(sql(asOperator('select session_user::text;', otherRole)), otherRole);
   for (const denied of ['anon', 'authenticated', 'service_role']) {
     sql(`set role ${denied}; ${prepareSql()}`, '42501');
     sql(`set role ${denied}; select ops.execute_church_lifecycle(${literal(randomUUID())}::uuid, repeat('a',64));`, '42501');
   }
   for (const table of ['ops.owner_operation', 'ops.audit_event', 'app.church', 'private.account_contact']) {
-    sql(`set role ${role}; select * from ${table};`, '42501');
+    sql(asOperator(`select * from ${table};`), '42501');
   }
   sql(asOperator(`select ops.church_lifecycle_state(${literal(ids.church)}::uuid);`), '42501');
   sql(asOperator(prepareSql('drop_church')), '22023');
@@ -229,5 +237,6 @@ try {
     delete from app.account where id in (${literal(ids.passenger)}::uuid, ${literal(ids.driver)}::uuid);
     delete from auth.users where id in (${literal(ids.passenger)}::uuid, ${literal(ids.driver)}::uuid);
     drop role if exists ${otherRole};
+    drop role if exists ${operatorLogin};
     commit;`);
 }
