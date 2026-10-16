@@ -1605,6 +1605,65 @@ try {
   assert.equal(runSql(container, `select has_function_privilege(
     'authenticated', 'api.published_church_image_object(uuid,uuid,text)', 'execute')::text;`), 'false');
 
+  const cleanupToken = randomUUID();
+  const cleanupClaimArgs = { p_lease_token: cleanupToken, p_limit: 20 };
+  await rpcFailure(publicReader, 'church_image_cleanup_claim', cleanupClaimArgs);
+  await rpcFailure(clients[1], 'church_image_cleanup_claim', cleanupClaimArgs);
+  await rpcFailure(admin, 'church_image_cleanup_claim', { ...cleanupClaimArgs, p_limit: 21 });
+  await rpcFailure(admin, 'church_image_cleanup_claim', { ...cleanupClaimArgs, p_lease_token: null });
+  // Even expired completed intents, including superseded images, must never be cleanup candidates.
+  runSql(container, `update private.church_image_replacement set expires_at = clock_timestamp() - interval '1 minute'
+    where church_id = (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid)
+      and state = 'succeeded';`);
+  const cleanupJobs = await rpc(admin, 'church_image_cleanup_claim', cleanupClaimArgs);
+  assert.equal(cleanupJobs.length, 1);
+  const cleanupJob = cleanupJobs[0];
+  assert.equal(cleanupJob.replacement_id, expiredPhotoIntent.replacement_id);
+  assert.deepEqual(Object.keys(cleanupJob).sort(), ['replacement_id', 'image_id', 'object_keys'].sort());
+  assert.deepEqual(new Set(cleanupJob.object_keys), new Set(['master', '480', '960', '1600']
+    .map((role) => `${cleanupJob.image_id}/${role}.webp`)));
+  assert.deepEqual(await rpc(admin, 'church_image_cleanup_claim', {
+    ...cleanupClaimArgs, p_lease_token: randomUUID(),
+  }), []);
+  const cleanupCompleteArgs = { p_replacement_id: cleanupJob.replacement_id,
+    p_lease_token: cleanupToken, p_success: true };
+  await rpcFailure(publicReader, 'church_image_cleanup_complete', cleanupCompleteArgs);
+  await rpcFailure(clients[1], 'church_image_cleanup_complete', cleanupCompleteArgs);
+  assert.equal(await rpc(admin, 'church_image_cleanup_complete', {
+    ...cleanupCompleteArgs, p_lease_token: randomUUID(),
+  }), false);
+  runSql(container, `update private.church_image_replacement
+    set cleanup_lease_expires_at = clock_timestamp() - interval '1 second'
+    where id = ${sqlLiteral(cleanupJob.replacement_id)}::uuid;`);
+  const reclaimedCleanupToken = randomUUID();
+  const reclaimedCleanupJobs = await rpc(admin, 'church_image_cleanup_claim', {
+    ...cleanupClaimArgs, p_lease_token: reclaimedCleanupToken,
+  });
+  assert.deepEqual(reclaimedCleanupJobs, cleanupJobs);
+  assert.equal(await rpc(admin, 'church_image_cleanup_complete', cleanupCompleteArgs), false);
+  assert.equal(await rpc(admin, 'church_image_cleanup_complete', {
+    ...cleanupCompleteArgs, p_lease_token: reclaimedCleanupToken, p_success: false,
+  }), true);
+  assert.deepEqual(await rpc(admin, 'church_image_cleanup_claim', cleanupClaimArgs), []);
+  runSql(container, `update private.church_image_replacement
+    set cleanup_next_at = clock_timestamp() - interval '1 second'
+    where id = ${sqlLiteral(cleanupJob.replacement_id)}::uuid;`);
+  assert.deepEqual(await rpc(admin, 'church_image_cleanup_claim', cleanupClaimArgs), cleanupJobs);
+  assert.equal(await rpc(admin, 'church_image_cleanup_complete', cleanupCompleteArgs), true);
+  assert.equal(runSql(container, `select cleanup_checked_at is not null
+    and cleanup_next_at > clock_timestamp() + interval '23 hours'
+    and manifest is not null from private.church_image_replacement
+    where id = ${sqlLiteral(cleanupJob.replacement_id)}::uuid;`), 't');
+  assert.deepEqual(await rpc(admin, 'church_image_cleanup_claim', cleanupClaimArgs), []);
+  // A later reconciliation retains the exact keys for uploads that finished after a timeout.
+  runSql(container, `update private.church_image_replacement
+    set cleanup_next_at = clock_timestamp() - interval '1 second'
+    where id = ${sqlLiteral(cleanupJob.replacement_id)}::uuid;`);
+  assert.deepEqual(await rpc(admin, 'church_image_cleanup_claim', cleanupClaimArgs), cleanupJobs);
+  assert.equal(await rpc(admin, 'church_image_cleanup_complete', cleanupCompleteArgs), true);
+  assert.equal((await rpc(publicReader, 'published_church_image', { p_church_id: second.church_id })).image_id,
+    winningPhoto.image_id);
+
   const firstInternalId = runSql(container,
     `select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
   runSql(container, `
