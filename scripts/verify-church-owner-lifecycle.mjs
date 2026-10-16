@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 
 // This verifier has no remote URL/credential option: only the exact disposable local container.
 const inventory = spawnSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
 const container = inventory.stdout?.split(/\r?\n/).find((name) => name === 'supabase_db_orthodox-routes');
 if (inventory.status !== 0 || !container) throw new Error('The local-only owner-operation test database is unavailable.');
-const args = (actor) => ['exec', '-i', container, 'psql', '-U', actor, '-d', 'postgres',
+const testPassword = randomBytes(32).toString('hex');
+const args = (actor) => ['exec', '-i', ...(actor === 'postgres' ? [] : ['-e', `PGPASSWORD=${testPassword}`]),
+  container, 'psql', ...(actor === 'postgres' ? [] : ['-h', '127.0.0.1']), '-U', actor, '-d', 'postgres',
   '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=sqlstate', '-qAt', '-f', '-'];
 const literal = (value) => `'${String(value).replaceAll("'", "''")}'`;
 const role = 'orthodox_routes_church_operator';
@@ -77,8 +79,8 @@ try {
     insert into private.user_place(id, owner_account_id, exact_address, public_area_name) values
       (${literal(ids.meeting)}::uuid, ${literal(ids.passenger)}::uuid, 'Synthetic Private Meeting', 'Synthetic Area'),
       (${literal(ids.origin)}::uuid, ${literal(ids.driver)}::uuid, 'Synthetic Private Origin', 'Synthetic Area');
-    create role ${operatorLogin} login;
-    create role ${otherRole} login;
+    create role ${operatorLogin} login password ${literal(testPassword)};
+    create role ${otherRole} login password ${literal(testPassword)};
     grant ${role} to ${operatorLogin}, ${otherRole};
     commit;`);
 
