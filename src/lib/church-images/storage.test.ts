@@ -12,8 +12,17 @@ function file(data = Buffer.from('cleaned webp bytes')): PreparedChurchImageFile
   };
 }
 
-function client(upload: ReturnType<typeof vi.fn>, download: ReturnType<typeof vi.fn>, isPublic = false) {
-  const from = vi.fn(() => ({ upload, download }));
+function client(
+  upload: ReturnType<typeof vi.fn>,
+  download: (...args: unknown[]) => Promise<{ data: Blob | null; error: unknown }>,
+  isPublic = false,
+) {
+  const from = vi.fn(() => ({ upload, download: (...args: unknown[]) => ({
+    asStream: async () => {
+      const result = await download(...args);
+      return { ...result, data: result.data?.stream() ?? null };
+    },
+  }) }));
   const getBucket = vi.fn().mockResolvedValue({ data: { public: isPublic }, error: null });
   return { value: { storage: { from, getBucket } } as unknown as SupabaseClient, from, getBucket };
 }
@@ -32,7 +41,9 @@ describe('church photograph private Storage adapter', () => {
     expect(upload).toHaveBeenCalledWith(expected.objectKey, expected.data, {
       cacheControl: '31536000', contentType: 'image/webp', upsert: false,
     });
-    expect(download).toHaveBeenCalledWith(expected.objectKey, {}, { cache: 'no-store' });
+    expect(download).toHaveBeenCalledWith(expected.objectKey, {}, {
+      cache: 'no-store', signal: expect.any(AbortSignal),
+    });
   });
 
   it('accepts an immutable retry conflict only when the existing bytes match', async () => {
@@ -65,5 +76,31 @@ describe('church photograph private Storage adapter', () => {
     await expect(new SupabaseChurchImageStorage(fake.value).readVerified(expected))
       .rejects.toThrow('Church photograph storage is unavailable.');
     expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsafe metadata and changed bytes before accessing Storage', async () => {
+    const expected = file();
+    const fake = client(vi.fn(), vi.fn());
+    const storage = new SupabaseChurchImageStorage(fake.value);
+    await expect(storage.readVerified({ ...expected, objectKey: '../another.webp' })).rejects.toThrow();
+    await expect(storage.readVerified({ ...expected, byteLength: 16 * 1024 * 1024 + 1 })).rejects.toThrow();
+    await expect(storage.putVerified({ ...expected, data: Buffer.from('changed') })).rejects.toThrow();
+    expect(fake.getBucket).not.toHaveBeenCalled();
+  });
+
+  it('cancels an oversized response before accepting its bytes', async () => {
+    const expected = file();
+    const cancel = vi.fn();
+    const stream = new ReadableStream({
+      start(controller) { controller.enqueue(new Uint8Array(expected.byteLength + 1)); },
+      cancel,
+    });
+    const download = vi.fn().mockReturnValue({ asStream: async () => ({ data: stream, error: null }) });
+    const value = { storage: {
+      getBucket: vi.fn().mockResolvedValue({ data: { public: false }, error: null }),
+      from: vi.fn(() => ({ download })),
+    } } as unknown as SupabaseClient;
+    await expect(new SupabaseChurchImageStorage(value).readVerified(expected)).rejects.toThrow();
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 });

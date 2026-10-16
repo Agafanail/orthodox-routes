@@ -15,6 +15,14 @@ export interface ChurchImageObjectStorage {
 }
 
 const UNAVAILABLE = 'Church photograph storage is unavailable.';
+const MAX_OBJECT_BYTES = 16 * 1024 * 1024;
+
+function validMetadata(metadata: ChurchImageObjectMetadata) {
+  return metadata.contentType === 'image/webp'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(master|480|960|1600)\.webp$/.test(metadata.objectKey)
+    && Number.isSafeInteger(metadata.byteLength) && metadata.byteLength > 0
+    && metadata.byteLength <= MAX_OBJECT_BYTES && /^[0-9a-f]{64}$/.test(metadata.sha256);
+}
 
 function storageFailure(): Error {
   return new Error(UNAVAILABLE);
@@ -42,10 +50,12 @@ export class SupabaseChurchImageStorage implements ChurchImageObjectStorage {
 
   async readVerified(metadata: ChurchImageObjectMetadata): Promise<Buffer | null> {
     try {
+      if (!validMetadata(metadata)) throw storageFailure();
       await this.assertPrivateBucket();
       const { data, error } = await this.client.storage
         .from(CHURCH_IMAGE_BUCKET)
-        .download(metadata.objectKey, {}, { cache: 'no-store' });
+        .download(metadata.objectKey, {}, { cache: 'no-store', signal: AbortSignal.timeout(10_000) })
+        .asStream();
       if (error) {
         if (isConflict(error)) throw storageFailure();
         const status = typeof error === 'object' && error !== null
@@ -54,7 +64,22 @@ export class SupabaseChurchImageStorage implements ChurchImageObjectStorage {
         throw storageFailure();
       }
       if (!data) throw storageFailure();
-      const bytes = Buffer.from(await data.arrayBuffer());
+      const reader = data.getReader();
+      const chunks: Buffer[] = [];
+      let length = 0;
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          length += chunk.value.byteLength;
+          if (length > metadata.byteLength) throw storageFailure();
+          chunks.push(Buffer.from(chunk.value));
+        }
+      } finally {
+        await reader.cancel().catch(() => {});
+        reader.releaseLock();
+      }
+      const bytes = Buffer.concat(chunks, length);
       if (!matches(metadata, bytes)) throw storageFailure();
       return bytes;
     } catch (error) {
@@ -65,6 +90,9 @@ export class SupabaseChurchImageStorage implements ChurchImageObjectStorage {
 
   async putVerified(file: PreparedChurchImageFile): Promise<void> {
     try {
+      if (!validMetadata(file) || !Buffer.isBuffer(file.data) || !matches(file, file.data)) {
+        throw storageFailure();
+      }
       await this.assertPrivateBucket();
       const { error } = await this.client.storage.from(CHURCH_IMAGE_BUCKET).upload(
         file.objectKey,

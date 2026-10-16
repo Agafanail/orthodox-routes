@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { churchImageManifest, prepareChurchImage } from './process';
+import { CHURCH_IMAGE_MAX_INPUT_BYTES, churchImageManifest, prepareChurchImage } from './process';
 import type { ChurchImageObjectStorage } from './storage';
 
 type ReplacementResult = {
@@ -86,8 +86,10 @@ async function rpc(client: SupabaseClient, name: string, args: Record<string, un
  */
 export async function replaceChurchImage(input: ReplaceChurchImageInput): Promise<ReplacementResult> {
   try {
-    if (!Buffer.isBuffer(input.upload)) fail();
-    const uploadSha256 = createHash('sha256').update(input.upload).digest('hex');
+    if (!Buffer.isBuffer(input.upload) || input.upload.length < 1
+      || input.upload.length > CHURCH_IMAGE_MAX_INPUT_BYTES) fail();
+    const upload = Buffer.from(input.upload);
+    const uploadSha256 = createHash('sha256').update(upload).digest('hex');
     const prepared = await rpc(input.actorClient, 'prepare_church_image_replacement', {
       p_church_id: input.churchId,
       p_expected_version: input.expectedContentVersion,
@@ -106,7 +108,7 @@ export async function replaceChurchImage(input: ReplaceChurchImageInput): Promis
     if (inspected.state === 'succeeded') return inspected.result;
 
     const image = await prepareChurchImage(
-      input.upload,
+      upload,
       inspected.state === 'staged' ? inspected.manifest.imageId : undefined,
     );
     const manifest = churchImageManifest(image);
