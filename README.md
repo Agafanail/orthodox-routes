@@ -127,6 +127,8 @@ Optional public church contacts use `api.update_church_public_contacts` and the 
 
 Church creation/administration and translation correction require confirmed-user eligibility and the existing membership checks, independently of optional ride-notification preferences. A person with no ride commitments may keep both ordinary external channels off without losing church-administration access. Publishing/responding/confirming transport still requires an effective external channel; administrative actions never silently enable a preference. The church integration runs its eligible administrator with both channels off and verifies that transport remains refused.
 
+Administrator optimistic-version mismatches return application HTTP 409 (`PT409`), including church content/address/public contacts, service edits/cancellation, and translation corrections. They do not use database serialization SQLSTATE `40001`, which can trigger repeated transactions in affected PostgREST versions. A migration changes only the explicit conflict code in the allowlisted existing functions, preserving signatures, authorization, transaction bodies, and grants. Local integration checks real stale requests and replays the migration without changing API definitions or privileges.
+
 Docker Desktop or another compatible Docker engine is required only for backend/database work. Ordinary frontend installation, development, tests, lint, and production builds do not require Docker, Supabase environment variables, or a running database.
 
 The local database workflow uses the project-pinned Supabase CLI:
