@@ -54,6 +54,7 @@ PWA-сервис, который помогает пассажиру без ма
 - protected rescheduling of one recurring service date, with a change-history exception, old/new ride schedule generations, and notifications; the original weekly slot and other dates remain unchanged.
 - protected source-name/description editing for one recurring service date, with an auditable exception, unchanged weekly template and ride snapshots, and participant notifications.
 - protected cancellation of a recurring service's selected and later weekly dates, with an impact preview, retained earlier dates and ride snapshots, durable notifications, and no rematerialization of cancelled dates.
+- protected source-name/description editing for a recurring service's selected and later scheduled weekly slots, with an impact preview, whole-schedule freshness check, unchanged earlier/cancelled dates and ride snapshots, and participant notifications. Later materialization uses the edited source; recurring time/weekday changes remain unfinished.
 - versioned translation-source storage limited to church and concrete-service text, with stale-on-edit tracking and published-only localized read projections that fall back to the original.
 - protected manual correction of those stored translations by current equal church administrators, using both source and translation versions to prevent silent overwrites.
 - service-role-only translation leases and completion for current published church/concrete-service text, with bounded retries, original-text fallback, and protection against stale or manual-result overwrite.

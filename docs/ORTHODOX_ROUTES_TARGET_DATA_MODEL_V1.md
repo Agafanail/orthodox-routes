@@ -190,6 +190,8 @@ A recurring date can also have its source name/description edited independently 
 
 Cancelling a selected weekly slot and all later slots advances the series version and truncates its end bound (or stops the source when the selection is its start). Materialized future dates at or after the selected source-local slot receive independent cancellation exceptions, immutable ride snapshots remain, and affected participants receive per-date durable notifications. Earlier slots are not cancelled and the worker cannot recreate later dates.
 
+Editing name/description from a selected weekly slot onward updates the future source and only scheduled future occurrences at or after its source-local date. The protected preview includes affected counts, series version, and the church schedule timestamp; both concurrency tokens are checked under the shared church lock so intervening date exceptions cannot be overwritten from a stale preview. Changed occurrences reuse one-date content exceptions, translation-source invalidation, and participant notifications. Earlier/cancelled slots, concrete service times, and ride snapshots remain unchanged. Successful retries do not restore older content; no-op edits do not advance versions. Future-series time/weekday editing remains separate.
+
 ### 5.6 `app.church_image`
 
 Stores church, opaque Storage object key for cleaned master, prepared variant manifest, media type, dimensions, checksum, attribution/rights statement, processing status, uploader, and lifecycle timestamps. Only one `current` image per church. The untouched upload is not retained.
