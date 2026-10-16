@@ -806,7 +806,13 @@ assert.deepEqual(auditRows.map((row) => row.action_type).sort(), [
 assert.deepEqual(Object.keys(auditRows[0]).sort(), [
   'id', 'event_key', 'occurred_at', 'actor_kind', 'actor_account_id', 'action_type',
   'target_type', 'target_id', 'result', 'changed_fields', 'transaction_id', 'schema_version',
+  'operator_fingerprint', 'support_reference', 'reason_code',
 ].sort());
+for (const row of auditRows) {
+  assert.equal(row.operator_fingerprint, null);
+  assert.equal(row.support_reference, null);
+  assert.equal(row.reason_code, null);
+}
 for (const identity of identities) {
   for (const protectedValue of [identity.email, identity.phone]) {
     assert.equal(JSON.stringify(auditRows).includes(protectedValue), false);
