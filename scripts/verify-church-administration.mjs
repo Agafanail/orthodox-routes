@@ -2243,7 +2243,10 @@ try {
   for (const event of churchAudit) {
     assert.deepEqual(Object.keys(event).sort(), ['id', 'event_key', 'occurred_at', 'actor_kind',
       'actor_account_id', 'action_type', 'target_type', 'target_id', 'result', 'changed_fields',
-      'transaction_id', 'schema_version'].sort());
+      'transaction_id', 'schema_version', 'operator_fingerprint', 'support_reference', 'reason_code'].sort());
+    assert.equal(event.operator_fingerprint, null);
+    assert.equal(event.support_reference, null);
+    assert.equal(event.reason_code, null);
     assert.equal(event.result, 'success');
   }
   for (const forbidden of [...identities.map((identity) => identity.email),
