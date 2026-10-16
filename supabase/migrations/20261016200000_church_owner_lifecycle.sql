@@ -138,8 +138,8 @@ begin
   if p_church_id is null or p_operation_type is null
     or p_operation_type not in ('archive_church', 'restore_church')
     or p_support_reference is null or p_support_reference !~ '^[A-Z0-9][A-Z0-9._-]{3,63}$'
-    or p_reason_code is distinct from case p_operation_type
-      when 'archive_church' then 'reviewed_archival' else 'reviewed_restoration' end then
+    or p_reason_code is distinct from (case p_operation_type
+      when 'archive_church' then 'reviewed_archival' else 'reviewed_restoration' end) then
     raise exception using errcode = '22023', message = 'Church lifecycle operation input is invalid.';
   end if;
   select church.id into internal_church_id from app.church as church where church.public_id = p_church_id;
