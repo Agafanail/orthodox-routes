@@ -24,6 +24,17 @@ export type PreparedChurchImage = {
   files: PreparedChurchImageFile[];
 };
 
+/** The database receives only this manifest, never encoded bytes or the untouched upload. */
+export function churchImageManifest(image: PreparedChurchImage) {
+  return {
+    imageId: image.imageId,
+    files: image.files.map((file) => ({
+      role: file.role, objectKey: file.objectKey, contentType: file.contentType,
+      width: file.width, height: file.height, byteLength: file.byteLength, sha256: file.sha256,
+    })),
+  };
+}
+
 const UNAVAILABLE = 'Church photograph could not be prepared.';
 
 function inputFormat(input: Buffer): 'jpeg' | 'png' | 'webp' | null {
@@ -60,7 +71,7 @@ function preparedFile(
 }
 
 /** Node-only, in-memory preparation. Never accepts a path/URL or persists the untouched upload. */
-export async function prepareChurchImage(input: Buffer): Promise<PreparedChurchImage> {
+export async function prepareChurchImage(input: Buffer, existingImageId?: string): Promise<PreparedChurchImage> {
   try {
     if (!Buffer.isBuffer(input) || input.length < 1 || input.length > CHURCH_IMAGE_MAX_INPUT_BYTES) {
       throw new Error(UNAVAILABLE);
@@ -75,7 +86,11 @@ export async function prepareChurchImage(input: Buffer): Promise<PreparedChurchI
       || metadata.width * metadata.height > CHURCH_IMAGE_MAX_PIXELS
       || (metadata.pages ?? 1) !== 1) throw new Error(UNAVAILABLE);
 
-    const imageId = randomUUID();
+    const imageId = existingImageId === undefined ? randomUUID() : existingImageId;
+    if (typeof imageId !== 'string'
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(imageId)) {
+      throw new Error(UNAVAILABLE);
+    }
     // Do not call keepMetadata/withMetadata: EXIF, GPS, XMP, ICC and comments must not survive.
     const master = await sharp(upload, INPUT_OPTIONS).autoOrient().toColourspace('srgb')
       .webp({ quality: 95, effort: 4 }).timeout({ seconds: 5 })

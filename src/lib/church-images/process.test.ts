@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { CHURCH_IMAGE_MAX_INPUT_BYTES, prepareChurchImage } from './process';
+import { CHURCH_IMAGE_MAX_INPUT_BYTES, churchImageManifest, prepareChurchImage } from './process';
 
 function syntheticImage(width = 64, height = 32) {
   return sharp({ create: { width, height, channels: 4, background: '#824a31aa' } });
@@ -29,6 +29,14 @@ describe('church photograph preparation', () => {
       expect(metadata.icc).toBeUndefined();
     }
     expect(Object.keys(result).sort()).toEqual(['files', 'imageId']);
+    const manifest = churchImageManifest(result);
+    expect(manifest.imageId).toBe(result.imageId);
+    expect(manifest.files).toHaveLength(4);
+    for (const file of manifest.files) {
+      expect(Object.keys(file).sort()).toEqual([
+        'role', 'objectKey', 'contentType', 'width', 'height', 'byteLength', 'sha256',
+      ].sort());
+    }
   });
 
   it('normalizes EXIF orientation and removes identifying EXIF/XMP from every output', async () => {
@@ -64,6 +72,17 @@ describe('church photograph preparation', () => {
     const second = await prepareChurchImage(input);
     expect(first.imageId).not.toBe(second.imageId);
     for (const file of first.files) expect(file.data.includes(Buffer.from('private trailer'))).toBe(false);
+  });
+
+  it('reuses only a validated staged identifier for an unchanged processing retry', async () => {
+    const input = await syntheticImage().png().toBuffer();
+    const first = await prepareChurchImage(input);
+    const retried = await prepareChurchImage(input, first.imageId);
+    expect(churchImageManifest(retried)).toEqual(churchImageManifest(first));
+  });
+
+  it.each(['../another-image', 'https://example.invalid/image.webp'])('refuses an unsafe retry identifier %s', async (id) => {
+    await expect(prepareChurchImage(await syntheticImage().png().toBuffer(), id)).rejects.toThrow();
   });
 
   it.each([

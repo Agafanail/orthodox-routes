@@ -128,7 +128,7 @@ Loss of both verified contacts is not a recovery type. The old identity is never
 | `location` | `geography(Point, 4326)`; required | Public church geography |
 | `timezone` | Required IANA zone | Public |
 | `status` | `draft`, `published`, `hidden`, `archive_requested`, `archived` | Public safe state/operational |
-| `content_version` | Monotonic version for administrator text edits | Protected management concurrency token |
+| `content_version` | Shared monotonic version for administrator text, address, and image edits | Protected management concurrency token |
 | `schedule_updated_at` | Derived/maintained timestamp | Public |
 | `created_by`, `created_at`, `updated_at` | FKs/timestamps | Protected/system |
 
@@ -193,6 +193,8 @@ Cancelling a selected weekly slot and all later slots advances the series versio
 ### 5.6 `app.church_image`
 
 Stores church, opaque Storage object key for cleaned master, prepared variant manifest, media type, dimensions, checksum, attribution/rights statement, processing status, uploader, and lifecycle timestamps. Only one `current` image per church. The untouched upload is not retained.
+
+The executable metadata contract now stores a validated manifest in forced-RLS `app.church_image`, with a partial unique current-image index and superseded history. A protected `private.church_image_replacement` intent derives its actor from the authenticated user, binds the input checksum/version/rights acknowledgement, and has a 30-minute technical completion window. Only service-only stage/complete functions attest to processing/upload; completion serializes with administrator changes and rechecks current authority/version before atomic replacement and audit. Successful retries return their original result without restoring old images. The raw-upload checksum is cleared on completion; expired staged manifests remain available for the future Storage cleanup integration. Public metadata includes only current published variants and attribution. No untouched upload bytes or account contacts enter either manifest; Storage publication/delivery/cleanup is not yet integrated.
 
 ## 6. Protected and public geographic data
 

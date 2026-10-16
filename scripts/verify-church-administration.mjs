@@ -70,6 +70,17 @@ function translationIdFor(container, objectType, publicId, fieldName, targetLang
       and translation.target_language = ${sqlLiteral(targetLanguage)};`);
 }
 
+// Synthetic trusted-processor attestation only; this is not real Storage verification.
+function syntheticImageManifest() {
+  const imageId = randomUUID();
+  return { imageId, files: [
+    ['master', 1800, 900], ['480', 480, 240], ['960', 960, 480], ['1600', 1600, 800],
+  ].map(([role, width, height]) => ({
+    role, width, height, objectKey: `${imageId}/${role}.webp`, contentType: 'image/webp',
+    byteLength: 1000, sha256: 'a'.repeat(64),
+  })) };
+}
+
 function userClient(url, publicKey) {
   return createClient(url, publicKey, {
     auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
@@ -1395,6 +1406,151 @@ try {
   assert.deepEqual(await rpc(clients[1], 'update_church_public_contacts', contactArgs), contactsSaved);
   assert.equal((await readSecondChurch()).public_contact_details, undefined);
 
+  const photoArgs = {
+    p_church_id: second.church_id, p_expected_version: 3, p_upload_sha256: 'c'.repeat(64),
+    p_rights_confirmed: true, p_attribution: 'Synthetic photographer', p_client_key: randomUUID(),
+  };
+  await rpcFailure(publicReader, 'prepare_church_image_replacement', photoArgs);
+  await rpcFailure(admin, 'prepare_church_image_replacement', photoArgs);
+  await rpcFailure(clients[0], 'prepare_church_image_replacement', photoArgs);
+  await rpcFailure(clients[4], 'prepare_church_image_replacement', photoArgs);
+  await rpcFailure(clients[1], 'prepare_church_image_replacement', { ...photoArgs, p_rights_confirmed: false });
+  await rpcFailure(clients[1], 'prepare_church_image_replacement', { ...photoArgs, p_attribution: 'x'.repeat(1001) });
+  const photoIntent = await rpc(clients[1], 'prepare_church_image_replacement', photoArgs);
+  assert.equal(photoIntent.status, 'prepared');
+  assert.deepEqual(await rpc(clients[1], 'prepare_church_image_replacement', photoArgs), photoIntent);
+  await rpcFailure(clients[1], 'prepare_church_image_replacement', { ...photoArgs, p_upload_sha256: 'd'.repeat(64) });
+  const photoManifest = syntheticImageManifest();
+  const stagePhoto = { p_replacement_id: photoIntent.replacement_id,
+    p_upload_sha256: photoArgs.p_upload_sha256, p_manifest: photoManifest };
+  const finishPhoto = { p_replacement_id: photoIntent.replacement_id };
+  await rpcFailure(clients[1], 'inspect_church_image_replacement', finishPhoto);
+  assert.equal((await rpc(admin, 'inspect_church_image_replacement', finishPhoto)).state, 'pending');
+  await rpcFailure(clients[1], 'stage_church_image_replacement', stagePhoto);
+  await rpcFailure(clients[1], 'complete_church_image_replacement', finishPhoto);
+  await rpcFailure(admin, 'complete_church_image_replacement', finishPhoto);
+  await rpcFailure(admin, 'stage_church_image_replacement', { ...stagePhoto, p_upload_sha256: 'd'.repeat(64) });
+  for (const invalidManifest of [
+    null, [], 'not a manifest', { ...photoManifest, files: [null, null, null, null] },
+    { ...photoManifest, data: 'untouched upload must not reach SQL' },
+    { ...photoManifest, files: photoManifest.files.map((file) => ({ ...file, data: 'encoded bytes' })) },
+    { ...photoManifest, files: photoManifest.files.map((file) => ({ ...file, objectKey: '../other.webp' })) },
+    { ...photoManifest, files: photoManifest.files.map((file) => ({ ...file, width: 10001 })) },
+    { ...photoManifest, files: photoManifest.files.map((file) => ({ ...file, width: `${file.width}` })) },
+  ]) await rpcFailure(admin, 'stage_church_image_replacement', { ...stagePhoto, p_manifest: invalidManifest });
+  assert.equal(await rpc(admin, 'stage_church_image_replacement', stagePhoto), true);
+  assert.equal(await rpc(admin, 'stage_church_image_replacement', stagePhoto), true);
+  assert.deepEqual((await rpc(admin, 'inspect_church_image_replacement', finishPhoto)).manifest, photoManifest);
+  await rpcFailure(admin, 'stage_church_image_replacement', { ...stagePhoto, p_manifest: syntheticImageManifest() });
+  assert.equal(await rpc(publicReader, 'published_church_image', { p_church_id: second.church_id }), null);
+  runSql(container, `update private.account_contact set phone_verified_at = null
+    where account_id = ${sqlLiteral(identities[1].id)}::uuid;`);
+  await rpcFailure(admin, 'complete_church_image_replacement', finishPhoto);
+  runSql(container, `update private.account_contact set phone_verified_at = clock_timestamp()
+    where account_id = ${sqlLiteral(identities[1].id)}::uuid;`);
+  runSql(container, `update app.church_admin_membership set status = 'ended', ended_at = clock_timestamp()
+    where account_id = ${sqlLiteral(identities[1].id)}::uuid
+      and church_id = (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid);`);
+  await rpcFailure(clients[1], 'prepare_church_image_replacement', photoArgs);
+  await rpcFailure(admin, 'complete_church_image_replacement', finishPhoto);
+  runSql(container, `update app.church_admin_membership set status = 'active', ended_at = null
+    where account_id = ${sqlLiteral(identities[1].id)}::uuid
+      and church_id = (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid);`);
+  const photoSaved = await rpc(admin, 'complete_church_image_replacement', finishPhoto);
+  assert.equal(photoSaved.content_version, 4);
+  assert.equal(photoSaved.image_id, photoManifest.imageId);
+  assert.deepEqual(await rpc(admin, 'complete_church_image_replacement', finishPhoto), photoSaved);
+  const inspectedPhoto = await rpc(admin, 'inspect_church_image_replacement', finishPhoto);
+  assert.deepEqual(Object.keys(inspectedPhoto).sort(), ['state', 'expires_at', 'manifest', 'result'].sort());
+  assert.deepEqual(inspectedPhoto.result, photoSaved);
+  assert.deepEqual(await rpc(clients[1], 'prepare_church_image_replacement', photoArgs), photoSaved);
+  const publicPhoto = await rpc(publicReader, 'published_church_image', { p_church_id: second.church_id });
+  assert.deepEqual(Object.keys(publicPhoto).sort(), ['image_id', 'attribution', 'variants'].sort());
+  assert.equal(publicPhoto.attribution, photoArgs.p_attribution);
+  assert.deepEqual(publicPhoto.variants.map((file) => file.role), ['480', '960', '1600']);
+  for (const file of publicPhoto.variants) assert.deepEqual(Object.keys(file).sort(),
+    ['role', 'content_type', 'width', 'height'].sort());
+  assert.equal(runSql(container, `select upload_sha256 is null from private.church_image_replacement
+    where id = ${sqlLiteral(photoIntent.replacement_id)}::uuid;`), 't');
+
+  const expiredPhotoIntent = await rpc(clients[1], 'prepare_church_image_replacement', {
+    ...photoArgs, p_expected_version: 4, p_client_key: randomUUID(),
+  });
+  await rpc(admin, 'stage_church_image_replacement', {
+    ...stagePhoto, p_replacement_id: expiredPhotoIntent.replacement_id, p_manifest: syntheticImageManifest(),
+  });
+  runSql(container, `update private.church_image_replacement set expires_at = clock_timestamp() - interval '1 minute'
+    where id = ${sqlLiteral(expiredPhotoIntent.replacement_id)}::uuid;`);
+  await rpcFailure(admin, 'stage_church_image_replacement', {
+    ...stagePhoto, p_replacement_id: expiredPhotoIntent.replacement_id, p_manifest: syntheticImageManifest(),
+  });
+  await rpcFailure(admin, 'complete_church_image_replacement', {
+    p_replacement_id: expiredPhotoIntent.replacement_id,
+  });
+  assert.equal(runSql(container, `select manifest is not null from private.church_image_replacement
+    where id = ${sqlLiteral(expiredPhotoIntent.replacement_id)}::uuid;`), 't');
+  const stalePhotoIntent = await rpc(clients[1], 'prepare_church_image_replacement', {
+    ...photoArgs, p_expected_version: 4, p_client_key: randomUUID(),
+  });
+  await rpc(admin, 'stage_church_image_replacement', {
+    ...stagePhoto, p_replacement_id: stalePhotoIntent.replacement_id, p_manifest: syntheticImageManifest(),
+  });
+  await rpc(clients[1], 'update_church_public_contacts', {
+    ...contactArgs, p_public_contact_details: 'Synthetic public office', p_expected_version: 4, p_client_key: randomUUID(),
+  });
+  await rpcFailure(admin, 'complete_church_image_replacement', { p_replacement_id: stalePhotoIntent.replacement_id });
+  assert.equal((await rpc(publicReader, 'published_church_image', { p_church_id: second.church_id })).image_id,
+    photoManifest.imageId);
+  const racingPhotos = [];
+  for (let index = 0; index < 2; index += 1) {
+    const intent = await rpc(clients[1], 'prepare_church_image_replacement', {
+      ...photoArgs, p_expected_version: 5, p_client_key: randomUUID(),
+    });
+    await rpc(admin, 'stage_church_image_replacement', {
+      ...stagePhoto, p_replacement_id: intent.replacement_id, p_manifest: syntheticImageManifest(),
+    });
+    racingPhotos.push(intent);
+  }
+  const racedPhotos = await Promise.all(racingPhotos.map((intent) => admin.schema('api')
+    .rpc('complete_church_image_replacement', { p_replacement_id: intent.replacement_id })));
+  assert.equal(racedPhotos.filter((result) => result.error === null).length, 1);
+  const failedRacingPhoto = racedPhotos.find((result) => result.error !== null)?.error;
+  assert.equal(failedRacingPhoto?.code, 'PT409', JSON.stringify({
+    code: failedRacingPhoto?.code, details: failedRacingPhoto?.details,
+    hint: failedRacingPhoto?.hint, message: failedRacingPhoto?.message,
+  }));
+  const winningPhoto = racedPhotos.find((result) => result.error === null).data;
+  assert.equal(winningPhoto.content_version, 6);
+  assert.deepEqual(await rpc(admin, 'complete_church_image_replacement', finishPhoto), photoSaved);
+  assert.equal((await rpc(publicReader, 'published_church_image', { p_church_id: second.church_id })).image_id,
+    winningPhoto.image_id);
+  assert.equal(runSql(container, `select count(*) from app.church_image
+    where church_id = (select id from app.church where public_id = ${sqlLiteral(second.church_id)}::uuid)
+      and status = 'current';`), '1');
+  for (const status of ['hidden', 'archived']) {
+    runSql(container, `update app.church set status = ${sqlLiteral(status)}
+      where public_id = ${sqlLiteral(second.church_id)}::uuid;`);
+    assert.equal(await rpc(publicReader, 'published_church_image', { p_church_id: second.church_id }), null);
+    if (status === 'archived') await rpcFailure(clients[1], 'prepare_church_image_replacement', {
+      ...photoArgs, p_expected_version: 6, p_client_key: randomUUID(),
+    });
+  }
+  runSql(container, `update app.church set status = 'published'
+    where public_id = ${sqlLiteral(second.church_id)}::uuid;`);
+  for (const role of ['anon', 'authenticated', 'service_role']) {
+    for (const table of ['app.church_image', 'private.church_image_replacement']) {
+      runSql(container, `set role ${role}; select * from ${table};`, { expectFailure: true });
+    }
+  }
+  assert.equal(runSql(container, `select count(*) from pg_class as relation
+    join pg_namespace as namespace on namespace.oid = relation.relnamespace
+    where (namespace.nspname, relation.relname) in (
+      ('app', 'church_image'), ('private', 'church_image_replacement'))
+      and relation.relrowsecurity and relation.relforcerowsecurity;`), '2');
+  assert.equal(runSql(container, `select count(*) from information_schema.role_table_grants
+    where grantee in ('anon', 'authenticated', 'service_role')
+      and (table_schema, table_name) in (('app', 'church_image'), ('private', 'church_image_replacement'));`), '0');
+
   const firstInternalId = runSql(container,
     `select id from app.church where public_id = ${sqlLiteral(created.church_id)}::uuid;`);
   runSql(container, `
@@ -1718,7 +1874,8 @@ try {
     assert.equal(event.result, 'success');
   }
   for (const forbidden of [...identities.map((identity) => identity.email),
-    contactArgs.p_public_contact_details, firstToken, declineToken, editArgs.p_description_source]) {
+    contactArgs.p_public_contact_details, firstToken, declineToken, editArgs.p_description_source,
+    photoArgs.p_attribution, photoArgs.p_upload_sha256, photoManifest.files[0].objectKey]) {
     assert.equal(JSON.stringify(churchAudit).includes(forbidden), false);
   }
   const rolledBackAuditId = randomUUID();
@@ -1775,6 +1932,7 @@ try {
     '- creation is actor-derived, idempotent, and immediately creates the first equal administrator place',
     '- church source text edits are member-only, idempotent, version-checked, and public only through the deliberate projection',
     '- optional public church contacts are separate from private accounts, removable, member-only, and excluded from translation',
+    '- church-photo metadata replacement requires rights acknowledgement, current eligibility/membership, versions, and trusted processing',
     '- church/admin/schedule actions atomically produce minimized audit with rollback and historical-backfill safety',
     '- normalized-address and PostGIS proximity checks return the existing safe page instead of duplicating it',
     '- suspicious same-address geography fails closed for protected review',
@@ -1793,6 +1951,12 @@ try {
     try {
       const accountList = createdUserIds.map((id) => `${sqlLiteral(id)}::uuid`).join(', ');
       runSql(container, `
+        delete from private.church_image_replacement where church_id in (
+          select id from app.church where created_by in (${accountList})
+        );
+        delete from app.church_image where church_id in (
+          select id from app.church where created_by in (${accountList})
+        );
         delete from private.church_invite_mail where invite_id in (
           select id from app.church_admin_invite where church_id in (
             select id from app.church where created_by in (${accountList})
