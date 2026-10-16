@@ -68,6 +68,13 @@ describe.runIf(enabled)('private church-image Storage integration', () => {
       const denied = await anonymous.storage.from(CHURCH_IMAGE_BUCKET).download(objectKeys[1]);
       expect(denied.data).toBeNull();
       expect(denied.error).toBeTruthy();
+      await storage.removeAbandoned(image.imageId);
+      await storage.removeAbandoned(image.imageId);
+      for (const key of objectKeys) {
+        const removed = await privileged.storage.from(CHURCH_IMAGE_BUCKET).download(key);
+        expect(removed.data).toBeNull();
+        expect(removed.error).toBeTruthy();
+      }
     } finally {
       if (created) {
         let removalError: unknown = null;

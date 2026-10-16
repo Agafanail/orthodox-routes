@@ -103,4 +103,19 @@ describe('church photograph private Storage adapter', () => {
     await expect(new SupabaseChurchImageStorage(value).readVerified(expected)).rejects.toThrow();
     expect(cancel).toHaveBeenCalledTimes(1);
   });
+
+  it('removes only the four opaque object keys and refuses an unsafe identifier', async () => {
+    const remove = vi.fn().mockResolvedValue({ data: [], error: null });
+    const value = { storage: {
+      getBucket: vi.fn().mockResolvedValue({ data: { public: false }, error: null }),
+      from: vi.fn(() => ({ remove })),
+    } } as unknown as SupabaseClient;
+    const storage = new SupabaseChurchImageStorage(value);
+    const imageId = '11111111-1111-4111-8111-111111111111';
+    await storage.removeAbandoned(imageId);
+    expect(remove).toHaveBeenCalledWith(['master', '480', '960', '1600']
+      .map((role) => `${imageId}/${role}.webp`));
+    await expect(storage.removeAbandoned('../another')).rejects.toThrow();
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
 });

@@ -43,6 +43,21 @@ function matches(metadata: ChurchImageObjectMetadata, data: Buffer) {
 export class SupabaseChurchImageStorage implements ChurchImageObjectStorage {
   constructor(private readonly client: SupabaseClient) {}
 
+  /** Called only for an expired uncommitted manifest obtained from the protected cleanup lease. */
+  async removeAbandoned(imageId: string): Promise<void> {
+    try {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(imageId)) {
+        throw storageFailure();
+      }
+      await this.assertPrivateBucket();
+      const keys = ['master', '480', '960', '1600'].map((role) => `${imageId}/${role}.webp`);
+      const { error } = await this.client.storage.from(CHURCH_IMAGE_BUCKET).remove(keys);
+      if (error) throw storageFailure();
+    } catch {
+      throw storageFailure();
+    }
+  }
+
   private async assertPrivateBucket() {
     const { data, error } = await this.client.storage.getBucket(CHURCH_IMAGE_BUCKET);
     if (error || !data || data.public !== false) throw storageFailure();
