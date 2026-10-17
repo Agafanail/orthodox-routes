@@ -219,6 +219,10 @@ The `/auth` route displays a safe unavailable state when the public local Auth v
 
 `test:geography` covers cross-language discovery, localized order, original fallback, manual/machine flags, proximity, viewport/limit preservation, anonymous/authenticated parity, and stale/hidden exclusions. The current Russian prototype UI still displays official names; production language selection and localized cards remain separate UI work.
 
+## Public transport visibility
+
+Both public transport-list RPCs independently require the linked church to be published, including global/no-church-filter calls. Hidden, archived, and draft churches return no public passenger/driver rows even when their future records are retained. Restoring publication restores the same still-active public rows; participant My Trips and account-owned transport reads are unchanged. Page routing is not the authorization boundary.
+
 ## Restricted transition audit
 
 Successful initial phone verification and verified phone replacement also create atomic minimized `account.phone_verified` / `account.phone_changed` audit facts from the actual verified-attempt transition. They identify the account by its opaque public UUID and list only changed field names, never phone values, OTP, lease/client keys, or provider details. Wrong/failed codes and no-change retries do not create success facts. Existing verified attempts backfill with their source time and a null historical transaction ID; the current contact alone is not evidence of an earlier change. This adds no new contact-changing API or audit read access.
