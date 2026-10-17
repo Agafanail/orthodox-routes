@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
@@ -221,6 +222,8 @@ try {
   });
   assert.equal(wrongResult.status, 'invalid_code');
   assert.equal(wrongResult.attempts_remaining, 4);
+  assert.equal(runSql(container, `select count(*) from ops.audit_event
+    where event_key = 'phone-binding:${requestedA.attempt_id}';`), '0');
 
   const verifiedA = await rpc(clients[0], 'verify_phone_code', {
     p_attempt_id: requestedA.attempt_id,
@@ -229,6 +232,15 @@ try {
   assert.equal(verifiedA.status, 'verified');
   assert.ok(verifiedA.account.phone_verified_at);
   assert.equal(verifiedA.account.eligibility.phone_verified, true);
+  const initialPhoneAudit = JSON.parse(runSql(container, `select to_jsonb(audit) from ops.audit_event as audit
+    where event_key = 'phone-binding:${requestedA.attempt_id}';`));
+  assert.equal(initialPhoneAudit.action_type, 'account.phone_verified');
+  assert.equal(initialPhoneAudit.actor_kind, 'account');
+  assert.equal(initialPhoneAudit.actor_account_id, identities[0].id);
+  assert.equal(initialPhoneAudit.target_type, 'account');
+  assert.equal(initialPhoneAudit.target_id, verifiedA.account.public_id);
+  assert.deepEqual(initialPhoneAudit.changed_fields, ['phone_e164', 'phone_verified_at']);
+  assert.match(initialPhoneAudit.transaction_id, /^[0-9]+$/);
   assert.equal(
     runSql(
       container,
@@ -459,6 +471,40 @@ try {
 
   const claimedChange = await claimDeliveryThroughWorkerApi(admin, requestedChange.attempt_id);
   await completeDeliveryThroughWorkerApi(admin, requestedChange.attempt_id, claimedChange.leaseToken);
+  assert.equal(runSql(container, `select count(*) from ops.audit_event
+    where event_key = 'phone-binding:${requestedChange.attempt_id}';`), '0');
+  // A successful source transition and its minimized audit are rolled back together.
+  runSql(container, `begin;
+    update ops.phone_verification_attempt set state = 'verified', verified_at = clock_timestamp(),
+      code_salt = null, code_digest = null where id = '${requestedChange.attempt_id}';
+    do $assert$ begin
+      if not exists (select 1 from ops.audit_event where event_key = 'phone-binding:${requestedChange.attempt_id}') then
+        raise exception 'Phone binding audit was not created in the source transaction.';
+      end if;
+    end; $assert$;
+    rollback;`);
+  assert.equal(runSql(container, `select count(*) from ops.audit_event
+    where event_key = 'phone-binding:${requestedChange.attempt_id}';`), '0');
+  assert.equal((await rpc(clients[0], 'current_account')).phone, oldVerifiedPhone);
+  runSql(container, `create function app.verify_phone_audit_rollback() returns trigger
+    language plpgsql set search_path = '' as $failure$
+    begin raise exception 'Synthetic phone transition failure.'; end; $failure$;
+    create trigger zz_verify_phone_audit_rollback after update of state on ops.phone_verification_attempt
+      for each row when (new.id = '${requestedChange.attempt_id}'::uuid and new.state = 'verified')
+      execute function app.verify_phone_audit_rollback();`);
+  try {
+    const refusedChange = await clients[0].schema('api').rpc('verify_phone_code', {
+      p_attempt_id: requestedChange.attempt_id, p_code: claimedChange.delivery.verification_code,
+    });
+    assert.ok(refusedChange.error);
+  } finally {
+    runSql(container, `drop trigger if exists zz_verify_phone_audit_rollback on ops.phone_verification_attempt;
+      drop function if exists app.verify_phone_audit_rollback();`);
+  }
+  assert.equal((await rpc(clients[0], 'current_account')).phone, oldVerifiedPhone);
+  assert.equal((await rpc(clients[0], 'current_phone_verification')).status, 'sent');
+  assert.equal(runSql(container, `select count(*) from ops.audit_event
+    where event_key = 'phone-binding:${requestedChange.attempt_id}';`), '0');
   const changed = await rpc(clients[0], 'verify_phone_code', {
     p_attempt_id: requestedChange.attempt_id,
     p_code: claimedChange.delivery.verification_code,
@@ -477,6 +523,61 @@ try {
       where recipient_account_id = '${identities[0].id}' and event_type = 'account.phone_changed';`),
     '1',
   );
+
+  const phoneAuditRows = () => JSON.parse(runSql(container, `select coalesce(jsonb_agg(to_jsonb(audit)
+    order by audit.event_key), '[]'::jsonb) from ops.audit_event as audit
+    where audit.event_key in ('phone-binding:${requestedA.attempt_id}', 'phone-binding:${requestedChange.attempt_id}');`));
+  const phoneAudit = phoneAuditRows();
+  assert.equal(phoneAudit.length, 2);
+  const changedAudit = phoneAudit.find((event) => event.action_type === 'account.phone_changed');
+  assert.ok(changedAudit);
+  assert.equal(changedAudit.actor_account_id, identities[0].id);
+  assert.equal(changedAudit.target_id, changed.account.public_id);
+  assert.equal(changedAudit.result, 'success');
+  assert.deepEqual(changedAudit.changed_fields, ['phone_e164', 'phone_verified_at', 'phone_changed_at']);
+  assert.match(changedAudit.transaction_id, /^[0-9]+$/);
+  assert.deepEqual(Object.keys(changedAudit).sort(), [
+    'id', 'event_key', 'occurred_at', 'actor_kind', 'actor_account_id', 'action_type', 'target_type', 'target_id',
+    'result', 'changed_fields', 'transaction_id', 'schema_version', 'operator_fingerprint', 'support_reference', 'reason_code',
+  ].sort());
+  for (const event of phoneAudit) {
+    assert.equal(event.operator_fingerprint, null);
+    assert.equal(event.support_reference, null);
+    assert.equal(event.reason_code, null);
+  }
+  const serializedAudit = JSON.stringify(phoneAudit);
+  for (const privateValue of [oldVerifiedPhone, newPhone, identities[0].email,
+    claimedChange.leaseToken, phoneChangeKey, 'synthetic-provider-reference']) {
+    assert.equal(serializedAudit.includes(privateValue), false);
+  }
+  // A random numeric OTP can coincidentally occur within an opaque UUID or timestamp.
+  assert.equal(phoneAudit.some((event) => Object.values(event).flat()
+    .includes(claimedChange.delivery.verification_code)), false);
+  assert.equal(runSql(container, `select count(*) from ops.phone_verification_attempt as attempt
+    left join ops.audit_event as audit on audit.event_key = 'phone-binding:' || attempt.id::text
+    where attempt.account_id in (${createdUserIds.map((id) => `'${id}'`).join(',')})
+      and ((attempt.state = 'verified' and audit.id is null) or (attempt.state <> 'verified' and audit.id is not null));`), '0');
+  assert.equal(runSql(container, `select count(*) from (values ('anon'), ('authenticated'), ('service_role')) as roles(name)
+    where has_function_privilege(roles.name, 'app.audit_verified_phone_binding()', 'EXECUTE');`), '0');
+  runSql(container, `update ops.phone_verification_attempt set state = state where id = '${requestedChange.attempt_id}';`);
+  assert.deepEqual(phoneAuditRows(), phoneAudit);
+
+  const phoneAuditMigration = readFileSync(new URL(
+    '../supabase/migrations/20261017010000_phone_binding_audit.sql', import.meta.url,
+  ), 'utf8');
+  runSql(container, phoneAuditMigration);
+  assert.deepEqual(phoneAuditRows(), phoneAudit);
+  runSql(container, `delete from ops.audit_event where event_key = 'phone-binding:${requestedA.attempt_id}';`);
+  runSql(container, phoneAuditMigration);
+  const backfilledPhoneAudit = phoneAuditRows().find((event) => event.event_key === initialPhoneAudit.event_key);
+  assert.equal(backfilledPhoneAudit.occurred_at, initialPhoneAudit.occurred_at);
+  assert.equal(backfilledPhoneAudit.transaction_id, null);
+  for (const field of ['actor_account_id', 'action_type', 'target_id', 'changed_fields']) {
+    assert.deepEqual(backfilledPhoneAudit[field], initialPhoneAudit[field]);
+  }
+  const afterBackfill = phoneAuditRows();
+  runSql(container, phoneAuditMigration);
+  assert.deepEqual(phoneAuditRows(), afterBackfill);
 
   assert.equal(
     runSql(
@@ -525,13 +626,17 @@ try {
       '- expired queued codes are removed from both attempt and delivery storage',
       '- abandoned worker leases are recoverable while post-expiry completion is rejected',
       '- verified phone replacement requires recent non-refresh authentication and preserves the old binding until success',
+      '- verified bindings and replacements create atomic minimized audit without phones, OTP, or provider values',
+      '- failed attempts, retries, rollback, and migration backfill preserve exactly-once audit facts',
       '- RLS, grants, and hardened function boundaries remain least-privilege',
     ].join('\n') + '\n',
   );
 } finally {
   if (createdUserIds.length > 0) {
     try {
-      runSql(container, `delete from app.account where id in (${createdUserIds.map((id) => `'${id}'`).join(', ')});`);
+      runSql(container, `delete from ops.audit_event where target_type = 'account'
+        and target_id in (select public_id from app.account where id in (${createdUserIds.map((id) => `'${id}'`).join(', ')}));
+        delete from app.account where id in (${createdUserIds.map((id) => `'${id}'`).join(', ')});`);
     } catch {
       // The disposable local database is rebuilt from migrations before CI verification.
     }
