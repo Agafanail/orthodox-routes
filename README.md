@@ -223,6 +223,10 @@ The `/auth` route displays a safe unavailable state when the public local Auth v
 
 Both public transport-list RPCs independently require the linked church to be published, including global/no-church-filter calls. Hidden, archived, and draft churches return no public passenger/driver rows even when their future records are retained. Restoring publication restores the same still-active public rows; participant My Trips and account-owned transport reads are unchanged. Page routing is not the authorization boundary.
 
+## Complaint target context
+
+The read-only `api.complaint_target_context(type, public_id)` prepares only an already-visible church/listing or the caller's own listing/agreement-history reference within IA V2's 30-day post-ride reporting window and the category codes from §45.5. Anonymous/unrelated users cannot probe private history or hidden church content; unknown/unsupported/expired targets return null even before lifecycle cleanup. It never selects contacts, names, places, notes, full snapshots, or complaint text. This is not complaint submission or email verification: stored cases, guest verification, rate limits, owner delivery/review, legal retention, and the production form remain unfinished. Legal/authority requests outside this interface window remain a separate service-email path.
+
 ## Restricted transition audit
 
 Successful initial phone verification and verified phone replacement also create atomic minimized `account.phone_verified` / `account.phone_changed` audit facts from the actual verified-attempt transition. They identify the account by its opaque public UUID and list only changed field names, never phone values, OTP, lease/client keys, or provider details. Wrong/failed codes and no-change retries do not create success facts. Existing verified attempts backfill with their source time and a null historical transaction ID; the current contact alone is not evidence of an earlier change. This adds no new contact-changing API or audit read access.
