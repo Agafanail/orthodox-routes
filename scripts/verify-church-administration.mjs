@@ -2170,8 +2170,12 @@ try {
   });
   await rpcFailure(clients[0], 'invite_church_admin', inviteArgs(identities[2].email));
   const firstInviteArgs = inviteArgs(identities[2].email);
+  const beforePendingDeletionImpact = await rpc(clients[1], 'current_account_deletion_impact');
+  assert.ok(beforePendingDeletionImpact.final_administrator_churches > 0);
   const firstInvite = await rpc(clients[1], 'invite_church_admin', firstInviteArgs);
   assert.equal(firstInvite.status, 'pending');
+  assert.equal((await rpc(clients[1], 'current_account_deletion_impact')).final_administrator_churches,
+    beforePendingDeletionImpact.final_administrator_churches);
   assert.deepEqual(await rpc(clients[1], 'invite_church_admin', firstInviteArgs), firstInvite);
   await rpcFailure(clients[1], 'invite_church_admin', { ...firstInviteArgs, p_email: identities[3].email });
   const firstToken = runSql(container, `select mail.token_value from private.church_invite_mail as mail
@@ -2203,6 +2207,8 @@ try {
     p_invite_id: firstInvite.invite_id, p_token: firstToken,
   })).status, 'accepted');
   assert.equal((await rpc(clients[2], 'current_managed_churches'))[0].church_id, second.church_id);
+  assert.equal((await rpc(clients[1], 'current_account_deletion_impact')).final_administrator_churches,
+    beforePendingDeletionImpact.final_administrator_churches - 1);
 
   const reserved = await rpc(clients[1], 'invite_church_admin', inviteArgs(identities[0].email));
   await rpcFailure(clients[1], 'invite_church_admin', inviteArgs(identities[3].email));
