@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ResendNotificationConfig } from '@/lib/supabase/config';
 import type { NotificationDeliveryJob, NotificationMessage } from './adapter';
 import { createResendNotificationAdapter } from './resend';
@@ -17,6 +17,7 @@ const message = {
 } satisfies NotificationMessage;
 
 describe('Resend notification adapter', () => {
+  afterEach(() => vi.useRealTimers());
   it('sends safe content with a durable idempotency key', async () => {
     const providerFetch = vi.fn<typeof fetch>(async () => new Response(
       JSON.stringify({ id: '019c7134-a39b-7d8e-a4ad-8b11d56d0099' }),
@@ -35,6 +36,7 @@ describe('Resend notification adapter', () => {
       from: config.from, html: message.email.html, subject: message.email.subject,
       text: message.email.text, to: [job.destinationValue],
     });
+    expect(init).toMatchObject({ redirect: 'error', credentials: 'omit', cache: 'no-store' });
   });
 
   it('classifies retryable and permanent responses without leaking provider bodies', async () => {
@@ -48,5 +50,38 @@ describe('Resend notification adapter', () => {
       outcome: 'permanent_failure', providerCode: 'http_422', providerReference: null,
       safeFailureClass: 'provider_rejected',
     });
+  });
+
+  it('refuses oversized, malformed and private provider acknowledgement data', async () => {
+    for (const response of [new Response('x'.repeat(16_385)),
+      new Response('{}', { headers: { 'content-length': '20000' } }),
+      new Response('not JSON'), new Response(JSON.stringify({ id: 'private-email@example.test' }))]) {
+      const providerFetch = vi.fn<typeof fetch>(async () => response);
+      const result = await createResendNotificationAdapter(config, providerFetch).send(job, message);
+      expect(result.outcome).toBe('temporary_failure');
+      expect(result.providerReference).toBeNull();
+      expect(JSON.stringify(result)).not.toContain('private-email');
+    }
+  });
+
+  it('bounds an uncooperative fetch and clears its timer', async () => {
+    vi.useFakeTimers();
+    const providerFetch = vi.fn<typeof fetch>(() => new Promise(() => {}));
+    const pending = createResendNotificationAdapter(config, providerFetch).send(job, message);
+    await vi.advanceTimersByTimeAsync(10_001);
+    expect(await pending).toMatchObject({ outcome: 'temporary_failure', safeFailureClass: 'provider_unavailable' });
+    expect((providerFetch.mock.calls[0][1]?.signal as AbortSignal).aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('bounds and cancels a stalled acknowledgement stream', async () => {
+    vi.useFakeTimers();
+    const cancel = vi.fn();
+    const providerFetch = vi.fn<typeof fetch>(async () => new Response(new ReadableStream({ cancel })));
+    const pending = createResendNotificationAdapter(config, providerFetch).send(job, message);
+    await vi.advanceTimersByTimeAsync(10_001);
+    expect((await pending).outcome).toBe('temporary_failure');
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
