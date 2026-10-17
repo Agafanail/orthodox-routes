@@ -103,19 +103,19 @@ alter table private.complaint_email_draft enable row level security;
 alter table private.complaint_email_draft force row level security;
 revoke all on private.complaint_email_draft from public, anon, authenticated, service_role;
 
-create or replace function app.expire_complaint_email_draft(p_draft_id uuid)
+create or replace function app.expire_complaint_email_draft(p_draft_id uuid, p_evaluated_at timestamptz default clock_timestamp())
 returns boolean language plpgsql volatile security definer set search_path = ''
 as $$
 begin
-  update private.complaint_email_draft set state = 'expired', expired_at = clock_timestamp(),
+  update private.complaint_email_draft set state = 'expired', expired_at = p_evaluated_at,
     reporter_account_id = null, target_type = null, target_public_id = null, category = null,
     description = null, reply_email = null, language = null, resume_hash = null, email_token_hash = null,
     input_digest = null, verified_at = null
-  where id = p_draft_id and state <> 'expired' and expires_at <= clock_timestamp();
+  where id = p_draft_id and state <> 'expired' and expires_at <= p_evaluated_at;
   return found;
 end;
 $$;
-revoke all on function app.expire_complaint_email_draft(uuid) from public, anon, authenticated, service_role;
+revoke all on function app.expire_complaint_email_draft(uuid, timestamptz) from public, anon, authenticated, service_role;
 
 create function api.prepare_complaint_email_draft(
   p_target_type text, p_target_id uuid, p_reporter_account_id uuid,
@@ -194,17 +194,18 @@ $$;
 create function api.verify_complaint_email_draft(p_email_token text)
 returns jsonb language plpgsql volatile security definer set search_path = '' set lock_timeout = '5s'
 as $$
-declare draft private.complaint_email_draft%rowtype;
+declare draft private.complaint_email_draft%rowtype; evaluated_at timestamptz;
 begin
   if p_email_token is null or p_email_token !~ '^[0-9a-f]{64}$' then return null; end if;
   select * into draft from private.complaint_email_draft as item
   where item.email_token_hash = encode(extensions.digest(convert_to(p_email_token, 'UTF8'), 'sha256'), 'hex') for update;
   if not found then return null; end if;
-  if app.expire_complaint_email_draft(draft.id) then
+  evaluated_at := clock_timestamp();
+  if app.expire_complaint_email_draft(draft.id, evaluated_at) then
     return jsonb_build_object('draft_id', draft.id, 'status', 'expired', 'expires_at', draft.expires_at);
   end if;
   if draft.state = 'pending_email' then
-    update private.complaint_email_draft set state = 'email_verified', verified_at = clock_timestamp()
+    update private.complaint_email_draft set state = 'email_verified', verified_at = evaluated_at
     where id = draft.id returning * into draft;
   end if;
   return jsonb_build_object('draft_id', draft.id, 'status', draft.state, 'expires_at', draft.expires_at);

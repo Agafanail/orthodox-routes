@@ -24,6 +24,8 @@ Only capability hashes are stored, never clear resume/email tokens. Tokens must 
 
 The technical draft lifetime is at most 15 minutes and is shortened to the originally authorized target's 30-day post-ride reporting deadline. A previously visible target may close during that short email step; the draft binds the earlier authorized reference without revealing any later private material. The stored expiry cannot extend the reporting window. A church draft has only the technical deadline.
 
+Verification samples time once after acquiring the draft row lock. That same instant governs expiry and the recorded verification time, so crossing the wall-clock deadline between statements cannot create an inconsistent verified row. A request that waits on a lock until after expiry receives an expired receipt instead.
+
 Expiry clears recipient, description, category/language, target and reporter linkage, both proof hashes, input fingerprint, and verification time for pending and verified drafts. Only non-personal draft/request UUIDs, state, and lifecycle times remain. Expired keys/proofs cannot revive input. This is unsubmitted-data cleanup, not the unresolved legal policy for received complaints, decisions, audit, or legal holds. Account deletion cascades only these unsubmitted linked drafts.
 
 Own account export adds `complaint_email_drafts`, selecting only that account's unexpired input and safe lifecycle fields. Guest and other reporters' input, both secrets/hashes, and logically expired payloads remain excluded even before cleanup. This is an explicit own-data export, not a public preview or prefetch.

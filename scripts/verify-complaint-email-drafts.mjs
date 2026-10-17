@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 // Called only by the existing local-container My Trips fixture; no remote configuration entry point.
 export async function verifyComplaintEmailDrafts({ admin, anonymous, clients, identities, churchId, agreementId,
-  nearDeadlineAgreementId, runSql }) {
+  nearDeadlineAgreementId, runSql, runSqlAsync }) {
   const token = () => randomBytes(32).toString('hex');
   const literal = (value) => `'${String(value).replaceAll("'", "''")}'`;
   const clientKeys = new Set();
@@ -99,6 +99,37 @@ export async function verifyComplaintEmailDrafts({ admin, anonymous, clients, id
     assert.deepEqual(await prepare(input), verified);
     assert.equal(runSql(`select count(*) from ops.audit_event where target_id = ${literal(prepared.draft_id)}::uuid;`), '0');
 
+    const boundaryInput = request();
+    const boundary = await prepare(boundaryInput);
+    runSql(`begin;
+      do $assert$ declare deadline timestamptz; begin
+        select expires_at into strict deadline from private.complaint_email_draft where id = ${literal(boundary.draft_id)}::uuid;
+        if app.expire_complaint_email_draft(${literal(boundary.draft_id)}::uuid, deadline - interval '1 microsecond') then
+          raise exception 'A live draft expired before its deadline.'; end if;
+        if not app.expire_complaint_email_draft(${literal(boundary.draft_id)}::uuid, deadline) then
+          raise exception 'A draft did not expire at its exact deadline.'; end if;
+      end; $assert$; rollback;`);
+    assert.equal(row(boundary.draft_id).state, 'pending_email');
+    const lockName = `complaint-draft-${randomUUID()}`;
+    const holdingLock = runSqlAsync(`begin; set local application_name = ${literal(lockName)};
+      update private.complaint_email_draft set expires_at = clock_timestamp() + interval '300 milliseconds'
+        where id = ${literal(boundary.draft_id)}::uuid;
+      select pg_sleep(2); commit;`);
+    // Observe the lock holder before starting the request; do not depend on network timing.
+    try {
+      let locked = false;
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        locked = runSql(`select exists (select 1 from pg_stat_activity
+          where application_name = ${literal(lockName)} and wait_event = 'PgSleep');`) === 't';
+        if (locked) break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      assert.ok(locked, 'The concurrent expiry fixture must hold the draft row.');
+      assert.equal((await verify(boundaryInput.p_email_token)).status, 'expired',
+        'Verification must evaluate expiry after acquiring the row lock.');
+    } finally { await holdingLock; }
+    assert.equal(row(boundary.draft_id).verified_at, null);
+
     const ownedInput = request({ p_target_type: 'ride_agreement', p_target_id: agreementId,
       p_reporter_account_id: identities[2].id, p_category: 'no_show' });
     const owned = await prepare(ownedInput);
@@ -175,7 +206,7 @@ export async function verifyComplaintEmailDrafts({ admin, anonymous, clients, id
       and grantee in ('anon','authenticated','service_role');`), '0');
     assert.equal(runSql(`select count(*) from pg_class where oid = 'private.complaint_email_draft'::regclass
       and relrowsecurity and relforcerowsecurity;`), '1');
-    for (const signature of ['app.resolve_complaint_target(text,uuid,uuid)', 'app.expire_complaint_email_draft(uuid)',
+    for (const signature of ['app.resolve_complaint_target(text,uuid,uuid)', 'app.expire_complaint_email_draft(uuid,timestamptz)',
       'app.export_complaint_email_drafts(uuid)']) {
       assert.equal(runSql(`select count(*) from (values ('anon'),('authenticated'),('service_role')) as roles(name)
         where has_function_privilege(roles.name, ${literal(signature)}, 'EXECUTE');`), '0');

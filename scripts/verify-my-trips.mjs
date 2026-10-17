@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -49,6 +49,17 @@ function runSql(container, statement) {
   );
   if (result.status !== 0) fail(`A My Trips database assertion failed.\n${result.stderr}`);
   return result.stdout.trim();
+}
+
+function runSqlAsync(container, statement) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('docker', ['exec', '-i', container, 'psql', '-U', 'postgres', '-d', 'postgres',
+      '-v', 'ON_ERROR_STOP=1', '-At', '-f', '-'], { stdio: ['pipe', 'ignore', 'ignore'] });
+    child.once('error', reject);
+    child.once('close', (code) => code === 0 ? resolve() : reject(new Error('Concurrent database fixture failed.')));
+    child.stdin.on('error', reject);
+    child.stdin.end(statement);
+  });
 }
 
 function userClient(url, publicKey) {
@@ -1173,6 +1184,7 @@ const nearDeadlineComplaintRide = await historicalRide(2, churches[0], isoAfter(
 await verifyComplaintEmailDrafts({ admin, anonymous, clients, identities, churchId: churches[0].id,
   agreementId: confirmedRide.agreement.agreement_id,
   nearDeadlineAgreementId: nearDeadlineComplaintRide.agreement.agreement_id,
-  runSql: (statement) => runSql(container, statement) });
+  runSql: (statement) => runSql(container, statement),
+  runSqlAsync: (statement) => runSqlAsync(container, statement) });
 
 console.log('Account-scoped My Trips, public board boundaries, and minimal complaint context: authorization, snapshots, expiry, and privacy verification passed.');
