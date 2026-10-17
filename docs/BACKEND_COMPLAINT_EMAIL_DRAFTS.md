@@ -34,7 +34,7 @@ Own account export adds `complaint_email_drafts`, selecting only that account's 
 
 - Add trusted server-side input handling, target/session validation, challenge verification, and rate limits before privileged preparation. Direct Data API writes must not bypass them.
 - Generate both secrets on the server. Never return the email token in a form response, browser-readable cookie, or draft preview; deliver it only through the verified-mail path.
-- Add a protected transient delivery queue or explicit token-rotation/resend contract. A lost clear token cannot be recovered from its hash; this slice claims no durable email dispatch.
+- The separate inactive [mailbox-proof worker](BACKEND_COMPLAINT_PROOF_MAIL.md) rotates a fresh token on each bounded protected delivery lease, keeping only its hash. Public resend and real mailbox/provider verification remain unfinished; no open token can be recovered from storage.
 - Use an explicit confirmation action rather than consuming a token on GET/link-scanner visits; do not log query/fragment/capability material.
 - Atomically hand off valid proof to a received case and safe-reference-only owner/reporter delivery, subject to working recipient/provider configuration and approved retention. Do not show a successful complaint receipt for `pending_email` or `email_verified` alone.
 - Add reviewed cleanup scheduling. The bounded expiry RPC exists, but no scheduler is activated by this migration.

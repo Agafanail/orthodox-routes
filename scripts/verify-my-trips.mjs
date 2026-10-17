@@ -7,6 +7,7 @@ import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { syntheticPlace } from './synthetic-geo.mjs';
 import { verifyComplaintEmailDrafts } from './verify-complaint-email-drafts.mjs';
+import { verifyComplaintProofMail } from './verify-complaint-proof-mail.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 const sections = ['needs_response', 'upcoming', 'listings', 'history'];
@@ -1186,5 +1187,8 @@ await verifyComplaintEmailDrafts({ admin, anonymous, clients, identities, church
   nearDeadlineAgreementId: nearDeadlineComplaintRide.agreement.agreement_id,
   runSql: (statement) => runSql(container, statement),
   runSqlAsync: (statement) => runSqlAsync(container, statement) });
+
+await verifyComplaintProofMail({ admin, anonymous, clients, churchId: churches[0].id,
+  runSql: (statement) => runSql(container, statement) });
 
 console.log('Account-scoped My Trips, public board boundaries, and minimal complaint context: authorization, snapshots, expiry, and privacy verification passed.');
