@@ -4,6 +4,7 @@
 - **Starting commit:** `3afa340363d5a9678ae7ba338eefa65ef0725992`
 - **Scope:** all remaining approved backend work required for the first public version
 - **Production access:** excluded
+- **Run state:** Active after the owner's explicit resume on 17 October 2026.
 
 ## Checkpoints
 
@@ -22,7 +23,7 @@
 
 ## Current checkpoint
 
-Checkpoint 5 church-image contracts/Storage/reconciliation and selected-and-future text/time editing merged through PRs #44–#49. PRs #50–#52 add inactive owner archive/restore, the fixed command, durable attempt audit, and own-outcome lookup. PRs #53–#56 close stale schedule-worker selection, extend recurring end bounds, prepare ordinary notification email, and capture minimized phone-binding/replacement audit. PR #57 (`3be2f05`, CI `39019298363`) closes scoped/global direct public reads for non-published churches without changing personal history. The current `codex/complaint-target-context` slice validates already-visible public/own/participant references within the approved 30-day post-ride reporting window and IA categories without private payload or submission. Review caught and corrected missing reporting-time checks before merge; boundary tests include both listing kinds and both agreement participants before cleanup. Complaint intake, guest verification, abuse limits, owner receipt/review, and approved retention remain unfinished. Real operator provisioning/rehearsal, remaining owner actions, remote/staging Storage, upload activation, superseded-image retention, backup rehearsal, weekday/start-bound editing and shortening, other server/system translations, and privacy/export audits remain. The lost-email protective delay is a separate product decision.
+PR #58 (`342d910`, final-head CI `39019965961`) merged the minimal complaint target context with the approved 30-day post-ride reporting deadline. The original deadline finding is fixed and its review thread resolved; all four final-head jobs and cleanup passed. Current `codex/turnstile-server-boundary` work adds only the inactive provider-independent server verifier, fail-closed configuration, bounded I/O, and synthetic tests. It does not activate a form or accept complaints. Complaint intake, guest email verification, rate limits, owner receipt/review, and approved retention remain unfinished. Real operator provisioning/rehearsal, remaining owner actions, remote/staging Storage, upload activation, superseded-image retention, backup rehearsal, weekday/start-bound editing and shortening, other server/system translations, and privacy/export audits remain. The lost-email protective delay is a separate product decision. The retained `complaint-context-refresh-after-pr57` stash is a backup of already integrated work, not a pending change to pop blindly.
 
 ## Remaining backend areas
 
@@ -45,6 +46,8 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - Docker is currently unavailable locally. Database replay and integration remain required in GitHub CI; linked isolated staging may be used only with synthetic fixtures and exact cleanup.
 
 ## Verification state
+
+- PR #58 merged as `342d910`; final-head CI `39019965961` passed all four required checks and cleanup/post-steps on `1fade4f`. Review caught the omitted reporting deadline before merge; the correction covers both own listing kinds and both agreement participants at/just before 30 days, rejects 31-day retained history independently of cleanup, and preserves in-window cancelled/completed context. The review reply and thread resolution are complete. All 724 local tests passed (one opt-in Storage test skipped), lint retained two existing warnings, and build/syntax/diff passed. No complaint intake, real provider, dependency, or production setting was activated.
 
 - `main` started at the expected merge of PR #7 and was clean.
 - Required checks on protected `main`: `verify`, `database-foundation`, `local-auth`, `core-browser-e2e`.

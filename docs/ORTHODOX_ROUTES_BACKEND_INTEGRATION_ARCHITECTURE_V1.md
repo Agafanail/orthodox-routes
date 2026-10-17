@@ -129,6 +129,8 @@ Rejected alternatives are not inherently unsuitable; they add costs or burdens t
 
 ## 6. Environments and deployment
 
+The inactive Turnstile server adapter now verifies only the fixed Cloudflare Siteverify endpoint with an exact application hostname and trusted complaint/support action. It requires an explicit server secret and HTTPS application origin, refuses official dummy secrets, limits token and response sizes, and bounds the complete operation to five seconds. Unavailable configuration/provider outcomes never pass. No IP/header/account/case/text metadata, raw provider response, or verdict cache is retained. Tests use an injected fake transport; this is not real provider proof or form enforcement. Widget/domain setup, rate limits, write integration, and activation remain unfinished. See [Turnstile server boundary](BACKEND_TURNSTILE_BOUNDARY.md).
+
 | Environment | Compute | Data | Secrets and providers |
 | --- | --- | --- | --- |
 | Local | Local Next.js and temporary local PostgreSQL/Supabase when useful | Synthetic only | No production secrets; sandbox/test credentials only |
