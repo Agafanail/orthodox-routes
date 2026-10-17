@@ -7,6 +7,7 @@ import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { verifyHiddenScheduleRepairs } from './verify-hidden-schedule-repairs.mjs';
 import { verifyRecurringServiceShortening } from './verify-recurring-service-shortening.mjs';
+import { verifyChurchAdministrationExport } from './verify-church-administration-export.mjs';
 
 const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
@@ -2424,6 +2425,11 @@ try {
       and (function_row.proname like '%church%' or function_row.proname like '%service%'
         or function_row.proname = 'managed_translation_target')
       and function_row.prokind = 'f' and function_row.prosrc like '%app.require_transport_actor()%';`), '0');
+
+  await verifyChurchAdministrationExport({ clients, identities, anonymous: extensionReader, admin, rpc, rpcFailure,
+    firstChurchId: created.church_id, acceptedInviteId: firstInvite.invite_id,
+    forbidden: [firstToken, declineToken, editArgs.p_description_source, photoManifest.files[0].objectKey],
+    runSql: (statement) => runSql(container, statement) });
 
   process.stdout.write([
     'Church administration foundation verification passed:',
