@@ -29,6 +29,42 @@ begin
 end;
 $$;
 
+-- Existing equal administrators must be able to repair a hidden page before reviewed restoration.
+-- Patch only these membership-checked schedule entry points, never public reads or ride publication.
+do $$
+declare routine record; definition text; checked_count integer := 0;
+  previous_guard text := 'church_row.status <> ''published''';
+  repair_guard text := 'church_row.status not in (''published'', ''hidden'')';
+begin
+  for routine in select routine_row.oid from pg_proc as routine_row
+    join pg_namespace as namespace on namespace.oid = routine_row.pronamespace
+    where namespace.nspname = 'api' and routine_row.proname in (
+      'create_one_off_service', 'preview_one_off_service_cancellation', 'cancel_one_off_service',
+      'update_one_off_service_content', 'update_one_off_service_time', 'create_recurring_service',
+      'preview_recurring_service_date_cancellation', 'cancel_recurring_service_date',
+      'reschedule_recurring_service_date', 'preview_recurring_service_future_cancellation',
+      'cancel_recurring_service_future', 'update_recurring_service_date_content',
+      'update_recurring_service_future_content', 'reschedule_recurring_service_future', 'extend_recurring_service'
+    )
+  loop
+    checked_count := checked_count + 1;
+    definition := pg_get_functiondef(routine.oid);
+    if position('app.church_admin_membership' in definition) = 0
+      or position('account_id = actor_id' in definition) = 0 then
+      raise exception using errcode = '55000', message = 'Unexpected schedule membership boundary.';
+    end if;
+    if position(previous_guard in definition) > 0 then
+      execute replace(definition, previous_guard, repair_guard);
+    elsif position(repair_guard in definition) = 0 then
+      raise exception using errcode = '55000', message = 'Unexpected schedule visibility boundary.';
+    end if;
+  end loop;
+  if checked_count <> 15 then
+    raise exception using errcode = '55000', message = 'Unexpected schedule repair function inventory.';
+  end if;
+end;
+$$;
+
 -- Preserve the reviewed bodies, row/advisory locks, fingerprint, session binding, token lifetime,
 -- attempt wrapper, and ACL. Unexpected source shapes fail closed rather than patching partially.
 do $$

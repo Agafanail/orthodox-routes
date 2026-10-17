@@ -25,6 +25,8 @@
 
 PR #62 (`8d06825`, CI `39023852695`) merged the pinned opt-in staging image probe; actual remote proof is blocked by the inactive isolated project and is not claimed. Current `codex/church-owner-hiding` work adds approved temporary public hiding/restoration through the existing inactive protected owner workflow, preserving future transport/history and pending archival requests with minimized durable audit. No real operator or public control is activated. Public complaint handlers/resend, real mailbox verification, rate limits, received cases, owner receipt/review, cleanup scheduling, and approved retention remain unfinished. Real operator provisioning/rehearsal, remaining owner actions, upload activation, superseded-image retention, backup rehearsal, weekday/start-bound editing and shortening, other server/system translations, and privacy/export audits remain. The lost-email protective delay is a separate product decision. The retained `complaint-context-refresh-after-pr57` stash is an already integrated backup, not pending work to pop blindly.
 
+The hiding review correction keeps existing equal-administrator schedule repair available while hidden, without reopening public reads or ride publication. Both service families and outsider/archived refusal are covered by the disposable integration suite; remote CI remains required before merge.
+
 ## Remaining backend areas
 
 - account/profile data operations, contact changes, export, and deletion lifecycle;

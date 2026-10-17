@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
+import { verifyHiddenScheduleRepairs } from './verify-hidden-schedule-repairs.mjs';
 
 const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
@@ -1687,6 +1688,10 @@ try {
     from app.service_series where public_id = ${sqlLiteral(extensionSeries.series_id)}::uuid;`), '3');
   assert.equal(originalExtensionRows(), beforeExtensionRows);
   assert.equal(rideRows(), beforeExtensionRides);
+
+  await verifyHiddenScheduleRepairs({ actor: clients[0], outsiders: [extensionReader, clients[1], admin],
+    anonymous: extensionReader, rpc, rpcFailure, churchId: created.church_id, churchSlug: created.slug, recurringArgs,
+    runSql: (statement, options) => runSql(container, statement, options) });
 
   const duplicateArgs = churchArgs({
     p_client_key: randomUUID(), p_lat: 45.0705, p_lng: 7.6871,
