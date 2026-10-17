@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { syntheticPlace } from './synthetic-geo.mjs';
+import { verifyComplaintEmailDrafts } from './verify-complaint-email-drafts.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 const sections = ['needs_response', 'upcoming', 'listings', 'history'];
@@ -1158,9 +1159,20 @@ const complaintDefinition = () => runSql(container, `select jsonb_build_object(
   'definition', pg_get_functiondef(oid), 'acl', proacl) from pg_proc
   where oid = 'api.complaint_target_context(text,uuid)'::regprocedure;`);
 const complaintBeforeReplay = complaintDefinition();
-runSql(container, readFileSync(new URL(
+const historicalComplaintMigration = readFileSync(new URL(
   '../supabase/migrations/20261017030000_complaint_target_context.sql', import.meta.url,
-), 'utf8'));
+), 'utf8');
+// Exercise historical replay atomically, preserving the later shared-rule wrapper definition.
+runSql(container, `begin; ${historicalComplaintMigration}
+  ${JSON.parse(complaintBeforeReplay).definition}
+  commit;`);
 assert.equal(complaintDefinition(), complaintBeforeReplay);
+
+const nearDeadlineComplaintRide = await historicalRide(2, churches[0], isoAfter(41, 10), 'COMPLAINT_DRAFT_DEADLINE',
+  '29 days 23 hours 55 minutes');
+await verifyComplaintEmailDrafts({ admin, anonymous, clients, identities, churchId: churches[0].id,
+  agreementId: confirmedRide.agreement.agreement_id,
+  nearDeadlineAgreementId: nearDeadlineComplaintRide.agreement.agreement_id,
+  runSql: (statement) => runSql(container, statement) });
 
 console.log('Account-scoped My Trips, public board boundaries, and minimal complaint context: authorization, snapshots, expiry, and privacy verification passed.');
