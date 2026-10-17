@@ -150,6 +150,10 @@ npm run db:stop
 
 `db:start` starts only the local PostgreSQL database. `db:reset` destroys and recreates that local database, then applies every committed migration in `supabase/migrations` from a clean state. `db:stop` stops the local stack while preserving its Docker volume. These local database commands never link to or change a remote Supabase project; `test:staging-core` and `test:staging-email` are separately guarded remote verification paths for the exact isolated staging project.
 
+## Staging image verification
+
+The separate [staging church-image probe](docs/BACKEND_STAGING_IMAGE_PROBE.md) is disabled by default and pins the existing synthetic-only provider project before retrieving credentials. It requires an existing private bucket, tests only fresh synthetic image objects, and cleans their exact keys without changing any bucket or application data. Remote Storage proof is still unavailable: the pinned project was `INACTIVE` on 17 October 2026 and was not resumed. The probe does not activate uploads or approve operational limits.
+
 ## Local email Auth, account, and phone foundations
 
 Local passwordless email Auth and the protected account RPCs use PostgreSQL, PostgREST, the Kong API/Auth gateway, Supabase Auth (GoTrue), and the bundled Mailpit email catcher. The ordinary `auth:start` wrapper excludes Storage, Realtime, Studio, Analytics, Edge Functions, image processing, metadata, pooling, and other unrelated services. The separate `storage:start` wrapper additionally starts only the local Storage API required by the isolated church-image integration; it does not link or configure a remote project. Only the narrow `api` schema is exposed through PostgREST; `app` and `private` tables have no client table grants.
