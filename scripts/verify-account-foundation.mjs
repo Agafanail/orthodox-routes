@@ -167,6 +167,8 @@ try {
   await signIn(clientA, identities[0].email, password);
   await signIn(clientB, identities[1].email, password);
 
+  await expectRpcFailure(clientA, 'current_account_deletion_impact');
+
   const missingAccount = await rpc(clientA, 'current_eligibility');
   assert.equal(missingAccount.email_verified, true);
   assertReason(missingAccount, 'account_missing');
@@ -184,6 +186,12 @@ try {
   assertReason(accountA.eligibility, 'phone_not_verified');
   assertReason(accountA.eligibility, 'adult_declaration_missing');
   assertReason(accountA.eligibility, 'current_terms_unavailable');
+
+  // An informational own-account preview must not require ride participation eligibility.
+  const emptyDeletionImpact = await rpc(clientA, 'current_account_deletion_impact');
+  assert.equal(emptyDeletionImpact.future_passenger_requests, 0);
+  assert.equal(emptyDeletionImpact.future_agreements, 0);
+  assert.equal(emptyDeletionImpact.requires_administrator_resolution, false);
 
   await expectRpcFailure(clientA, 'create_account', {
     p_display_name: 'Duplicate',
@@ -373,6 +381,11 @@ try {
     );
     const stateResult = await rpc(clientA, 'current_eligibility');
     assertReason(stateResult, 'account_state_not_permitted');
+    if (status === 'restricted') {
+      assert.equal((await rpc(clientA, 'current_account_deletion_impact')).requires_administrator_resolution, false);
+    } else {
+      await expectRpcFailure(clientA, 'current_account_deletion_impact');
+    }
   }
   runSql(
     container,
@@ -380,6 +393,7 @@ try {
      where id = '${identities[0].id}';`,
   );
   assertReason(await rpc(clientA, 'current_eligibility'), 'account_state_not_permitted');
+  await expectRpcFailure(clientA, 'current_account_deletion_impact');
   runSql(
     container,
     `update app.account set status = 'active', deleted_at = null, updated_at = now()
