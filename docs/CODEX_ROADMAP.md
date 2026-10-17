@@ -181,6 +181,8 @@ The complete Core campaign passed its final local, migration, security/privacy, 
 
 ### 9. Full end-to-end coverage
 
+The opt-in staging church-image probe pins the existing isolated project reference/name/healthy state before retrieving keys, requires an existing private bucket, and exercises only fresh synthetic object keys with exact cleanup. It cannot create/change/delete buckets or resume the provider project. Remote success is not yet verified: the pinned project was `INACTIVE` on 17 October 2026. This small probe does not approve upload limits, replace load measurements, or activate uploads.
+
 Cover contextual registration, multi-user ride coordination, quality matching, notifications, confirmation, contact disclosure, capacity, cancellation, church administration, schedule changes, authorization, and anonymous-data boundaries in real browsers.
 
 ### 10. Full visual redesign and polish
