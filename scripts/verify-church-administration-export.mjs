@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 // Reuses only the disposable local church fixture; no provider or new identity association.
 export async function verifyChurchAdministrationExport({ clients, identities, anonymous, admin, rpc, rpcFailure,
-  firstChurchId, acceptedInviteId, forbidden, runSql }) {
+  hiddenChurchId, acceptedInviteId, forbidden, runSql }) {
   const literal = (value) => `'${String(value).replaceAll("'", "''")}'`;
   const shapes = {
     memberships: ['membership_id', 'church_id', 'status', 'access_source', 'accepted_at', 'ended_at', 'created_at', 'updated_at'],
@@ -34,7 +34,8 @@ export async function verifyChurchAdministrationExport({ clients, identities, an
     assert.deepEqual(section.archival_requests.map((item) => item.request_id).sort(), ids(
       `select public_id as id from app.church_archive_request where requested_by = ${actor}`));
   }
-  assert.ok(sections[0].memberships.some((item) => item.status === 'ended'));
+  // The accepted recipient at index 2 later leaves the second church in the real fixture flow.
+  assert.ok(sections[2].memberships.some((item) => item.status === 'ended'));
   assert.ok(sections[2].invitations.some((item) => item.invitation_id === acceptedInviteId && item.accepted_by_me));
   assert.ok(sections[1].invitations.some((item) => item.invitation_id === acceptedInviteId && item.sent_by_me));
   assert.ok(sections.some((section) => section.archival_requests.length > 0));
@@ -43,12 +44,12 @@ export async function verifyChurchAdministrationExport({ clients, identities, an
   await rpcFailure(admin, 'export_current_account_data');
   await rpcFailure(clients[4], 'export_current_account_data', { p_account_id: identities[0].id });
   try {
-    runSql(`update app.church set status = 'hidden' where public_id = ${literal(firstChurchId)}::uuid;
-      update app.account set status = 'restricted' where id = ${literal(identities[0].id)}::uuid;`);
-    assert.deepEqual(await exportOwn(clients[0]), sections[0]);
+    runSql(`update app.church set status = 'hidden' where public_id = ${literal(hiddenChurchId)}::uuid;
+      update app.account set status = 'restricted' where id = ${literal(identities[2].id)}::uuid;`);
+    assert.deepEqual(await exportOwn(clients[2]), sections[2]);
   } finally {
-    runSql(`update app.church set status = 'published' where public_id = ${literal(firstChurchId)}::uuid;
-      update app.account set status = 'active' where id = ${literal(identities[0].id)}::uuid;`);
+    runSql(`update app.church set status = 'published' where public_id = ${literal(hiddenChurchId)}::uuid;
+      update app.account set status = 'active' where id = ${literal(identities[2].id)}::uuid;`);
   }
   const definitions = () => runSql(`select jsonb_agg(jsonb_build_object('oid', oid,
     'definition', pg_get_functiondef(oid), 'acl', proacl) order by oid) from pg_proc
@@ -57,6 +58,7 @@ export async function verifyChurchAdministrationExport({ clients, identities, an
   runSql(readFileSync(new URL('../supabase/migrations/20261017090000_church_administration_export.sql', import.meta.url), 'utf8'));
   assert.equal(definitions(), before);
   assert.deepEqual(await exportOwn(clients[0]), sections[0]);
+  assert.deepEqual(await exportOwn(clients[2]), sections[2]);
   for (const index of ['church_admin_membership_export_account', 'church_admin_invite_export_sender',
     'church_admin_invite_export_recipient', 'church_admin_event_export_actor',
     'church_admin_event_export_subject', 'church_archive_request_export_account']) {

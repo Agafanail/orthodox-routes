@@ -2427,7 +2427,7 @@ try {
       and function_row.prokind = 'f' and function_row.prosrc like '%app.require_transport_actor()%';`), '0');
 
   await verifyChurchAdministrationExport({ clients, identities, anonymous: extensionReader, admin, rpc, rpcFailure,
-    firstChurchId: created.church_id, acceptedInviteId: firstInvite.invite_id,
+    hiddenChurchId: second.church_id, acceptedInviteId: firstInvite.invite_id,
     forbidden: [firstToken, declineToken, editArgs.p_description_source, photoManifest.files[0].objectKey],
     runSql: (statement) => runSql(container, statement) });
 
