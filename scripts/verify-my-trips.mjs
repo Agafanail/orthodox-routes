@@ -1085,7 +1085,7 @@ for (const client of [anonymous, clients[0], clients[4]]) {
   assert.equal(await complaintContext(client, null, churches[0].id), null);
   assert.equal(await complaintContext(client, 'church', null), null);
 }
-for (const [ride, passengerIndex] of [[confirmedRide, 2], [cancelledRide, 0], [archivedRide, 2]]) {
+for (const [ride, passengerIndex] of [[confirmedRide, 2], [cancelledRide, 0], [completedRide, 0], [noOutcomeRide, 1]]) {
   const id = ride.agreement.agreement_id;
   for (const client of [anonymous, clients[4]]) assert.equal(await complaintContext(client, 'ride_agreement', id), null);
   for (const client of [clients[passengerIndex], clients[3]]) {
@@ -1093,11 +1093,27 @@ for (const [ride, passengerIndex] of [[confirmedRide, 2], [cancelledRide, 0], [a
       expectedComplaintContext('ride_agreement', id, agreementComplaintCategories));
   }
 }
-const closedRequestId = archivedRide.request.request_id;
+for (const client of [anonymous, clients[2], clients[3], clients[4]]) {
+  assert.equal(await complaintContext(client, 'ride_agreement', archivedRide.agreement.agreement_id), null);
+  assert.equal(await complaintContext(client, 'passenger_request', archivedRide.request.request_id), null);
+  assert.equal(await complaintContext(client, 'driver_occurrence', archivedRide.occurrence.occurrence_id), null);
+}
+const closedRequestId = completedRide.request.request_id;
 assert.equal(await complaintContext(anonymous, 'passenger_request', closedRequestId), null);
 assert.equal(await complaintContext(clients[4], 'passenger_request', closedRequestId), null);
-assert.deepEqual(await complaintContext(clients[2], 'passenger_request', closedRequestId),
+assert.deepEqual(await complaintContext(clients[0], 'passenger_request', closedRequestId),
   expectedComplaintContext('passenger_request', closedRequestId, rideComplaintCategories));
+for (const [elapsed, allowed] of [['29 days 23 hours 59 minutes', true], ['30 days', false]]) {
+  const boundaryRide = await historicalRide(2, churches[0], isoAfter(40, 10), `COMPLAINT_BOUNDARY_${allowed}`, elapsed);
+  for (const [type, id, client, categories] of [
+    ['ride_agreement', boundaryRide.agreement.agreement_id, clients[2], agreementComplaintCategories],
+    ['ride_agreement', boundaryRide.agreement.agreement_id, clients[3], agreementComplaintCategories],
+    ['passenger_request', boundaryRide.request.request_id, clients[2], rideComplaintCategories],
+    ['driver_occurrence', boundaryRide.occurrence.occurrence_id, clients[3], rideComplaintCategories],
+  ]) {
+    assert.deepEqual(await complaintContext(client, type, id), allowed ? expectedComplaintContext(type, id, categories) : null);
+  }
+}
 const unrelatedComplaintCall = await clients[4].schema('api').rpc('complaint_target_context', {
   p_target_type: 'ride_agreement', p_target_id: confirmedRide.agreement.agreement_id, p_actor_id: identities[2].id,
 });

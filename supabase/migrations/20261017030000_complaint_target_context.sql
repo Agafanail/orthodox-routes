@@ -23,7 +23,8 @@ begin
       where request.public_id = p_target_id and (
         (church.status = 'published' and request.status in ('active', 'partial')
           and request.remaining_passengers > 0 and request.desired_arrival_at > clock_timestamp())
-        or (request.author_account_id = actor_id and request.status not in ('draft', 'verification'))
+        or (request.author_account_id = actor_id and request.status not in ('draft', 'verification')
+          and request.desired_arrival_at + interval '30 days' > clock_timestamp())
       )) into available;
   elsif p_target_type = 'driver_occurrence' then
     select exists (select 1 from app.driver_offer_occurrence as occurrence
@@ -31,13 +32,16 @@ begin
       where occurrence.public_id = p_target_id and (
         (church.status = 'published' and occurrence.status = 'active'
           and occurrence.total_seats > occurrence.confirmed_seats and occurrence.arrival_at > clock_timestamp())
-        or (occurrence.author_account_id = actor_id and occurrence.status not in ('draft', 'verification'))
+        or (occurrence.author_account_id = actor_id and occurrence.status not in ('draft', 'verification')
+          and occurrence.arrival_at + interval '30 days' > clock_timestamp())
       )) into available;
   elsif p_target_type = 'ride_agreement' then
-    -- This matches the existing participant-only historical summary boundary, not contact visibility.
+    -- Reporting has its own 30-day window; contact closure or longer safe history cannot extend it.
     select exists (select 1 from app.ride_agreement as agreement
+      join app.ride_condition_snapshot as snapshot on snapshot.id = agreement.active_snapshot_id
       where agreement.public_id = p_target_id
-        and actor_id in (agreement.passenger_account_id, agreement.driver_account_id)) into available;
+        and actor_id in (agreement.passenger_account_id, agreement.driver_account_id)
+        and snapshot.scheduled_arrival_at + interval '30 days' > clock_timestamp()) into available;
     categories := array['no_show', 'dangerous_behavior', 'unwanted_contact', 'money_or_fraud', 'other']::text[];
   else
     return null;

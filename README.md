@@ -225,7 +225,7 @@ Both public transport-list RPCs independently require the linked church to be pu
 
 ## Complaint target context
 
-The read-only `api.complaint_target_context(type, public_id)` prepares only an already-visible church/listing or the caller's own listing/agreement-history reference and the category codes from IA V2 §45.5. Anonymous/unrelated users cannot probe private history or hidden church content; unknown/unsupported targets return null. It never selects contacts, names, places, notes, snapshots, or complaint text. This is not complaint submission or email verification: stored cases, guest verification, rate limits, owner delivery/review, legal retention, and the production form remain unfinished.
+The read-only `api.complaint_target_context(type, public_id)` prepares only an already-visible church/listing or the caller's own listing/agreement-history reference within IA V2's 30-day post-ride reporting window and the category codes from §45.5. Anonymous/unrelated users cannot probe private history or hidden church content; unknown/unsupported/expired targets return null even before lifecycle cleanup. It never selects contacts, names, places, notes, full snapshots, or complaint text. This is not complaint submission or email verification: stored cases, guest verification, rate limits, owner delivery/review, legal retention, and the production form remain unfinished. Legal/authority requests outside this interface window remain a separate service-email path.
 
 ## Restricted transition audit
 
