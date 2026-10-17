@@ -487,10 +487,10 @@ try {
   } finally {
     sql('drop trigger if exists synthetic_owner_hide_failure on ops.owner_operation; drop function if exists app.synthetic_owner_hide_failure();');
   }
-  const definitions = () => sql(`select jsonb_agg(jsonb_build_object('oid', oid, 'definition', pg_get_functiondef(oid), 'acl', proacl) order by oid)
-    from pg_proc where oid in ('ops.prepare_church_lifecycle(uuid,text,text,text)'::regprocedure,
-      'ops.apply_church_lifecycle(uuid,text)'::regprocedure,
-      'ops.execute_church_lifecycle(uuid,text,uuid)'::regprocedure);`);
+  const definitions = () => sql(`select jsonb_agg(jsonb_build_object('oid', routine.oid,
+      'definition', pg_get_functiondef(routine.oid), 'acl', routine.proacl) order by routine.oid)
+    from pg_proc as routine join pg_namespace as namespace on namespace.oid = routine.pronamespace
+    where namespace.nspname in ('api', 'ops') and routine.prokind = 'f';`);
   const beforeHidingReplay = definitions();
   sql(readFileSync(new URL('../supabase/migrations/20261017060000_church_owner_hiding.sql', import.meta.url), 'utf8'));
   assert.equal(definitions(), beforeHidingReplay);
