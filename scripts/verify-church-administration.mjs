@@ -1600,6 +1600,94 @@ try {
   assert.ok(['12:30:00', '12:40:00'].includes(futureTimeWinner.local_start_time));
   assert.equal(futureTimeWinner.series_version, 5);
 
+  const extensionReader = userClient(url, publicKey);
+  const extensionSeries = await rpc(clients[0], 'create_recurring_service', {
+    ...recurringArgs, p_source_name: 'Synthetic Extended Weekly', p_local_start_time: '14:00:00', p_client_key: randomUUID(),
+  });
+  const extensionDates = (await rpc(extensionReader, 'published_church_schedule', {
+    p_church_id: created.church_id, p_limit: 100,
+  })).filter((item) => item.source_name === 'Synthetic Extended Weekly');
+  assert.equal(extensionDates.length, 3);
+  await rpc(clients[0], 'cancel_recurring_service_date', {
+    p_service_id: extensionDates[1].service_id, p_expected_version: 1, p_client_key: randomUUID(),
+  });
+  const extensionPreviewArgs = { p_service_id: extensionDates[0].service_id };
+  const extendDate = (date, days) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+  const extensionInput = (preview, end = extendDate(preview.ends_on, 7)) => ({
+    ...extensionPreviewArgs, p_ends_on: end, p_expected_series_version: preview.series_version,
+    p_expected_schedule_updated_at: preview.schedule_updated_at, p_client_key: randomUUID(),
+  });
+  let extensionPreview = await rpc(clients[0], 'preview_recurring_service_extension', extensionPreviewArgs);
+  assert.equal(extensionPreview.ends_on, recurringArgs.p_ends_on);
+  assert.deepEqual(extensionPreview.weekdays, recurringArgs.p_weekdays);
+  const staleExtension = extensionInput(extensionPreview);
+  await rpc(clients[0], 'update_recurring_service_date_content', {
+    p_service_id: extensionDates[2].service_id, p_source_name: 'Synthetic Extension Date Override',
+    p_source_description: null, p_expected_version: 1, p_client_key: randomUUID(),
+  });
+  await rpcConflict(clients[0], 'extend_recurring_service', staleExtension);
+  extensionPreview = await rpc(clients[0], 'preview_recurring_service_extension', extensionPreviewArgs);
+  const extensionArgs = extensionInput(extensionPreview);
+  for (const outsider of [extensionReader, clients[1], admin]) {
+    await rpcFailure(outsider, 'preview_recurring_service_extension', extensionPreviewArgs);
+    await rpcFailure(outsider, 'extend_recurring_service', extensionArgs);
+  }
+  await rpcFailure(clients[0], 'extend_recurring_service', { ...extensionArgs, p_expected_schedule_updated_at: null });
+  await rpcFailure(clients[0], 'extend_recurring_service', {
+    ...extensionArgs, p_ends_on: extendDate(extensionPreview.ends_on, -1),
+  });
+  const originalExtensionRows = () => runSql(container, `select encode(extensions.digest(convert_to(
+    jsonb_agg(to_jsonb(service) order by service.id)::text, 'UTF8'), 'sha256'), 'hex')
+    from app.service_occurrence as service where service.public_id in (
+      ${extensionDates.map((item) => `${sqlLiteral(item.service_id)}::uuid`).join(',')});`);
+  const rideRows = () => runSql(container, `select jsonb_build_object(
+    'request', (select jsonb_agg(to_jsonb(request) order by request.id) from app.passenger_request as request
+      where request.service_occurrence_id = ${sqlLiteral(futureContentInternalId)}::uuid),
+    'offer', (select jsonb_agg(to_jsonb(offer) order by offer.id) from app.driver_offer_occurrence as offer
+      where offer.service_occurrence_id = ${sqlLiteral(futureContentInternalId)}::uuid));`);
+  const beforeExtensionRows = originalExtensionRows();
+  const beforeExtensionRides = rideRows();
+  const extensionSaved = await rpc(clients[0], 'extend_recurring_service', extensionArgs);
+  assert.equal(extensionSaved.series_version, 2);
+  assert.equal(extensionSaved.new_service_count, 1);
+  assert.equal(extensionSaved.ends_on, extensionArgs.p_ends_on);
+  assert.equal(originalExtensionRows(), beforeExtensionRows);
+  assert.equal(rideRows(), beforeExtensionRides);
+  assert.deepEqual(await rpc(clients[0], 'extend_recurring_service', extensionArgs), extensionSaved);
+  await rpcFailure(clients[0], 'extend_recurring_service', {
+    ...extensionArgs, p_ends_on: extendDate(extensionArgs.p_ends_on, 7),
+  });
+  await rpcConflict(clients[0], 'extend_recurring_service', { ...extensionArgs, p_client_key: randomUUID() });
+  const extensionNoOpPreview = await rpc(clients[0], 'preview_recurring_service_extension', extensionPreviewArgs);
+  const extensionNoOp = await rpc(clients[0], 'extend_recurring_service',
+    extensionInput(extensionNoOpPreview, extensionNoOpPreview.ends_on));
+  assert.equal(extensionNoOp.series_version, 2);
+  assert.equal(extensionNoOp.new_service_count, 0);
+  assert.equal((await rpc(clients[0], 'preview_recurring_service_extension', extensionPreviewArgs)).schedule_updated_at,
+    extensionNoOpPreview.schedule_updated_at);
+  const extensionRace = await Promise.all([7, 14].map((days) => clients[0].schema('api').rpc('extend_recurring_service',
+    extensionInput(extensionNoOpPreview, extendDate(extensionNoOpPreview.ends_on, days))).abortSignal(AbortSignal.timeout(10_000))));
+  assert.equal(extensionRace.filter((item) => !item.error).length, 1);
+  assert.equal(extensionRace.filter((item) => item.status === 409 && item.error?.code === 'PT409').length, 1);
+  const extensionWinner = await rpc(clients[0], 'preview_recurring_service_extension', extensionPreviewArgs);
+  assert.equal(extensionWinner.series_version, 3);
+  assert.deepEqual(await rpc(clients[0], 'extend_recurring_service', extensionArgs), extensionSaved);
+  assert.equal((await rpc(clients[0], 'preview_recurring_service_extension', extensionPreviewArgs)).ends_on, extensionWinner.ends_on);
+  const unboundedExtension = await rpc(clients[0], 'extend_recurring_service', extensionInput(extensionWinner, null));
+  assert.equal(unboundedExtension.series_version, 4);
+  assert.equal(unboundedExtension.ends_on, null);
+  assert.ok(unboundedExtension.new_service_count > 0 && unboundedExtension.new_service_count <= 13);
+  const unboundedPreview = await rpc(clients[0], 'preview_recurring_service_extension', extensionPreviewArgs);
+  const unboundedNoOp = await rpc(clients[0], 'extend_recurring_service', extensionInput(unboundedPreview, null));
+  assert.equal(unboundedNoOp.series_version, 4);
+  assert.equal(unboundedNoOp.new_service_count, 0);
+  await rpcFailure(clients[0], 'extend_recurring_service', extensionInput(unboundedPreview, extensionWinner.ends_on));
+  assert.equal(runSql(container, `select app.materialize_service_series(id,
+    ((materialized_through - 69) + time '12:00') at time zone timezone)
+    from app.service_series where public_id = ${sqlLiteral(extensionSeries.series_id)}::uuid;`), '3');
+  assert.equal(originalExtensionRows(), beforeExtensionRows);
+  assert.equal(rideRows(), beforeExtensionRides);
+
   const duplicateArgs = churchArgs({
     p_client_key: randomUUID(), p_lat: 45.0705, p_lng: 7.6871,
     p_official_name: 'Duplicate Attempt', p_slug: `duplicate-church-${compactSuffix}`,
