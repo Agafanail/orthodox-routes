@@ -1164,7 +1164,7 @@ const historicalComplaintMigration = readFileSync(new URL(
 ), 'utf8');
 // Exercise historical replay atomically, preserving the later shared-rule wrapper definition.
 runSql(container, `begin; ${historicalComplaintMigration}
-  ${JSON.parse(complaintBeforeReplay).definition}
+  ${JSON.parse(complaintBeforeReplay).definition};
   commit;`);
 assert.equal(complaintDefinition(), complaintBeforeReplay);
 
