@@ -8,6 +8,7 @@ const origin = 'https://orthodox.example';
 const languages = ['en', 'ru', 'it', 'ro', 'uk', 'de'] as const;
 function raw(overrides: Record<string, unknown> = {}) {
   return { draft_id: draftId, job_id: jobId, attempt_count: 1, destination_email: 'synthetic@example.test',
+    evaluated_at: new Date().toISOString(),
     language: 'en', email_token: 'a'.repeat(64), expires_at: new Date(Date.now() + 800_000).toISOString(),
     lease_until: new Date(Date.now() + 44_000).toISOString(), ...overrides };
 }
@@ -60,12 +61,28 @@ describe('complaint email-proof mail boundary', () => {
     null, [], 'not-object', { draft_id: 'invalid' }, { job_id: 'invalid' }, { email_token: 'bad' },
     { destination_email: 'bad' }, { destination_email: 'x\r\n@example.test' }, { language: '__proto__' },
     { language: 'fr' }, { attempt_count: 0 }, { attempt_count: 6 }, { attempt_count: 1.5 },
-    { expires_at: 'not-date' }, { lease_until: 'not-date' }, { lease_until: '2000-01-01T00:00:00Z' },
+    { evaluated_at: 'not-date' }, { evaluated_at: null }, { expires_at: 'not-date' }, { lease_until: 'not-date' }, { lease_until: '2000-01-01T00:00:00Z' },
     { expires_at: new Date(Date.now() + 2_000_000).toISOString() },
     { lease_until: new Date(Date.now() + 60_000).toISOString() },
   ])('refuses malformed or expired worker data %j', (overrides) => {
     expect(parseComplaintProofJob(overrides && !Array.isArray(overrides) && typeof overrides === 'object'
       ? raw(overrides) : overrides)).toBeNull();
+  });
+  it.each([-7_200_000, 3_600_000])('accepts valid database durations with server clock offset %s', (offset) => {
+    const now = Date.now();
+    const value = raw({ evaluated_at: new Date(now + offset).toISOString(),
+      expires_at: new Date(now + offset + 800_000).toISOString(),
+      lease_until: new Date(now + offset + 45_000).toISOString() });
+    const parsed = parseComplaintProofJob(value, now, 2_000);
+    expect(parsed?.leaseUntil).toBe(now + 43_000);
+    expect(parsed?.expiresAt).toBe(now + 798_000);
+  });
+  it('does not extend deadlines with latency or invalid elapsed time', () => {
+    const now = Date.now();
+    const value = raw({ evaluated_at: new Date(now).toISOString(), lease_until: new Date(now + 4_000).toISOString() });
+    expect(parseComplaintProofJob(value, now, 5_000)).toBeNull();
+    expect(parseComplaintProofJob(value, now, -1)).toBeNull();
+    expect(parseComplaintProofJob(value, now, NaN)).toBeNull();
   });
   it.each(['http://orthodox.example', 'https://user:pass@orthodox.example', 'https://orthodox.example/path',
     'https://orthodox.example?redirect=evil', 'https://orthodox.example#secret', 'invalid'])('refuses unsafe origin %s before claiming', async (appOrigin) => {

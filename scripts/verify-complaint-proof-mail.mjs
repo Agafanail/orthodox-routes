@@ -49,7 +49,8 @@ export async function verifyComplaintProofMail({ admin, anonymous, clients, chur
     assert.equal(first.data.destination_email, fixture.input.p_reply_email);
     assert.equal(first.data.attempt_count, 1);
     assert.deepEqual(Object.keys(first.data).sort(), ['draft_id', 'job_id', 'attempt_count', 'destination_email',
-      'language', 'email_token', 'expires_at', 'lease_until'].sort());
+      'language', 'email_token', 'expires_at', 'lease_until', 'evaluated_at'].sort());
+    assert.equal(new Date(first.data.lease_until).getTime() - new Date(first.data.evaluated_at).getTime(), 45_000);
     assert.match(first.data.email_token, /^[0-9a-f]{64}$/);
     assert.notEqual(first.data.email_token, fixture.input.p_email_token);
     assert.equal(await verify(fixture.input.p_email_token), null);

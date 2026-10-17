@@ -16,6 +16,8 @@ There are at most five attempts, with technical backoff from 30 seconds to four 
 
 ## Application runner and email
 
+Claims include an authoritative database evaluation timestamp. The worker validates the maximum lease/draft durations against that instant, then translates them into local deadlines after conservatively subtracting the entire monotonic RPC round trip. Database/worker wall-clock skew therefore neither consumes valid attempts nor extends the server lease.
+
 The shared Resend adapter now rejects redirects, omits ambient credentials, limits acknowledgement bodies to 16 KiB, and bounds both fetch and body consumption to ten seconds with abort/stream cleanup. The existing durable idempotency prefix, wire message, successful UUID acknowledgement, and fixed retry classification remain unchanged for ordinary notifications and invitations.
 
 `processComplaintProofMail` reuses the selected Resend adapter but claims one lease at a time, never an expiring batch. It validates IDs, recipient, language, capability, attempts, and deadlines; uses fresh per-claim lease IDs; bounds claim/completion waits to five seconds and provider waits to twelve seconds; and refuses to send when fewer than fifteen seconds remain. A timeout does not prove external cancellation: a late request can still complete, so lease ownership and capability rotation provide recovery rather than an exactly-once mail claim. The provider idempotency key is the opaque attempt ID, never a recipient/capability. No provider reference, response/error body, private payload, or email content is persisted in completion or returned statistics.

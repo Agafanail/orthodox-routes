@@ -62,7 +62,7 @@ begin
   return jsonb_build_object('draft_id', draft.id, 'job_id', draft.mail_job_id,
     'attempt_count', draft.mail_attempt_count, 'destination_email', draft.reply_email,
     'language', draft.language, 'email_token', proof, 'expires_at', draft.expires_at,
-    'lease_until', draft.mail_lease_until);
+    'lease_until', draft.mail_lease_until, 'evaluated_at', evaluated_at);
 end;
 $$;
 

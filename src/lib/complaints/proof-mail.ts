@@ -27,11 +27,16 @@ const DATE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/
 function timestamp(value: unknown) {
   return typeof value === 'string' && DATE.test(value) ? Date.parse(value) : NaN;
 }
-export function parseComplaintProofJob(value: unknown, now = Date.now()): Job | null {
+export function parseComplaintProofJob(value: unknown, now = Date.now(), claimElapsedMs = 0): Job | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
-  const expiresAt = timestamp(item.expires_at);
-  const leaseUntil = timestamp(item.lease_until);
+  const evaluatedAt = timestamp(item.evaluated_at);
+  const draftDuration = timestamp(item.expires_at) - evaluatedAt;
+  const leaseDuration = timestamp(item.lease_until) - evaluatedAt;
+  // Trust relative database durations, not synchronized host clocks. Subtract the entire RPC
+  // round trip conservatively so network/lock latency can never extend a live server lease.
+  const expiresAt = now + draftDuration - claimElapsedMs;
+  const leaseUntil = now + leaseDuration - claimElapsedMs;
   if (typeof item.draft_id !== 'string' || !UUID.test(item.draft_id)
     || typeof item.job_id !== 'string' || !UUID.test(item.job_id)
     || typeof item.email_token !== 'string' || !TOKEN.test(item.email_token)
@@ -40,9 +45,10 @@ export function parseComplaintProofJob(value: unknown, now = Date.now()): Job | 
     || typeof item.language !== 'string' || !Object.hasOwn(complaintProofCopy, item.language)
     || typeof item.attempt_count !== 'number' || !Number.isInteger(item.attempt_count)
     || item.attempt_count < 1 || item.attempt_count > 5
-    || !Number.isFinite(expiresAt) || !Number.isFinite(leaseUntil)
-    || leaseUntil <= now || leaseUntil > expiresAt || expiresAt > now + 900_000
-    || leaseUntil > now + 45_000) return null;
+    || !Number.isFinite(evaluatedAt) || !Number.isFinite(expiresAt) || !Number.isFinite(leaseUntil)
+    || !Number.isFinite(claimElapsedMs) || claimElapsedMs < 0
+    || leaseUntil <= now || leaseUntil > expiresAt || draftDuration > 900_000
+    || leaseDuration > 45_000) return null;
   return { draftId: item.draft_id, jobId: item.job_id, attemptCount: item.attempt_count,
     email: item.destination_email, language: item.language as Language, token: item.email_token, expiresAt, leaseUntil };
 }
@@ -91,10 +97,11 @@ export async function processComplaintProofMail(limit = 5, dependencies: Depende
     const leaseToken = randomUUID();
     try {
       const api = client.schema('api');
+      const claimStarted = performance.now();
       const claimed = await bounded(api.rpc('complaint_proof_mail_claim', { p_lease_token: leaseToken }), 5_000);
       if (claimed.error) { summary.failed += 1; break; }
       if (claimed.data === null) break;
-      const job = parseComplaintProofJob(claimed.data);
+      const job = parseComplaintProofJob(claimed.data, Date.now(), Math.max(0, performance.now() - claimStarted));
       if (!job) { summary.failed += 1; break; }
       summary.claimed += 1;
       // Leave a full send window; an almost expired draft must not send a known-dead link.
