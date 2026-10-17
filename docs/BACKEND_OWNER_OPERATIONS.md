@@ -2,7 +2,7 @@
 
 ## Implementation boundary
 
-This is an inactive database contract for the approved archive/restore operations, not a production control panel or an activated operator workflow. Production access, operator login provisioning, protected workflow/environment configuration, and a real operational rehearsal remain owner-controlled. Ordinary deployment must never run these operations automatically.
+This is an inactive database contract for the approved hide/archive/restore operations, not a production control panel or an activated operator workflow. Production access, operator login provisioning, protected workflow/environment configuration, and a real operational rehearsal remain owner-controlled. Ordinary deployment must never run these operations automatically.
 
 Migration `20261016200000_church_owner_lifecycle.sql` creates the `orthodox_routes_church_operator` NOLOGIN group with no elevated role attributes, parent roles, table grants, or ordinary application-role membership. Only `ops.prepare_church_lifecycle`, `ops.begin_church_lifecycle_attempt`, the three-argument `ops.execute_church_lifecycle`, and own-operation-only `ops.church_lifecycle_result` are executable by that group. The original transition is now the ungranted `ops.apply_church_lifecycle` helper; operators cannot bypass attempt auditing. `ops` is not exposed by the application Data API. The normal application secret/service role cannot operate this boundary or read its tables.
 
@@ -20,6 +20,10 @@ No login, password, production secret, remote connection, or role membership for
 The fingerprint covers current church metadata/version, current administrator slots, pending requests/invitations, and future transport counts. Any relevant change requires a new preview. The underlying state reader uses a fresh volatile snapshot after locking.
 
 ## Preserved product rules
+
+- `hide_church` moves a published church to `hidden` as the reviewed urgent public-visibility measure (IA V2 §5.5/§48.6). It requires the same separate identity, safe preview, case reference, `reviewed_hiding` code, committed attempt, exact confirmation, capability, and freshness checks; it does not require cancelling future transport first. New public availability is removed through the existing published-only projections, not by deleting material or cancelling trips. Existing private coordination/participant authorization, ride snapshots, capacity, schedules, and pending archival requests remain unchanged.
+- `restore_church` also restores a hidden church to `published` after its cause is resolved in the support case, preserving the existing administrator prerequisite. The same church identity is reused. Hiding/restoration increments the shared content version. A consumed hide capability returns only its original result and cannot hide a subsequently restored page again.
+- Hiding success records only `church.hidden`, opaque operator/church/operation references, the fixed reason/case reference, and `status`/`content_version` field names. The existing separate committed attempt start, atomic success, caught rollback, failure redaction, unfinished-outcome lookup, and immutable replay also cover this action. No new entry point, role, table access, Data API exposure, public moderation interface, or operator provisioning is introduced.
 
 - Archival requires every future active/partial/fulfilled/restorable passenger request, active/full driver occurrence, pending future response, and confirmed/change-pending future agreement to be resolved. The operation never silently cancels them.
 - Archival changes only church visibility/version and pending archival-request state. It does not delete church, schedule, photograph, administrator, ride, agreement, or participant history.

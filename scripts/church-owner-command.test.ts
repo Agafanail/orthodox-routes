@@ -19,6 +19,36 @@ const setup = () => ({ query: vi.fn().mockReturnValueOnce({ allowed: true }).moc
   confirm: vi.fn().mockResolvedValue(`EXECUTE ${operationId}`), output: vi.fn(), interactive: true, environment: 'staging' });
 
 describe('protected owner command', () => {
+  it('keeps hiding preview-only unless explicitly confirmed', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce({ ...prepared(), operation_type: 'hide_church' });
+    expect((await runOwnerCommand({ ...options, action: 'hide_church' }, dependencies)).status).toBe('preview_only');
+    expect(dependencies.query).toHaveBeenCalledTimes(2);
+    expect(dependencies.confirm).not.toHaveBeenCalled();
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
+  it('supports a redacted own-status lookup for a completed hide', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce({
+      operation_id: operationId, operation_type: 'hide_church', church_id: churchId,
+      state: 'succeeded', latest_attempt: { attempt_id: attemptId, state: 'success' }, token });
+    expect((await runOwnerCommand({ statusId: operationId }, dependencies)).status).toBe('succeeded');
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
+  it('supports reviewed hiding through the same preview/confirmation and redacted result boundary', async () => {
+    const args = ['--church', churchId, '--action', 'hide_church', '--case', 'SYNTHETIC-CASE'];
+    expect(parseOwnerArguments(args)).toEqual({ ...options, action: 'hide_church' });
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce({ ...prepared(), operation_type: 'hide_church' })
+      .mockReturnValueOnce({ operation_id: operationId, attempt_id: attemptId })
+      .mockReturnValueOnce({ operation_id: operationId, church_id: churchId, status: 'hidden', token });
+    expect((await runOwnerCommand({ ...options, action: 'hide_church', execute: true }, dependencies)).status).toBe('hidden');
+    expect(dependencies.query.mock.calls[1][1]).toEqual([churchId, 'hide_church', 'SYNTHETIC-CASE', 'reviewed_hiding']);
+    expect(dependencies.confirm).toHaveBeenCalledOnce();
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
   it('accepts only fixed canonical arguments or a narrow status lookup', () => {
     expect(parseOwnerArguments(['--church', churchId, '--action', 'archive_church', '--case', 'SYNTHETIC-CASE']))
       .toEqual(options);

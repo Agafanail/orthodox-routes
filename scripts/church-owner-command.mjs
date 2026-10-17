@@ -21,7 +21,7 @@ export function parseOwnerArguments(args) {
     values.set(key, args[++index]);
   }
   const churchId = values.get('--church'); const action = values.get('--action'); const reference = values.get('--case');
-  if (!UUID.test(churchId ?? '') || !['archive_church', 'restore_church'].includes(action)
+  if (!UUID.test(churchId ?? '') || !['archive_church', 'restore_church', 'hide_church'].includes(action)
     || !REFERENCE.test(reference ?? '')) throw new Error('Invalid owner command arguments.');
   return { churchId, action, reference, execute };
 }
@@ -117,7 +117,7 @@ export async function runOwnerCommand(options, { query, confirm, output, interac
       const state = query('select ops.church_lifecycle_result($1::uuid)', [options.statusId]);
       if (state?.operation_id !== options.statusId || !['prepared', 'expired', 'succeeded'].includes(state.state)
         || typeof state.church_id !== 'string' || !UUID.test(state.church_id)
-        || !['archive_church', 'restore_church'].includes(state.operation_type)) throw failure();
+        || !['archive_church', 'restore_church', 'hide_church'].includes(state.operation_type)) throw failure();
       let latestAttempt = null;
       if (state.latest_attempt !== null) {
         if (!state.latest_attempt || typeof state.latest_attempt.attempt_id !== 'string'
@@ -129,7 +129,8 @@ export async function runOwnerCommand(options, { query, confirm, output, interac
         church_id: state.church_id, state: state.state, latest_attempt: latestAttempt }));
       return { status: state.state, operationId: state.operation_id };
     }
-    const reason = options.action === 'archive_church' ? 'reviewed_archival' : 'reviewed_restoration';
+    const reason = options.action === 'archive_church' ? 'reviewed_archival'
+      : options.action === 'hide_church' ? 'reviewed_hiding' : 'reviewed_restoration';
     const prepared = query('select ops.prepare_church_lifecycle($1::uuid, $2::text, $3::text, $4::text)',
       [options.churchId, options.action, options.reference, reason]);
     const safe = safePrepared(prepared, options);
@@ -147,7 +148,8 @@ export async function runOwnerCommand(options, { query, confirm, output, interac
     // A separate committed connection records the start before any transition request is sent.
     const result = query('select ops.execute_church_lifecycle($1::uuid, $2::text, $3::uuid)',
       [safe.operation_id, prepared.token, attempt.attempt_id]);
-    const expectedStatus = options.action === 'archive_church' ? 'archived' : 'published';
+    const expectedStatus = options.action === 'archive_church' ? 'archived'
+      : options.action === 'hide_church' ? 'hidden' : 'published';
     if (result?.operation_id !== safe.operation_id || result.church_id !== options.churchId
       || result.status !== expectedStatus) throw failure();
     // Project rather than printing the database response, even though this RPC is trusted.

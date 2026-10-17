@@ -2,7 +2,7 @@
 
 ## Inactive operational boundary
 
-`scripts/church-owner-command.mjs` is a prebuilt interactive command for the approved church archive/restore contract. It is not an application route or automatic deployment step. No real operator identity, credential, certificate, protected environment, staging connection, or production connection is provisioned by this code. Codex must not receive production secrets or execute production operations.
+`scripts/church-owner-command.mjs` is a prebuilt interactive command for the approved church hide/archive/restore contract. It is not an application route or automatic deployment step. No real operator identity, credential, certificate, protected environment, staging connection, or production connection is provisioned by this code. Codex must not receive production secrets or execute production operations.
 
 The database contract and preserved product rules are described in [Protected church lifecycle operations](BACKEND_OWNER_OPERATIONS.md). The command additionally supports a narrow own-operation outcome lookup after an ambiguous failure; it never needs to rerun a transition just to inspect its status.
 
@@ -18,7 +18,7 @@ Only four explicit configuration values are read: `OWNER_CHURCH_ENVIRONMENT` (`s
 
 ## Command lifecycle
 
-The command accepts exactly one canonical church UUID, a fixed action (`archive_church` or `restore_church`), and an opaque case reference. For example, using synthetic identifiers only:
+The command accepts exactly one canonical church UUID, a fixed action (`hide_church`, `archive_church`, or `restore_church`), and an opaque case reference. For example, using synthetic identifiers only:
 
 ```text
 node scripts/church-owner-command.mjs --church 11111111-1111-4111-8111-111111111111 --action archive_church --case SYNTHETIC-CASE
@@ -39,6 +39,8 @@ node scripts/church-owner-command.mjs --status 22222222-2222-4222-8222-222222222
 This returns only the caller's operation type, church identifier, `prepared`/`expired`/`succeeded` state, and latest attempt UUID/state when one exists. Attempt states are `unfinished`, `success`, `refused`, and `error`. An unfinished attempt may still be in flight or may have rolled back after interruption; it is never evidence of failure or permission to retry. A completed refusal/error remains immutable on replay even if conditions later change. The lookup does not prepare, execute, or expose the capability, fingerprint, case narrative, private membership IDs, raw error text, or ride details. Review the case rather than blindly starting another operation.
 
 ## Verification boundaries
+
+The hiding extension uses the same preview-only default and explicit interactive confirmation. It binds `hide_church` to `reviewed_hiding` and expects only a `hidden` transition result; own-status lookup recognizes it without returning a capability. Restoration handles either a hidden or archived page through the same protected contract. Hiding is not an instruction to cancel future trips, delete history, or reveal participant details. Record the actual reason and its resolution in the referenced support case, not in free-form command arguments.
 
 Unit tests use injected process/configuration/confirmation fakes and no external connection. Local-only database CI verifies the protected outcome function, parameter binding, committed starts, minimized refusal/error results, rollback after partial transition work, timeout ambiguity, replay, and concurrent completion with synthetic identities. These are separate from owner-controlled staging authentication/TLS/security-logging verification and a real operational rehearsal. No frontend screen or production control is enabled.
 
