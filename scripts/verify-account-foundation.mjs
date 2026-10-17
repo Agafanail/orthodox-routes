@@ -451,6 +451,9 @@ try {
   assert.deepEqual(exportA.places, []);
   assert.deepEqual(exportA.personal_blocks, []);
   assert.deepEqual(exportA.complaint_email_drafts, []);
+  assert.deepEqual(exportA.church_administration, {
+    schema_version: 1, memberships: [], invitations: [], events: [], archival_requests: [],
+  });
   assert.deepEqual(exportA.owned_transport, {
     driver_occurrences: [], driver_series: [], passenger_requests: [],
   });
