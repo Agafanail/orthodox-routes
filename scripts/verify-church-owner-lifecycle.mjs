@@ -49,7 +49,8 @@ function asyncSql(statement) {
 const asOperator = (input, actor = operatorLogin) => ({ input, actor });
 const prepareSql = (action = 'archive_church', reference = 'SYNTHETIC-OWNER-CASE') =>
   `select ops.prepare_church_lifecycle(${literal(ids.churchPublic)}::uuid, ${literal(action)},
-    ${literal(reference)}, ${literal(action === 'archive_church' ? 'reviewed_archival' : 'reviewed_restoration')});`;
+    ${literal(reference)}, ${literal(action === 'archive_church' ? 'reviewed_archival'
+    : action === 'hide_church' ? 'reviewed_hiding' : 'reviewed_restoration')});`;
 const prepare = (action) => JSON.parse(sql(asOperator(prepareSql(action))));
 const startAttempt = (operation) => JSON.parse(sql(asOperator(
   `select ops.begin_church_lifecycle_attempt($1::uuid, $2::text)\n\\bind ${literal(operation.operation_id)} ${literal(operation.token)} \\g\n`,
@@ -186,6 +187,7 @@ try {
     /Protected church operation failed/);
   for (const denied of ['anon', 'authenticated', 'service_role']) {
     sql(`set role ${denied}; ${prepareSql()}`, '42501');
+    sql(`set role ${denied}; ${prepareSql('hide_church')}`, '42501');
     sql(`set role ${denied}; select ops.execute_church_lifecycle(${literal(randomUUID())}::uuid, repeat('a',64), ${literal(randomUUID())}::uuid);`, '42501');
     sql(`set role ${denied}; select ops.begin_church_lifecycle_attempt(${literal(randomUUID())}::uuid, repeat('a',64));`, '42501');
     sql(`set role ${denied}; select ops.church_lifecycle_result(${literal(randomUUID())}::uuid);`, '42501');
@@ -428,6 +430,70 @@ try {
       values (${literal(ids.driver)}::uuid, ${literal(ids.legal)}::uuid, 'terms_explicit', 'en', 'account_foundation_v1');`);
   if (churchStatus() === 'archived') execute(prepare('restore_church'));
   await verifyRegularPublicationRace();
+
+  // Hiding is urgent public visibility control, not archival or cancellation of future transport.
+  sql(requestInsert(randomUUID()));
+  sql(`update app.church_archive_request set status = 'pending', resolved_at = null
+    where id = ${literal(ids.archiveRequest)}::uuid;`);
+  const transportDigest = () => sql(`select encode(extensions.digest(convert_to(jsonb_build_object(
+    'requests', (select jsonb_agg(to_jsonb(item) order by item.id) from app.passenger_request as item where church_id = ${literal(ids.church)}::uuid),
+    'offers', (select jsonb_agg(to_jsonb(item) order by item.id) from app.driver_offer_occurrence as item where church_id = ${literal(ids.church)}::uuid),
+    'snapshots', (select jsonb_agg(to_jsonb(item) order by item.id) from app.ride_condition_snapshot as item where church_id = ${literal(ids.church)}::uuid),
+    'agreements', (select jsonb_agg(to_jsonb(item) order by item.id) from app.ride_agreement as item
+      where item.driver_account_id = ${literal(ids.driver)}::uuid or item.passenger_account_id = ${literal(ids.passenger)}::uuid)
+    )::text, 'UTF8'), 'sha256'), 'hex');`);
+  const beforeHiding = transportDigest();
+  const hide = prepare('hide_church');
+  assert.ok(hide.preview.passenger_requests > 0);
+  assert.equal(hide.operation_type, 'hide_church');
+  assert.equal(JSON.stringify(hide.preview).includes(ids.passenger), false);
+  const hidden = execute(hide);
+  assert.equal(hidden.status, 'hidden');
+  assert.equal(churchStatus(), 'hidden');
+  assert.equal(publicRead(), 't');
+  assert.equal(sql(`select status from app.church_archive_request where id = ${literal(ids.archiveRequest)}::uuid;`), 'pending');
+  assert.equal(transportDigest(), beforeHiding);
+  assert.deepEqual(execute(hide), hidden);
+  sql(asOperator(prepareSql('hide_church')), '22023');
+  assert.equal(outcome(hide).operation_type, 'hide_church');
+  assert.equal(outcome(hide).state, 'succeeded');
+  const hidingAudit = JSON.parse(sql(`select to_jsonb(event) from ops.audit_event as event
+    where event_key = ${literal(`owner-operation:${hide.operation_id}`)};`));
+  assert.equal(hidingAudit.action_type, 'church.hidden');
+  assert.equal(hidingAudit.reason_code, 'reviewed_hiding');
+  assert.equal(hidingAudit.actor_kind, 'operator');
+  assert.deepEqual(hidingAudit.changed_fields, ['status', 'content_version']);
+  assert.equal(JSON.stringify(hidingAudit).includes(hide.token), false);
+  assert.equal(execute(prepare('restore_church')).status, 'published');
+  assert.equal(sql(`select status from app.church_archive_request where id = ${literal(ids.archiveRequest)}::uuid;`), 'pending');
+  assert.equal(transportDigest(), beforeHiding);
+  assert.deepEqual(execute(hide), hidden);
+  assert.equal(churchStatus(), 'published', 'Replaying an old successful hide must not hide a restored page again.');
+
+  const staleHide = prepare('hide_church');
+  sql(`update app.church set content_version = content_version + 1 where id = ${literal(ids.church)}::uuid;`);
+  expectRefusal(staleHide);
+  assert.equal(churchStatus(), 'published');
+  const failingHide = prepare('hide_church');
+  try {
+    sql(`create function app.synthetic_owner_hide_failure() returns trigger language plpgsql as $$ begin
+      if new.id = ${literal(failingHide.operation_id)}::uuid then raise exception 'Synthetic hide failure.'; end if;
+      return new; end; $$;
+      create trigger synthetic_owner_hide_failure before update on ops.owner_operation
+        for each row execute function app.synthetic_owner_hide_failure();`);
+    assert.equal(execute(failingHide).execution_result, 'error');
+    assert.equal(churchStatus(), 'published');
+    assert.equal(sql(`select count(*) from ops.audit_event where event_key = ${literal(`owner-operation:${failingHide.operation_id}`)};`), '0');
+  } finally {
+    sql('drop trigger if exists synthetic_owner_hide_failure on ops.owner_operation; drop function if exists app.synthetic_owner_hide_failure();');
+  }
+  const definitions = () => sql(`select jsonb_agg(jsonb_build_object('oid', routine.oid,
+      'definition', pg_get_functiondef(routine.oid), 'acl', routine.proacl) order by routine.oid)
+    from pg_proc as routine join pg_namespace as namespace on namespace.oid = routine.pronamespace
+    where namespace.nspname in ('api', 'ops') and routine.prokind = 'f';`);
+  const beforeHidingReplay = definitions();
+  sql(readFileSync(new URL('../supabase/migrations/20261017060000_church_owner_hiding.sql', import.meta.url), 'utf8'));
+  assert.equal(definitions(), beforeHidingReplay);
 } finally {
   // Exact synthetic fixture scope only; no remote target, truncation, or unrelated records.
   sql(`begin;

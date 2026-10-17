@@ -454,6 +454,8 @@ The inactive executable `private.complaint_email_draft` supports only unsubmitte
 
 ### 13.3 `ops.audit_event`
 
+The church-owner visibility extension uses the same protected operation and attempt audit. `hide_church` stores the fixed `reviewed_hiding` reason and records `church.hidden` only after the atomic published-to-hidden transition; restoring a hidden page uses the existing `church.restored` action. Audit contains only opaque references and changed field names, never page content, private participants, or capabilities. No new retention policy, role, table access, or operational activation is implied.
+
 Append-oriented fields:
 
 - PK and occurred time;
