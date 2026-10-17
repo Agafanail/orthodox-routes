@@ -225,6 +225,8 @@ Both public transport-list RPCs independently require the linked church to be pu
 
 ## Complaint target context
 
+The provider-independent [Turnstile server boundary](docs/BACKEND_TURNSTILE_BOUNDARY.md) validates challenges only at Cloudflare's fixed HTTPS Siteverify endpoint, binds the exact configured hostname and trusted form action, and returns only a fixed verdict. Missing/unsafe configuration, official dummy secrets, provider failures, stale/spent tokens, oversized responses, and deadlines fail closed. Verification is bounded to five seconds including response reading, has no automatic retry/cache, and forwards no IP/header/account/case/text metadata. It is not connected to a public form or intake yet; no real provider verification, anti-abuse rate policy, or activation is claimed.
+
 The read-only `api.complaint_target_context(type, public_id)` prepares only an already-visible church/listing or the caller's own listing/agreement-history reference within IA V2's 30-day post-ride reporting window and the category codes from §45.5. Anonymous/unrelated users cannot probe private history or hidden church content; unknown/unsupported/expired targets return null even before lifecycle cleanup. It never selects contacts, names, places, notes, full snapshots, or complaint text. This is not complaint submission or email verification: stored cases, guest verification, rate limits, owner delivery/review, legal retention, and the production form remain unfinished. Legal/authority requests outside this interface window remain a separate service-email path.
 
 ## Restricted transition audit
