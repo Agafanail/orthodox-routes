@@ -1061,4 +1061,90 @@ runSql(container, readFileSync(new URL(
 ), 'utf8'));
 assert.equal(publicReadDefinitions(), publicReadsBeforeReplay);
 
-console.log('Account-scoped My Trips lists, on-demand details, and non-public church board boundaries: authorization, snapshots, expiry, and privacy verification passed.');
+const complaintContext = (client, type, id) => rpc(client, 'complaint_target_context', {
+  p_target_type: type, p_target_id: id,
+});
+const churchComplaintCategories = ['incorrect_information', 'duplicate', 'not_orthodox_or_missing',
+  'rights_infringement', 'dangerous_or_illegal', 'other'];
+const rideComplaintCategories = ['public_private_details', 'paid_transport', 'spam_or_fraud',
+  'harassment_or_danger', 'false_ride_information', 'other'];
+const agreementComplaintCategories = ['no_show', 'dangerous_behavior', 'unwanted_contact', 'money_or_fraud', 'other'];
+const expectedComplaintContext = (type, id, categories) => ({
+  schema_version: 1, target_type: type, target_id: id, categories,
+});
+for (const client of [anonymous, clients[0], clients[4]]) {
+  assert.deepEqual(await complaintContext(client, 'church', churches[0].id),
+    expectedComplaintContext('church', churches[0].id, churchComplaintCategories));
+  assert.deepEqual(await complaintContext(client, 'passenger_request', listingRequest.request_id),
+    expectedComplaintContext('passenger_request', listingRequest.request_id, rideComplaintCategories));
+  assert.deepEqual(await complaintContext(client, 'driver_occurrence', listingOccurrence.occurrence_id),
+    expectedComplaintContext('driver_occurrence', listingOccurrence.occurrence_id, rideComplaintCategories));
+  assert.equal(await complaintContext(client, 'church', randomUUID()), null);
+  assert.equal(await complaintContext(client, 'account', identities[3].id), null);
+  assert.equal(await complaintContext(client, 'ride_response', declinedResponse.response_id), null);
+  assert.equal(await complaintContext(client, null, churches[0].id), null);
+  assert.equal(await complaintContext(client, 'church', null), null);
+}
+for (const [ride, passengerIndex] of [[confirmedRide, 2], [cancelledRide, 0], [archivedRide, 2]]) {
+  const id = ride.agreement.agreement_id;
+  for (const client of [anonymous, clients[4]]) assert.equal(await complaintContext(client, 'ride_agreement', id), null);
+  for (const client of [clients[passengerIndex], clients[3]]) {
+    assert.deepEqual(await complaintContext(client, 'ride_agreement', id),
+      expectedComplaintContext('ride_agreement', id, agreementComplaintCategories));
+  }
+}
+const closedRequestId = archivedRide.request.request_id;
+assert.equal(await complaintContext(anonymous, 'passenger_request', closedRequestId), null);
+assert.equal(await complaintContext(clients[4], 'passenger_request', closedRequestId), null);
+assert.deepEqual(await complaintContext(clients[2], 'passenger_request', closedRequestId),
+  expectedComplaintContext('passenger_request', closedRequestId, rideComplaintCategories));
+const unrelatedComplaintCall = await clients[4].schema('api').rpc('complaint_target_context', {
+  p_target_type: 'ride_agreement', p_target_id: confirmedRide.agreement.agreement_id, p_actor_id: identities[2].id,
+});
+assert.ok(unrelatedComplaintCall.error);
+assert.ok((await callRpc(admin, 'complaint_target_context', { p_target_type: 'church', p_target_id: churches[0].id })).error);
+try {
+  runSql(container, `update app.church set status = 'hidden' where public_id = ${sqlLiteral(churches[0].id)}::uuid;
+    update app.account set status = 'restricted' where id = ${sqlLiteral(identities[2].id)}::uuid;`);
+  for (const [type, id] of [['church', churches[0].id], ['passenger_request', listingRequest.request_id],
+    ['driver_occurrence', listingOccurrence.occurrence_id]]) {
+    assert.equal(await complaintContext(anonymous, type, id), null);
+    assert.equal(await complaintContext(clients[4], type, id), null);
+  }
+  assert.deepEqual(await complaintContext(clients[0], 'passenger_request', listingRequest.request_id),
+    expectedComplaintContext('passenger_request', listingRequest.request_id, rideComplaintCategories));
+  assert.deepEqual(await complaintContext(clients[3], 'driver_occurrence', listingOccurrence.occurrence_id),
+    expectedComplaintContext('driver_occurrence', listingOccurrence.occurrence_id, rideComplaintCategories));
+  assert.deepEqual(await complaintContext(clients[2], 'ride_agreement', confirmedRide.agreement.agreement_id),
+    expectedComplaintContext('ride_agreement', confirmedRide.agreement.agreement_id, agreementComplaintCategories));
+} finally {
+  runSql(container, `update app.church set status = 'published' where public_id = ${sqlLiteral(churches[0].id)}::uuid;
+    update app.account set status = 'active' where id = ${sqlLiteral(identities[2].id)}::uuid;`);
+}
+try {
+  for (const unpublishedState of ['draft', 'verification']) {
+    runSql(container, `update app.passenger_request set status = ${sqlLiteral(unpublishedState)}
+      where public_id = ${sqlLiteral(listingRequest.request_id)}::uuid;`);
+    for (const client of [anonymous, clients[0], clients[4]]) {
+      assert.equal(await complaintContext(client, 'passenger_request', listingRequest.request_id), null);
+    }
+  }
+} finally {
+  runSql(container, `update app.passenger_request set status = 'active'
+    where public_id = ${sqlLiteral(listingRequest.request_id)}::uuid;`);
+}
+assert.equal(runSql(container, `select has_function_privilege('anon', 'api.complaint_target_context(text,uuid)', 'EXECUTE')::text || ':' ||
+  has_function_privilege('authenticated', 'api.complaint_target_context(text,uuid)', 'EXECUTE')::text || ':' ||
+  has_function_privilege('service_role', 'api.complaint_target_context(text,uuid)', 'EXECUTE')::text;`), 'true:true:false');
+assert.equal(runSql(container, `select count(*) from pg_proc where oid = 'api.complaint_target_context(text,uuid)'::regprocedure
+  and prosecdef and provolatile = 's' and proconfig @> array['search_path=""'];`), '1');
+const complaintDefinition = () => runSql(container, `select jsonb_build_object(
+  'definition', pg_get_functiondef(oid), 'acl', proacl) from pg_proc
+  where oid = 'api.complaint_target_context(text,uuid)'::regprocedure;`);
+const complaintBeforeReplay = complaintDefinition();
+runSql(container, readFileSync(new URL(
+  '../supabase/migrations/20261017030000_complaint_target_context.sql', import.meta.url,
+), 'utf8'));
+assert.equal(complaintDefinition(), complaintBeforeReplay);
+
+console.log('Account-scoped My Trips, public board boundaries, and minimal complaint context: authorization, snapshots, expiry, and privacy verification passed.');
