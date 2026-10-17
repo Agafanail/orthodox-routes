@@ -569,6 +569,8 @@ The `api` schema exposes purpose-built projections rather than base tables:
 
 Public transport content is excluded from indexable page metadata and structured data even though anonymous visitors may view it in the application. Closed public IDs return a safe unavailable state without historical places or comments.
 
+The two executable public transport-list RPCs also enforce published church state inside their definer query, independently of route/page checks and regardless of an optional church filter. Retained future passenger/driver rows for hidden, archived, or draft churches are excluded from both scoped and global public results. This does not remove or alter participant My Trips or account-owned transport history; restoration reveals only rows still satisfying the existing active/time/capacity filters.
+
 ## 20. Retention and lifecycle hooks
 
 Creation or state transitions set policy codes and `retention_due_at` values rather than hard-coding deletion logic in UI code. Jobs cover:

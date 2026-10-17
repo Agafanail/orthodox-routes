@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
@@ -1010,4 +1011,54 @@ for (const signature of [
   `), 'false:true:false');
 }
 
-console.log('Account-scoped My Trips lists and on-demand details: authorization, snapshots, expiry, and privacy verification passed.');
+// Direct Data API calls must not bypass a hidden/archived church page boundary.
+const publicReadCases = [
+  ['list_active_passenger_requests', 'request_id', listingRequest.request_id],
+  ['list_active_driver_occurrences', 'occurrence_id', listingOccurrence.occurrence_id],
+];
+for (const [name, idKey, publicId] of publicReadCases) {
+  assert.ok((await rpc(anonymous, name, { p_church_id: churches[0].id }))
+    .some((item) => item[idKey] === publicId));
+}
+const personalBeforeChurchVisibility = await Promise.all([clients[0], clients[3]].map((client) => rpc(client, 'current_my_trips')));
+const privateItemsBeforeChurchVisibility = await Promise.all([clients[0], clients[3]].map((client) => rpc(client, 'current_transport_items')));
+try {
+  for (const churchStatus of ['hidden', 'archived', 'draft']) {
+    runSql(container, `update app.church set status = ${sqlLiteral(churchStatus)}
+      where public_id = ${sqlLiteral(churches[0].id)}::uuid;`);
+    assert.equal(await rpc(anonymous, 'transport_church_by_slug', { p_slug: churches[0].slug }), null);
+    for (const client of [anonymous, clients[0], clients[4]]) {
+      for (const [name] of publicReadCases) {
+        assert.deepEqual(await rpc(client, name, { p_church_id: churches[0].id }), []);
+        const globalRows = await rpc(client, name);
+        assert.equal(globalRows.some((item) => item.church_id === churches[0].id), false);
+        assert.ok(globalRows.some((item) => item.church_id === churches[1].id), 'Published church rows must remain available.');
+      }
+    }
+    assert.deepEqual(await Promise.all([clients[0], clients[3]].map((client) => rpc(client, 'current_my_trips'))),
+      personalBeforeChurchVisibility);
+    assert.deepEqual(await Promise.all([clients[0], clients[3]].map((client) => rpc(client, 'current_transport_items'))),
+      privateItemsBeforeChurchVisibility);
+  }
+} finally {
+  runSql(container, `update app.church set status = 'published' where public_id = ${sqlLiteral(churches[0].id)}::uuid;`);
+}
+for (const [name, idKey, publicId] of publicReadCases) {
+  assert.ok((await rpc(anonymous, name, { p_church_id: churches[0].id }))
+    .some((item) => item[idKey] === publicId));
+  assert.equal(runSql(container, `select has_function_privilege('anon', 'api.${name}(uuid)', 'EXECUTE')::text || ':' ||
+    has_function_privilege('authenticated', 'api.${name}(uuid)', 'EXECUTE')::text || ':' ||
+    has_function_privilege('service_role', 'api.${name}(uuid)', 'EXECUTE')::text;`), 'true:true:false');
+}
+const publicReadDefinitions = () => runSql(container, `select jsonb_agg(jsonb_build_object(
+  'signature', routine.oid::regprocedure::text, 'definition', pg_get_functiondef(routine.oid), 'acl', routine.proacl)
+  order by routine.oid::regprocedure::text) from pg_proc as routine
+  where routine.oid in ('api.list_active_passenger_requests(uuid)'::regprocedure,
+    'api.list_active_driver_occurrences(uuid)'::regprocedure);`);
+const publicReadsBeforeReplay = publicReadDefinitions();
+runSql(container, readFileSync(new URL(
+  '../supabase/migrations/20261017020000_nonpublic_church_transport_projections.sql', import.meta.url,
+), 'utf8'));
+assert.equal(publicReadDefinitions(), publicReadsBeforeReplay);
+
+console.log('Account-scoped My Trips lists, on-demand details, and non-public church board boundaries: authorization, snapshots, expiry, and privacy verification passed.');

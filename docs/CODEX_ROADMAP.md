@@ -97,6 +97,7 @@ The target data model and target project diagrams are approved architecture arti
 - Migrate the approved transport-board domain model from browser storage — source entities, ownership, safe projections, date-specific occurrences, responses, agreements, capacity, cancellation, disclosure, and the configured Core application cutover are implemented locally without importing or dual-writing browser records.
 - Enforce ownership and authorization server-side — completed for the implemented Core domain.
 - Keep contacts unavailable to anonymous users and unconfirmed counterparties — completed for the implemented Core agreement boundary.
+- Public passenger/driver list RPCs independently enforce published-church visibility for filtered and global calls. Hidden/archived/draft church records cannot bypass the page boundary through direct Data API reads; restoring publication preserves the same active rows and personal history remains unchanged.
 - Support contextual registration from the action the visitor was already performing — completed for requests, offers, and responses with an explicit final send.
 
 The complete Core campaign passed its final local, migration, security/privacy, isolated-staging, provider, and GitHub Actions release gates. The Maps and quality-matching phase is complete and merged, with its own release gates passed and the owner's manual acceptance test signed off.
