@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { verifyHiddenScheduleRepairs } from './verify-hidden-schedule-repairs.mjs';
+import { verifyRecurringServiceShortening } from './verify-recurring-service-shortening.mjs';
 
 const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
@@ -1692,6 +1693,10 @@ try {
   await verifyHiddenScheduleRepairs({ actor: clients[0], outsiders: [extensionReader, clients[1], admin],
     anonymous: extensionReader, rpc, rpcFailure, churchId: created.church_id, churchSlug: created.slug, recurringArgs,
     runSql: (statement, options) => runSql(container, statement, options) });
+
+  await verifyRecurringServiceShortening({ actor: clients[0], outsiders: [extensionReader, clients[1], admin],
+    rpc, rpcFailure, rpcConflict, recurringArgs, requestAuthorId: identities[1].id,
+    runSql: (statement) => runSql(container, statement) });
 
   const duplicateArgs = churchArgs({
     p_client_key: randomUUID(), p_lat: 45.0705, p_lng: 7.6871,
