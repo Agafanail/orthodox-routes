@@ -19,6 +19,55 @@ const setup = () => ({ query: vi.fn().mockReturnValueOnce({ allowed: true }).moc
   confirm: vi.fn().mockResolvedValue(`EXECUTE ${operationId}`), output: vi.fn(), interactive: true, environment: 'staging' });
 
 describe('protected owner command', () => {
+  const membershipId = '44444444-4444-4444-8444-444444444444';
+  const removalOptions = { ...options, action: 'remove_church_admin', membershipId };
+  const removalPrepared = () => ({ ...prepared(), operation_type: 'remove_church_admin',
+    preview: { ...prepared().preview, membership_id: membershipId, administrator_count: 2 } });
+  it('requires an exact membership only for reviewed exclusion', () => {
+    const args = ['--church', churchId, '--action', 'remove_church_admin', '--case', 'SYNTHETIC-CASE'];
+    expect(parseOwnerArguments([...args, '--membership', membershipId])).toEqual(removalOptions);
+    expect(() => parseOwnerArguments(args)).toThrow();
+    expect(() => parseOwnerArguments([...args, '--membership', 'private@example.test'])).toThrow();
+    expect(() => parseOwnerArguments(['--church', churchId, '--action', 'hide_church', '--case', 'CASE',
+      '--membership', membershipId])).toThrow();
+  });
+  it('previews a reviewed exclusion without executing or exposing the capability', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce(removalPrepared());
+    expect((await runOwnerCommand(removalOptions, dependencies)).status).toBe('preview_only');
+    expect(dependencies.query.mock.calls[1]).toEqual([
+      'select ops.prepare_church_admin_removal($1::uuid, $2::uuid, $3::text)', [churchId, membershipId, 'SYNTHETIC-CASE']]);
+    expect(dependencies.query).toHaveBeenCalledTimes(2);
+    expect(dependencies.confirm).not.toHaveBeenCalled();
+    expect(dependencies.output.mock.calls.flat().join('\n')).toContain(membershipId);
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
+  it('executes only the exact reviewed membership and projects the removed result', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce(removalPrepared())
+      .mockReturnValueOnce({ operation_id: operationId, attempt_id: attemptId })
+      .mockReturnValueOnce({ operation_id: operationId, church_id: churchId, membership_id: membershipId, status: 'removed', token });
+    expect((await runOwnerCommand({ ...removalOptions, execute: true }, dependencies)).status).toBe('removed');
+    expect(dependencies.confirm).toHaveBeenCalledOnce();
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
+  it.each(['mismatched', 'final'] as const)('refuses a %s exclusion preview before confirmation', async (kind) => {
+    const dependencies = setup(); const value = removalPrepared();
+    if (kind === 'mismatched') value.preview.membership_id = churchId;
+    else value.preview.administrator_count = 1;
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce(value);
+    await expect(runOwnerCommand({ ...removalOptions, execute: true }, dependencies)).rejects.toThrow();
+    expect(dependencies.confirm).not.toHaveBeenCalled();
+    expect(dependencies.output).not.toHaveBeenCalled();
+  });
+  it('supports a capability-free own exclusion status', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce({
+      operation_id: operationId, church_id: churchId, operation_type: 'remove_church_admin',
+      state: 'succeeded', latest_attempt: { attempt_id: attemptId, state: 'success' }, token });
+    expect((await runOwnerCommand({ statusId: operationId }, dependencies)).status).toBe('succeeded');
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
   it('keeps hiding preview-only unless explicitly confirmed', async () => {
     const dependencies = setup();
     dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })

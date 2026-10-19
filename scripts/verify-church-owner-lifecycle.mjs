@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createOwnerQuery } from './church-owner-command.mjs';
+import { verifyChurchAdminRemoval } from './verify-church-admin-removal.mjs';
 
 // This verifier has no remote URL/credential option: only the exact disposable local container.
 const inventory = spawnSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
@@ -494,6 +495,8 @@ try {
   const beforeHidingReplay = definitions();
   sql(readFileSync(new URL('../supabase/migrations/20261017060000_church_owner_hiding.sql', import.meta.url), 'utf8'));
   assert.equal(definitions(), beforeHidingReplay);
+  await verifyChurchAdminRemoval({ sql, asyncSql, asOperator, literal, ids, execute, executeSql,
+    expectRefusal, transportDigest, definitions, otherRole, waitForDatabaseCondition });
 } finally {
   // Exact synthetic fixture scope only; no remote target, truncation, or unrelated records.
   sql(`begin;
@@ -513,6 +516,7 @@ try {
     delete from app.passenger_request where church_id = ${literal(ids.church)}::uuid;
     delete from private.user_place where owner_account_id in (${literal(ids.passenger)}::uuid, ${literal(ids.driver)}::uuid);
     delete from app.church_archive_request where church_id = ${literal(ids.church)}::uuid;
+    delete from app.church_admin_event where church_id = ${literal(ids.church)}::uuid;
     delete from app.church_admin_membership where church_id = ${literal(ids.church)}::uuid;
     delete from app.content_translation where content_source_id in (select id from app.content_source
       where object_type = 'service_occurrence' and object_id in (select id from app.service_occurrence

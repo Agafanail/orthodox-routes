@@ -462,6 +462,8 @@ The inactive complaint-preparation attempt boundary adds an all-or-none nullable
 
 The church-owner visibility extension uses the same protected operation and attempt audit. `hide_church` stores the fixed `reviewed_hiding` reason and records `church.hidden` only after the atomic published-to-hidden transition; restoring a hidden page uses the existing `church.restored` action. Audit contains only opaque references and changed field names, never page content, private participants, or capabilities. No new retention policy, role, table access, or operational activation is implied.
 
+The reviewed membership-exclusion extension adds a restricted target membership FK to `ops.owner_operation` only for `remove_church_admin` and fixed `reviewed_membership_removal`. A selected public membership reference is shown only in the protected preview/result, not account discovery or ordinary projections. The existing locked/freshness-checked attempt workflow ends that membership only while another current member remains and its transfer is resolved. Subject-only `membership.removed`, a correlated operator fact, and neutral notifications commit atomically; no replacement grant, identity/session change, final-administrator case, invitation cancellation, or retention rule is implied.
+
 Append-oriented fields:
 
 - PK and occurred time;

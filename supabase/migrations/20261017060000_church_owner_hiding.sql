@@ -1,13 +1,23 @@
 -- Extend the existing inactive, separately authenticated owner workflow; do not grant a new entry point.
+-- Replaying this checkpoint must not remove later reviewed operation/reason extensions.
+do $$ begin
+if not exists (select 1 from pg_constraint where conrelid = 'ops.owner_operation'::regclass
+  and conname = 'owner_operation_operation_type_check' and position('hide_church' in pg_get_expr(conbin, conrelid)) > 0) then
 alter table ops.owner_operation drop constraint owner_operation_operation_type_check;
 alter table ops.owner_operation add constraint owner_operation_operation_type_check
   check (operation_type in ('archive_church', 'restore_church', 'hide_church'));
+end if;
+if not exists (select 1 from pg_constraint where conrelid = 'ops.owner_operation'::regclass
+  and conname = 'owner_operation_reason' and position('reviewed_hiding' in pg_get_expr(conbin, conrelid)) > 0) then
 alter table ops.owner_operation drop constraint owner_operation_reason;
 alter table ops.owner_operation add constraint owner_operation_reason check (
   (operation_type = 'archive_church' and reason_code = 'reviewed_archival')
   or (operation_type = 'restore_church' and reason_code = 'reviewed_restoration')
   or (operation_type = 'hide_church' and reason_code = 'reviewed_hiding')
 );
+end if;
+if not exists (select 1 from pg_constraint where conrelid = 'ops.audit_event'::regclass
+  and conname = 'audit_event_operator_shape' and position('reviewed_hiding' in pg_get_expr(conbin, conrelid)) > 0) then
 alter table ops.audit_event drop constraint audit_event_operator_shape;
 alter table ops.audit_event add constraint audit_event_operator_shape check (
   (actor_kind = 'operator' and operator_fingerprint ~ '^[0-9a-f]{64}$'
@@ -17,6 +27,8 @@ alter table ops.audit_event add constraint audit_event_operator_shape check (
   or (actor_kind <> 'operator' and operator_fingerprint is null
     and support_reference is null and reason_code is null)
 );
+end if;
+end; $$;
 do $$
 declare expression text;
 begin

@@ -171,6 +171,14 @@ export const preparedNotificationCopy = {
     ru: 'Администратор вышел из управления одной из ваших страниц храма. Проверьте текущий список в приложении.',
     uk: 'Адміністратор вийшов з керування однією з ваших сторінок храму. Перевірте поточний список у застосунку.',
   }),
+  'notifications.church_admin_removed': text({
+    de: 'Die Verwaltung einer Kirchenseite wurde nach einer Prüfung durch die Plattform geändert. Prüfen Sie Ihren aktuellen Zugriff in der App.',
+    en: 'Church page administration was changed after a platform review. Check your current access in the app.',
+    it: 'La gestione di una pagina di chiesa è stata modificata dopo una verifica della piattaforma. Controlla il tuo accesso attuale nell’app.',
+    ro: 'Administrarea unei pagini de biserică a fost modificată după o verificare a platformei. Verifică accesul tău actual în aplicație.',
+    ru: 'Состав администраторов страницы храма изменён после проверки платформой. Проверьте свой текущий доступ в приложении.',
+    uk: 'Склад адміністраторів сторінки храму змінено після перевірки платформою. Перевірте свій поточний доступ у застосунку.',
+  }),
   'notifications.external_channel_unavailable': text({
     de: 'Ein Benachrichtigungskanal ist nicht mehr verfügbar. Prüfen Sie Ihre Einstellungen in der App.',
     en: 'A notification channel became unavailable. Check your settings in the app.',
