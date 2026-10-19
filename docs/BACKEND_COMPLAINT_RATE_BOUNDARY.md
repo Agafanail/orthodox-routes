@@ -26,6 +26,8 @@ The trusted helper accepts only the fixed outcomes, limits the full RPC to five 
 
 ## Verification and remaining work
 
+The separate inactive [preparation broker](BACKEND_COMPLAINT_PREPARATION.md) now enforces this budget before its challenge and draft-write calls. It does not parse headers/sessions or expose an endpoint; the real trusted HTTP boundary and approved settings remain prerequisites.
+
 No-network tests cover canonicalization, separate HMAC domains, missing/invalid input/configuration, raw-value exclusion, fixed outcomes, errors, abort-ignoring transports, bounded timing, and no retry. Disposable database integration restores the original security policy and removes only exact synthetic policy versions. It exercises every budget dimension, denial rollback, global key-growth refusal, one-winner concurrency, scoped equal digests, injected late failure, expiry/reset, an actual before-expiry wait across the deadline, bounded cleanup, forced RLS, grants, and hardened entry points. CI is required when local Docker is unavailable.
 
 Public broker wiring must enforce trusted input/session/target rules, Turnstile, this attempt boundary, and draft idempotency before any privileged preparation. Resend/verification budgets, real proxy/provider/mailbox proof, approved operational settings, received cases, owner receipt/review, retention, and public UI remain separate. No provider call, new dependency, production operation, or public endpoint is introduced.
