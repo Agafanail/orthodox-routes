@@ -4,13 +4,13 @@
 - **Starting commit:** `3afa340363d5a9678ae7ba338eefa65ef0725992`
 - **Scope:** all remaining approved backend work required for the first public version
 - **Production access:** excluded
-- **Run state:** Active after the owner's explicit resume on 17 October 2026.
+- **Run state:** Active after the owner's explicit resume on 19 October 2026.
 
 ## Checkpoints
 
 | Checkpoint | Scope | Status | Evidence |
 | --- | --- | --- | --- |
-| 0 | Protect `main` with PR-only changes, strict required CI, no force push or deletion, and zero required approvals | Complete | GitHub branch protection verified on 19 September 2026 |
+| 0 | Protect `main` with PR-only changes, strict required CI, no force push or deletion, and zero required approvals | Complete | GitHub branch protection verified on 19 September and reverified on 19 October 2026 |
 | 1 | Campaign recovery state and non-destructive current staging smoke | Complete | PR #8; commit `31436a3`; CI `35443915447` green; remote staging smoke passed with exact cleanup |
 | 2 | Agreement change proposal/answer workflow and remaining My Trips backend | Complete | PR #9; merge `24f70fa`; CI `35445507498` green |
 | 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | Complete | PR #10 merge `6beca9c`, CI `35708503854`; PR #11 merge `103be11`, CI `35711039875`; PR #12 merge `a890245`, CI `35713885218` |
@@ -23,7 +23,7 @@
 
 ## Current checkpoint
 
-PR #65 (`53f450c`, CI `39042254693`, attempt 2) merged an informational own-account count-only deletion consequence snapshot, not confirmation or execution. Current `codex/church-administration-export` work closes missing own church-administrator history in the existing protected export without recipient contacts, capabilities, coworker identities, or current hidden-page content. No real operator or public control is activated. Public complaint handlers/resend, real mailbox verification, rate limits, received cases, owner receipt/review, cleanup scheduling, and approved retention remain unfinished. Account deletion execution/confirmation/revocation/anonymization, protected final-administrator resolution, real operator provisioning/rehearsal, remaining owner actions, upload activation, superseded-image retention, backup rehearsal, weekday/start-bound editing, other server/system translations, and remaining privacy/export audits remain. The lost-email protective delay is a separate product decision. The retained `complaint-context-refresh-after-pr57` stash is an already integrated backup, not pending work to pop blindly.
+PR #66 (`edf155a`, CI `39043285923`) merged missing own church-administrator history into the existing protected export without recipient contacts, capabilities, coworker identities, or current hidden-page content. Current `codex/complaint-rate-boundary` work adds a dormant atomic preparation-attempt budget with nullable unconfigured policy, server-only HMAC keys, bounded RPC handling, and synthetic verification. No operational values, real operator, or public control are activated. Public complaint handlers/resend, real mailbox verification, other flow budgets, received cases, owner receipt/review, cleanup scheduling, and approved retention remain unfinished. Account deletion execution/confirmation/revocation/anonymization, protected final-administrator resolution, real operator provisioning/rehearsal, remaining owner actions, upload activation, superseded-image retention, backup rehearsal, weekday/start-bound editing, other server/system translations, and remaining privacy/export audits remain. The lost-email protective delay is a separate product decision. The retained `complaint-context-refresh-after-pr57` stash is an already integrated backup, not pending work to pop blindly.
 
 The merged hiding review correction keeps existing equal-administrator schedule repair available while hidden, without reopening public reads or ride publication. Both service families and outsider/archived refusal passed disposable integration; actual migration replay preserves every protected API/owner function definition and ACL.
 
@@ -45,10 +45,13 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - Production Terms/Privacy content and legal review are owner-controlled later gates.
 - Real transactional-email, Web Push, and translation-provider secrets/configuration remain owner-controlled; implement and verify provider-independent boundaries first.
 - Initial operational church-upload limits require owner approval after staging measurements under Backend Architecture §18.3. Decoder ceilings alone do not activate uploads; finish independent processing/contracts/adapters and synthetic verification first.
+- Exact operational abuse-rate values require approval under Backend Architecture §20. The new complaint-preparation policy remains completely unset by default; trusted proxy/secret configuration, public broker enforcement, maintenance, and real proof are required before activation. Defensive configuration ceilings and synthetic fixtures are not approved deployment settings.
 - Docker is currently unavailable locally. Database replay and integration remain required in GitHub CI; linked isolated staging may be used only with synthetic fixtures and exact cleanup.
 - The pinned existing synthetic-only staging project was `INACTIVE` in authenticated provider metadata on 17 October 2026. Owner-controlled resumption and an existing private `church-images` bucket are prerequisites for the remote image probe; do not retrieve its keys, change bucket settings, or claim remote success while unavailable. Independent local campaign work continues first.
 
 ## Verification state
+
+- PR #66 merged as `edf155a`; final-head CI `39043285923` passed all four required jobs and cleanup/post-steps on `ecb096e`, with no automated review findings. Initial integration exposed a wrong fixture-participant assumption; the correction exercises the actual leaving member and that member's hidden/restricted history. Actual migration replay preserves helper/export definitions and ACL, all six account-history indexes are ready, and sender/accepted-recipient/actor/subject/ended history remains scoped without excluded fields. All 861 local tests and six focused export checks passed (two opt-in Storage tests skipped); lint retained two existing warnings, build/syntax/diff passed. Main protection was reverified on 19 October with strict four-context CI, admin enforcement, zero approvals, and force/deletion disabled. No dependency, provider, retention, public roster access, or production setting changed.
 
 - PR #65 merged as `53f450c`; final-head CI `39042254693` passed all four required jobs and cleanup/post-steps on `55e3d50`, with no automated review findings. Initial Auth startup failed before migrations because the runner port was occupied; rerunning only the failed job in attempt 2 passed without a code change. Actual account/My Trips/church integration verifies own count-only shape, real participant/unrelated isolation, immutable read fingerprints, eligibility/state/time boundaries, final/transferring/ended positions, hidden/archived membership preservation, and pending-versus-accepted invitations. All 858 local tests passed (two opt-in Storage tests skipped), lint retained two existing warnings, and build/syntax/diff passed. No account was deleted and no confirmation, provider, retention, dependency, or production setting was activated.
 
