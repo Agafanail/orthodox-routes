@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
+import { verifyPhoneSmsLanguages } from './verify-phone-sms-languages.mjs';
 
 const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
@@ -103,7 +104,7 @@ function completeDelivery(container, attemptId, leaseToken, delivered = true, ex
 
 async function claimDeliveryThroughWorkerApi(client, attemptId) {
   const leaseToken = randomUUID();
-  const result = await client.schema('api').rpc('phone_worker_claim_delivery', {
+  const result = await client.schema('api').rpc('phone_worker_claim_delivery_v2', {
     p_attempt_id: attemptId,
     p_lease_token: leaseToken,
   });
@@ -193,13 +194,13 @@ try {
     p_code: '000000',
   })).status, 'invalid_attempt');
 
-  const forbiddenWorkerClaim = await clients[0].schema('api').rpc('phone_worker_claim_delivery', {
+  const forbiddenWorkerClaim = await clients[0].schema('api').rpc('phone_worker_claim_delivery_v2', {
     p_attempt_id: requestedA.attempt_id,
     p_lease_token: randomUUID(),
   });
   assert.ok(forbiddenWorkerClaim.error);
 
-  const unrelatedWorkerClaim = await admin.schema('api').rpc('phone_worker_claim_delivery', {
+  const unrelatedWorkerClaim = await admin.schema('api').rpc('phone_worker_claim_delivery_v2', {
     p_attempt_id: randomUUID(),
     p_lease_token: randomUUID(),
   });
@@ -207,6 +208,8 @@ try {
   assert.deepEqual(unrelatedWorkerClaim.data, []);
 
   const claimedA = await claimDeliveryThroughWorkerApi(admin, requestedA.attempt_id);
+  assert.equal(claimedA.delivery.sms_template_version, 2);
+  assert.equal(claimedA.delivery.sms_language, 'en');
   assert.equal(claimedA.delivery.attempt_id, requestedA.attempt_id);
   assert.equal(claimedA.delivery.phone_e164, identities[0].phone);
   assert.match(claimedA.delivery.verification_code, /^[0-9]{6}$/);
@@ -578,6 +581,7 @@ try {
   const afterBackfill = phoneAuditRows();
   runSql(container, phoneAuditMigration);
   assert.deepEqual(phoneAuditRows(), afterBackfill);
+  await verifyPhoneSmsLanguages({ container, runSql, rpc, client: clients[0], admin, accountId: identities[0].id });
 
   assert.equal(
     runSql(

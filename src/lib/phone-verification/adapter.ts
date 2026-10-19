@@ -1,8 +1,12 @@
+import { isPhoneSmsTemplate, type PhoneVerificationLanguage } from './messages';
+
 export type PhoneVerificationDelivery = {
   attemptId: string;
   expiresAt: string;
   phoneE164: string;
   verificationCode: string;
+  smsTemplateVersion?: 1 | 2;
+  smsLanguage?: PhoneVerificationLanguage;
 };
 
 export type PhoneVerificationDeliveryResult = {
@@ -36,7 +40,9 @@ export function validatePhoneVerificationDelivery(delivery: PhoneVerificationDel
     UUID_PATTERN.test(delivery.attemptId) &&
     PHONE_PATTERN.test(delivery.phoneE164) &&
     CODE_PATTERN.test(delivery.verificationCode) &&
-    Number.isFinite(Date.parse(delivery.expiresAt))
+    Number.isFinite(Date.parse(delivery.expiresAt)) &&
+    (delivery.smsTemplateVersion === undefined && delivery.smsLanguage === undefined
+      || isPhoneSmsTemplate(delivery.smsTemplateVersion, delivery.smsLanguage))
   );
 }
 

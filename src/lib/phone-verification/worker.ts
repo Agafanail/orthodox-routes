@@ -7,6 +7,7 @@ import {
   type PhoneVerificationProviderAdapter,
 } from './adapter';
 import { createBirdSmsAdapter } from './bird';
+import { isPhoneSmsTemplate } from './messages';
 
 type RpcResult = { data: unknown; error: unknown };
 
@@ -41,11 +42,15 @@ function delivery(value: unknown): PhoneVerificationDelivery | null {
     && typeof record.expires_at === 'string'
     && typeof record.phone_e164 === 'string'
     && typeof record.verification_code === 'string'
+    && (record.sms_template_version === 1 || record.sms_template_version === 2)
+    && isPhoneSmsTemplate(record.sms_template_version, record.sms_language)
     ? {
       attemptId: record.attempt_id,
       expiresAt: record.expires_at,
       phoneE164: record.phone_e164,
       verificationCode: record.verification_code,
+      smsTemplateVersion: record.sms_template_version,
+      smsLanguage: record.sms_language,
     }
     : null;
 }
@@ -69,7 +74,7 @@ export async function processPhoneVerificationDelivery(
 
   const leaseToken = dependencies.leaseToken ?? randomUUID();
   const api = privileged.schema('api');
-  const claimed = await api.rpc('phone_worker_claim_delivery', {
+  const claimed = await api.rpc('phone_worker_claim_delivery_v2', {
     p_attempt_id: attemptId,
     p_lease_token: leaseToken,
   });
