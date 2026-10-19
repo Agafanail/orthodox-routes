@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createOwnerQuery } from './church-owner-command.mjs';
 import { verifyChurchAdminRemoval } from './verify-church-admin-removal.mjs';
 import { verifyChurchOwnerInviteCancellation } from './verify-church-owner-invite-cancellation.mjs';
+import { verifyChurchAdminReplacement } from './verify-church-admin-replacement.mjs';
 
 // This verifier has no remote URL/credential option: only the exact disposable local container.
 const inventory = spawnSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
@@ -19,7 +20,7 @@ const role = 'orthodox_routes_church_operator';
 const operatorLogin = 'orthodox_routes_church_operator_test';
 const otherRole = 'orthodox_routes_church_operator_test_other';
 const ids = Object.fromEntries(['church', 'churchPublic', 'passenger', 'driver', 'meeting', 'origin',
-  'request', 'offer', 'snapshot', 'response', 'agreement', 'archiveRequest', 'legal', 'serviceSeries'].map((name) => [name, randomUUID()]));
+  'request', 'offer', 'snapshot', 'response', 'agreement', 'archiveRequest', 'legal', 'serviceSeries', 'replacementAccount'].map((name) => [name, randomUUID()]));
 const slug = `owner-test-${ids.church}`;
 const sqlState = (stderr) => /ERROR:\s+([A-Z0-9]{5})/.exec(stderr)?.[1] ?? 'unknown';
 
@@ -500,6 +501,8 @@ try {
     expectRefusal, transportDigest, definitions, otherRole, waitForDatabaseCondition });
   await verifyChurchOwnerInviteCancellation({ sql, asyncSql, asOperator, literal, ids, execute, executeSql,
     expectRefusal, transportDigest, definitions, otherRole, waitForDatabaseCondition });
+  await verifyChurchAdminReplacement({ sql, asyncSql, asOperator, literal, ids, execute, executeSql,
+    expectRefusal, transportDigest, definitions, otherRole, waitForDatabaseCondition });
 } finally {
   // Exact synthetic fixture scope only; no remote target, truncation, or unrelated records.
   sql(`begin;
@@ -533,9 +536,9 @@ try {
       where object_type = 'church' and object_id = ${literal(ids.church)}::uuid);
     delete from app.content_source where object_type = 'church' and object_id = ${literal(ids.church)}::uuid;
     delete from app.church where id = ${literal(ids.church)}::uuid;
-    delete from app.account where id in (${literal(ids.passenger)}::uuid, ${literal(ids.driver)}::uuid);
+    delete from app.account where id in (${literal(ids.passenger)}::uuid, ${literal(ids.driver)}::uuid, ${literal(ids.replacementAccount)}::uuid);
     delete from app.legal_document_version where id = ${literal(ids.legal)}::uuid;
-    delete from auth.users where id in (${literal(ids.passenger)}::uuid, ${literal(ids.driver)}::uuid);
+    delete from auth.users where id in (${literal(ids.passenger)}::uuid, ${literal(ids.driver)}::uuid, ${literal(ids.replacementAccount)}::uuid);
     drop role if exists ${otherRole};
     drop role if exists ${operatorLogin};
     commit;`);

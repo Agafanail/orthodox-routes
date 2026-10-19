@@ -19,6 +19,69 @@ const setup = () => ({ query: vi.fn().mockReturnValueOnce({ allowed: true }).moc
   confirm: vi.fn().mockResolvedValue(`EXECUTE ${operationId}`), output: vi.fn(), interactive: true, environment: 'staging' });
 
 describe('protected owner command', () => {
+  const outgoingId = '66666666-6666-4666-8666-666666666666';
+  const incomingId = '77777777-7777-4777-8777-777777777777';
+  const newMembershipId = '88888888-8888-4888-8888-888888888888';
+  const replacementOptions = { ...options, action: 'replace_church_admin', membershipId: outgoingId, replacementAccountId: incomingId };
+  const replacementPrepared = () => ({ ...prepared(), operation_type: 'replace_church_admin',
+    preview: { ...prepared().preview, membership_id: outgoingId, replacement_account_id: incomingId } });
+  const replacementResult = () => ({ operation_id: operationId, church_id: churchId, membership_id: outgoingId,
+    replacement_account_id: incomingId, replacement_membership_id: newMembershipId, status: 'replaced' });
+  it('requires explicit outgoing and incoming references only for reviewed replacement', () => {
+    const args = ['--church', churchId, '--action', 'replace_church_admin', '--case', 'SYNTHETIC-CASE'];
+    expect(parseOwnerArguments([...args, '--membership', outgoingId, '--replacement', incomingId])).toEqual(replacementOptions);
+    for (const suffix of [[], ['--membership', outgoingId], ['--replacement', incomingId],
+      ['--membership', outgoingId, '--replacement', 'private@example.test'],
+      ['--membership', outgoingId, '--replacement', incomingId, '--invite', churchId]]) {
+      expect(() => parseOwnerArguments([...args, ...suffix])).toThrow();
+    }
+    expect(() => parseOwnerArguments(['--church', churchId, '--action', 'remove_church_admin', '--case', 'CASE',
+      '--membership', outgoingId, '--replacement', incomingId])).toThrow();
+  });
+  it('previews a last-seat replacement without granting access or printing capability/identity extras', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce({ ...replacementPrepared(), email: 'never print' });
+    expect((await runOwnerCommand(replacementOptions, dependencies)).status).toBe('preview_only');
+    expect(dependencies.query.mock.calls[1]).toEqual([
+      'select ops.prepare_church_admin_replacement($1::uuid, $2::uuid, $3::uuid, $4::text)',
+      [churchId, outgoingId, incomingId, 'SYNTHETIC-CASE']]);
+    expect(dependencies.confirm).not.toHaveBeenCalled();
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain('never print');
+  });
+  it('executes and projects the exact confirmed seat swap', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce(replacementPrepared())
+      .mockReturnValueOnce({ operation_id: operationId, attempt_id: attemptId })
+      .mockReturnValueOnce({ ...replacementResult(), token, private_extra: 'never print' });
+    expect((await runOwnerCommand({ ...replacementOptions, execute: true }, dependencies)).status).toBe('replaced');
+    expect(dependencies.confirm).toHaveBeenCalledOnce();
+    const output = dependencies.output.mock.calls.flat().join('\n');
+    expect(output).toContain(newMembershipId); expect(output).not.toContain(token); expect(output).not.toContain('never print');
+  });
+  it.each(['membership_id', 'replacement_account_id', 'replacement_membership_id'] as const)('refuses a mismatched replacement result %s', async (field) => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce(replacementPrepared())
+      .mockReturnValueOnce({ operation_id: operationId, attempt_id: attemptId })
+      .mockReturnValueOnce({ ...replacementResult(), [field]: field === 'replacement_membership_id' ? 'invalid' : churchId });
+    await expect(runOwnerCommand({ ...replacementOptions, execute: true }, dependencies)).rejects.toThrow();
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain('"status":"replaced"');
+  });
+  it('rejects a substituted incoming preview before confirmation', async () => {
+    const dependencies = setup(); const value = replacementPrepared(); value.preview.replacement_account_id = churchId;
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce(value);
+    await expect(runOwnerCommand({ ...replacementOptions, execute: true }, dependencies)).rejects.toThrow();
+    expect(dependencies.confirm).not.toHaveBeenCalled(); expect(dependencies.output).not.toHaveBeenCalled();
+  });
+  it('recognizes only the caller-owned redacted replacement outcome', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce({
+      operation_id: operationId, church_id: churchId, operation_type: 'replace_church_admin',
+      state: 'succeeded', latest_attempt: { attempt_id: attemptId, state: 'success' }, token });
+    expect((await runOwnerCommand({ statusId: operationId }, dependencies)).status).toBe('succeeded');
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
   const inviteId = '55555555-5555-4555-8555-555555555555';
   const cancellationOptions = { ...options, action: 'cancel_church_invite', inviteId };
   const cancellationPrepared = () => ({ ...prepared(), operation_type: 'cancel_church_invite',
