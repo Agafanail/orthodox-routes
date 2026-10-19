@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { BirdSmsConfig } from '@/lib/supabase/config';
 import { deliverPhoneVerificationCode, type PhoneVerificationDelivery } from './adapter';
 import { createBirdSmsAdapter } from './bird';
+import { phoneVerificationLanguages, renderPhoneVerificationSms } from './messages';
 
 const config: BirdSmsConfig = {
   apiBaseUrl: 'https://eu1.platform.bird.com',
@@ -16,6 +17,17 @@ const delivery: PhoneVerificationDelivery = {
 };
 
 describe('Bird SMS phone-verification adapter', () => {
+  it.each(phoneVerificationLanguages)('sends only the frozen %s template with the same attempt idempotency key', async (language) => {
+    const fetchBird = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ id: 'sms_syntheticaccepted1' }), { status: 202 }));
+    await deliverPhoneVerificationCode(createBirdSmsAdapter(config, fetchBird), { ...delivery, smsTemplateVersion: 2, smsLanguage: language });
+    expect(JSON.parse(String(fetchBird.mock.calls[0][1]?.body)).text).toBe(renderPhoneVerificationSms(delivery.verificationCode, 2, language));
+    expect(fetchBird.mock.calls[0][1]?.headers).toMatchObject({ 'idempotency-key': delivery.attemptId });
+  });
+  it('refuses incomplete explicit template metadata before direct adapter I/O', async () => {
+    const fetchBird = vi.fn<typeof fetch>();
+    expect(await createBirdSmsAdapter(config, fetchBird).sendVerificationCode({ ...delivery, smsTemplateVersion: 2 })).toEqual({ delivered: false });
+    expect(fetchBird).not.toHaveBeenCalled();
+  });
   it('sends one application-owned authentication code with an idempotent provider request', async () => {
     const fetchBird = vi.fn<typeof fetch>(async () => new Response(
       JSON.stringify({ id: 'sms_01k3birdaccepted1234567890', status: 'accepted' }),

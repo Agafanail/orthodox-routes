@@ -3,14 +3,11 @@ import type {
   PhoneVerificationDelivery,
   PhoneVerificationProviderAdapter,
 } from './adapter';
+import { renderPhoneVerificationSms } from './messages';
 
 type BirdFetch = typeof fetch;
 
 const BIRD_MESSAGE_ID = /^sms_[A-Za-z0-9_-]{8,128}$/;
-
-function verificationMessage(code: string) {
-  return `Код Orthodox Routes: ${code}. Действует 10 минут.`;
-}
 
 export function createBirdSmsAdapter(
   config: BirdSmsConfig,
@@ -19,11 +16,15 @@ export function createBirdSmsAdapter(
   return {
     adapterId: 'bird-sms-v1',
     async sendVerificationCode(delivery: PhoneVerificationDelivery) {
+      const legacy = delivery.smsTemplateVersion === undefined && delivery.smsLanguage === undefined;
+      const text = renderPhoneVerificationSms(delivery.verificationCode,
+        legacy ? 1 : delivery.smsTemplateVersion, legacy ? 'ru' : delivery.smsLanguage);
+      if (!text) return { delivered: false };
       const response = await fetchBird(`${config.apiBaseUrl}/v1/sms/messages`, {
         body: JSON.stringify({
           category: 'authentication',
           from: config.sender,
-          text: verificationMessage(delivery.verificationCode),
+          text,
           to: delivery.phoneE164,
         }),
         cache: 'no-store',
