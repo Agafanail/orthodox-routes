@@ -61,27 +61,36 @@ function escapeHtml(value: string) {
     .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }
 
-export function parseInviteJob(value: unknown, now = Date.now(), claimElapsedMs = 0): InviteJob | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const item = value as Record<string, unknown>;
+function parseInviteTiming(item: Record<string, unknown>, now: number, claimElapsedMs: number) {
   const evaluatedAt = timestamp(item.evaluated_at);
   // Relative database durations avoid trusting synchronized worker/database wall clocks.
   const leaseDuration = timestamp(item.lease_until) - evaluatedAt;
   const expiresAt = now + timestamp(item.expires_at) - evaluatedAt - claimElapsedMs;
   const leaseUntil = now + leaseDuration - claimElapsedMs;
-  if (typeof item.job_id !== 'string' || !UUID.test(item.job_id)
+  if (!Number.isFinite(now) || !Number.isFinite(evaluatedAt) || !Number.isFinite(expiresAt) || !Number.isFinite(leaseUntil)
+    || !Number.isFinite(claimElapsedMs) || claimElapsedMs < 0
+    || leaseDuration > 120_000 || leaseUntil <= now || leaseUntil > expiresAt) return null;
+  return { expiresAt, leaseUntil };
+}
+
+function safeRecipient(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 254
+    && /^[^\s@\x00-\x1f\x7f]+@[^\s@\x00-\x1f\x7f]+\.[^\s@\x00-\x1f\x7f]+$/.test(value);
+}
+
+export function parseInviteJob(value: unknown, now = Date.now(), claimElapsedMs = 0): InviteJob | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const item = value as Record<string, unknown>;
+  const timing = parseInviteTiming(item, now, claimElapsedMs);
+  if (!timing || typeof item.job_id !== 'string' || !UUID.test(item.job_id)
     || typeof item.invite_id !== 'string' || !UUID.test(item.invite_id)
     || typeof item.token !== 'string' || !TOKEN.test(item.token) || item.token === '0'.repeat(64)
     || typeof item.church_slug !== 'string' || !SLUG.test(item.church_slug)
     || typeof item.church_name !== 'string' || !item.church_name || item.church_name.length > 200 || /[\x00-\x1f\x7f]/.test(item.church_name)
-    || typeof item.destination_email !== 'string' || item.destination_email.length > 254
-    || !/^[^\s@\x00-\x1f\x7f]+@[^\s@\x00-\x1f\x7f]+\.[^\s@\x00-\x1f\x7f]+$/.test(item.destination_email)
+    || !safeRecipient(item.destination_email)
     || typeof item.language !== 'string' || !LANGUAGES.has(item.language)
     || typeof item.attempt_count !== 'number' || !Number.isInteger(item.attempt_count)
-    || item.attempt_count < 1 || item.attempt_count > 5
-    || !Number.isFinite(now) || !Number.isFinite(evaluatedAt) || !Number.isFinite(expiresAt) || !Number.isFinite(leaseUntil)
-    || !Number.isFinite(claimElapsedMs) || claimElapsedMs < 0
-    || leaseDuration > 120_000 || leaseUntil <= now || leaseUntil > expiresAt) return null;
+    || item.attempt_count < 1 || item.attempt_count > 5) return null;
   return {
     attemptCount: item.attempt_count,
     churchName: item.church_name,
@@ -91,7 +100,7 @@ export function parseInviteJob(value: unknown, now = Date.now(), claimElapsedMs 
     jobId: item.job_id,
     language: item.language as InviteJob['language'],
     token: item.token,
-    expiresAt, leaseUntil,
+    ...timing,
   };
 }
 
@@ -144,8 +153,21 @@ export async function processChurchInviteMail(limit = 10, dependencies: Dependen
       const claimed = await bounded(api.rpc('church_invite_worker_claim', { p_lease_token: leaseToken, p_limit: 1 }), 5000);
       if (claimed.error || !Array.isArray(claimed.data) || claimed.data.length > 1) { summary.failed += 1; break; }
       if (!claimed.data.length) break;
-      const job = parseInviteJob(claimed.data[0], Date.now(), Math.max(0, performance.now() - started));
-      if (!job) { summary.failed += 1; break; }
+      const now = Date.now(), elapsed = Math.max(0, performance.now() - started);
+      const raw = claimed.data[0];
+      const job = parseInviteJob(raw, now, elapsed);
+      if (!job) {
+        // Older writes may contain an unusable recipient. Retire only the authenticated live
+        // mail lease, never send it or silently cancel the invitation/reserved membership.
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)
+          && typeof raw.destination_email === 'string' && !safeRecipient(raw.destination_email)
+          && typeof raw.job_id === 'string' && UUID.test(raw.job_id) && parseInviteTiming(raw, now, elapsed)) {
+          summary.claimed += 1;
+          await bounded(api.rpc('church_invite_worker_complete', { p_job_id: raw.job_id,
+            p_lease_token: leaseToken, p_outcome: 'permanent_failure', p_provider_reference: null }), 5000);
+        }
+        summary.failed += 1; break;
+      }
       summary.claimed += 1;
       if (Math.min(job.expiresAt, job.leaseUntil) - Date.now() <= 20_000) { summary.failed += 1; break; }
       const deliveryJob: NotificationDeliveryJob = {

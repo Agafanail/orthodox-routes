@@ -5,6 +5,13 @@ import { readFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 
 export async function verifyChurchInviteDeadlines({ admin, sender, churchId, container, rpc, sql, literal }) {
+  const beforeInvites = sql(`select count(*) from app.church_admin_invite as invite
+    join app.church as church on church.id = invite.church_id where church.public_id = ${literal(churchId)}::uuid;`);
+  const invalid = await sender.schema('api').rpc('invite_church_admin', { p_church_id: churchId,
+    p_email: 'synthetic\u0007@example.test', p_transfer_own_place: false, p_client_key: randomUUID() });
+  assert.equal(invalid.error?.code, '22023');
+  assert.equal(sql(`select count(*) from app.church_admin_invite as invite
+    join app.church as church on church.id = invite.church_id where church.public_id = ${literal(churchId)}::uuid;`), beforeInvites);
   const invite = await rpc(sender, 'invite_church_admin', { p_church_id: churchId,
     p_email: `invite-deadlines-${randomUUID()}@example.test`, p_transfer_own_place: false, p_client_key: randomUUID() });
   const id = sql(`select id from app.church_admin_invite where public_id = ${literal(invite.invite_id)}::uuid;`);
@@ -84,10 +91,20 @@ export async function verifyChurchInviteDeadlines({ admin, sender, churchId, con
       } finally { await Promise.all([gate, waiter].filter(Boolean)); }
     }
 
+    // Reconstruct only this synthetic legacy row under the old table contract. New API input
+    // is refused above; existing unusable grants remain pending until ordinary cancellation.
+    reset(); sql(`update app.church_admin_invite set invite_email = 'legacy' || chr(7) || '@example.test' where id = ${literal(id)}::uuid;`);
+    const legacy = await claim();
+    assert.equal(await rpc(admin, 'church_invite_worker_complete', { ...complete(legacy),
+      p_outcome: 'permanent_failure', p_provider_reference: null }), true);
+    assert.equal(sql(`select invite.state || ':' || mail.state || ':' || (mail.token_value = repeat('0',64))::text
+      from app.church_admin_invite as invite join private.church_invite_mail as mail on mail.invite_id = invite.id
+      where invite.id = ${literal(id)}::uuid;`), 'pending:dead:true');
     const definitions = () => sql(`select jsonb_agg(jsonb_build_object('oid', oid::text, 'definition', md5(pg_get_functiondef(oid)),
       'acl', proacl::text) order by oid) from pg_proc where oid in (
         'api.church_invite_worker_claim(uuid,integer)'::regprocedure,
-        'api.church_invite_worker_complete(uuid,uuid,text,text)'::regprocedure);`);
+        'api.church_invite_worker_complete(uuid,uuid,text,text)'::regprocedure,
+        'api.invite_church_admin(uuid,text,boolean,uuid)'::regprocedure);`);
     const expected = definitions();
     sql(readFileSync(new URL('../supabase/migrations/20261019140000_church_invite_delivery_deadlines.sql', import.meta.url), 'utf8'));
     assert.equal(definitions(), expected);

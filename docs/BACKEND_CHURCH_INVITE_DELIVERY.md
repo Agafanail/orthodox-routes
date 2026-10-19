@@ -12,6 +12,8 @@ Completion locks the invitation before its mail, matching acceptance/resend/canc
 
 The configured application origin must be credential-free HTTPS without path/query/fragment before any claim. Invitation proof stays in the fragment of the existing internal invitation path; no user-controlled return URL is accepted. HTML still escapes the public church name. This worker does not grant membership or authenticate a recipient.
 
+The authoritative invitation write now refuses control characters in a mailbox before reserving a seat or creating mail. Existing unusable legacy recipients are never sent: a structurally valid, live, timing-aware mail lease is completed as a permanent delivery failure, clearing its transient token. This does not cancel or rewrite the invitation, change its recipient, or remove membership. The sender can use existing cancellation and issue a new valid invitation; expiry remains unchanged. Missing timing or an unknown envelope is not used to retire mail. Valid church slugs retain the authoritative pattern without a new worker-only length restriction.
+
 ## Recovery and release
 
 A request timeout does not prove that a remote write or mail was cancelled. There is no automatic replay of an uncertain RPC; the existing lease/backoff/dispatch idempotency and current-state completion checks govern recovery. A nearly expired lease is left for the existing expiry/claim recovery path, not sent with a known short-lived link. Cancellation cannot retract an email already sent; the existing invitation/token boundary still controls acceptance.

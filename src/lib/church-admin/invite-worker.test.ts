@@ -49,6 +49,25 @@ describe('church invitation email boundary', () => {
     const message = renderInviteMail(parsed!, 'https://routes.example.test');
     expect(message.email.text).toContain(`/churches/${slug}/admin/invite#invite=${job.invite_id}`);
   });
+  it('retires a legacy unusable recipient without sending or cancelling the invitation', async () => {
+    const rpc = vi.fn(async (name: string) => ({ data: name.endsWith('_claim')
+      ? [{ ...job, destination_email: 'legacy\u0007@example.test' }] : true, error: null }));
+    const send = vi.fn();
+    expect(await processChurchInviteMail(1, { appOrigin: 'https://routes.example.test', client: { schema: () => ({ rpc }) },
+      adapter: { adapterId: 'synthetic', channel: 'email', send } })).toEqual({ claimed: 1, configured: true, failed: 1, sent: 0 });
+    expect(send).not.toHaveBeenCalled();
+    expect(rpc.mock.calls[1]).toEqual(['church_invite_worker_complete', expect.objectContaining({
+      p_job_id: job.job_id, p_outcome: 'permanent_failure', p_provider_reference: null,
+    })]);
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+  it('does not retire an invalid recipient without a current versioned lease envelope', async () => {
+    const rpc = vi.fn(async () => ({ data: [{ ...job, evaluated_at: null, destination_email: 'legacy\u0007@example.test' }], error: null }));
+    const send = vi.fn();
+    expect(await processChurchInviteMail(1, { appOrigin: 'https://routes.example.test', client: { schema: () => ({ rpc }) },
+      adapter: { adapterId: 'synthetic', channel: 'email', send } })).toMatchObject({ sent: 0, failed: 1 });
+    expect(send).not.toHaveBeenCalled(); expect(rpc).toHaveBeenCalledOnce();
+  });
   it('claims one job only after the preceding send/completion and uses fresh lease keys', async () => {
     const order: string[] = [], leases: unknown[] = [];
     const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {

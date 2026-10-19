@@ -23,6 +23,20 @@ $$;
 
 alter function api.church_invite_worker_claim(uuid,integer) set lock_timeout = '5s';
 
+-- Reject unsafe mailboxes before reserving a seat; legacy invalid recipients are handled by
+-- bounded permanent mail completion, not by changing their invitation/membership state.
+do $$
+declare definition text; marker text := 'or char_length(normalized_email) not between 3 and 254';
+begin
+  definition := pg_get_functiondef('api.invite_church_admin(uuid,text,boolean,uuid)'::regprocedure);
+  if position('normalized_email ~ ''[[:cntrl:]]''' in definition) > 0 then return; end if;
+  if position(marker in definition) = 0 then
+    raise exception using errcode = '55000', message = 'Unexpected invitation preparation definition.';
+  end if;
+  execute replace(definition, marker, marker || E'\n    or normalized_email ~ ''[[:cntrl:]]''');
+end;
+$$;
+
 create or replace function api.church_invite_worker_complete(
   p_job_id uuid, p_lease_token uuid, p_outcome text, p_provider_reference text default null
 )
