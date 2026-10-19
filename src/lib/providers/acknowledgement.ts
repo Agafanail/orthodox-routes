@@ -36,4 +36,3 @@ export async function readBoundedProviderAcknowledgement(response: Response, sig
     reader.releaseLock();
   }
 }
-
