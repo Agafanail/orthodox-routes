@@ -5785,6 +5785,27 @@ const withPastDate = (state: AuthState): Partial<AuthState> => ({
 });
 
 /** The date the published trip would carry, as the forms answered it. */
+const weekdayIds = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+/**
+ * The next date of a regular trip that is not yet past: every date of a series is a trip of its own
+ * (IA §11.3), so a series that has already started is still current while a later date remains.
+ * Without such a date it returns the last day of the period, which then reads as passed.
+ */
+function nextSeriesDate(form: OfferState, time: string) {
+  const [fromYear, fromMonth, fromDay] = form.from.split('-').map(Number);
+  const [toYear, toMonth, toDay] = form.to.split('-').map(Number);
+  if (!fromYear || !toYear) return `${form.from}T${time}`;
+  const last = Date.UTC(toYear, toMonth - 1, toDay);
+  for (let day = Date.UTC(fromYear, fromMonth - 1, fromDay); day <= last; day += 86_400_000) {
+    const date = new Date(day);
+    if (!form.days.includes(weekdayIds[date.getUTCDay()])) continue;
+    const at = `${date.toISOString().slice(0, 10)}T${time}`;
+    if (at >= authSample.now) return at;
+  }
+  return `${form.to}T${time}`;
+}
+
 function tripStart(state: AuthState) {
   if (state.role === 'request') {
     const form = state.request;
@@ -5792,7 +5813,10 @@ function tripStart(state: AuthState) {
     return authServices.find((service) => service.id === form.when)?.at ?? form.arrival;
   }
   const form = state.offer;
-  if (form.kind === 'recurring') return `${form.from}T${form.arrivalTime}`;
+  if (form.kind === 'recurring') {
+    const service = authServices.find((item) => item.id === form.when);
+    return nextSeriesDate(form, service ? service.at.slice(11) : form.arrivalTime);
+  }
   if (form.when === 'custom') return `${form.arrivalDate}T${form.arrivalTime}`;
   return authServices.find((service) => service.id === form.when)?.at ?? `${form.arrivalDate}T${form.arrivalTime}`;
 }
@@ -6132,9 +6156,19 @@ function RegistrationJourney({ seed, role, onRole, textZoom }: {
     }
   }
 
+  /**
+   * The answers of the form as the journey keeps them. A driver may switch between a one-time and a
+   * regular trip on «Когда вы едете?», so the role — and every text that names the result — follows
+   * the kind the form actually holds, not the review switch the journey started with.
+   */
+  const fromForm = (captured: Partial<Pick<AuthState, 'request' | 'offer'>>): Partial<AuthState> =>
+    captured.offer
+      ? { ...captured, role: captured.offer.kind === 'recurring' ? 'recurring' : 'offer' }
+      : captured;
+
   /** «Опубликовать» on the approved form: the person's intent, checked by the same rule. */
   function publish(captured: Partial<Pick<AuthState, 'request' | 'offer'>>) {
-    advance(captured, state.eligible ? 'published' : state.doneBy);
+    advance(fromForm(captured), state.eligible ? 'published' : state.doneBy);
   }
 
   const backToForm = (patch: Partial<AuthState> = {}) =>
@@ -6786,7 +6820,7 @@ function RegistrationJourney({ seed, role, onRole, textZoom }: {
     const pushAvailable = state.pushAvailability === 'available';
     const choice = pushAvailable ? state.notifyChoice : 'email';
     const enable: Partial<AuthState> = choice === 'email' ? { notifyEmail: true } : { notifyPush: true };
-    const willPublish = publishesAfter({ ...form, ...enable });
+    const willPublish = publishesAfter({ ...fromForm(form), ...enable });
     return (
       <section className={styles.publishStep} data-notification-step aria-labelledby="auth-notify-title">
         <AuthTitle level={2} id="auth-notify-title" focus>{authCopy.notifyTitle}</AuthTitle>
@@ -6824,7 +6858,7 @@ function RegistrationJourney({ seed, role, onRole, textZoom }: {
         <button
           type="button"
           className={styles.primaryButton}
-          onClick={() => advance({ ...form, ...enable }, choice === 'email' ? 'email-on' : 'push-on')}
+          onClick={() => advance({ ...fromForm(form), ...enable }, choice === 'email' ? 'email-on' : 'push-on')}
         >
           {willPublish ? authCopy.notifyAndPublish : authCopy.notifyTitle}
         </button>
@@ -6844,7 +6878,7 @@ function RegistrationJourney({ seed, role, onRole, textZoom }: {
         <button
           type="button"
           className={styles.primaryButton}
-          onClick={() => move({ ...form, formStop: null, formStep: 'when', formVisit: state.formVisit + 1 })}
+          onClick={() => move({ ...fromForm(form), formStop: null, formStep: 'when', formVisit: state.formVisit + 1 })}
         >
           {authCopy.outdatedAction}
         </button>
@@ -6949,9 +6983,13 @@ function RegistrationJourney({ seed, role, onRole, textZoom }: {
         'Дата поездки к моменту публикации',
         [['future', 'Ещё впереди'], ['past', 'Уже прошла']] as const,
         outdatedNow ? 'past' : 'future',
-        (value) => change(value === 'past'
-          ? withPastDate(state)
-          : { request: authRequestFilled, offer: authOfferFilled(state.role), formStop: state.formStop === 'outdated' ? null : state.formStop }),
+        /* The form keeps its own answers, so it is reopened with the chosen date rather than left stale. */
+        (value) => change({
+          ...(value === 'past'
+            ? withPastDate(state)
+            : { request: authRequestFilled, offer: authOfferFilled(state.role), formStop: state.formStop === 'outdated' ? null : state.formStop }),
+          formVisit: state.formVisit + 1,
+        }),
       )}
       {(onPhone && state.phoneStage !== 'edit') || onRecoveryPhone ? choiceGroup(
         'Ответ на отправку SMS',

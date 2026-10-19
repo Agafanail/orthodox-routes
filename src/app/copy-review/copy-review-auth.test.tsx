@@ -418,6 +418,63 @@ describe('Group 7: registration and publication journey', { timeout: 20000 }, ()
     expect(resultBody()).toMatch(/^Уведомления в браузере включены\. /);
   });
 
+  /* ------------------------------------------------- review findings on PR #74 */
+
+  it('reopens the final form with the date the review switch chose, so a passed date never publishes', () => {
+    render(<CopyReviewPage />);
+    openSample('61 · Уведомления выключены');
+    review('Email включён');
+    review('Уже прошла');
+    expect(text()).toContain('воскресенье, 18 октября, 9:00');
+    press('Опубликовать');
+    notPublished();
+    expect(productScreen().querySelector('[data-outdated-step]')).not.toBeNull();
+  });
+
+  it('names the result by the trip kind the driver chose in the form', () => {
+    render(<CopyReviewPage />);
+    openSample('61 · Уведомления выключены');
+    review('Разовая поездка водителя');
+    review('Email включён');
+    press('Изменить: Когда');
+    fireEvent.click(inScreen().getByRole('radio', { name: 'Регулярная поездка' }));
+    press('Далее');
+    press('Далее');
+    press('Далее');
+    expect(h1()).toBe('Проверьте поездку');
+    press('Опубликовать');
+    expect(h1()).toBe('Регулярная поездка опубликована');
+  });
+
+  it('keeps a regular trip that has started current while a later date remains', () => {
+    render(<CopyReviewPage />);
+    openSample('61 · Уведомления выключены');
+    review('Регулярная поездка водителя');
+    review('Email включён');
+    press('Изменить: Когда');
+    fireEvent.change(inScreen().getByLabelText('Первая поездка'), { target: { value: '2026-10-04' } });
+    press('Далее');
+    press('Далее');
+    press('Далее');
+    press('Опубликовать');
+    expect(h1()).toBe('Регулярная поездка опубликована');
+
+    // Once the whole period is past, the same rule stops it.
+    openSample('57 · Опубликовано');
+    openSample('61 · Уведомления выключены');
+    review('Регулярная поездка водителя');
+    review('Email включён');
+    press('Изменить: Когда');
+    fireEvent.change(inScreen().getByLabelText('Первая поездка'), { target: { value: '2026-10-04' } });
+    fireEvent.change(inScreen().getByLabelText('Последняя поездка'), { target: { value: '2026-10-18' } });
+    press('Далее');
+    press('Далее');
+    press('Далее');
+    press('Опубликовать');
+    notPublished();
+    expect(productScreen().querySelector('[data-outdated-step]')).not.toBeNull();
+  });
+
   /* ------------------------------------------------------------------ the edge states */
 
   it('stops on a date that passed, publishes nothing, and keeps every other answer', () => {
