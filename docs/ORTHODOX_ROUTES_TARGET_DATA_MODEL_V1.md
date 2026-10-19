@@ -466,6 +466,8 @@ The reviewed membership-exclusion extension adds a restricted target membership 
 
 Reviewed `cancel_church_invite` adds a separate restricted invitation FK and fixed `reviewed_invite_cancellation`. The shared owner attempt serializes with acceptance, cancels only a selected pending invitation, revokes its active mail capability/lease, and writes minimized `invite.cancelled` system/operator facts atomically. No account/recipient identity or token is projected, no existing membership is ended, and no replacement, discovery API, notification rule, or retention policy is introduced.
 
+The reviewed replacement primitive adds an incoming account FK only for `replace_church_admin` / `reviewed_membership_replacement`, reusing the outgoing membership target. Only public references identified in a manual case enter the protected preview/result. Incoming confirmed-user factors and current legal evidence are locked, private source facts are pinned only by an ungranted digest, and expiry/freshness are rechecked after waits. One atomic transaction ends the outgoing position, inserts `protected_repair`, creates separate subject events plus minimized `membership.transferred` operator audit, and notifies affected administrators with the existing neutral copy. It can preserve the last seat without transferring identity, contacts, or rides. This does not create or resolve `ops.church_administration_case`, perform account deletion, or activate an operator/representative-verification process.
+
 Append-oriented fields:
 
 - PK and occurred time;
