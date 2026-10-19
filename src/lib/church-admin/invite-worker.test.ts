@@ -28,7 +28,7 @@ describe('church invitation email boundary', () => {
     expect(() => renderInviteMail(parseInviteJob(job)!, appOrigin)).toThrow('secure application origin');
   });
   it.each([{ destination_email: 'private\n@example.test' }, { destination_email: 'invalid' },
-    { church_slug: 'x'.repeat(201) }, { church_name: 'private\u0000name' }, { token: '0'.repeat(64) },
+    { church_slug: '../private' }, { church_name: 'private\u0000name' }, { token: '0'.repeat(64) },
     { evaluated_at: null }, { lease_until: new Date(moment + 120_001).toISOString() },
     { expires_at: new Date(moment - 1).toISOString() }])('refuses unsafe or unbounded claim data %#', (changed) => {
     expect(parseInviteJob({ ...job, ...changed }, moment)).toBeNull();
@@ -41,6 +41,13 @@ describe('church invitation email boundary', () => {
     }
     expect(parseInviteJob(job, moment, 120_000)).toBeNull();
     expect(parseInviteJob(job, moment, -1)).toBeNull();
+  });
+  it('preserves valid long church slugs accepted by the authoritative write path', () => {
+    const slug = 'synthetic-church-'.repeat(30) + 'page';
+    const parsed = parseInviteJob({ ...job, church_slug: slug }, moment);
+    expect(parsed).not.toBeNull();
+    const message = renderInviteMail(parsed!, 'https://routes.example.test');
+    expect(message.email.text).toContain(`/churches/${slug}/admin/invite#invite=${job.invite_id}`);
   });
   it('claims one job only after the preceding send/completion and uses fresh lease keys', async () => {
     const order: string[] = [], leases: unknown[] = [];

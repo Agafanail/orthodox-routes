@@ -72,7 +72,7 @@ export function parseInviteJob(value: unknown, now = Date.now(), claimElapsedMs 
   if (typeof item.job_id !== 'string' || !UUID.test(item.job_id)
     || typeof item.invite_id !== 'string' || !UUID.test(item.invite_id)
     || typeof item.token !== 'string' || !TOKEN.test(item.token) || item.token === '0'.repeat(64)
-    || typeof item.church_slug !== 'string' || item.church_slug.length > 200 || !SLUG.test(item.church_slug)
+    || typeof item.church_slug !== 'string' || !SLUG.test(item.church_slug)
     || typeof item.church_name !== 'string' || !item.church_name || item.church_name.length > 200 || /[\x00-\x1f\x7f]/.test(item.church_name)
     || typeof item.destination_email !== 'string' || item.destination_email.length > 254
     || !/^[^\s@\x00-\x1f\x7f]+@[^\s@\x00-\x1f\x7f]+\.[^\s@\x00-\x1f\x7f]+$/.test(item.destination_email)
