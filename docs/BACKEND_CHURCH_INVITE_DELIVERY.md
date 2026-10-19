@@ -1,6 +1,6 @@
 # Bounded church invitation delivery
 
-The existing inactive invitation worker now leases one job at a time with a fresh lease key, instead of allowing later jobs to consume a batch lease while earlier mail is sent. It retains the selected Resend transport, exact six-language message/link, dispatch-ID idempotency, invitation lifetime, five-attempt policy, backoff, explicit resend, and verified-recipient acceptance rules. No endpoint, schedule, provider setup, or public invitation acceptance UI is activated.
+The existing invitation worker now leases one job at a time with a fresh lease key, instead of allowing later jobs to consume a batch lease while earlier mail is sent. It retains the selected Resend transport, exact six-language message/link, dispatch-ID idempotency, invitation lifetime, five-attempt policy, backoff, explicit resend, and verified-recipient acceptance rules. It remains reachable only through the existing secret-protected internal runner; no new endpoint, schedule, provider setup, operational activation, or public invitation acceptance UI is added.
 
 ## Deadline and privacy contract
 

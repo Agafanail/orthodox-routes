@@ -72,7 +72,7 @@ export async function verifyChurchOwnerInviteCancellation({ sql, asyncSql, asOpe
   assert.equal(sql(`select state = 'cancelled' and token_value = repeat('0',64) and lease_token is null
     and lease_until is null from private.church_invite_mail where invite_id = ${literal(invitation.id)}::uuid;`), 't');
   assert.equal(sql(`set role service_role; select api.church_invite_worker_complete(${literal(job)}::uuid,
-    ${literal(lease)}::uuid, 'sent', 'synthetic-provider-reference');`), 'f');
+    ${literal(lease)}::uuid, 'sent', ${literal(randomUUID())});`), 'f');
   assert.deepEqual(execute(operation), result);
   expectRefusal(prepared);
   sql(asOperator(prepareSql(invitation.publicId)), 'PT409');
