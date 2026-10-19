@@ -16,6 +16,8 @@ An older deployed application cannot accidentally claim a new version-2 attempt 
 
 ## Verification
 
+The Bird adapter refuses redirects and ambient credentials and bounds the complete request plus acknowledgement to ten seconds, even when the fetch implementation ignores abort. Only HTTP 202 with a strict synthetic-safe message identifier is accepted. Its shared Resend/Bird reader caps advertised and streamed acknowledgement bytes at 16 KiB, requires valid UTF-8/JSON, cancels rejected/stalled/late bodies, and never forwards provider-controlled parser errors. These defensive transport ceilings are not operational OTP/rate settings; no worker retry, sender, provider, message, idempotency key, or database contract changes. Automated response/timeout fixtures are not renewed real provider verification.
+
 Focused tests cover all six exact renderings, legacy body compatibility, one-code/length bounds, unsupported code/version/language refusal, explicit metadata validation, fixed attempt idempotency, and worker propagation without logging private values.
 
 The disposable local phone integration covers normal initial-binding v2 output, all six real protected phone-change requests, language changes after request, old-worker refusal without leasing, stable code/template reclaims, immutable metadata, legacy four-column/new-worker compatibility, transient-code removal, least privilege, and actual migration replay. A rolled-back local transaction temporarily reconstructs only the previous SMS-column shape, reapplies the real migration, and proves legacy backfill without modifying original attempt data; rollback and replay preserve definitions/ACLs and frozen v2 facts. It is synthetic database proof, not real SMS delivery or production migration approval.

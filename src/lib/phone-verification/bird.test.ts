@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BirdSmsConfig } from '@/lib/supabase/config';
 import { deliverPhoneVerificationCode, type PhoneVerificationDelivery } from './adapter';
 import { createBirdSmsAdapter } from './bird';
@@ -17,6 +17,52 @@ const delivery: PhoneVerificationDelivery = {
 };
 
 describe('Bird SMS phone-verification adapter', () => {
+  afterEach(() => vi.useRealTimers());
+  it.each([301, 302, 307, 308, 429, 500])('refuses HTTP %s without replaying code data or consuming its body', async (status) => {
+    const cancel = vi.fn();
+    const fetchBird = vi.fn<typeof fetch>(async () => new Response(new ReadableStream({ cancel }),
+      { status, headers: { location: 'https://untrusted.example.test/otp' } }));
+    expect(await createBirdSmsAdapter(config, fetchBird).sendVerificationCode(delivery)).toEqual({ delivered: false });
+    expect(fetchBird).toHaveBeenCalledOnce(); expect(cancel).toHaveBeenCalledOnce();
+    expect(fetchBird.mock.calls[0][1]).toMatchObject({ redirect: 'error', credentials: 'omit', cache: 'no-store' });
+  });
+  it('refuses advertised and streamed oversize, malformed UTF-8/JSON, and private acknowledgement identifiers', async () => {
+    for (const response of [new Response('{}', { status: 202, headers: { 'content-length': '16385' } }),
+      new Response('x'.repeat(16_385), { status: 202 }), new Response(new Uint8Array([0xff]), { status: 202 }),
+      new Response('not-json', { status: 202 }), new Response(JSON.stringify({ id: delivery.phoneE164 }), { status: 202 })]) {
+      const fetchBird = vi.fn<typeof fetch>(async () => response);
+      const result = await createBirdSmsAdapter(config, fetchBird).sendVerificationCode(delivery);
+      expect(result).toEqual({ delivered: false }); expect(JSON.stringify(result)).not.toContain(delivery.phoneE164);
+    }
+  });
+  it('accepts a valid acknowledgement exactly at the byte ceiling', async () => {
+    const body = JSON.stringify({ id: 'sms_syntheticaccepted1' }).padEnd(16_384, ' ');
+    const fetchBird = vi.fn<typeof fetch>(async () => new Response(body, { status: 202, headers: { 'content-length': '16384' } }));
+    expect(await createBirdSmsAdapter(config, fetchBird).sendVerificationCode(delivery))
+      .toEqual({ delivered: true, providerReference: 'sms_syntheticaccepted1' });
+  });
+  it('bounds an uncooperative fetch to the whole deadline and clears its timer', async () => {
+    vi.useFakeTimers(); const fetchBird = vi.fn<typeof fetch>(() => new Promise(() => {}));
+    const pending = createBirdSmsAdapter(config, fetchBird).sendVerificationCode(delivery);
+    await vi.advanceTimersByTimeAsync(10_001);
+    expect(await pending).toEqual({ delivered: false });
+    expect((fetchBird.mock.calls[0][1]?.signal as AbortSignal).aborted).toBe(true); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('cancels a stalled acknowledgement stream at the same deadline', async () => {
+    vi.useFakeTimers(); const cancel = vi.fn();
+    const fetchBird = vi.fn<typeof fetch>(async () => new Response(new ReadableStream({ cancel }), { status: 202 }));
+    const pending = createBirdSmsAdapter(config, fetchBird).sendVerificationCode(delivery);
+    await vi.advanceTimersByTimeAsync(10_001);
+    expect(await pending).toEqual({ delivered: false }); expect(cancel).toHaveBeenCalledOnce(); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('cancels a response arriving after an ignored request abort without accepting it', async () => {
+    vi.useFakeTimers(); const cancel = vi.fn(); let settle!: (value: Response) => void;
+    const fetchBird = vi.fn<typeof fetch>(() => new Promise((resolve) => { settle = resolve; }));
+    const pending = createBirdSmsAdapter(config, fetchBird).sendVerificationCode(delivery);
+    await vi.advanceTimersByTimeAsync(10_001); expect(await pending).toEqual({ delivered: false });
+    settle(new Response(new ReadableStream({ cancel }), { status: 202 }));
+    await vi.advanceTimersByTimeAsync(0); expect(cancel).toHaveBeenCalledOnce(); expect(vi.getTimerCount()).toBe(0);
+  });
   it.each(phoneVerificationLanguages)('sends only the frozen %s template with the same attempt idempotency key', async (language) => {
     const fetchBird = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ id: 'sms_syntheticaccepted1' }), { status: 202 }));
     await deliverPhoneVerificationCode(createBirdSmsAdapter(config, fetchBird), { ...delivery, smsTemplateVersion: 2, smsLanguage: language });

@@ -1,4 +1,5 @@
 import type { ResendNotificationConfig } from '@/lib/supabase/config';
+import { readBoundedProviderAcknowledgement } from '@/lib/providers/acknowledgement';
 import {
   containedFailure,
   safeProviderValue,
@@ -6,39 +7,6 @@ import {
 } from './adapter';
 
 const RESEND_REFERENCE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MAX_RESPONSE_BYTES = 16_384;
-
-async function readProviderAck(response: Response, signal: AbortSignal): Promise<unknown> {
-  if (Number(response.headers.get('content-length')) > MAX_RESPONSE_BYTES) {
-    void response.body?.cancel().catch(() => {});
-    throw new Error('Oversized email acknowledgement.');
-  }
-  const reader = response.body?.getReader();
-  if (!reader) return null;
-  let complete = false;
-  const cancel = () => { void reader.cancel().catch(() => {}); };
-  signal.addEventListener('abort', cancel, { once: true });
-  try {
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    while (true) {
-      if (signal.aborted) throw new Error('Email acknowledgement deadline exceeded.');
-      const part = await reader.read();
-      if (part.done) { complete = true; break; }
-      size += part.value.byteLength;
-      if (size > MAX_RESPONSE_BYTES) throw new Error('Oversized email acknowledgement.');
-      chunks.push(part.value);
-    }
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  } finally {
-    signal.removeEventListener('abort', cancel);
-    if (!complete) cancel();
-    reader.releaseLock();
-  }
-}
 
 export function createResendNotificationAdapter(
   config: ResendNotificationConfig,
@@ -87,7 +55,7 @@ export function createResendNotificationAdapter(
               providerCode,
             );
           }
-          const payload = await readProviderAck(response, controller.signal).catch(() => null);
+          const payload = await readBoundedProviderAcknowledgement(response, controller.signal).catch(() => null);
           const reference = payload && typeof payload === 'object' && !Array.isArray(payload)
             ? (payload as Record<string, unknown>).id
             : null;
