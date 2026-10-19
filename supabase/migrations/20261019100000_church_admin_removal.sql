@@ -1,9 +1,15 @@
 -- Reviewed exclusion only: no new administrator grant, final-seat removal, or account/session mutation.
 alter table ops.owner_operation add column if not exists target_membership_id uuid
   references app.church_admin_membership(id) on delete restrict;
+do $$ begin
+if not exists (select 1 from pg_constraint where conrelid = 'ops.owner_operation'::regclass
+  and conname = 'owner_operation_operation_type_check' and position('remove_church_admin' in pg_get_expr(conbin, conrelid)) > 0) then
 alter table ops.owner_operation drop constraint owner_operation_operation_type_check;
 alter table ops.owner_operation add constraint owner_operation_operation_type_check
   check (operation_type in ('archive_church', 'restore_church', 'hide_church', 'remove_church_admin'));
+end if;
+if not exists (select 1 from pg_constraint where conrelid = 'ops.owner_operation'::regclass
+  and conname = 'owner_operation_reason' and position('reviewed_membership_removal' in pg_get_expr(conbin, conrelid)) > 0) then
 alter table ops.owner_operation drop constraint owner_operation_reason;
 alter table ops.owner_operation add constraint owner_operation_reason check (
   (operation_type = 'archive_church' and reason_code = 'reviewed_archival')
@@ -11,9 +17,13 @@ alter table ops.owner_operation add constraint owner_operation_reason check (
   or (operation_type = 'hide_church' and reason_code = 'reviewed_hiding')
   or (operation_type = 'remove_church_admin' and reason_code = 'reviewed_membership_removal')
 );
-alter table ops.owner_operation drop constraint if exists owner_operation_membership_target;
+end if;
+if not exists (select 1 from pg_constraint where conrelid = 'ops.owner_operation'::regclass
+  and conname = 'owner_operation_membership_target') then
 alter table ops.owner_operation add constraint owner_operation_membership_target
   check ((operation_type = 'remove_church_admin') = (target_membership_id is not null));
+end if;
+end; $$;
 
 do $$
 declare item record; expression text;

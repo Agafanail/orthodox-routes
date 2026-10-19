@@ -464,6 +464,8 @@ The church-owner visibility extension uses the same protected operation and atte
 
 The reviewed membership-exclusion extension adds a restricted target membership FK to `ops.owner_operation` only for `remove_church_admin` and fixed `reviewed_membership_removal`. A selected public membership reference is shown only in the protected preview/result, not account discovery or ordinary projections. The existing locked/freshness-checked attempt workflow ends that membership only while another current member remains and its transfer is resolved. Subject-only `membership.removed`, a correlated operator fact, and neutral notifications commit atomically; no replacement grant, identity/session change, final-administrator case, invitation cancellation, or retention rule is implied.
 
+Reviewed `cancel_church_invite` adds a separate restricted invitation FK and fixed `reviewed_invite_cancellation`. The shared owner attempt serializes with acceptance, cancels only a selected pending invitation, revokes its active mail capability/lease, and writes minimized `invite.cancelled` system/operator facts atomically. No account/recipient identity or token is projected, no existing membership is ended, and no replacement, discovery API, notification rule, or retention policy is introduced.
+
 Append-oriented fields:
 
 - PK and occurred time;

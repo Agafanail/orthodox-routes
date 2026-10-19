@@ -19,6 +19,64 @@ const setup = () => ({ query: vi.fn().mockReturnValueOnce({ allowed: true }).moc
   confirm: vi.fn().mockResolvedValue(`EXECUTE ${operationId}`), output: vi.fn(), interactive: true, environment: 'staging' });
 
 describe('protected owner command', () => {
+  const inviteId = '55555555-5555-4555-8555-555555555555';
+  const cancellationOptions = { ...options, action: 'cancel_church_invite', inviteId };
+  const cancellationPrepared = () => ({ ...prepared(), operation_type: 'cancel_church_invite',
+    preview: { ...prepared().preview, invite_id: inviteId, pending_invitations: 1 } });
+  it('requires only an exact invitation reference for reviewed cancellation', () => {
+    const args = ['--church', churchId, '--action', 'cancel_church_invite', '--case', 'SYNTHETIC-CASE'];
+    expect(parseOwnerArguments([...args, '--invite', inviteId])).toEqual(cancellationOptions);
+    expect(() => parseOwnerArguments(args)).toThrow();
+    expect(() => parseOwnerArguments([...args, '--invite', 'private@example.test'])).toThrow();
+    expect(() => parseOwnerArguments([...args, '--invite', inviteId, '--membership', churchId])).toThrow();
+    expect(() => parseOwnerArguments(['--church', churchId, '--action', 'hide_church', '--case', 'CASE', '--invite', inviteId])).toThrow();
+  });
+  it('keeps invitation revocation preview-only and redacts recipient/capability fields', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true })
+      .mockReturnValueOnce({ ...cancellationPrepared(), recipient_email: 'never print' });
+    expect((await runOwnerCommand(cancellationOptions, dependencies)).status).toBe('preview_only');
+    expect(dependencies.query.mock.calls[1]).toEqual([
+      'select ops.prepare_church_invite_cancellation($1::uuid, $2::uuid, $3::text)', [churchId, inviteId, 'SYNTHETIC-CASE']]);
+    expect(dependencies.query).toHaveBeenCalledTimes(2);
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain('never print');
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
+  it('executes the exact reviewed invitation through the committed attempt boundary', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce(cancellationPrepared())
+      .mockReturnValueOnce({ operation_id: operationId, attempt_id: attemptId })
+      .mockReturnValueOnce({ operation_id: operationId, church_id: churchId, invite_id: inviteId, status: 'cancelled', token });
+    expect((await runOwnerCommand({ ...cancellationOptions, execute: true }, dependencies)).status).toBe('cancelled');
+    expect(dependencies.query).toHaveBeenCalledTimes(4);
+    expect(dependencies.confirm).toHaveBeenCalledOnce();
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
+  it.each(['target', 'count'] as const)('refuses a malformed invitation %s preview', async (kind) => {
+    const dependencies = setup(); const value = cancellationPrepared();
+    if (kind === 'target') value.preview.invite_id = churchId; else value.preview.pending_invitations = 0;
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce(value);
+    await expect(runOwnerCommand({ ...cancellationOptions, execute: true }, dependencies)).rejects.toThrow();
+    expect(dependencies.confirm).not.toHaveBeenCalled();
+    expect(dependencies.output).not.toHaveBeenCalled();
+  });
+  it('recognizes a redacted own invitation-cancellation outcome', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce({
+      operation_id: operationId, church_id: churchId, operation_type: 'cancel_church_invite',
+      state: 'succeeded', latest_attempt: { attempt_id: attemptId, state: 'success' }, token });
+    expect((await runOwnerCommand({ statusId: operationId }, dependencies)).status).toBe('succeeded');
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain(token);
+  });
+  it('does not print a cancellation success for a different invitation', async () => {
+    const dependencies = setup();
+    dependencies.query.mockReset().mockReturnValueOnce({ allowed: true }).mockReturnValueOnce(cancellationPrepared())
+      .mockReturnValueOnce({ operation_id: operationId, attempt_id: attemptId })
+      .mockReturnValueOnce({ operation_id: operationId, church_id: churchId, invite_id: churchId, status: 'cancelled', token });
+    await expect(runOwnerCommand({ ...cancellationOptions, execute: true }, dependencies)).rejects.toThrow();
+    expect(dependencies.query).toHaveBeenCalledTimes(4);
+    expect(dependencies.output.mock.calls.flat().join('\n')).not.toContain('"status":"cancelled"');
+  });
   const membershipId = '44444444-4444-4444-8444-444444444444';
   const removalOptions = { ...options, action: 'remove_church_admin', membershipId };
   const removalPrepared = () => ({ ...prepared(), operation_type: 'remove_church_admin',

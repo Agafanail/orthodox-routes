@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const REFERENCE = /^[A-Z0-9][A-Z0-9._-]{3,63}$/;
 const GROUP = 'orthodox_routes_church_operator';
-const ACTIONS = ['archive_church', 'restore_church', 'hide_church', 'remove_church_admin'];
+const ACTIONS = ['archive_church', 'restore_church', 'hide_church', 'remove_church_admin', 'cancel_church_invite'];
 const failure = () => new Error('Protected church operation failed. Review the support case before retrying.');
 
 export function parseOwnerArguments(args) {
@@ -17,16 +17,18 @@ export function parseOwnerArguments(args) {
   for (let index = 0; index < args.length; index += 1) {
     const key = args[index];
     if (key === '--execute' && !execute) { execute = true; continue; }
-    if (!['--church', '--action', '--case', '--membership'].includes(key) || values.has(key)
+    if (!['--church', '--action', '--case', '--membership', '--invite'].includes(key) || values.has(key)
       || !args[index + 1] || args[index + 1].startsWith('--')) throw new Error('Invalid owner command arguments.');
     values.set(key, args[++index]);
   }
   const churchId = values.get('--church'); const action = values.get('--action'); const reference = values.get('--case');
   const membershipId = values.get('--membership');
+  const inviteId = values.get('--invite');
   if (!UUID.test(churchId ?? '') || !ACTIONS.includes(action)
     || !REFERENCE.test(reference ?? '') || (action === 'remove_church_admin'
-      ? !UUID.test(membershipId ?? '') : membershipId !== undefined)) throw new Error('Invalid owner command arguments.');
-  return { churchId, action, reference, execute, ...(membershipId ? { membershipId } : {}) };
+      ? !UUID.test(membershipId ?? '') : membershipId !== undefined) || (action === 'cancel_church_invite'
+      ? !UUID.test(inviteId ?? '') : inviteId !== undefined)) throw new Error('Invalid owner command arguments.');
+  return { churchId, action, reference, execute, ...(membershipId ? { membershipId } : {}), ...(inviteId ? { inviteId } : {}) };
 }
 
 /** Only explicitly supplied operational service/password files; no application URL/key fallback. */
@@ -108,10 +110,13 @@ function safePrepared(value, options) {
   if (counts.some((key) => !Number.isSafeInteger(preview[key]) || preview[key] < 0)) throw failure();
   if (options.action === 'remove_church_admin' && (!UUID.test(options.membershipId ?? '')
     || preview.membership_id !== options.membershipId || preview.administrator_count <= 1)) throw failure();
+  if (options.action === 'cancel_church_invite' && (!UUID.test(options.inviteId ?? '')
+    || preview.invite_id !== options.inviteId || preview.pending_invitations < 1)) throw failure();
   return { operation_id: value.operation_id, operation_type: value.operation_type, expires_at: value.expires_at,
     preview: { church_id: preview.church_id, slug: preview.slug, official_name: preview.official_name,
       status: preview.status, ...Object.fromEntries(counts.map((key) => [key, preview[key]])),
-      ...(options.action === 'remove_church_admin' ? { membership_id: options.membershipId } : {}) } };
+      ...(options.action === 'remove_church_admin' ? { membership_id: options.membershipId } : {}),
+      ...(options.action === 'cancel_church_invite' ? { invite_id: options.inviteId } : {}) } };
 }
 
 export async function runOwnerCommand(options, { query, confirm, output, interactive, environment }) {
@@ -140,6 +145,9 @@ export async function runOwnerCommand(options, { query, confirm, output, interac
     const prepared = options.action === 'remove_church_admin'
       ? query('select ops.prepare_church_admin_removal($1::uuid, $2::uuid, $3::text)',
         [options.churchId, options.membershipId, options.reference])
+      : options.action === 'cancel_church_invite'
+        ? query('select ops.prepare_church_invite_cancellation($1::uuid, $2::uuid, $3::text)',
+          [options.churchId, options.inviteId, options.reference])
       : query('select ops.prepare_church_lifecycle($1::uuid, $2::text, $3::text, $4::text)',
         [options.churchId, options.action, options.reference, reason]);
     const safe = safePrepared(prepared, options);
@@ -158,13 +166,16 @@ export async function runOwnerCommand(options, { query, confirm, output, interac
     const result = query('select ops.execute_church_lifecycle($1::uuid, $2::text, $3::uuid)',
       [safe.operation_id, prepared.token, attempt.attempt_id]);
     const expectedStatus = options.action === 'archive_church' ? 'archived'
-      : options.action === 'hide_church' ? 'hidden' : options.action === 'remove_church_admin' ? 'removed' : 'published';
+      : options.action === 'hide_church' ? 'hidden' : options.action === 'remove_church_admin' ? 'removed'
+        : options.action === 'cancel_church_invite' ? 'cancelled' : 'published';
     if (result?.operation_id !== safe.operation_id || result.church_id !== options.churchId
       || result.status !== expectedStatus || (options.action === 'remove_church_admin'
-        && result.membership_id !== options.membershipId)) throw failure();
+        && result.membership_id !== options.membershipId) || (options.action === 'cancel_church_invite'
+        && result.invite_id !== options.inviteId)) throw failure();
     // Project rather than printing the database response, even though this RPC is trusted.
     output(JSON.stringify({ operation_id: safe.operation_id, church_id: options.churchId, status: expectedStatus,
-      ...(options.action === 'remove_church_admin' ? { membership_id: options.membershipId } : {}) }));
+      ...(options.action === 'remove_church_admin' ? { membership_id: options.membershipId } : {}),
+      ...(options.action === 'cancel_church_invite' ? { invite_id: options.inviteId } : {}) }));
     return { status: expectedStatus, operationId: safe.operation_id };
   } catch { throw failure(); }
 }
