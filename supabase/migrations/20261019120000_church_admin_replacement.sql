@@ -185,7 +185,7 @@ begin
       ('if operation.expires_at <= clock_timestamp() then',
        'if operation.operation_type = ''replace_church_admin'' then perform ops.lock_church_replacement_actor(operation.replacement_account_id); end if; if operation.expires_at <= clock_timestamp() then'),
       ('encode(extensions.digest(convert_to(target::text, ''UTF8''), ''sha256''), ''hex'') then',
-       'case when operation.operation_type = ''replace_church_admin'' then ops.church_admin_replacement_fingerprint(operation.church_id, operation.replacement_account_id) else encode(extensions.digest(convert_to(target::text, ''UTF8''), ''sha256''), ''hex'') end then'),
+       '(case when operation.operation_type = ''replace_church_admin'' then ops.church_admin_replacement_fingerprint(operation.church_id, operation.replacement_account_id) else encode(extensions.digest(convert_to(target::text, ''UTF8''), ''sha256''), ''hex'') end) then'),
       ('if operation.operation_type = ''hide_church'' then',
        'if operation.operation_type = ''replace_church_admin'' then return ops.apply_church_admin_replacement(operation.id); end if; if operation.operation_type = ''hide_church'' then')
     ) as replacements(original, replacement)
