@@ -33,4 +33,10 @@ describe('confirmation fragment parsing', () => {
     expect(parseConfirmationFragment(`#flow=contextual&draft=${'a'.repeat(64)}&token_hash=${VALID_TOKEN_HASH}&type=email`)).toBeNull();
     expect(parseConfirmationFragment('#flow=login&token_hash=short&type=email')).toBeNull();
   });
+
+  it.each(['v1', 'v1.', 'v1.a', 'v1.a.b', `${VALID_DRAFT_TICKET}.`, `${VALID_DRAFT_TICKET}..`])
+  ('safely refuses a malformed contextual fragment ticket %s', (draft) => {
+    expect(parseConfirmationFragment(`#flow=contextual&draft=${encodeURIComponent(draft)}&token_hash=${VALID_TOKEN_HASH}&type=email`))
+      .toBeNull();
+  });
 });
