@@ -35,6 +35,19 @@ const unavailableAdapter: PhoneVerificationProviderAdapter = {
   },
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DATE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/;
+const timestamp = (value: unknown) => typeof value === 'string' && DATE.test(value) ? Date.parse(value) : NaN;
+
+async function bounded<T>(task: PromiseLike<T>, milliseconds: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([Promise.resolve(task), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Phone delivery deadline exceeded.')), milliseconds);
+    })]);
+  } finally { clearTimeout(timer); }
+}
+
 function delivery(value: unknown): PhoneVerificationDelivery | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -67,37 +80,41 @@ export async function processPhoneVerificationDelivery(
     : dependencies.adapter;
   const adapter = configuredAdapter ?? unavailableAdapter;
   const privileged = dependencies.client === undefined
-    ? createPrivilegedSupabaseClient() as PhoneVerificationWorkerClient | null
+    ? createPrivilegedSupabaseClient({ requestTimeoutMs: 5000 }) as PhoneVerificationWorkerClient | null
     : dependencies.client;
   const configured = Boolean(privileged && configuredAdapter);
-  if (!privileged) return { configured, outcomes: [] as PhoneVerificationWorkerOutcome[] };
-
-  const leaseToken = dependencies.leaseToken ?? randomUUID();
-  const api = privileged.schema('api');
-  const claimed = await api.rpc('phone_worker_claim_delivery_v2', {
-    p_attempt_id: attemptId,
-    p_lease_token: leaseToken,
-  });
-  if (claimed.error || !Array.isArray(claimed.data)) {
-    return { configured, outcomes: [] as PhoneVerificationWorkerOutcome[] };
-  }
-
   const outcomes: PhoneVerificationWorkerOutcome[] = [];
-  for (const raw of claimed.data) {
-    const item = delivery(raw);
-    if (!item) continue;
-    const result = await deliverPhoneVerificationCode(adapter, item);
-    const completed = await api.rpc('phone_worker_complete_delivery', {
+  if (!privileged || !UUID.test(attemptId)) return { configured, outcomes };
+  try {
+    const leaseToken = dependencies.leaseToken ?? randomUUID();
+    const api = privileged.schema('api');
+    const started = performance.now();
+    const claimed = await bounded(api.rpc('phone_worker_claim_delivery_v3', {
+      p_attempt_id: attemptId, p_lease_token: leaseToken,
+    }), 5000);
+    if (claimed.error || !claimed.data) return { configured, outcomes };
+    const item = delivery(claimed.data);
+    const raw = claimed.data as Record<string, unknown>;
+    const evaluated = timestamp(raw.evaluated_at);
+    const leaseDuration = timestamp(raw.lease_until) - evaluated;
+    const expiryDuration = timestamp(raw.expires_at) - evaluated;
+    const remaining = Math.min(leaseDuration, expiryDuration) - Math.max(0, performance.now() - started);
+    if (!item || item.attemptId !== attemptId || !Number.isFinite(remaining) || leaseDuration > 300_000
+      || remaining <= 20_000) return { configured, outcomes };
+    let result = { delivered: false, providerAdapter: adapter.adapterId, providerReference: null as string | null };
+    try { result = await bounded(deliverPhoneVerificationCode(adapter, item), 12_000); }
+    catch { /* Unknown outcomes are never exposed or retried automatically. */ }
+    const completed = await bounded(api.rpc('phone_worker_complete_delivery', {
       p_attempt_id: item.attemptId,
       p_lease_token: leaseToken,
       p_delivered: result.delivered,
       p_provider_adapter: result.providerAdapter,
       p_provider_reference: result.providerReference,
-    });
+    }), 5000);
     outcomes.push({
       attemptId: item.attemptId,
       delivered: result.delivered && !completed.error && completed.data === true,
     });
-  }
+  } catch { /* A transport timeout does not prove database rollback or provider cancellation. */ }
   return { configured, outcomes };
 }
