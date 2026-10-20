@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { verifyPhoneSmsLanguages } from './verify-phone-sms-languages.mjs';
+import { verifyPhoneDeliveryDeadlines } from './verify-phone-delivery-deadlines.mjs';
 
 const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
@@ -582,6 +583,8 @@ try {
   runSql(container, phoneAuditMigration);
   assert.deepEqual(phoneAuditRows(), afterBackfill);
   await verifyPhoneSmsLanguages({ container, runSql, rpc, client: clients[0], admin, accountId: identities[0].id });
+  await verifyPhoneDeliveryDeadlines({ container, runSql, rpc, client: clients[0], admin,
+    accountId: identities[0].id, otherAccountId: identities[2].id });
 
   assert.equal(
     runSql(

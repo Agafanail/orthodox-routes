@@ -20,7 +20,8 @@ export async function verifyPhoneSmsLanguages({ container, runSql, rpc, client, 
   });
   const ageRequests = () => sql(`update ops.phone_verification_attempt set requested_at = requested_at - interval '2 minutes'
     where account_id = '${accountId}';`);
-  const expireLease = (id) => sql(`update ops.phone_verification_delivery set leased_at = now() - interval '6 minutes'
+  const expireLease = (id) => sql(`update ops.phone_verification_delivery set leased_at = now() - interval '6 minutes',
+    lease_until = now() - interval '1 second'
     where attempt_id = '${id}';`);
   const sourceDigest = () => sql(`select encode(extensions.digest(convert_to(coalesce(
     jsonb_agg(to_jsonb(attempt) - array['sms_language','sms_template_version'] order by attempt.id)::text,
