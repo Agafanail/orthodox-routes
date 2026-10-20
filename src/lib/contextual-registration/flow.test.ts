@@ -137,4 +137,12 @@ describe('contextual registration application boundary', () => {
       'https://routes.example.org/auth/confirm#flow=login',
     );
   });
+
+  it.each(['v1', 'v1.', 'v1.a', 'v1.a.b'])('refuses incomplete resume state %s before protected RPCs', async (ticket) => {
+    const { client, rpc } = rpcClient({ data: null, error: null });
+    await expect(attachContextualRegistrationEmail(client, config, ticket, 'person@example.test', 'b'.repeat(64)))
+      .resolves.toEqual({ status: 'draft-unavailable' });
+    await expect(claimContextualRegistrationDraft(client, config, ticket)).resolves.toBeNull();
+    expect(rpc).not.toHaveBeenCalled();
+  });
 });

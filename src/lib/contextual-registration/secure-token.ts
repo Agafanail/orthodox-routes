@@ -25,9 +25,10 @@ export function isContextualCapability(value: unknown): value is string {
 
 export function isContextualTicket(value: unknown): value is string {
   if (typeof value !== 'string' || value.length > 1024) return false;
-  const [version, iv, ciphertext, tag, extra] = value.split('.');
+  const parts = value.split('.');
+  if (parts.length !== 4) return false;
+  const [version, iv, ciphertext, tag] = parts;
   return version === 'v1'
-    && !extra
     && iv.length === 16
     && tag.length === 22
     && ciphertext.length > 0
