@@ -31,7 +31,7 @@ describe('Russian copy review surface', () => {
     expect(existsSync(resolve(process.cwd(), 'src/app/design-preview/fonts/Onest-Variable.ttf'))).toBe(true);
   });
 
-  it('offers the reviewed screens, the request, offer, map, trips and account states, with the switch outside them', () => {
+  it('offers the reviewed screens, the request, offer, map, trips, account and registration states, with the switch outside them', () => {
     render(<CopyReviewPage />);
 
     const selector = screen.getByRole('navigation', { name: 'Выбор экрана проверки' });
@@ -85,6 +85,21 @@ describe('Russian copy review surface', () => {
       '47 · Последний канал выключить нельзя',
       '48 · Оба канала выключены',
       '49 · Уведомления на компьютере',
+      '50 · Старт: заполненная просьба',
+      '51 · Имя и контакты',
+      '52 · Проверьте почту',
+      '53 · Ссылка из письма',
+      '54 · Срок ссылки истёк',
+      '55 · Код из SMS',
+      '56 · SMS не отправляется',
+      '57 · Опубликовано',
+      '58 · Вход в аккаунт',
+      '59 · Нет доступа к почте',
+      '60 · Ссылка на другом устройстве',
+      '61 · Уведомления выключены',
+      '62 · Дата прошла во время проверок',
+      '63 · Email уже есть в аккаунте',
+      '64 · Восстановление: SMS недоступно',
       'Текст 200 %',
     ]);
     expect(productScreen().contains(selector)).toBe(false);
@@ -823,13 +838,15 @@ describe('Passenger request review states', () => {
   it('marks every string of the whole passenger form as approved by the owner', () => {
     render(<CopyReviewPage />);
 
-    // Groups 2A (24 August) and 2B (26 August) together cover every string the form renders.
+    // Groups 2A (24 August) and 2B (26 August) together cover every string the form renders. The
+    // note hint is the owner's own wording of 17 October 2026 (decision 1.18 (94)) and carries it.
     requestSamples.forEach(([label]) => {
       openSample(label);
       const marks = sourceRows();
 
       expect(marks.length).toBeGreaterThan(0);
-      expect(`${label}: ${[...new Set(marks)].join('/')}`).toBe(`${label}: Утверждено`);
+      const allowed = label.startsWith('13 ') || label.startsWith('14 ') ? ['Утверждено', 'Решение'] : ['Утверждено'];
+      [...new Set(marks)].forEach((mark) => expect(`${label}: ${allowed.includes(mark ?? '')}`).toBe(`${label}: true`));
     });
   });
 
@@ -859,7 +876,6 @@ describe('Passenger request review states', () => {
         'Последние детали',
         'Нужна поездка обратно',
         'Примечание (необязательно)',
-        'Короткое уточнение для водителя. Не пишите домашний адрес, телефон, email и ссылки.',
         'Опубликовать',
         'Изменить',
         'Когда',
@@ -885,7 +901,7 @@ describe('Passenger request review states', () => {
 
     // The simulated product screen has its own header, so pick the review chrome one.
     const header = screen.getAllByRole('banner').find((node) => !node.closest('[data-product-screen]'))!;
-    expect(header.textContent).toContain('группы 1, 2A, 2B, 3, 4, 5 и 6 просмотрены');
+    expect(header.textContent).toContain('группы 1, 2A, 2B, 3, 4, 5, 6 и 7 просмотрены');
     expect(header.textContent).toContain('Последние детали');
     expect(header.textContent).not.toContain('ждёт просмотра');
     expect(header.textContent).not.toContain('ждут просмотра');
@@ -1078,9 +1094,9 @@ describe('Passenger request review states', () => {
     expect(within(final).getByRole('heading', { level: 1, name: 'Последние детали' })).not.toBeNull();
     expect(within(final).getByRole('checkbox', { name: 'Нужна поездка обратно' })).not.toBeNull();
     expect(final.querySelector('[data-note-field] span')!.textContent).toBe('Примечание (необязательно)');
-    expect(final.textContent).toContain(
-      'Короткое уточнение для водителя. Не пишите домашний адрес, телефон, email и ссылки.',
-    );
+    // Owner decision of 17 October 2026 (1.18 (94)): the hint no longer repeats what the label says.
+    expect(final.textContent).toContain('Не сообщайте домашний адрес, телефон, email и ссылки.');
+    expect(final.textContent).not.toContain('Короткое уточнение для водителя.');
 
     // The note is a place to write, not a one-line answer: it is the only multi-line field.
     expect(final.querySelectorAll('textarea').length).toBe(1);
@@ -1194,7 +1210,7 @@ describe('Passenger request review states', () => {
       'Подтвердить место',
       'Больше трёх мест указать нельзя.',
       'Последние детали',
-      'Короткое уточнение для водителя. Не пишите домашний адрес, телефон, email и ссылки.',
+      'Не сообщайте домашний адрес, телефон, email и ссылки.',
       'Кратко о вашей просьбе',
     ];
 

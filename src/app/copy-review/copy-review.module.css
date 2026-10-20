@@ -2802,3 +2802,327 @@
   font-size: var(--or-size-secondary);
   font-weight: var(--or-weight-medium);
 }
+
+/* ------------------------------------------------ group 7: registration and publication */
+
+/* Review-only controls above a group 7 screen: what is published, and what mail, SMS and the server answer. */
+.authReview {
+  display: flex;
+  /* A fixed width, so a long review caption wraps instead of widening the whole stage. */
+  width: 390px;
+  max-width: 100%;
+  flex-direction: column;
+  gap: var(--or-space-2);
+}
+
+.authReviewNote:empty {
+  display: none;
+}
+
+.authReviewNote p {
+  margin: 0;
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-secondary);
+}
+
+/* A header without a way back: the step cannot be undone, so only the name of the action stays. */
+.formHeaderEnd {
+  justify-content: flex-end;
+}
+
+.authLead {
+  overflow-wrap: anywhere;
+  margin: var(--or-space-3) 0 0;
+  font-size: var(--or-size-body);
+}
+
+.authField .textField input:disabled {
+  border-color: var(--or-border);
+  background: var(--or-surface-subtle);
+  color: var(--or-text-subtle);
+}
+
+/* An invalid field keeps its value and gains a second sign beside the message (DS §11). */
+.authField .textField input[aria-invalid='true'],
+.authChecks input[aria-invalid='true'] {
+  border-color: var(--or-error);
+  outline: 1px solid var(--or-error);
+}
+
+.fieldError {
+  overflow-wrap: anywhere;
+  margin: var(--or-space-2) 0 0;
+  color: var(--or-error);
+  font-size: var(--or-size-secondary);
+  font-weight: var(--or-weight-medium);
+}
+
+.authChecks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--or-space-1);
+  margin-top: var(--or-space-6);
+}
+
+.authChecks .fieldError {
+  margin-top: 0;
+  margin-bottom: var(--or-space-2);
+}
+
+.inlineLink,
+.authLink {
+  color: var(--or-control-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.authLink {
+  display: inline-flex;
+  min-height: var(--or-target-min);
+  align-items: center;
+  align-self: flex-start;
+  font-size: var(--or-size-secondary);
+}
+
+.authActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--or-space-2);
+  margin-top: var(--or-space-6);
+}
+
+.authStatus:empty {
+  display: none;
+}
+
+.authStatus p {
+  margin: 0;
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-secondary);
+}
+
+/* A quiet action under the primary one, still a full 44 px target. */
+.formFooter .authAside,
+.authFooter .authAside {
+  width: 100%;
+  margin-top: var(--or-space-2);
+}
+
+/* A quiet action at the content edge, the way the place actions of group 2 sit. */
+.authInline {
+  align-self: flex-start;
+  margin-top: var(--or-space-1);
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.authAsideBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--or-space-2);
+  margin-top: var(--or-space-4);
+}
+
+.authAsideBlock [data-lost-both] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--or-space-2);
+}
+
+/*
+ * Decision 1.17 (92): the notification step takes the place of the publish action on the same final
+ * screen. One primary, the alternative below it with a neutral outline (DS §5, paired actions).
+ */
+.publishStep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--or-space-3);
+  margin-top: auto;
+  padding-top: var(--or-space-8);
+}
+
+.publishStep .authLead {
+  margin-top: 0;
+}
+
+.publishStep .primaryButton,
+.publishStep .secondaryButton {
+  width: 100%;
+}
+
+/* The caption of each review switch: what the buttons below it choose. Review chrome only. */
+.authReviewGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--or-space-1);
+}
+
+.authReviewCaption {
+  margin: 0;
+  color: var(--or-text-secondary);
+  font-size: var(--or-size-micro);
+  font-weight: var(--or-weight-medium);
+}
+
+/* The address a letter went to is the fact of the sentence, so it reads as data. */
+.authAddress {
+  overflow-wrap: anywhere;
+  font-weight: var(--or-weight-semibold);
+}
+
+/*
+ * The phone field shows its own format: a fixed «+» inside the control and the example in the empty
+ * field. One control outline, the same as every other field.
+ */
+.phoneInput {
+  display: flex;
+  min-height: var(--or-height-field);
+  align-items: center;
+  border: 1px solid var(--or-border-control);
+  border-radius: var(--or-radius-control);
+  background: var(--or-surface);
+  padding: 0 var(--or-space-3);
+}
+
+.phoneInput:focus-within {
+  outline: 3px solid var(--or-focus);
+  outline-offset: 2px;
+}
+
+.phoneInput[data-invalid='true'] {
+  border-color: var(--or-error);
+  outline: 1px solid var(--or-error);
+}
+
+.phonePrefix {
+  color: var(--or-text);
+  font-size: var(--or-size-body);
+}
+
+.textField .phoneInput input {
+  min-height: calc(var(--or-height-field) - 2px);
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 0 0 0 2px;
+}
+
+.textField .phoneInput input:focus-visible {
+  outline: none !important;
+}
+
+.textField .phoneInput input::placeholder {
+  color: var(--or-text-subtle);
+}
+
+/* A resend action that cannot be used yet: its label carries the countdown, its outline goes quiet. */
+.secondaryButton:disabled {
+  border-color: var(--or-border);
+  color: var(--or-text-subtle);
+  cursor: default;
+}
+
+.authActions .secondaryButton {
+  align-self: stretch;
+}
+
+/* What the person has just completed: the confirmed plate of DS §6 with a tick, above the heading. */
+.donePlate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--or-space-1);
+  align-self: flex-start;
+  margin: 0 0 var(--or-space-3);
+  border-radius: var(--or-radius-status);
+  background: var(--or-primary-pale);
+  color: var(--or-primary);
+  padding: var(--or-space-1) var(--or-space-2);
+  font-size: var(--or-size-secondary);
+  font-weight: var(--or-weight-medium);
+}
+
+.donePlate .icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+/*
+ * The field wrapper is a direct child of the label, so it must not inherit the block layout of the
+ * label caption: the fixed «+» and the number stay on one line.
+ */
+.textField > .phoneInput {
+  display: flex;
+  margin-bottom: 0;
+  color: var(--or-text);
+  font-size: var(--or-size-body);
+  font-weight: var(--or-weight-regular);
+}
+
+/* The main action of a registration step right under its text (owner review of 19 October 2026). */
+.authFooter {
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--or-space-6);
+}
+
+.authFooter .primaryButton {
+  width: 100%;
+}
+
+/* The result of publication: a large tick in the middle, then the words, all centred. */
+.authResult {
+  align-items: center;
+  padding-top: var(--or-space-12);
+  text-align: center;
+}
+
+.authResult .authFooter {
+  align-self: stretch;
+}
+
+.resultMark {
+  display: grid;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  margin-bottom: var(--or-space-6);
+  border-radius: var(--or-radius-pill);
+  background: var(--or-primary-pale);
+  color: var(--or-primary);
+}
+
+.resultMark .icon {
+  width: 40px;
+  height: 40px;
+  stroke-width: 2.4;
+}
+
+/*
+ * The device where the action was finished elsewhere: a neutral notice, never the tick of success
+ * (decision 1.18 (107)). Same size and place as the tick, quiet colours.
+ */
+.noticeMark {
+  display: grid;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  margin-bottom: var(--or-space-6);
+  border-radius: var(--or-radius-pill);
+  background: var(--or-surface-subtle);
+  color: var(--or-text-secondary);
+}
+
+.noticeMark .icon {
+  width: 40px;
+  height: 40px;
+  stroke-width: 1.8;
+}
+
+/* The channel choice of the notification step sits right under its sentence. */
+.publishStep .choiceGroup {
+  margin-top: 0;
+}
