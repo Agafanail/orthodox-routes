@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { verifyNotificationDeadlines } from './verify-notification-deadlines.mjs';
+import { verifyVerifiedEmailBinding } from './verify-verified-email-binding.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 
@@ -124,6 +125,8 @@ try {
     where state in ('queued', 'retry') and available_at <= now();`);
   await verifyNotificationDeadlines({ admin, actor: clients[0], accountId: identities[0].id, container, rpc,
     sql: (statement) => runSql(container, statement), literal: sqlLiteral });
+  await verifyVerifiedEmailBinding({ admin, actor: clients[0], accountId: identities[0].id, originalEmail: identities[0].email,
+    container, rpc, sql: (statement) => runSql(container, statement), literal: sqlLiteral });
   const firstNotificationId = runSql(container, `select app.create_notification(
     ${sqlLiteral(identities[0].id)}::uuid, 'ride.response.received', 'ride_response', gen_random_uuid(),
     '/trips', 'notifications.ride_response_received', '{"passenger_count":2}'::jsonb, 70
