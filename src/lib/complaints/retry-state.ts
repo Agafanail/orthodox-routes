@@ -11,6 +11,15 @@ type State = ComplaintPreparationIntent & { issuedAt: number; expiresAt: number 
 const validTime = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 const validActor = (value: unknown): value is string | null => value === null || typeof value === 'string' && UUID.test(value);
 
+function databaseTimestamp(value: unknown) {
+  if (typeof value !== 'string' || !DATE.test(value)) return NaN;
+  // Validate the literal calendar/time before applying its zone: Date.parse otherwise
+  // normalizes impossible dates and 24:00 into a different day. Fractions stay conservative.
+  const calendar = new Date(`${value.slice(0, 19)}Z`);
+  if (!Number.isFinite(calendar.getTime()) || calendar.toISOString().slice(0, 19) !== value.slice(0, 19)) return NaN;
+  return Date.parse(value);
+}
+
 // Inactive Node/server-only codec. The caller supplies verified session context and a
 // dedicated random 32-byte hex secret; no cookies, headers, environment or I/O are read.
 export function createComplaintPreparationRetryStore(secret: unknown) {
@@ -62,7 +71,7 @@ export function createComplaintPreparationRetryStore(secret: unknown) {
     restrict(ticket: unknown, reporterAccountId: unknown, databaseExpiry: unknown, now = Date.now()) {
       try {
         const state = read(ticket, reporterAccountId, now);
-        const expiry = typeof databaseExpiry === 'string' && DATE.test(databaseExpiry) ? Date.parse(databaseExpiry) : NaN;
+        const expiry = databaseTimestamp(databaseExpiry);
         if (!state || !validActor(reporterAccountId) || !validTime(expiry) || expiry <= now) return null;
         return seal({ ...state, expiresAt: Math.min(state.expiresAt, expiry) }, reporterAccountId);
       } catch { return null; }

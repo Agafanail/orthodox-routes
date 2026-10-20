@@ -118,9 +118,23 @@ describe('inactive complaint preparation retry state', () => {
     }
     for (const time of [NaN, Infinity, -1, 1.5]) expect(store.open(issued.ticket, actor, time)).toBeNull();
   });
-  it.each([null, '', 'invalid', '2026-10-20', new Date(now - 1).toISOString(), new Date(now).toISOString()])
+  it.each([null, '', 'invalid', '2026-10-20', '2026-02-31T12:00:00Z', '2027-02-29T12:00:00Z',
+    '2026-11-31T12:00:00+02:00', '2026-10-20T24:00:00Z', '2026-10-20T12:60:00Z',
+    new Date(now - 1).toISOString(), new Date(now).toISOString()])
   ('does not retain state after an invalid/elapsed database deadline %s', (expiry) => {
     const store = createComplaintPreparationRetryStore(secret), issued = store.issue(actor, now)!;
     expect(store.restrict(issued.ticket, actor, expiry, now)).toBeNull();
+  });
+  it.each(['2028-02-29T12:01:00Z', '2028-02-29T14:01:00.123456+02:00'])
+  ('accepts real leap-day and fractional zoned database timestamps %s', (expiry) => {
+    const at = Date.parse('2028-02-29T12:00:00Z'), store = createComplaintPreparationRetryStore(secret);
+    const issued = store.issue(actor, at)!;
+    const restricted = store.restrict(issued.ticket, actor, expiry, at)!;
+    expect(store.open(restricted, actor, at)!.expiresAt).toBe(Date.parse(expiry));
+  });
+  it('refuses February 31 even when normalization would retain the original future ticket', () => {
+    const at = Date.parse('2026-02-28T12:00:00Z'), store = createComplaintPreparationRetryStore(secret);
+    const issued = store.issue(actor, at)!;
+    expect(store.restrict(issued.ticket, actor, '2026-02-31T12:00:00Z', at)).toBeNull();
   });
 });
