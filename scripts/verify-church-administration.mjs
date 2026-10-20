@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import { verifyHiddenScheduleRepairs } from './verify-hidden-schedule-repairs.mjs';
 import { verifyRecurringServiceShortening } from './verify-recurring-service-shortening.mjs';
 import { verifyChurchAdministrationExport } from './verify-church-administration-export.mjs';
+import { verifyChurchInviteDeadlines } from './verify-church-invite-deadlines.mjs';
 
 const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
@@ -2198,6 +2199,8 @@ try {
     p_job_id: claimedMail.job_id, p_lease_token: leaseToken,
     p_outcome: 'sent', p_provider_reference: randomUUID(),
   }), true);
+  await verifyChurchInviteDeadlines({ admin, sender: clients[1], churchId: second.church_id, container, rpc,
+    sql: (statement) => runSql(container, statement), literal: sqlLiteral });
   await rpcFailure(clients[3], 'accept_church_admin_invite', {
     p_invite_id: firstInvite.invite_id, p_token: firstToken,
   });

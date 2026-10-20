@@ -32,6 +32,8 @@ Own account export adds `complaint_email_drafts`, selecting only that account's 
 
 ## Required integration before activation
 
+The inactive [server preparation broker](BACKEND_COMPLAINT_PREPARATION.md) now composes structural validation, the attempt budget, server-selected Turnstile verification, and privileged preparation with independent trusted context and retry state. It is not a public HTTP/session/proxy implementation; secure state retention, same-origin/body limits, and activation remain required.
+
 - Add trusted server-side input handling, target/session validation, challenge verification, and rate limits before privileged preparation. Direct Data API writes must not bypass them.
 - Generate both secrets on the server. Never return the email token in a form response, browser-readable cookie, or draft preview; deliver it only through the verified-mail path.
 - The separate inactive [mailbox-proof worker](BACKEND_COMPLAINT_PROOF_MAIL.md) rotates a fresh token on each bounded protected delivery lease, keeping only its hash. Public resend and real mailbox/provider verification remain unfinished; no open token can be recovered from storage.
