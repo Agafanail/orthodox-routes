@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ChurchPlaceholder } from '../design-preview/church-placeholder';
 import styles from './copy-review.module.css';
 
@@ -22,6 +22,12 @@ import styles from './copy-review.module.css';
  * keeps its own answers in memory, so the owner can walk the real path — forward, back, edit an
  * earlier answer — instead of reading ten static pictures. There is no persistence, no backend and
  * no maps provider behind it.
+ *
+ * Group 7 covers registration, sign-in and contact checks in the context of publishing (IA §19,
+ * §17.1, decision 1.17 (92)). It is one journey with twelve entry points that starts from the approved
+ * final screens of groups 2B and 3 instead of copying them and, after the owner review of 17 October
+ * 2026, publishes right after the last check; every answer of mail, SMS and the server is chosen by
+ * review-only switches. Nothing of it is approved yet.
  *
  * It renders the proposed wording of the UX Copy and Localization Foundation inside canonical Design
  * System V2 composition so the owner can judge the words in context. It is unlinked, it changes no
@@ -77,7 +83,22 @@ type SampleId =
   | 'profile-push-off'
   | 'profile-last-channel'
   | 'profile-both-off'
-  | 'notifications-desktop';
+  | 'notifications-desktop'
+  | 'auth-new'
+  | 'auth-register'
+  | 'auth-email-sent'
+  | 'auth-email-link'
+  | 'auth-link-expired'
+  | 'auth-phone'
+  | 'auth-phone-unavailable'
+  | 'auth-published'
+  | 'auth-sign-in'
+  | 'auth-lost-email'
+  | 'auth-other-device'
+  | 'auth-notifications-off'
+  | 'auth-date-passed'
+  | 'auth-existing-email'
+  | 'auth-lost-email-sms';
 
 type SourceMark = 'IA' | 'PS' | 'DS' | 'Решение' | 'Утверждено' | 'Проект';
 
@@ -100,9 +121,10 @@ type Sample = {
    * point into the one interactive ride map of a board group (group 4); `trips` — an entry point
    * into the one interactive «Мои поездки» (group 5); `account` — an entry point into the two
    * personal pages of group 6, the notification history and the lightweight profile (reviewed on
-   * 4 and 15 October 2026).
+   * 4 and 15 October 2026); `auth` — an entry point into the one registration and publication
+   * journey of group 7 (assembled for its first review, nothing approved).
    */
-  group: 'church' | 'request' | 'offer' | 'map' | 'trips' | 'account';
+  group: 'church' | 'request' | 'offer' | 'map' | 'trips' | 'account' | 'auth';
   label: string;
   title: string;
   description: string;
@@ -526,6 +548,134 @@ const samples: ReadonlyArray<Sample> = [
     description:
       'Одно представительное состояние для компьютера, а не повтор всех восьми: те же события в колонке меры чтения DS §4, чтобы проверить, как длинные безличные фразы живут на широкой строке. Открываемый объект — предмет других групп, поэтому правой колонки IA §29.3 здесь нет. Шапки сайта в этой рамке нет: в группу 6 она не входит.',
   },
+
+  /*
+   * Group 7: registration, sign-in and contact checks in the context of publishing (IA §19, §17.1,
+   * decision 1.17 (92)), second assembly after the owner review of 17 October 2026. One journey,
+   * twelve entry points, three paths: A — a new passenger (and, through the switch above the screen,
+   * a one-time or recurring driver); B — a returning person, recovery and the other device; C —
+   * publishing while both external notifications are off.
+   */
+  {
+    id: 'auth-new',
+    group: 'auth',
+    label: '50 · Старт: заполненная просьба',
+    title: 'Путь А: точка старта — утверждённый последний экран формы',
+    description:
+      'Это не новый экран, а утверждённый экран «Последние детали» группы 2B; изменена только подсказка под примечанием (решение 1.18 (94)). Человек ещё не вошёл и нажимает «Опубликовать» — отсюда начинается путь: имя и контакты, ссылка из письма, код из SMS, и сразу после кода — публикация. К форме человек больше не возвращается. Переключатель над экраном меняет, что публикуется: просьба, разовая или регулярная поездка водителя.',
+  },
+  {
+    id: 'auth-register',
+    group: 'auth',
+    label: '51 · Имя и контакты',
+    title: 'Путь А: имя и контакты при первой публикации',
+    description:
+      'Имя, email, телефон, «Мне есть 18 лет» и отдельный флажок Условий; Политика — ссылка для чтения. Под заголовком сказано, что просьба сохранена и зачем нужны контакты: по ним свяжется водитель, и человек узнает, когда ему предложат поездку. Подсказки под именем нет. Телефон показывает формат сам: «+» и номер в одну строку, пример — в пустом поле. «Продолжить» без нужных ответов показывает ошибки рядом с полями. «Заполнить образцом» над экраном — действие проверки.',
+  },
+  {
+    id: 'auth-email-sent',
+    group: 'auth',
+    label: '52 · Проверьте почту',
+    title: 'Путь А: письмо со ссылкой отправлено',
+    description:
+      'Одно предложение с адресом, срок ссылки и те же действия, что у кода из SMS: обведённая кнопка повторной отправки с обратным отсчётом и тихое «Изменить email». Подсказка о «Спаме» осталась одной тихой строкой (решение 1.18 (98)). Действия проверки открывают ссылку из письма или ту же ссылку, когда её срок уже истёк.',
+  },
+  {
+    id: 'auth-email-link',
+    group: 'auth',
+    label: '53 · Ссылка из письма',
+    title: 'Путь А: страница, которую открывает ссылка из письма',
+    description:
+      'Открытие ссылки само ничего не подтверждает и не публикует: почтовая программа или предпросмотр могут открыть её без человека (решение 1.18 (106)). Страница показывает номер и ждёт нажатия «Подтвердить email и получить код»: одно нажатие человека подтверждает email и отправляет код, и подпись называет оба последствия. «Изменить номер» — до отправки.',
+  },
+  {
+    id: 'auth-link-expired',
+    group: 'auth',
+    label: '54 · Срок ссылки истёк',
+    title: 'Путь А и Б: ссылку открыли слишком поздно',
+    description:
+      'Заголовок говорит, что случилось, одна строка — «Запросите новую ссылку.»; обведённая кнопка «Получить новую ссылку» стоит сразу под ней. Если ссылкой уже воспользовались и email подтверждён, ошибки нет: человек просто продолжает путь.',
+  },
+  {
+    id: 'auth-phone',
+    group: 'auth',
+    label: '55 · Код из SMS',
+    title: 'Путь А: ввод кода из SMS',
+    description:
+      'Плашка «Email подтверждён», номер, «Изменить номер», поле кода и повторная отправка с отсчётом. Если код — последнее, чего не хватает, кнопка называется «Подтвердить и опубликовать»; если после кода ещё что-то нужно (уведомления выключены, дата прошла — переключатели над экраном), она называется «Подтвердить» и ничего не публикует (решения 1.18 (104), (105)). Верный код в образце — 284516; «Ввести код из SMS» подставляет его.',
+  },
+  {
+    id: 'auth-phone-unavailable',
+    group: 'auth',
+    label: '56 · SMS не отправляется',
+    title: 'Путь А: SMS не отправляется',
+    description:
+      'Что случилось, что это значит — просьбу без подтверждённого телефона опубликовать нельзя, но она сохранена и не пропадёт, — и что сделать. Переключатель над экраном показывает второй случай: страну, на номера которой SMS не отправляются. Доставку SMS экран не обещает.',
+  },
+  {
+    id: 'auth-published',
+    group: 'auth',
+    label: '57 · Опубликовано',
+    title: 'Путь А: результат публикации',
+    description:
+      'Появляется только после нажатия, подпись которого называет публикацию: «Подтвердить и опубликовать», «Войти и опубликовать», «Подтвердить email и опубликовать», «Включить уведомления и опубликовать» или «Опубликовать» на форме. Большая галочка по центру, заголовок, что подтверждено и что дальше, «Посмотреть просьбу». Три текста результата выбираются переключателем над экраном.',
+  },
+  {
+    id: 'auth-sign-in',
+    group: 'auth',
+    label: '58 · Вход в аккаунт',
+    title: 'Путь Б: у человека уже есть аккаунт',
+    description:
+      'Вход всегда по ссылке из письма, пароля нет. Ответ на запрос не раскрывает, есть ли аккаунт. Страница ссылки ждёт нажатия: «Войти и опубликовать», если после входа больше ничего не нужно, или «Войти», если ещё нужен шаг — тогда человек попадает на последний экран формы с этим шагом. Имя, Условия и телефон повторно не спрашиваются.',
+  },
+  {
+    id: 'auth-lost-email',
+    group: 'auth',
+    label: '59 · Нет доступа к почте',
+    title: 'Путь Б: вход по подтверждённому телефону и новый email',
+    description:
+      'Три шага, каждый назван тем, что человек делает: номер телефона из аккаунта — код из SMS — новый email; затем письмо, ссылка и публикация. Проверка телефоном обязательна (IA §19.7, PS §16.3): без неё любой, кто впишет свой адрес, получил бы чужой аккаунт. Если нет доступа и к телефону, тихий вопрос раскрывает, что делать.',
+  },
+  {
+    id: 'auth-other-device',
+    group: 'auth',
+    label: '60 · Ссылка на другом устройстве',
+    title: 'Путь Б: форму заполнили на компьютере, письмо открыли на телефоне',
+    description:
+      'На экране — компьютер, где заполняли форму. Действие проверки проводит на телефоне тот же путь и то же правило: если там больше ничего не нужно — публикация на телефоне, и компьютер показывает «Просьба опубликована на другом устройстве» с нейтральной иконкой, без галочки успеха (решение 1.18 (107)). Если на телефоне выключены уведомления или дата прошла, публикации нет и компьютер ждёт. «Войти, чтобы посмотреть просьбу» — вход без ожидающей публикации: он ничего не публикует.',
+  },
+  {
+    id: 'auth-notifications-off',
+    group: 'auth',
+    label: '61 · Уведомления выключены',
+    title: 'Путь В: публикация, когда все уведомления выключены',
+    description:
+      'Решение 1.17 (92), обязательное для любого пути (1.18 (105)). Вошедший человек выключил уведомления и по email, и в браузере. «Опубликовать» на последнем экране формы сначала просит выбрать канал — прямо на этом экране. Ничего не меняется до нажатия «Включить уведомления и опубликовать», а оно включает выбранный канал и публикует. Уведомления в браузере доступны только там, где могут работать (переключатель над экраном). Переключатель «Уведомления в аккаунте» над экранами 50–60 выключает оба канала, чтобы проверить этот шаг после кода, входа и на другом устройстве.',
+  },
+  {
+    id: 'auth-date-passed',
+    group: 'auth',
+    label: '62 · Дата прошла во время проверок',
+    title: 'Пограничный случай: дата поездки прошла, пока человек завершал регистрацию',
+    description:
+      'Решение 1.18 (108). Человек вводит код из SMS, но дата поездки уже прошла: кнопка называется «Подтвердить», а не «…и опубликовать». После кода — последний экран формы с шагом «Дата поездки уже прошла» вместо «Опубликовать»: ничего не опубликовано, «Изменить дату» ведёт к вопросу «когда», остальные ответы сохранены. В успешных сценариях даты только будущие.',
+  },
+  {
+    id: 'auth-existing-email',
+    group: 'auth',
+    label: '63 · Email уже есть в аккаунте',
+    title: 'Пограничный случай: в регистрации указан email существующего аккаунта',
+    description:
+      'Решение 1.18 (108). Экран «Проверьте почту» тот же, что у нового адреса, поэтому посторонний не узнает, есть ли аккаунт. Отличается письмо: его ссылка открывает «У вас уже есть аккаунт» с «Войти и опубликовать» — без повторной регистрации и без SMS, телефон аккаунта уже подтверждён. Видит это только тот, у кого есть доступ к этой почте.',
+  },
+  {
+    id: 'auth-lost-email-sms',
+    group: 'auth',
+    label: '64 · Восстановление: SMS недоступно',
+    title: 'Пограничный случай: при входе по телефону SMS не отправляется',
+    description:
+      'Решение 1.18 (108). Без кода нельзя убедиться, что аккаунт принадлежит этому человеку, поэтому сменить email сейчас нельзя — экран так и говорит и восстановления не обещает. Реальные пути: попробовать ещё раз, указать новые контакты (объявление сохранено) или написать в помощь.',
+  },
 ];
 
 /* ------------------------------------------------------------------ proposed and approved copy */
@@ -636,8 +786,8 @@ const requestCopy = {
   finalTitle: 'Последние детали',
   finalReturn: 'Нужна поездка обратно',
   finalNoteLabel: 'Примечание (необязательно)',
-  finalNoteHint:
-    'Короткое уточнение для водителя. Не пишите домашний адрес, телефон, email и ссылки.',
+  /* Owner decision of 17 October 2026 (1.18 (94)): the note label already says what the field is. */
+  finalNoteHint: 'Не сообщайте домашний адрес, телефон, email и ссылки.',
   finalPublish: 'Опубликовать',
 
   /*
@@ -687,16 +837,18 @@ const childrenOfThem = (count: number) => `из них ${pluralRu(count, childre
 
 /* --------------------------------------------------------------------------- shared elements */
 
-type IconName = 'back' | 'bell' | 'car' | 'chevron-down' | 'close' | 'expand' | 'map' | 'pin' | 'route' | 'save' | 'search' | 'share';
+type IconName = 'back' | 'bell' | 'car' | 'check' | 'chevron-down' | 'close' | 'expand' | 'info' | 'map' | 'pin' | 'route' | 'save' | 'search' | 'share';
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, React.ReactNode> = {
     back: <path d="M15 5l-7 7 7 7" />,
     bell: <><path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15Z" /><path d="M10 19a2 2 0 0 0 4 0" /></>,
     car: <><path d="M4 15h16M5.5 15l1.6-5a2 2 0 0 1 1.9-1.4h6a2 2 0 0 1 1.9 1.4l1.6 5" /><path d="M4 15v3h3v-3M17 15v3h3v-3" /></>,
+    check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
     'chevron-down': <path d="m7 9.5 5 5 5-5" />,
     close: <path d="m6 6 12 12M18 6 6 18" />,
     expand: <path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5" />,
+    info: <><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5" /><circle cx="12" cy="7.8" r="0.6" fill="currentColor" /></>,
     map: <><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></>,
     pin: <><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z" /><circle cx="12" cy="10" r="2.4" /></>,
     route: <><path d="m3 6.5 6-2.5 6 2.5 6-2.5v13l-6 2.5-6-2.5-6 2.5Z" /><path d="M9 4v13M15 6.5v13" /></>,
@@ -1311,6 +1463,9 @@ const upcomingServices: ReadonlyArray<{
   { id: 'vigil-29', title: 'Всенощное бдение', when: 'суббота, 29 августа, 18:00', weekly: 'по субботам, 18:00' },
 ];
 
+/** One service of the schedule as the forms show it. */
+type ServiceOption = (typeof upcomingServices)[number];
+
 /**
  * The addresses the deterministic map offers and where they sit inside the drawing. A real geocoder
  * would return anything; the review needs the same three answers every time, so that the wording and
@@ -1438,9 +1593,9 @@ function formatArrival(value: string) {
   return `${weekday}, ${day} ${monthsGenitive[month - 1]}, ${time.replace(/^0/, '')}`;
 }
 
-function whenSummary(state: RequestState) {
+function whenSummary(state: RequestState, services: ReadonlyArray<ServiceOption> = upcomingServices) {
   if (state.when === 'custom') return formatArrival(state.arrival);
-  const service = upcomingServices.find((item) => item.id === state.when);
+  const service = services.find((item) => item.id === state.when);
   return service ? `${service.title} · ${service.when}` : formatArrival(state.arrival);
 }
 
@@ -1544,13 +1699,33 @@ function PickMapArtwork() {
 /* ------------------------------------------------------------------------- the form itself */
 
 /**
+ * What group 7 hands a form it starts from: the person pressed «Опубликовать», and the review
+ * journey of sign-in, contact checks and the notification rule takes over from there. Groups 2B and
+ * 3 pass none of it, so on their screens «Опубликовать» still does nothing and nothing new appears.
+ *
+ * - `onPublish` receives every answer the form holds, so the journey keeps them for «Назад»;
+ * - `publishSlot` replaces the single publish action while the screen is in a state of its own —
+ *   the notification step of decision 1.17 (92) or a passed date — without a new screen or a fifth
+ *   form step. It receives the answers the form holds at that moment;
+ * - `services` is the schedule the form shows; group 7 passes one with future dates.
+ */
+type PublishHooks<State> = {
+  onPublish?: (form: State) => void;
+  publishSlot?: (form: State) => React.ReactNode;
+  services?: ReadonlyArray<ServiceOption>;
+};
+
+/**
  * One component for the whole request. The review states differ only in the answers it starts with.
  *
  * Navigation is plainly linear, because the form is: «Далее» goes to the next of the four questions,
  * «Назад» to the previous one, and the quiet «Изменить» of the summary jumps straight to the screen
  * that owns the answer. Nothing is thrown away on the way: the state object outlives every move.
  */
-function PassengerRequestForm({ seed, textZoom }: { seed: Partial<RequestState>; textZoom: boolean }) {
+function PassengerRequestForm({ seed, textZoom, onPublish, publishSlot, services = upcomingServices }: {
+  seed: Partial<RequestState>;
+  textZoom: boolean;
+} & PublishHooks<RequestState>) {
   const [form, setForm] = useState<RequestState>({ ...blankRequest, ...seed });
   const change = (patch: Partial<RequestState>) => setForm((current) => ({ ...current, ...patch }));
 
@@ -1576,7 +1751,7 @@ function PassengerRequestForm({ seed, textZoom }: { seed: Partial<RequestState>;
           */}
         <fieldset className={styles.choiceGroup} data-when-choice>
           <legend className={styles.srOnly}>{requestCopy.whenTitle}</legend>
-          {upcomingServices.map((service) => (
+          {services.map((service) => (
             <label
               key={service.id}
               className={styles.choice}
@@ -1983,7 +2158,7 @@ function PassengerRequestForm({ seed, textZoom }: { seed: Partial<RequestState>;
           aria-label={requestCopy.summaryGroup}
         >
           {summaryRow(requestCopy.summaryWhen, 'when', (
-            <p className={styles.summaryValue}>{whenSummary(form)}</p>
+            <p className={styles.summaryValue}>{whenSummary(form, services)}</p>
           ))}
           {summaryRow(requestCopy.summaryPlace, 'place', (
             form.places.length > 0 ? (
@@ -2012,7 +2187,9 @@ function PassengerRequestForm({ seed, textZoom }: { seed: Partial<RequestState>;
           ))}
         </section>
 
-        <FormFooter action={requestCopy.finalPublish} onAction={() => undefined} />
+        {publishSlot ? publishSlot(form) : (
+          <FormFooter action={requestCopy.finalPublish} onAction={() => onPublish?.(form)} />
+        )}
       </>
     );
   }
@@ -2240,8 +2417,8 @@ function formatDay(value: string) {
   return `${day} ${monthsGenitive[month - 1]}`;
 }
 
-const offerService = (state: OfferState) =>
-  upcomingServices.find((item) => item.id === state.when);
+const offerService = (state: OfferState, services: ReadonlyArray<ServiceOption> = upcomingServices) =>
+  services.find((item) => item.id === state.when);
 
 const offerDaysSummary = (state: OfferState) =>
   weekdayChoices
@@ -2253,8 +2430,8 @@ const offerDaysSummary = (state: OfferState) =>
  * The «когда» answer as the summary of screen 4 states it. A one-time trip has a date; a recurring
  * one has weekdays and a period, because that is what it actually is.
  */
-function offerWhenSummary(state: OfferState) {
-  const service = offerService(state);
+function offerWhenSummary(state: OfferState, services: ReadonlyArray<ServiceOption> = upcomingServices) {
+  const service = offerService(state, services);
   if (state.kind === 'recurring') {
     const head = service ? `${service.title} · ${service.weekly}` : state.arrivalTime;
     return `${head} · ${offerDaysSummary(state)}`;
@@ -2291,7 +2468,10 @@ function OfferRouteOverlay() {
  * questions, «Назад» to the previous one, and the quiet «Изменить» of the review jumps straight to
  * the screen that owns the answer. The state object outlives every move.
  */
-function DriverOfferForm({ seed, textZoom }: { seed: Partial<OfferState>; textZoom: boolean }) {
+function DriverOfferForm({ seed, textZoom, onPublish, publishSlot, services = upcomingServices }: {
+  seed: Partial<OfferState>;
+  textZoom: boolean;
+} & PublishHooks<OfferState>) {
   const [form, setForm] = useState<OfferState>({ ...blankOffer, ...seed });
   const change = (patch: Partial<OfferState>) => setForm((current) => ({ ...current, ...patch }));
 
@@ -2356,7 +2536,7 @@ function DriverOfferForm({ seed, textZoom }: { seed: Partial<OfferState>; textZo
          */}
         <fieldset className={styles.choiceGroup} data-offer-when>
           <legend className={styles.srOnly}>{offerCopy.whenTitle}</legend>
-          {upcomingServices.map((service) => (
+          {services.map((service) => (
             <label
               key={service.id}
               className={styles.choice}
@@ -2726,7 +2906,7 @@ function DriverOfferForm({ seed, textZoom }: { seed: Partial<OfferState>; textZo
         >
           {summaryRow(offerCopy.summaryWhen, 'when', (
             <>
-              <p className={styles.summaryValue}>{offerWhenSummary(form)}</p>
+              <p className={styles.summaryValue}>{offerWhenSummary(form, services)}</p>
               {/* The rule about a series is said on screen 1, where the series is chosen. */}
               {form.kind === 'recurring' && (
                 <p className={styles.summaryValue}>
@@ -2766,7 +2946,9 @@ function DriverOfferForm({ seed, textZoom }: { seed: Partial<OfferState>; textZo
           ))}
         </section>
 
-        <FormFooter action={offerCopy.publish} onAction={() => undefined} />
+        {publishSlot ? publishSlot(form) : (
+          <FormFooter action={offerCopy.publish} onAction={() => onPublish?.(form)} />
+        )}
       </>
     );
   }
@@ -5247,6 +5429,1716 @@ function ProfileScreen({ seed, textZoom }: { seed: ProfileSeed; textZoom: boolea
   );
 }
 
+/* ---------- group 7: registration, sign-in and contact checks in the context of publishing (IA §19) */
+
+/**
+ * What is published, and therefore which approved form the journey starts from and which words name
+ * the result. A passenger publishes a request; a driver an offer or a regular trip.
+ */
+type AuthRole = 'request' | 'offer' | 'recurring';
+
+/**
+ * The wording of group 7 (copy 4.10, 4.10.1), fourth assembly: the owner reviews of 17 and
+ * 19 October 2026 (decisions 1.18 (94–103)) and the audit corrections the owner approved on
+ * 19 October 2026 (1.18 (104–108)), and the default of decision 1.18 (109). The group was approved by
+ * the owner on 19 October 2026. Where a sentence names what is
+ * published, it names it exactly — «просьба», «предложение», «регулярная поездка».
+ *
+ * The journey is fixture-only. No account is created, no letter or SMS is sent, no notification
+ * setting is stored and nothing is published: every answer of mail, SMS and the server is chosen by
+ * the review-only switches above the screen.
+ */
+const authCopy = {
+  contextualTitle: 'Имя и контакты',
+  /* Owner review of 19 October 2026: first that nothing is lost, then why the contacts are asked. */
+  contextualBody: {
+    request: 'Ваша просьба сохранена. Укажите контакты — по ним с вами свяжется водитель, и вы узнаете, когда вам предложат поездку.',
+    offer: 'Ваше предложение сохранено. Укажите контакты — по ним с вами свяжется пассажир, и вы узнаете, когда вас попросят подвезти.',
+    recurring: 'Ваша регулярная поездка сохранена. Укажите контакты — по ним с вами свяжется пассажир, и вы узнаете, когда вас попросят подвезти.',
+  } satisfies Record<AuthRole, string>,
+  name: 'Имя',
+  email: 'Email',
+  phone: 'Телефон',
+  /* Read by assistive technology after «Телефон»: the visible «+» and the example say the same. */
+  phoneFormatName: ' с кодом страны',
+  phonePlaceholder: '39 000 000 00 00',
+  phoneHint: 'Телефон видит только тот, с кем вы договорились о поездке.',
+  age: 'Мне есть 18 лет',
+  termsLead: 'Я принимаю',
+  terms: 'Условия использования',
+  privacy: 'Как мы обращаемся с данными',
+  continue: 'Продолжить',
+  signInLink: 'Уже есть аккаунт? Войти',
+
+  nameRequired: 'Укажите имя, которое увидят другие участники',
+  emailFormat: 'Введите email в формате name@example.org',
+  phoneFormat: 'Введите номер с кодом страны, например +39 000 000 00 00',
+  ageRequired: 'Аккаунт для поездок доступен с 18 лет',
+  termsRequired: 'Чтобы продолжить, примите Условия использования',
+
+  /* The check-email screen: one sentence, the lifetime, and the same pair of actions as the SMS. */
+  emailSentTitle: 'Проверьте почту',
+  linkLifetime: 'Ссылка действует 15 минут.',
+  spam: 'Письма нет? Проверьте папку «Спам».',
+  resend: 'Отправить письмо ещё раз',
+  resent: 'Письмо отправлено ещё раз.',
+  changeEmail: 'Изменить email',
+
+  linkExpiredTitle: 'Срок действия ссылки истёк',
+  linkExpiredBody: 'Запросите новую ссылку.',
+  linkRequestNew: 'Получить новую ссылку',
+
+  /*
+   * The page the link opens (decision 1.18 (106)). Opening it confirms nothing: a mail scanner or a
+   * preview may open links by itself. The person's own press confirms, and its label says
+   * everything that press does.
+   */
+  linkPhoneTitle: 'Подтвердите email и телефон',
+  linkConfirmAndCode: 'Подтвердить email и получить код',
+  emailConfirmed: 'Email подтверждён',
+  phoneTitle: 'Подтвердите телефон',
+  phoneSend: 'Получить код',
+  phoneChange: 'Изменить номер',
+  codeTitle: 'Введите код из SMS',
+  phoneCode: 'Код',
+  phoneConfirm: 'Подтвердить',
+  phoneResend: 'Отправить код ещё раз',
+  phoneResent: 'Мы отправили новый код.',
+  codeWrong: 'Код не подошёл. Проверьте цифры или запросите новый.',
+  codeExpired: 'Срок действия кода истёк. Запросите новый.',
+  codeAttempts: 'Слишком много попыток. Запросите новый код.',
+  unsupportedCountry: 'Мы пока не можем отправить SMS на номера этой страны',
+  smsFailed: 'Не удалось отправить SMS. Проверьте номер или попробуйте позже.',
+  phoneBlocked: {
+    request: 'Без подтверждённого телефона просьбу опубликовать нельзя. Она сохранена и не пропадёт.',
+    offer: 'Без подтверждённого телефона предложение опубликовать нельзя. Оно сохранено и не пропадёт.',
+    recurring: 'Без подтверждённого телефона регулярную поездку опубликовать нельзя. Она сохранена и не пропадёт.',
+  } satisfies Record<AuthRole, string>,
+  retry: 'Попробовать ещё раз',
+  contactUs: 'Написать нам',
+
+  /* Sign-in of a returning person: always a link from the email, never a password (IA §19.3). */
+  signInTitle: 'Вход в аккаунт',
+  signInBody: 'Мы пришлём ссылку для входа на ваш email.',
+  signInAction: 'Получить ссылку для входа',
+  signIn: 'Войти',
+  lostEmailLink: 'Нет доступа к этой почте?',
+
+  /* The email typed in the registration already belongs to an account (decision 1.18 (108)). */
+  existingTitle: 'У вас уже есть аккаунт',
+  existingBody: 'Этот email уже привязан к аккаунту. Войдите в него — заполнять контакты заново не нужно.',
+
+  /* Recovery (IA §19.7, PS §16.3): the confirmed phone proves that the account is the person's. */
+  lostEmailTitle: 'Вход по номеру телефона',
+  lostEmailBody: 'Пришлём код на номер, подтверждённый в вашем аккаунте. Затем вы укажете новый email.',
+  newEmailTitle: 'Новый email',
+  newEmailBody: 'На него придёт ссылка для подтверждения.',
+  newEmailAction: 'Получить ссылку',
+  newEmailLinkTitle: 'Подтвердите новый email',
+  confirmEmail: 'Подтвердить email',
+  lostBothLink: 'Нет доступа и к телефону?',
+  lostBoth: {
+    request: 'Тогда прежний аккаунт восстановить нельзя. Укажите новые email и телефон — ваша просьба сохранена. Чтобы закрыть прежний аккаунт, напишите нам.',
+    offer: 'Тогда прежний аккаунт восстановить нельзя. Укажите новые email и телефон — ваше предложение сохранено. Чтобы закрыть прежний аккаунт, напишите нам.',
+    recurring: 'Тогда прежний аккаунт восстановить нельзя. Укажите новые email и телефон — ваша регулярная поездка сохранена. Чтобы закрыть прежний аккаунт, напишите нам.',
+  } satisfies Record<AuthRole, string>,
+  lostBothAction: 'Указать новые контакты',
+  /* SMS cannot be sent while recovering (decision 1.18 (108)): no promise without the proof. */
+  recoverySmsFailed: 'Не удалось отправить SMS на этот номер.',
+  recoveryBlocked: {
+    request: 'Без кода нельзя убедиться, что аккаунт ваш, поэтому сменить email сейчас нельзя. Попробуйте позже или укажите новые контакты — ваша просьба сохранена.',
+    offer: 'Без кода нельзя убедиться, что аккаунт ваш, поэтому сменить email сейчас нельзя. Попробуйте позже или укажите новые контакты — ваше предложение сохранено.',
+    recurring: 'Без кода нельзя убедиться, что аккаунт ваш, поэтому сменить email сейчас нельзя. Попробуйте позже или укажите новые контакты — ваша регулярная поездка сохранена.',
+  } satisfies Record<AuthRole, string>,
+
+  /* Decision 1.17 (92): both optional external notifications are off and the person publishes. */
+  notifyTitle: 'Включите уведомления',
+  notifyBody: {
+    request: 'Сейчас уведомления выключены — и по email, и в браузере. Без них вы не узнаете, что водитель предложил подвезти.',
+    offer: 'Сейчас уведомления выключены — и по email, и в браузере. Без них вы не узнаете, что пассажир попросил подвезти.',
+    recurring: 'Сейчас уведомления выключены — и по email, и в браузере. Без них вы не узнаете, что пассажир попросил подвезти.',
+  } satisfies Record<AuthRole, string>,
+  notifyEmailChoice: 'Уведомления по email',
+  notifyPushChoice: 'Уведомления в браузере',
+  notifyAndPublish: 'Включить уведомления и опубликовать',
+  notifyPushBlocked: 'Уведомления запрещены в браузере',
+  notifyPushUnsupported: 'Этот браузер не поддерживает уведомления.',
+  notifyPushInstall: 'В этом браузере уведомления появятся только после установки приложения.',
+
+  /* The date of the trip passed while the person was finishing the checks (decision 1.18 (108)). */
+  outdatedTitle: 'Дата поездки уже прошла',
+  outdatedBody: 'Выберите новую дату — остальные сведения сохранены.',
+  outdatedAction: 'Изменить дату',
+
+  /* The result, right after the person's own publishing press (decisions 1.18 (95), (104)). */
+  published: {
+    request: 'Просьба опубликована',
+    offer: 'Предложение опубликовано',
+    recurring: 'Регулярная поездка опубликована',
+  } satisfies Record<AuthRole, string>,
+  publishedNext: {
+    request: 'Когда водитель предложит подвезти, мы пришлём уведомление.',
+    offer: 'Когда пассажир попросит подвезти, мы пришлём уведомление.',
+    recurring: 'Когда пассажир попросит подвезти, мы пришлём уведомление.',
+  } satisfies Record<AuthRole, string>,
+  view: {
+    request: 'Посмотреть просьбу',
+    offer: 'Посмотреть предложение',
+    recurring: 'Посмотреть поездку',
+  } satisfies Record<AuthRole, string>,
+  doneVerified: 'Email и телефон подтверждены.',
+  doneSignedIn: 'Вы вошли.',
+  doneNewEmail: 'Новый email подтверждён.',
+  doneEmailOn: 'Уведомления по email включены.',
+  donePushOn: 'Уведомления в браузере включены.',
+  donePublished: '',
+
+  /*
+   * The device where the person started, once the same action is published elsewhere (IA §19.6,
+   * decision 1.18 (107)): a neutral notice, never a second success.
+   */
+  already: {
+    request: 'Просьба опубликована на другом устройстве',
+    offer: 'Предложение опубликовано на другом устройстве',
+    recurring: 'Регулярная поездка опубликована на другом устройстве',
+  } satisfies Record<AuthRole, string>,
+  alreadyBody: {
+    request: 'Повторно публиковать её не нужно.',
+    offer: 'Повторно публиковать его не нужно.',
+    recurring: 'Повторно публиковать её не нужно.',
+  } satisfies Record<AuthRole, string>,
+  alreadySignIn: {
+    request: 'Войти, чтобы посмотреть просьбу',
+    offer: 'Войти, чтобы посмотреть предложение',
+    recurring: 'Войти, чтобы посмотреть поездку',
+  } satisfies Record<AuthRole, string>,
+  /* A plain sign-in with nothing waiting to be published publishes nothing. */
+  signedInTitle: 'Вы вошли',
+} as const;
+
+/** «Подтвердить» → «Подтвердить и опубликовать»: a press that also publishes says so (1.18 (104)). */
+const andPublish = (action: string) => `${action} и опубликовать`;
+
+/**
+ * Sample values. IA §19.4 and §19.5 give 15 minutes and «not less than 60 seconds» only as
+ * recommended starting points; the final values belong to the security policy.
+ */
+const authSample = {
+  waitSeconds: 45,
+  codeLength: 6,
+  /** The code the fixture treats as the one in the SMS. Any other six digits are «wrong». */
+  code: '284516',
+  /** «Now» of the fixture, so that a date is in the future or in the past the same way every run. */
+  now: '2026-10-19T12:00',
+  /** The date a trip «passed» while the person was finishing the checks. */
+  pastArrival: '2026-10-18T09:00',
+} as const;
+
+/**
+ * The schedule seen from inside the forms of this group: the same four services as groups 2B and 3,
+ * with dates after the fixture «now», so that no successful publication carries a past date. The ids
+ * stay those of the shared schedule; only the dates move.
+ */
+const authServices: ReadonlyArray<ServiceOption & { at: string }> = [
+  { id: 'vigil-22', title: 'Всенощное бдение', when: 'суббота, 31 октября, 18:00', weekly: 'по субботам, 18:00', at: '2026-10-31T18:00' },
+  { id: 'liturgy-23', title: 'Божественная литургия', when: 'воскресенье, 1 ноября, 9:00', weekly: 'по воскресеньям, 9:00', at: '2026-11-01T09:00' },
+  { id: 'moleben-26', title: 'Молебен с акафистом', when: 'среда, 4 ноября, 18:00', weekly: 'по средам, 18:00', at: '2026-11-04T18:00' },
+  { id: 'vigil-29', title: 'Всенощное бдение', when: 'суббота, 7 ноября, 18:00', weekly: 'по субботам, 18:00', at: '2026-11-07T18:00' },
+];
+
+const emailResendWait = (seconds: number) => `Отправить ещё раз через ${seconds} с`;
+const phoneResendWait = (seconds: number) => `Отправить код ещё раз через ${seconds} с`;
+const phoneBefore = (masked: string) => `Пришлём код в SMS на номер ${masked}.`;
+const phoneSent = (masked: string) => `Мы отправили код на номер ${masked}.`;
+/* Recovery does not confirm that the number belongs to an account. */
+const phoneSentRecovery = (masked: string) => `Если номер ${masked} подтверждён в аккаунте, мы отправили на него код.`;
+const codeFormat = (length: number) => `Код состоит из ${length} цифр`;
+
+/** `+39 345 678 45 67` → `+39 …45 67`: the country and the last digits, as IA §19.5 asks. */
+function maskPhone(value: string) {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  const first = trimmed.split(/\s+/)[0];
+  const country = /^\+\d{1,3}$/.test(first) ? first : `+${digits.slice(0, 2)}`;
+  return `${country} …${digits.slice(-4, -2)} ${digits.slice(-2)}`;
+}
+
+const emailLooksValid = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+const phoneLooksValid = (value: string) => /^\+\d/.test(value.trim()) && value.replace(/\D/g, '').length >= 8;
+
+const authRoleLabel: Record<AuthRole, string> = {
+  request: 'Просьба пассажира',
+  offer: 'Разовая поездка водителя',
+  recurring: 'Регулярная поездка водителя',
+};
+
+type AuthScreen =
+  | 'form'
+  | 'register'
+  | 'sign-in'
+  | 'email-sent'
+  | 'link'
+  | 'link-expired'
+  | 'phone'
+  | 'lost-email'
+  | 'published'
+  | 'signed-in';
+
+/** `check` asks before sending, `edit` corrects the number, `code` takes the code, `blocked` cannot send. */
+type PhoneStage = 'check' | 'edit' | 'code' | 'blocked';
+type SendAnswer = 'sent' | 'unsupported' | 'unavailable';
+type CodeAnswer = 'ok' | 'wrong' | 'expired' | 'attempts';
+type PushAvailability = 'available' | 'blocked' | 'unsupported' | 'install';
+/** What the last check was: the result says it under the heading. */
+type DoneBy = 'verified' | 'signed-in' | 'new-email' | 'email-on' | 'push-on' | 'published';
+type FocusField = 'name' | 'email' | 'phone' | 'adult' | 'terms' | 'code';
+
+/**
+ * Everything the journey knows. One object, the way the two forms keep theirs: moving between the
+ * steps never rebuilds it, so the answers of the form and of the registration survive every step.
+ */
+type AuthState = {
+  role: AuthRole;
+  screen: AuthScreen;
+  /** `new` registers in context, `returning` signs in, `recovery` replaces a lost email. */
+  account: 'new' | 'returning' | 'recovery';
+  /** A publication is waiting: the person pressed «Опубликовать». A plain sign-in has none. */
+  pending: boolean;
+  /** The completed form, exactly as the person left it when they pressed «Опубликовать». */
+  request: RequestState;
+  offer: OfferState;
+  /** Restarts the form when the person goes back to it, so it reopens with the captured answers. */
+  formVisit: number;
+  name: string;
+  email: string;
+  phone: string;
+  adult: boolean;
+  terms: boolean;
+  /** Errors are shown only after the first attempt to continue (IA §27.7). */
+  submitted: boolean;
+  /** The field to focus next — the first one to correct, or the email being changed. */
+  focusField: FocusField | null;
+  focusTick: number;
+  /** Where «Назад» of the sign-in screen leads. */
+  signInFrom: 'form' | 'register' | 'already';
+  /** Seconds before another letter or code may be sent; 0 when it may. */
+  emailWait: number;
+  emailResent: boolean;
+  /** The link page of a new person: the email waits for the person's own press to be confirmed. */
+  emailPending: boolean;
+  /** The email was confirmed by that press; the next phone stages say so. */
+  emailConfirmed: boolean;
+  /** The email typed in the registration already belongs to an account (1.18 (108)). */
+  existingAccount: boolean;
+  phoneStage: PhoneStage;
+  phoneDraft: string;
+  blockedReason: Exclude<SendAnswer, 'sent'>;
+  /** What the SMS service answers to the next attempt; chosen by the review switch. */
+  sendAnswer: SendAnswer;
+  code: string;
+  codeError: string | null;
+  codeWait: number;
+  codeResent: boolean;
+  /** Email, phone, 18+ and Terms hold, and the person may publish (IA §5.3). */
+  eligible: boolean;
+  notifyEmail: boolean;
+  notifyPush: boolean;
+  pushAvailability: PushAvailability;
+  /** The channel picked in the notification step; nothing changes until the person presses. */
+  notifyChoice: 'email' | 'push';
+  /** The final form screen in a state of its own: a passed date or the notification rule. */
+  formStop: 'outdated' | 'notifications' | null;
+  /** The form reopens on this step when the person changes the date. */
+  formStep: RequestStep | OfferStep | null;
+  published: boolean;
+  doneBy: DoneBy;
+  /** IA §19.6: the screen is the computer where the form was filled; the link went to a phone. */
+  twoDevices: boolean;
+  lostStage: 'phone' | 'code' | 'email' | 'blocked';
+  newEmail: string;
+  lostBothOpen: boolean;
+  /** True after the first move, so a deep link does not steal focus on load. */
+  moved: boolean;
+  reviewNote: string | null;
+};
+
+/** The completed forms of groups 2B and 3, reused as approved, with dates after the fixture «now». */
+const authRequestFilled: RequestState = {
+  ...blankRequest,
+  ...requestSeeds['request-final-filled'],
+  arrival: '2026-11-01T09:00',
+};
+const authOfferFilled = (role: AuthRole): OfferState => ({
+  ...blankOffer,
+  ...offerSeeds[role === 'recurring' ? 'offer-final-recurring' : 'offer-final-filled'],
+  arrivalDate: '2026-11-01',
+  from: '2026-11-01',
+  to: '2026-12-27',
+});
+
+/** The same answers with the date that passed while the checks were being finished. */
+const withPastDate = (state: AuthState): Partial<AuthState> => ({
+  request: { ...state.request, when: 'custom', arrival: authSample.pastArrival },
+  offer: state.role === 'recurring'
+    ? state.offer
+    : { ...state.offer, when: 'custom', arrivalDate: authSample.pastArrival.slice(0, 10), arrivalTime: authSample.pastArrival.slice(11) },
+});
+
+/** The date the published trip would carry, as the forms answered it. */
+const weekdayIds = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+/**
+ * The next date of a regular trip that is not yet past: every date of a series is a trip of its own
+ * (IA §11.3), so a series that has already started is still current while a later date remains.
+ * Without such a date it returns the last day of the period, which then reads as passed.
+ */
+function nextSeriesDate(form: OfferState, time: string) {
+  const [fromYear, fromMonth, fromDay] = form.from.split('-').map(Number);
+  const [toYear, toMonth, toDay] = form.to.split('-').map(Number);
+  if (!fromYear || !toYear) return `${form.from}T${time}`;
+  const last = Date.UTC(toYear, toMonth - 1, toDay);
+  for (let day = Date.UTC(fromYear, fromMonth - 1, fromDay); day <= last; day += 86_400_000) {
+    const date = new Date(day);
+    if (!form.days.includes(weekdayIds[date.getUTCDay()])) continue;
+    const at = `${date.toISOString().slice(0, 10)}T${time}`;
+    if (at >= authSample.now) return at;
+  }
+  return `${form.to}T${time}`;
+}
+
+function tripStart(state: AuthState) {
+  if (state.role === 'request') {
+    const form = state.request;
+    if (form.when === 'custom') return form.arrival;
+    return authServices.find((service) => service.id === form.when)?.at ?? form.arrival;
+  }
+  const form = state.offer;
+  if (form.kind === 'recurring') {
+    const service = authServices.find((item) => item.id === form.when);
+    return nextSeriesDate(form, service ? service.at.slice(11) : form.arrivalTime);
+  }
+  if (form.when === 'custom') return `${form.arrivalDate}T${form.arrivalTime}`;
+  return authServices.find((service) => service.id === form.when)?.at ?? `${form.arrivalDate}T${form.arrivalTime}`;
+}
+
+/* ISO local date-times of one shape compare correctly as strings. */
+const isOutdated = (state: AuthState) => tripStart(state) < authSample.now;
+
+/**
+ * The one rule every path of the journey goes through before anything is published (decision
+ * 1.18 (105)). Each check names the step that is still missing; only `ready` may publish, and then
+ * only on the person's own press whose label says so.
+ */
+type Gate = 'already' | 'contacts' | 'outdated' | 'notifications' | 'ready';
+function publicationGate(state: AuthState): Gate {
+  if (state.published) return 'already';
+  if (!state.eligible) return 'contacts';
+  if (isOutdated(state)) return 'outdated';
+  if (!state.notifyEmail && !state.notifyPush) return 'notifications';
+  return 'ready';
+}
+
+/** A synthetic person. The address and the number are reserved sample values, never real ones. */
+const authPerson = {
+  name: 'Мария',
+  email: 'maria.k@example.com',
+  phone: '+39 345 678 45 67',
+};
+
+const authContacts: Partial<AuthState> = { ...authPerson, adult: true, terms: true };
+
+const blankAuth = (role: AuthRole): AuthState => ({
+  role,
+  screen: 'form',
+  account: 'new',
+  pending: true,
+  request: authRequestFilled,
+  offer: authOfferFilled(role),
+  formVisit: 0,
+  name: '',
+  email: '',
+  phone: '+',
+  adult: false,
+  terms: false,
+  submitted: false,
+  focusField: null,
+  focusTick: 0,
+  signInFrom: 'form',
+  emailWait: authSample.waitSeconds,
+  emailResent: false,
+  emailPending: false,
+  emailConfirmed: false,
+  existingAccount: false,
+  phoneStage: 'check',
+  phoneDraft: '',
+  blockedReason: 'unavailable',
+  sendAnswer: 'sent',
+  code: '',
+  codeError: null,
+  codeWait: authSample.waitSeconds,
+  codeResent: false,
+  eligible: false,
+  /*
+   * A new account starts with email notifications on (decision 1.18 (109)); the registration does not
+   * say so separately — the setting is changed in the profile.
+   */
+  notifyEmail: true,
+  notifyPush: false,
+  pushAvailability: 'available',
+  notifyChoice: 'email',
+  formStop: null,
+  formStep: null,
+  published: false,
+  doneBy: 'verified',
+  twoDevices: false,
+  lostStage: 'phone',
+  newEmail: '',
+  lostBothOpen: false,
+  moved: false,
+  reviewNote: null,
+});
+
+/**
+ * Fifteen entry points into one journey. Each opens the step it names with what a person would
+ * already have done by then, and the owner can walk on from any of them.
+ */
+const authSeeds: Partial<Record<SampleId, (role: AuthRole) => Partial<AuthState>>> = {
+  'auth-new': () => ({ screen: 'form' }),
+  'auth-register': () => ({ screen: 'register' }),
+  'auth-email-sent': () => ({ screen: 'email-sent', ...authContacts }),
+  'auth-email-link': () => ({ screen: 'phone', phoneStage: 'check', emailPending: true, ...authContacts }),
+  'auth-link-expired': () => ({ screen: 'link-expired', ...authContacts }),
+  'auth-phone': () => ({ screen: 'phone', phoneStage: 'code', emailConfirmed: true, ...authContacts }),
+  'auth-phone-unavailable': () => ({
+    screen: 'phone', phoneStage: 'blocked', blockedReason: 'unavailable', sendAnswer: 'unavailable', emailConfirmed: true, ...authContacts,
+  }),
+  'auth-published': () => ({ screen: 'published', eligible: true, published: true, ...authContacts }),
+  'auth-sign-in': () => ({ screen: 'sign-in', account: 'returning' }),
+  'auth-lost-email': () => ({ screen: 'lost-email', account: 'recovery', lostStage: 'phone' }),
+  'auth-other-device': () => ({ screen: 'email-sent', twoDevices: true, ...authContacts }),
+  'auth-notifications-off': () => ({
+    screen: 'form', account: 'returning', eligible: true, notifyEmail: false, notifyPush: false, ...authContacts,
+  }),
+  'auth-date-passed': (role) => ({
+    screen: 'phone', phoneStage: 'code', emailConfirmed: true, ...authContacts,
+    ...withPastDate({ ...blankAuth(role) }),
+  }),
+  'auth-existing-email': () => ({ screen: 'link', existingAccount: true, ...authContacts }),
+  'auth-lost-email-sms': () => ({
+    screen: 'lost-email', account: 'recovery', lostStage: 'blocked', sendAnswer: 'unavailable', phone: authPerson.phone,
+  }),
+};
+
+/**
+ * A heading that takes focus when the journey arrives at it, so a screen reader hears the step. It
+ * focuses once, on arrival: a deep link opened by the owner does not move the focus at all.
+ */
+function AuthTitle({ children, focus, level = 1, id }: {
+  children: React.ReactNode;
+  focus: boolean;
+  level?: 1 | 2;
+  id?: string;
+}) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    if (focus) ref.current?.focus();
+    // Only the arrival moves the focus; later renders of the same step leave it where it is.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const Tag = level === 1 ? 'h1' : 'h2';
+  return (
+    <Tag ref={ref} id={id} tabIndex={-1} className={level === 1 ? styles.pageTitle : styles.sectionTitle}>
+      {children}
+    </Tag>
+  );
+}
+
+/** The confirmed plate of DS §6 with a tick: what the person has just completed. */
+function DonePlate({ text }: { text: string }) {
+  return (
+    <p className={styles.donePlate} data-done-plate>
+      <Icon name="check" />
+      <span>{text}</span>
+    </p>
+  );
+}
+
+/**
+ * The main action of a registration step stands right under its text, not at the bottom of the
+ * screen: these steps are short, and a button far from the sentence it answers is easy to miss
+ * (owner review of 19 October 2026). The four form screens of groups 2B and 3 keep theirs.
+ */
+function AuthAction({ action, onAction }: { action: string; onAction: () => void }) {
+  return (
+    <div className={styles.authFooter}>
+      <button type="button" className={styles.primaryButton} onClick={onAction}>{action}</button>
+    </div>
+  );
+}
+
+/** One field of the journey: label, input, optional hint, and an error tied to the input. */
+function AuthField({ id, label, labelHidden, value, type = 'text', hint, error, inputRef, autoComplete, inputMode, disabled, onChange }: {
+  id: string;
+  label: string;
+  /** Set when the heading of the step already names the field. */
+  labelHidden?: boolean;
+  value: string;
+  type?: 'text' | 'email';
+  hint?: string;
+  error?: string | null;
+  inputRef?: React.Ref<HTMLInputElement>;
+  autoComplete?: string;
+  inputMode?: 'numeric' | 'email' | 'text';
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const described = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ');
+  return (
+    <div className={styles.authField} data-auth-field={id}>
+      <label className={styles.textField}>
+        <span className={labelHidden ? styles.srOnly : undefined}>{label}</span>
+        <input
+          ref={inputRef}
+          id={id}
+          type={type}
+          value={value}
+          autoComplete={autoComplete}
+          inputMode={inputMode}
+          disabled={disabled}
+          aria-invalid={error ? 'true' : undefined}
+          aria-describedby={described || undefined}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+      {hint && <p id={`${id}-hint`} className={styles.fieldHint}>{hint}</p>}
+      {error && <p id={`${id}-error`} className={styles.fieldError} data-field-error={id}>{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * The phone field shows its format instead of explaining it (owner review of 17 October 2026): the
+ * «+» stands fixed at the start, the example sits in the empty field, and only digits and spaces are
+ * taken. The value always carries its «+».
+ */
+function PhoneField({ id, value, hint, error, inputRef, onChange }: {
+  id: string;
+  value: string;
+  hint?: string;
+  error?: string | null;
+  inputRef?: React.Ref<HTMLInputElement>;
+  onChange: (value: string) => void;
+}) {
+  const described = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ');
+  return (
+    <div className={styles.authField} data-auth-field={id}>
+      <label className={styles.textField}>
+        <span>
+          {authCopy.phone}
+          <span className={styles.srOnly}>{authCopy.phoneFormatName}</span>
+        </span>
+        <span className={styles.phoneInput} data-invalid={error ? 'true' : undefined}>
+          <span className={styles.phonePrefix} aria-hidden="true">+</span>
+          <input
+            ref={inputRef}
+            id={id}
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder={authCopy.phonePlaceholder}
+            value={value.replace(/^\+/, '')}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={described || undefined}
+            onChange={(event) => onChange(`+${event.target.value.replace(/[^\d ]/g, '').replace(/^ +/, '')}`)}
+          />
+        </span>
+      </label>
+      {hint && <p id={`${id}-hint`} className={styles.fieldHint}>{hint}</p>}
+      {error && <p id={`${id}-error`} className={styles.fieldError} data-field-error={id}>{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * The whole registration and publication journey of group 7. It opens the approved final screen of
+ * the passenger or driver form. «Опубликовать» there walks the conditions that are still missing —
+ * contacts, the email link, the SMS code, a date in the future, an external notification — through
+ * one rule (`publicationGate`). Publication happens only on a press whose label says so, and only
+ * when every condition holds at that moment; the action is never published twice.
+ */
+function RegistrationJourney({ seed, role, onRole, textZoom }: {
+  seed: Partial<AuthState>;
+  role: AuthRole;
+  onRole: (role: AuthRole) => void;
+  textZoom: boolean;
+}) {
+  const [state, setState] = useState<AuthState>(() => ({ ...blankAuth(role), ...seed }));
+  const change = (patch: Partial<AuthState>) => setState((current) => ({ ...current, ...patch }));
+  /*
+   * Every move of the journey goes through here: the next heading takes focus, unless the move asks
+   * for a field instead (`focusOn`), and the review note is cleared.
+   */
+  const move = (patch: Partial<AuthState>) => change({ focusField: null, ...patch, moved: true, reviewNote: null });
+  const note = (text: string) => change({ reviewNote: text });
+
+  const nameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const ageRef = useRef<HTMLInputElement>(null);
+  const termsRef = useRef<HTMLInputElement>(null);
+  const codeRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * After a failed attempt the focus goes to the first field that needs a correction (IA §27.7), and
+   * «Изменить email» lands in the email field. It runs after the headings of the step, so it wins.
+   */
+  useLayoutEffect(() => {
+    const refs: Record<FocusField, React.RefObject<HTMLInputElement | null>> = {
+      name: nameRef,
+      email: emailRef,
+      phone: phoneRef,
+      adult: ageRef,
+      terms: termsRef,
+      code: codeRef,
+    };
+    if (state.focusTick > 0 && state.focusField) refs[state.focusField].current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.focusTick]);
+  const focusOn = (field: FocusField) => ({ focusField: field, focusTick: state.focusTick + 1 });
+
+  /* The waits before another letter or code count down in real time; the review can skip them. */
+  const waiting = state.emailWait > 0 || state.codeWait > 0;
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const timer = window.setInterval(() => setState((current) => ({
+      ...current,
+      emailWait: Math.max(0, current.emailWait - 1),
+      codeWait: Math.max(0, current.codeWait - 1),
+    })), 1000);
+    return () => window.clearInterval(timer);
+  }, [waiting]);
+
+  const object = state.role;
+  const isRequest = object === 'request';
+  const formTitle = isRequest ? requestCopy.title : offerCopy.title;
+  /* One focus target per move: the heading of the new step, or the field the move asked for. */
+  const focus = state.moved && state.focusField === null;
+
+  /* ------------------------------------------------------------------ the one rule */
+
+  /** True when a press that completes `patch` would also publish: the label must then say so. */
+  const publishesAfter = (patch: Partial<AuthState>) => {
+    const next = { ...state, ...patch };
+    return next.pending && publicationGate(next) === 'ready';
+  };
+
+  /**
+   * Where the journey goes once a condition is completed by the person's press. A press that
+   * publishes has already said so in its label (`publishesAfter`); any other press leads to the step
+   * that is still missing, and nothing is published.
+   */
+  function advance(patch: Partial<AuthState>, doneBy: DoneBy) {
+    const next = { ...state, ...patch };
+    if (!next.pending) {
+      move({ ...patch, screen: 'signed-in' });
+      return;
+    }
+    const gate = publicationGate(next);
+    if (gate === 'ready') {
+      move({ ...patch, screen: 'published', published: true, formStop: null, doneBy });
+    } else if (gate === 'already') {
+      move({ ...patch });
+    } else if (gate === 'contacts') {
+      move({ ...patch, screen: next.account === 'returning' ? 'sign-in' : 'register', signInFrom: 'form' });
+    } else {
+      /* A passed date or the notification rule is answered on the same final form screen. */
+      move({ ...patch, screen: 'form', formStop: gate, formStep: null, formVisit: state.formVisit + 1 });
+    }
+  }
+
+  /**
+   * The answers of the form as the journey keeps them. A driver may switch between a one-time and a
+   * regular trip on «Когда вы едете?», so the role — and every text that names the result — follows
+   * the kind the form actually holds, not the review switch the journey started with.
+   */
+  const fromForm = (captured: Partial<Pick<AuthState, 'request' | 'offer'>>): Partial<AuthState> =>
+    captured.offer
+      ? { ...captured, role: captured.offer.kind === 'recurring' ? 'recurring' : 'offer' }
+      : captured;
+
+  /** «Опубликовать» on the approved form: the person's intent, checked by the same rule. */
+  function publish(captured: Partial<Pick<AuthState, 'request' | 'offer'>>) {
+    advance(fromForm(captured), state.eligible ? 'published' : state.doneBy);
+  }
+
+  const backToForm = (patch: Partial<AuthState> = {}) =>
+    move({ ...patch, screen: 'form', formStop: null, formStep: null, formVisit: state.formVisit + 1 });
+
+  /* ------------------------------------------------------------------ registration */
+
+  const registrationErrors = {
+    name: state.name.trim() === '' ? authCopy.nameRequired : null,
+    email: emailLooksValid(state.email) ? null : authCopy.emailFormat,
+    phone: phoneLooksValid(state.phone) ? null : authCopy.phoneFormat,
+    adult: state.adult ? null : authCopy.ageRequired,
+    terms: state.terms ? null : authCopy.termsRequired,
+  };
+  const shown = (key: keyof typeof registrationErrors) => (state.submitted ? registrationErrors[key] : null);
+
+  function submitRegistration() {
+    const firstInvalid = (['name', 'email', 'phone', 'adult', 'terms'] as const).find((key) => registrationErrors[key]);
+    if (firstInvalid) {
+      change({ submitted: true, ...focusOn(firstInvalid) });
+      return;
+    }
+    move({ screen: 'email-sent', submitted: false, emailWait: authSample.waitSeconds, emailResent: false });
+  }
+
+  /** «Условия использования» and the policy open in a new tab; the form is never lost (IA §25.4). */
+  const openDocument = (name: string) => (event: React.MouseEvent) => {
+    event.preventDefault();
+    note(`«${name}» открылись бы в новой вкладке. Заполненное здесь остаётся на месте.`);
+  };
+
+  function registerScreen() {
+    return (
+      <main className={styles.formContent} data-auth-screen="register">
+        <AuthTitle focus={focus}>{authCopy.contextualTitle}</AuthTitle>
+        <p className={styles.authLead}>{authCopy.contextualBody[object]}</p>
+
+        <AuthField
+          id="auth-name"
+          label={authCopy.name}
+          value={state.name}
+          error={shown('name')}
+          inputRef={nameRef}
+          autoComplete="given-name"
+          onChange={(name) => change({ name })}
+        />
+        <AuthField
+          id="auth-email"
+          label={authCopy.email}
+          type="email"
+          value={state.email}
+          error={shown('email')}
+          inputRef={emailRef}
+          autoComplete="email"
+          inputMode="email"
+          onChange={(email) => change({ email })}
+        />
+        <PhoneField
+          id="auth-phone"
+          value={state.phone}
+          hint={authCopy.phoneHint}
+          error={shown('phone')}
+          inputRef={phoneRef}
+          onChange={(phone) => change({ phone })}
+        />
+
+        {/*
+         * Two separate required ticks: the age declaration and the Terms. The privacy policy is a
+         * link to read, never a tick of its own — there is no combined consent (IA §25.4, PS §17).
+         */}
+        <div className={styles.authChecks}>
+          <label className={styles.checkboxField}>
+            <input
+              ref={ageRef}
+              type="checkbox"
+              checked={state.adult}
+              aria-invalid={shown('adult') ? 'true' : undefined}
+              aria-describedby={shown('adult') ? 'auth-age-error' : undefined}
+              onChange={() => change({ adult: !state.adult })}
+            />
+            <span>{authCopy.age}</span>
+          </label>
+          {shown('adult') && <p id="auth-age-error" className={styles.fieldError} data-field-error="adult">{shown('adult')}</p>}
+
+          <label className={styles.checkboxField}>
+            <input
+              ref={termsRef}
+              type="checkbox"
+              checked={state.terms}
+              aria-invalid={shown('terms') ? 'true' : undefined}
+              aria-describedby={shown('terms') ? 'auth-terms-error' : undefined}
+              onChange={() => change({ terms: !state.terms })}
+            />
+            <span>
+              {authCopy.termsLead}{' '}
+              <a href="#terms" target="_blank" rel="noreferrer" className={styles.inlineLink} onClick={openDocument(authCopy.terms)}>
+                {authCopy.terms}
+              </a>
+            </span>
+          </label>
+          {shown('terms') && <p id="auth-terms-error" className={styles.fieldError} data-field-error="terms">{shown('terms')}</p>}
+
+          <a href="#privacy" target="_blank" rel="noreferrer" className={styles.authLink} onClick={openDocument(authCopy.privacy)}>
+            {authCopy.privacy}
+          </a>
+        </div>
+
+        <div className={styles.authFooter}>
+          <button type="button" className={styles.primaryButton} onClick={submitRegistration}>{authCopy.continue}</button>
+          <button
+            type="button"
+            className={`${styles.quietButton} ${styles.authAside}`}
+            onClick={() => move({ screen: 'sign-in', account: 'returning', submitted: false, signInFrom: 'register' })}
+          >
+            {authCopy.signInLink}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  /* ------------------------------------------------------------------ sign-in */
+
+  function signInScreen() {
+    const invalid = state.submitted && !emailLooksValid(state.email);
+    return (
+      <main className={styles.formContent} data-auth-screen="sign-in">
+        <AuthTitle focus={focus}>{authCopy.signInTitle}</AuthTitle>
+        <p className={styles.authLead}>{authCopy.signInBody}</p>
+        <AuthField
+          id="auth-sign-in-email"
+          label={authCopy.email}
+          type="email"
+          value={state.email}
+          error={invalid ? authCopy.emailFormat : null}
+          inputRef={emailRef}
+          autoComplete="email"
+          inputMode="email"
+          onChange={(email) => change({ email })}
+        />
+        <div className={styles.authFooter}>
+          <button
+            type="button"
+            className={styles.primaryButton}
+            onClick={() => {
+              if (!emailLooksValid(state.email)) {
+                change({ submitted: true, ...focusOn('email') });
+                return;
+              }
+              move({ screen: 'email-sent', submitted: false, emailWait: authSample.waitSeconds, emailResent: false });
+            }}
+          >
+            {authCopy.signInAction}
+          </button>
+          <button
+            type="button"
+            className={`${styles.quietButton} ${styles.authAside}`}
+            onClick={() => move({ screen: 'lost-email', account: 'recovery', lostStage: 'phone', submitted: false, codeError: null, code: '' })}
+          >
+            {authCopy.lostEmailLink}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  /* ------------------------------------------------------------------ check email */
+
+  const sentTo = state.account === 'recovery' ? state.newEmail : state.email;
+
+  /**
+   * A letter is resent the same way a code is: an outlined action that counts down while it cannot
+   * be used yet — the reason sits in its own label (DS §11) — and a quiet way to correct the address.
+   */
+  function emailSentScreen() {
+    const correctionTarget: AuthScreen =
+      state.account === 'returning' ? 'sign-in' : state.account === 'recovery' ? 'lost-email' : 'register';
+    const address = <strong className={styles.authAddress}>{sentTo}</strong>;
+
+    return (
+      <main className={styles.formContent} data-auth-screen="email-sent">
+        <AuthTitle focus={focus}>{authCopy.emailSentTitle}</AuthTitle>
+        {/*
+         * Sign-in never says whether an account exists for the address (IA §19.4). A registration
+         * with an address that already has an account gets the same screen; only the letter differs.
+         */}
+        <p className={styles.authLead} data-email-sent-body>
+          {state.account === 'returning'
+            ? <>Если с адресом {address} есть аккаунт, мы отправили на него ссылку для входа.</>
+            : <>Мы отправили ссылку на {address}. Перейдите по ней, чтобы подтвердить email.</>}
+        </p>
+        <p className={styles.fieldHint}>{authCopy.linkLifetime}</p>
+
+        <div className={styles.authActions}>
+          <p className={styles.fieldHint}>{authCopy.spam}</p>
+          <div role="status" className={styles.authStatus}>
+            {state.emailResent && <p data-email-resent>{authCopy.resent}</p>}
+          </div>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            disabled={state.emailWait > 0}
+            data-resend="email"
+            onClick={() => change({ emailResent: true, emailWait: authSample.waitSeconds })}
+          >
+            {state.emailWait > 0 ? emailResendWait(state.emailWait) : authCopy.resend}
+          </button>
+          <button
+            type="button"
+            className={`${styles.quietButton} ${styles.authInline}`}
+            onClick={() => move({
+              screen: correctionTarget,
+              ...focusOn('email'),
+              lostStage: state.account === 'recovery' ? 'email' : state.lostStage,
+            })}
+          >
+            {authCopy.changeEmail}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  /**
+   * The person opened the link from the letter (decision 1.18 (106)). Opening confirms nothing; the
+   * page waits for the person's own press. A new person's page is also the phone step, so one press
+   * confirms the email and asks for the code. Everybody else signs in or confirms on `linkScreen`.
+   */
+  function openLink() {
+    if (state.account === 'new' && !state.existingAccount) {
+      move({ screen: 'phone', phoneStage: 'check', emailPending: true, code: '', codeError: null });
+      return;
+    }
+    move({ screen: 'link' });
+  }
+
+  /** The link page of a returning person, of a recovery, and of an address that already has an account. */
+  function linkScreen() {
+    const recovery = state.account === 'recovery';
+    const title = state.existingAccount ? authCopy.existingTitle : recovery ? authCopy.newEmailLinkTitle : authCopy.signInTitle;
+    const base = recovery ? authCopy.confirmEmail : authCopy.signIn;
+    /* A sign-in completes the contacts: the account already has the confirmed phone (IA §19.3). */
+    const patch: Partial<AuthState> = { eligible: true, account: recovery ? 'recovery' : 'returning' };
+    const willPublish = publishesAfter(patch);
+    return (
+      <main className={styles.formContent} data-auth-screen="link">
+        <AuthTitle focus={focus}>{title}</AuthTitle>
+        <p className={styles.data} data-link-email>{sentTo}</p>
+        {state.existingAccount && <p className={styles.authLead}>{authCopy.existingBody}</p>}
+        <AuthAction
+          action={willPublish ? andPublish(base) : base}
+          onAction={() => advance(patch, recovery ? 'new-email' : 'signed-in')}
+        />
+      </main>
+    );
+  }
+
+  function linkExpiredScreen() {
+    return (
+      <main className={styles.formContent} data-auth-screen="link-expired">
+        <AuthTitle focus={focus}>{authCopy.linkExpiredTitle}</AuthTitle>
+        <p className={styles.authLead}>{authCopy.linkExpiredBody}</p>
+        <div className={styles.authActions}>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onClick={() => move({ screen: 'email-sent', emailWait: authSample.waitSeconds, emailResent: true })}
+          >
+            {authCopy.linkRequestNew}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  /* ------------------------------------------------------------------ the SMS code */
+
+  /**
+   * The code goes out only on the person's press (IA §19.5). On the link page of a new person the
+   * same press confirms the email first — its label says both.
+   */
+  const sendCode = (number: string, answer: SendAnswer = state.sendAnswer) => {
+    const email: Partial<AuthState> = state.emailPending ? { emailPending: false, emailConfirmed: true } : {};
+    if (answer !== 'sent') {
+      move({ ...email, phone: number, phoneStage: 'blocked', blockedReason: answer, code: '', codeError: null });
+      return;
+    }
+    move({ ...email, phone: number, phoneStage: 'code', code: '', codeError: null, codeWait: authSample.waitSeconds, codeResent: false });
+  };
+
+  /** The code check is the same in the registration and in the recovery of a lost email. */
+  function confirmCode(onSuccess: () => void) {
+    const digits = state.code.replace(/\D/g, '');
+    if (digits.length !== authSample.codeLength) {
+      change({ codeError: codeFormat(authSample.codeLength), ...focusOn('code') });
+      return;
+    }
+    if (digits !== authSample.code) {
+      change({ codeError: authCopy.codeWrong, ...focusOn('code') });
+      return;
+    }
+    onSuccess();
+  }
+
+  /** `afterBody` is what belongs to the number itself — «Изменить номер» — and stands right under it. */
+  function codeBlock(body: string, confirmLabel: string, onSuccess: () => void, afterBody?: React.ReactNode) {
+    const locked = state.codeError === authCopy.codeAttempts;
+    return (
+      <>
+        <AuthTitle focus={focus}>{authCopy.codeTitle}</AuthTitle>
+        <p className={styles.authLead} data-code-sent>{body}</p>
+        {afterBody}
+        <AuthField
+          id="auth-code"
+          label={authCopy.phoneCode}
+          value={state.code}
+          error={state.codeError}
+          inputRef={codeRef}
+          autoComplete="one-time-code"
+          inputMode="numeric"
+          disabled={locked}
+          onChange={(code) => change({ code, codeError: null })}
+        />
+        {/* While the attempts are used up, the field cannot take a code, so confirming is not offered. */}
+        {!locked && <AuthAction action={confirmLabel} onAction={() => confirmCode(onSuccess)} />}
+        <div className={styles.authActions}>
+          <div role="status" className={styles.authStatus}>
+            {state.codeResent && <p data-code-resent>{authCopy.phoneResent}</p>}
+          </div>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            disabled={state.codeWait > 0}
+            data-resend="code"
+            onClick={() => change({ codeResent: true, codeWait: authSample.waitSeconds, code: '', codeError: null })}
+          >
+            {state.codeWait > 0 ? phoneResendWait(state.codeWait) : authCopy.phoneResend}
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  function phoneScreen() {
+    const masked = maskPhone(state.phone);
+    const changeNumber = (
+      <button
+        type="button"
+        className={`${styles.quietButton} ${styles.authInline}`}
+        onClick={() => move({ phoneStage: 'edit', phoneDraft: state.phone, codeError: null, submitted: false })}
+      >
+        {authCopy.phoneChange}
+      </button>
+    );
+    const sendLabel = state.emailPending ? authCopy.linkConfirmAndCode : authCopy.phoneSend;
+
+    if (state.phoneStage === 'code') {
+      /* The code completes the contacts; if nothing else is missing, this same press publishes. */
+      const patch: Partial<AuthState> = { eligible: true };
+      const label = publishesAfter(patch) ? andPublish(authCopy.phoneConfirm) : authCopy.phoneConfirm;
+      return (
+        <main className={styles.formContent} data-auth-screen="phone" data-phone-stage="code">
+          {state.emailConfirmed && <DonePlate text={authCopy.emailConfirmed} />}
+          {codeBlock(phoneSent(masked), label, () => advance(patch, 'verified'), changeNumber)}
+        </main>
+      );
+    }
+
+    return (
+      <main className={styles.formContent} data-auth-screen="phone" data-phone-stage={state.phoneStage}>
+        {state.emailConfirmed && <DonePlate text={authCopy.emailConfirmed} />}
+        <AuthTitle focus={focus}>{state.emailPending ? authCopy.linkPhoneTitle : authCopy.phoneTitle}</AuthTitle>
+
+        {state.phoneStage === 'check' && (
+          <>
+            <p className={styles.authLead} data-phone-before>{phoneBefore(masked)}</p>
+            {changeNumber}
+            <AuthAction action={sendLabel} onAction={() => sendCode(state.phone)} />
+          </>
+        )}
+
+        {state.phoneStage === 'edit' && (
+          <>
+            <PhoneField
+              id="auth-phone-edit"
+              value={state.phoneDraft}
+              hint={authCopy.phoneHint}
+              error={state.submitted && !phoneLooksValid(state.phoneDraft) ? authCopy.phoneFormat : null}
+              inputRef={phoneRef}
+              onChange={(phoneDraft) => change({ phoneDraft })}
+            />
+            <AuthAction
+              action={sendLabel}
+              onAction={() => {
+                if (!phoneLooksValid(state.phoneDraft)) { change({ submitted: true, ...focusOn('phone') }); return; }
+                change({ submitted: false });
+                sendCode(state.phoneDraft);
+              }}
+            />
+          </>
+        )}
+
+        {state.phoneStage === 'blocked' && (
+          <>
+            <p className={styles.data}>{masked}</p>
+            <p className={styles.fieldError} role="alert" data-phone-blocked={state.blockedReason}>
+              {state.blockedReason === 'unsupported' ? authCopy.unsupportedCountry : authCopy.smsFailed}
+            </p>
+            <p className={styles.authLead} data-phone-consequence>{authCopy.phoneBlocked[object]}</p>
+            <div className={styles.authFooter}>
+              {state.blockedReason === 'unavailable' && (
+                <button type="button" className={styles.primaryButton} onClick={() => sendCode(state.phone)}>
+                  {authCopy.retry}
+                </button>
+              )}
+              <button
+                type="button"
+                className={state.blockedReason === 'unsupported' ? styles.primaryButton : `${styles.quietButton} ${styles.authAside}`}
+                onClick={() => move({ phoneStage: 'edit', phoneDraft: state.phone, submitted: false })}
+              >
+                {authCopy.phoneChange}
+              </button>
+              <button
+                type="button"
+                className={`${styles.quietButton} ${styles.authAside}`}
+                onClick={() => note('«Написать нам» открыло бы помощь. Заполненное остаётся сохранённым.')}
+              >
+                {authCopy.contactUs}
+              </button>
+            </div>
+          </>
+        )}
+      </main>
+    );
+  }
+
+  /* ------------------------------------------------------------------ recovery */
+
+  const newContacts = () => move({
+    screen: 'register',
+    account: 'new',
+    email: '',
+    phone: '+',
+    submitted: false,
+    lostBothOpen: false,
+  });
+
+  /** «Получить код» of the recovery meets the same SMS answers as the registration. */
+  const sendRecoveryCode = () => {
+    if (!phoneLooksValid(state.phone)) { change({ submitted: true, ...focusOn('phone') }); return; }
+    if (state.sendAnswer !== 'sent') {
+      move({ submitted: false, lostStage: 'blocked' });
+      return;
+    }
+    move({ submitted: false, lostStage: 'code', code: '', codeError: null, codeWait: authSample.waitSeconds, codeResent: false });
+  };
+
+  /**
+   * Without the confirmed phone anybody who typed a new address could take over the account, so the
+   * phone stays the proof (IA §19.7, PS §16.3). The steps are named by what the person does.
+   */
+  function lostEmailScreen() {
+    if (state.lostStage === 'code') {
+      return (
+        <main className={styles.formContent} data-auth-screen="lost-email" data-lost-stage="code">
+          {codeBlock(
+            phoneSentRecovery(maskPhone(state.phone)),
+            authCopy.phoneConfirm,
+            () => move({ lostStage: 'email', code: '', codeError: null, submitted: false }),
+          )}
+        </main>
+      );
+    }
+
+    if (state.lostStage === 'email') {
+      return (
+        <main className={styles.formContent} data-auth-screen="lost-email" data-lost-stage="email">
+          <AuthTitle focus={focus}>{authCopy.newEmailTitle}</AuthTitle>
+          <p className={styles.authLead}>{authCopy.newEmailBody}</p>
+          <AuthField
+            id="auth-new-email"
+            label={authCopy.email}
+            type="email"
+            value={state.newEmail}
+            error={state.submitted && !emailLooksValid(state.newEmail) ? authCopy.emailFormat : null}
+            inputRef={emailRef}
+            autoComplete="email"
+            inputMode="email"
+            onChange={(newEmail) => change({ newEmail })}
+          />
+          <AuthAction
+            action={authCopy.newEmailAction}
+            onAction={() => {
+              if (!emailLooksValid(state.newEmail)) { change({ submitted: true, ...focusOn('email') }); return; }
+              move({ screen: 'email-sent', submitted: false, emailWait: authSample.waitSeconds, emailResent: false });
+            }}
+          />
+        </main>
+      );
+    }
+
+    /* Decision 1.18 (108): SMS cannot be sent, so the account cannot be proven; the real options only. */
+    if (state.lostStage === 'blocked') {
+      return (
+        <main className={styles.formContent} data-auth-screen="lost-email" data-lost-stage="blocked">
+          <AuthTitle focus={focus}>{authCopy.lostEmailTitle}</AuthTitle>
+          <p className={styles.data}>{maskPhone(state.phone)}</p>
+          <p className={styles.fieldError} role="alert" data-recovery-blocked>{authCopy.recoverySmsFailed}</p>
+          <p className={styles.authLead} data-recovery-consequence>{authCopy.recoveryBlocked[object]}</p>
+          <div className={styles.authFooter}>
+            <button type="button" className={styles.primaryButton} onClick={sendRecoveryCode}>{authCopy.retry}</button>
+            <button type="button" className={`${styles.secondaryButton} ${styles.authAside}`} onClick={newContacts}>
+              {authCopy.lostBothAction}
+            </button>
+            <button
+              type="button"
+              className={`${styles.quietButton} ${styles.authAside}`}
+              onClick={() => note('«Написать нам» открыло бы помощь. Восстановить аккаунт без подтверждения телефона нельзя.')}
+            >
+              {authCopy.contactUs}
+            </button>
+          </div>
+        </main>
+      );
+    }
+
+    return (
+      <main className={styles.formContent} data-auth-screen="lost-email" data-lost-stage="phone">
+        <AuthTitle focus={focus}>{authCopy.lostEmailTitle}</AuthTitle>
+        <p className={styles.authLead}>{authCopy.lostEmailBody}</p>
+        <PhoneField
+          id="auth-lost-phone"
+          value={state.phone}
+          error={state.submitted && !phoneLooksValid(state.phone) ? authCopy.phoneFormat : null}
+          inputRef={phoneRef}
+          onChange={(phone) => change({ phone })}
+        />
+        <AuthAction action={authCopy.phoneSend} onAction={sendRecoveryCode} />
+
+        {/* Losing both contacts is the rarer case: a quiet question, opened only by the person. */}
+        <div className={styles.authAsideBlock}>
+          <button
+            type="button"
+            className={`${styles.quietButton} ${styles.authInline}`}
+            aria-expanded={state.lostBothOpen}
+            aria-controls="auth-lost-both"
+            onClick={() => change({ lostBothOpen: !state.lostBothOpen })}
+          >
+            {authCopy.lostBothLink}
+          </button>
+          {state.lostBothOpen && (
+            <div id="auth-lost-both" data-lost-both>
+              <p className={styles.fieldHint}>{authCopy.lostBoth[object]}</p>
+              <button type="button" className={styles.secondaryButton} onClick={newContacts}>
+                {authCopy.lostBothAction}
+              </button>
+              <button
+                type="button"
+                className={`${styles.quietButton} ${styles.authInline}`}
+                onClick={() => note('«Написать нам» открыло бы помощь. Заполненное остаётся сохранённым.')}
+              >
+                {authCopy.contactUs}
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  /* ------------------------------------------------------------------ the results */
+
+  const doneText: Record<DoneBy, string> = {
+    verified: authCopy.doneVerified,
+    'signed-in': authCopy.doneSignedIn,
+    'new-email': authCopy.doneNewEmail,
+    'email-on': authCopy.doneEmailOn,
+    'push-on': authCopy.donePushOn,
+    published: authCopy.donePublished,
+  };
+
+  /**
+   * The result is unmistakable: a large tick in the middle, what was published, what was confirmed
+   * and what happens next, and one way to see it (owner review of 19 October 2026).
+   */
+  function publishedScreen() {
+    const body = [doneText[state.doneBy], authCopy.publishedNext[object]].filter(Boolean).join(' ');
+    return (
+      <main className={`${styles.formContent} ${styles.authResult}`} data-auth-screen="published">
+        <span className={styles.resultMark} data-result-mark="success" aria-hidden="true"><Icon name="check" /></span>
+        <AuthTitle focus={focus}>{authCopy.published[object]}</AuthTitle>
+        <p className={styles.authLead} data-result-body>{body}</p>
+        <AuthAction
+          action={authCopy.view[object]}
+          onAction={() => note('Здесь открылось бы опубликованное объявление в «Моих поездках» (группа 5).')}
+        />
+      </main>
+    );
+  }
+
+  /**
+   * IA §19.6, decision 1.18 (107): the computer where the person started, once the action is
+   * published from the phone. A neutral notice, not a second success. This device is not signed in,
+   * so the way to see the listing is to sign in — and that sign-in publishes nothing.
+   */
+  function alreadyScreen() {
+    return (
+      <main className={`${styles.formContent} ${styles.authResult}`} data-auth-screen="already-published">
+        <span className={styles.noticeMark} data-result-mark="notice" aria-hidden="true"><Icon name="info" /></span>
+        <AuthTitle focus={focus}>{authCopy.already[object]}</AuthTitle>
+        <p className={styles.authLead} data-result-body>{authCopy.alreadyBody[object]}</p>
+        <AuthAction
+          action={authCopy.alreadySignIn[object]}
+          onAction={() => move({
+            screen: 'sign-in', account: 'returning', pending: false, twoDevices: false, signInFrom: 'already', submitted: false,
+          })}
+        />
+      </main>
+    );
+  }
+
+  /** A sign-in with nothing waiting to be published: nothing is published (decision 1.18 (106)). */
+  function signedInScreen() {
+    return (
+      <main className={styles.formContent} data-auth-screen="signed-in">
+        <AuthTitle focus={focus}>{authCopy.signedInTitle}</AuthTitle>
+        <AuthAction
+          action={authCopy.view[object]}
+          onAction={() => note('Здесь открылось бы объявление в «Моих поездках». Этот вход ничего не публиковал.')}
+        />
+      </main>
+    );
+  }
+
+  /* ------------------------------------------------- the final form screen in a state of its own */
+
+  /**
+   * Decision 1.17 (92): a state of the final form screen, not a new screen. It takes the place of the
+   * single publish action and changes nothing until the person presses. The person picks a channel;
+   * the browser is offered only where it can work. The press enables it and, because every other
+   * condition already holds (the rule checked them first), publishes — and says so.
+   */
+  function notificationStep(form: Partial<Pick<AuthState, 'request' | 'offer'>>) {
+    const pushReason: Record<Exclude<PushAvailability, 'available'>, string> = {
+      blocked: authCopy.notifyPushBlocked,
+      unsupported: authCopy.notifyPushUnsupported,
+      install: authCopy.notifyPushInstall,
+    };
+    const pushAvailable = state.pushAvailability === 'available';
+    const choice = pushAvailable ? state.notifyChoice : 'email';
+    const enable: Partial<AuthState> = choice === 'email' ? { notifyEmail: true } : { notifyPush: true };
+    const willPublish = publishesAfter({ ...fromForm(form), ...enable });
+    return (
+      <section className={styles.publishStep} data-notification-step aria-labelledby="auth-notify-title">
+        <AuthTitle level={2} id="auth-notify-title" focus>{authCopy.notifyTitle}</AuthTitle>
+        <p className={styles.authLead}>{authCopy.notifyBody[object]}</p>
+        <fieldset className={styles.choiceGroup} data-notify-choice>
+          <legend className={styles.srOnly}>{authCopy.notifyTitle}</legend>
+          <label className={styles.choice} data-choice-selected={choice === 'email' ? '' : undefined}>
+            <input
+              type="radio"
+              name="auth-notify"
+              checked={choice === 'email'}
+              onChange={() => change({ notifyChoice: 'email' })}
+            />
+            <span><strong>{authCopy.notifyEmailChoice}</strong></span>
+          </label>
+          <label className={styles.choice} data-choice-selected={choice === 'push' ? '' : undefined}>
+            <input
+              type="radio"
+              name="auth-notify"
+              checked={choice === 'push'}
+              disabled={!pushAvailable}
+              aria-describedby={pushAvailable ? undefined : 'auth-push-reason'}
+              onChange={() => change({ notifyChoice: 'push' })}
+            />
+            <span>
+              <strong>{authCopy.notifyPushChoice}</strong>
+              {!pushAvailable && (
+                <span id="auth-push-reason" data-push-reason={state.pushAvailability}>
+                  {pushReason[state.pushAvailability as Exclude<PushAvailability, 'available'>]}
+                </span>
+              )}
+            </span>
+          </label>
+        </fieldset>
+        <button
+          type="button"
+          className={styles.primaryButton}
+          onClick={() => advance({ ...fromForm(form), ...enable }, choice === 'email' ? 'email-on' : 'push-on')}
+        >
+          {willPublish ? authCopy.notifyAndPublish : authCopy.notifyTitle}
+        </button>
+      </section>
+    );
+  }
+
+  /**
+   * Decision 1.18 (108): the date passed while the person finished the checks. Nothing is published;
+   * the person goes to the date question with every other answer kept.
+   */
+  function outdatedStep(form: Partial<Pick<AuthState, 'request' | 'offer'>>) {
+    return (
+      <section className={styles.publishStep} data-outdated-step aria-labelledby="auth-outdated-title">
+        <AuthTitle level={2} id="auth-outdated-title" focus>{authCopy.outdatedTitle}</AuthTitle>
+        <p className={styles.authLead}>{authCopy.outdatedBody}</p>
+        <button
+          type="button"
+          className={styles.primaryButton}
+          onClick={() => move({ ...fromForm(form), formStop: null, formStep: 'when', formVisit: state.formVisit + 1 })}
+        >
+          {authCopy.outdatedAction}
+        </button>
+      </section>
+    );
+  }
+
+  /* ------------------------------------------------------------------ review-only controls */
+
+  const screenName: AuthScreen | 'already-published' =
+    state.twoDevices && state.published ? 'already-published' : state.screen;
+  const beforePublication = state.pending && !state.published && screenName !== 'published';
+
+  function choiceGroup<T extends string>(label: string, options: ReadonlyArray<readonly [T, string]>, value: T, pick: (next: T) => void) {
+    return (
+      <div className={styles.authReviewGroup}>
+        <p className={styles.authReviewCaption}>{label}</p>
+        <div className={styles.variantSwitch} role="group" aria-label={label}>
+          {options.map(([id, text]) => (
+            <button key={id} type="button" aria-pressed={value === id} onClick={() => pick(id)}>
+              {text}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const reviewAction = (text: string, action: () => void) =>
+    <button key={text} type="button" onClick={action}>{text}</button>;
+
+  const onPhone = screenName === 'phone';
+  const onRecoveryPhone = screenName === 'lost-email' && (state.lostStage === 'phone' || state.lostStage === 'blocked');
+  const codeStage = (onPhone && state.phoneStage === 'code') || (screenName === 'lost-email' && state.lostStage === 'code');
+  const atEmail = screenName === 'email-sent';
+  const onComputer = state.twoDevices && !state.published;
+
+  /* What the SMS service answers. On the phone step it is shown at once; elsewhere on the next press. */
+  const sendAnswer: SendAnswer = onPhone && state.phoneStage === 'blocked' ? state.blockedReason : state.sendAnswer;
+  const pickSendAnswer = (answer: SendAnswer) => {
+    if (onPhone && state.phoneStage !== 'check' && state.phoneStage !== 'edit') {
+      change({ sendAnswer: answer });
+      sendCode(state.phone, answer);
+      return;
+    }
+    change({ sendAnswer: answer });
+  };
+  /* What the code check answers, shown at once with the sample code typed in. */
+  const codeAnswer: CodeAnswer = state.codeError === authCopy.codeWrong ? 'wrong'
+    : state.codeError === authCopy.codeExpired ? 'expired'
+      : state.codeError === authCopy.codeAttempts ? 'attempts' : 'ok';
+  const showCodeAnswer = (answer: CodeAnswer) => change({
+    code: answer === 'ok' ? '' : answer === 'wrong' ? '111111' : authSample.code,
+    codeError: answer === 'ok' ? null
+      : answer === 'wrong' ? authCopy.codeWrong : answer === 'expired' ? authCopy.codeExpired : authCopy.codeAttempts,
+  });
+
+  /**
+   * The phone of the other device walks the same rule: it publishes only when nothing is missing;
+   * otherwise it stops at the missing step there, and this computer keeps waiting.
+   */
+  function otherDevicePress() {
+    const gate = publicationGate({ ...state, eligible: true });
+    if (gate === 'ready') {
+      move({ published: true, eligible: true });
+      return;
+    }
+    note(gate === 'notifications'
+      ? 'На телефоне публикация остановилась на шаге «Включите уведомления». Ничего не опубликовано, компьютер по-прежнему ждёт.'
+      : 'На телефоне публикация остановилась: дата поездки уже прошла. Ничего не опубликовано, компьютер по-прежнему ждёт.');
+  }
+
+  const outdatedNow = isOutdated(state);
+  const actions = [
+    screenName === 'register' && reviewAction('Заполнить образцом', () => change({ ...authContacts, submitted: false })),
+    atEmail && state.emailWait > 0 && reviewAction('Пропустить ожидание', () => change({ emailWait: 0 })),
+    codeStage && state.codeWait > 0 && reviewAction('Пропустить ожидание', () => change({ codeWait: 0 })),
+    atEmail && !state.twoDevices && reviewAction('Открыть ссылку из письма', openLink),
+    atEmail && !state.twoDevices && state.account === 'new' &&
+      reviewAction('Открыть ссылку: этот email уже есть в аккаунте', () => move({ screen: 'link', existingAccount: true })),
+    atEmail && !state.twoDevices && reviewAction('Открыть ссылку через 15 минут', () => move({ screen: 'link-expired' })),
+    onComputer && reviewAction('На телефоне: подтвердить email, телефон и опубликовать', otherDevicePress),
+    codeStage && reviewAction('Ввести код из SMS', () => change({ code: authSample.code, codeError: null })),
+  ].filter(Boolean);
+
+  const controls = (
+    <div className={styles.authReview} data-auth-review>
+      {choiceGroup('Что публикуется', (['request', 'offer', 'recurring'] as const).map((id) => [id, authRoleLabel[id]] as const), state.role, onRole)}
+      {state.twoDevices && (
+        <p className={styles.authReviewCaption} data-device-caption>
+          На экране — компьютер, где заполняли форму. Письмо открыли на телефоне: там путь тот же, что
+          в состояниях 53–55, и то же правило перед публикацией.
+        </p>
+      )}
+      {beforePublication && choiceGroup(
+        'Уведомления в аккаунте (у нового аккаунта email включён по умолчанию)',
+        [['on', 'Email включён'], ['off', 'Оба выключены']] as const,
+        state.notifyEmail || state.notifyPush ? 'on' : 'off',
+        (value) => change(value === 'on' ? { notifyEmail: true } : { notifyEmail: false, notifyPush: false }),
+      )}
+      {beforePublication && object !== 'recurring' && choiceGroup(
+        'Дата поездки к моменту публикации',
+        [['future', 'Ещё впереди'], ['past', 'Уже прошла']] as const,
+        outdatedNow ? 'past' : 'future',
+        /* The form keeps its own answers, so it is reopened with the chosen date rather than left stale. */
+        (value) => change({
+          ...(value === 'past'
+            ? withPastDate(state)
+            : { request: authRequestFilled, offer: authOfferFilled(state.role), formStop: state.formStop === 'outdated' ? null : state.formStop }),
+          formVisit: state.formVisit + 1,
+        }),
+      )}
+      {(onPhone && state.phoneStage !== 'edit') || onRecoveryPhone ? choiceGroup(
+        'Ответ на отправку SMS',
+        [['sent', 'Код отправлен'], ['unsupported', 'Страна не поддерживается'], ['unavailable', 'SMS временно недоступны']] as const,
+        sendAnswer,
+        pickSendAnswer,
+      ) : null}
+      {codeStage && choiceGroup(
+        'Ответ на введённый код',
+        [['ok', 'Без ошибки'], ['wrong', 'Код не подошёл'], ['expired', 'Срок кода истёк'], ['attempts', 'Слишком много попыток']] as const,
+        codeAnswer,
+        showCodeAnswer,
+      )}
+      {screenName === 'form' && state.formStop === 'notifications' && choiceGroup(
+        'Уведомления в браузере на этом устройстве',
+        [['available', 'Доступны'], ['blocked', 'Запрещены'], ['unsupported', 'Не поддерживаются'], ['install', 'Нужна установка']] as const,
+        state.pushAvailability,
+        (pushAvailability) => change({ pushAvailability, notifyChoice: pushAvailability === 'available' ? state.notifyChoice : 'email' }),
+      )}
+      {actions.length > 0 && (
+        <div className={styles.authReviewGroup}>
+          <p className={styles.authReviewCaption}>Действия проверки</p>
+          <div className={styles.variantSwitch} role="group" aria-label="Действия проверки">{actions}</div>
+        </div>
+      )}
+      <div role="status" className={styles.authReviewNote}>
+        {state.reviewNote && <p data-review-note>{state.reviewNote}</p>}
+      </div>
+    </div>
+  );
+
+  /* ------------------------------------------------------------------ assembly */
+
+  const frameLabel: Record<AuthScreen | 'already-published', string> = {
+    form: isRequest ? 'Просьба пассажира: последние детали' : 'Предложение водителя: проверьте поездку',
+    register: 'Регистрация: имя и контакты',
+    'sign-in': 'Вход в аккаунт',
+    'email-sent': 'Проверьте почту',
+    link: 'Ссылка из письма',
+    'link-expired': 'Срок действия ссылки истёк',
+    phone: 'Подтверждение телефона',
+    'lost-email': 'Вход по номеру телефона',
+    published: 'Объявление опубликовано',
+    'signed-in': 'Вход выполнен',
+    'already-published': 'Объявление опубликовано на другом устройстве',
+  };
+
+  if (screenName === 'form') {
+    const slot = state.formStop === 'notifications'
+      ? (captured: Partial<Pick<AuthState, 'request' | 'offer'>>) => notificationStep(captured)
+      : state.formStop === 'outdated'
+        ? (captured: Partial<Pick<AuthState, 'request' | 'offer'>>) => outdatedStep(captured)
+        : undefined;
+    const requestSeed = state.formStep ? { ...state.request, step: state.formStep as RequestStep } : state.request;
+    const offerSeed = state.formStep ? { ...state.offer, step: (state.formStep === 'when' ? 'when' : state.formStep) as OfferStep } : state.offer;
+    return (
+      <div className={styles.tripsStage} data-auth-journey={state.role}>
+        {controls}
+        {isRequest ? (
+          <PassengerRequestForm
+            key={state.formVisit}
+            seed={requestSeed}
+            services={authServices}
+            textZoom={textZoom}
+            publishSlot={slot && ((request) => slot({ request }))}
+            onPublish={(request) => publish({ request })}
+          />
+        ) : (
+          <DriverOfferForm
+            key={state.formVisit}
+            seed={offerSeed}
+            services={authServices}
+            textZoom={textZoom}
+            publishSlot={slot && ((offer) => slot({ offer }))}
+            onPublish={(offer) => publish({ offer })}
+          />
+        )}
+      </div>
+    );
+  }
+
+  function step() {
+    switch (screenName) {
+      case 'register': return registerScreen();
+      case 'sign-in': return signInScreen();
+      case 'email-sent': return emailSentScreen();
+      case 'link': return linkScreen();
+      case 'link-expired': return linkExpiredScreen();
+      case 'phone': return phoneScreen();
+      case 'lost-email': return lostEmailScreen();
+      case 'published': return publishedScreen();
+      case 'signed-in': return signedInScreen();
+      case 'already-published': return alreadyScreen();
+      default: return null;
+    }
+  }
+
+  /*
+   * The steps before publication keep the name of what is being created, and those a person can
+   * step back from keep a quiet way back. The results are no longer a form: they carry the main
+   * navigation instead.
+   */
+  const backTarget: Partial<Record<AuthScreen, () => void>> = {
+    register: () => backToForm(),
+    'sign-in': () => (state.signInFrom === 'form'
+      ? backToForm({ submitted: false })
+      : state.signInFrom === 'already'
+        ? move({ screen: 'email-sent', twoDevices: true, pending: true, account: 'new' })
+        : move({ screen: 'register', account: 'new', submitted: false })),
+    'lost-email': () => (state.lostStage === 'phone' || state.lostStage === 'blocked'
+      ? move({ screen: 'sign-in', account: 'returning', submitted: false })
+      : move({ lostStage: state.lostStage === 'email' ? 'code' : 'phone', codeError: null })),
+  };
+  const back = backTarget[state.screen];
+  const result = screenName === 'published' || screenName === 'already-published' || screenName === 'signed-in';
+
+  return (
+    <div className={styles.tripsStage} data-auth-journey={state.role}>
+      {controls}
+      <PhoneFrame label={frameLabel[screenName]} textZoom={textZoom}>
+        {result ? null : back ? (
+          <FormHeader context={formTitle} backLabel={requestCopy.back} onBack={back} />
+        ) : (
+          <header className={`${styles.formHeader} ${styles.formHeaderEnd}`} data-form-header>
+            <p className={styles.formContext}>{formTitle}</p>
+          </header>
+        )}
+        {/* A new step is a new element, so its heading takes the focus on arrival. */}
+        <Fragment key={`${screenName}-${state.phoneStage}-${state.lostStage}-${state.emailPending}`}>{step()}</Fragment>
+        {result && <MobileNavigation active={null} />}
+      </PhoneFrame>
+    </div>
+  );
+}
+
+/** The role switch lives above the journey: changing it starts the same entry point again. */
+function RegistrationReview({ sample, textZoom }: { sample: SampleId; textZoom: boolean }) {
+  const [role, setRole] = useState<AuthRole>('request');
+  return (
+    <RegistrationJourney
+      key={`${sample}-${role}`}
+      seed={authSeeds[sample]?.(role) ?? {}}
+      role={role}
+      onRole={setRole}
+      textZoom={textZoom}
+    />
+  );
+}
+
 /* ------------------------------------------------------------------ review-only source key */
 
 /*
@@ -5336,7 +7228,7 @@ const finalRows: ReadonlyArray<StringSource> = [
   { text: requestCopy.finalTitle, mark: 'Утверждено', note: 'копия 4.5, `request.step.final.title`' },
   { text: requestCopy.finalReturn, mark: 'Утверждено', note: 'копия 4.5, `request.step.return`; IA §11.5' },
   { text: requestCopy.finalNoteLabel, mark: 'Утверждено', note: 'копия 4.5, `request.step.note.label`; IA §10.1' },
-  { text: requestCopy.finalNoteHint, mark: 'Утверждено', note: 'копия 4.5, `request.step.note.hint`; IA §6.4' },
+  { text: requestCopy.finalNoteHint, mark: 'Решение', note: 'копия 4.5, `request.step.note.hint`; IA §6.4. Формулировка владельца 17 октября 2026 года (решение 1.18 (94)): «Короткое уточнение для водителя.» снято — подпись «Примечание» уже говорит, что это за поле' },
   { text: requestCopy.summaryWhen, mark: 'Утверждено', note: 'новое: подпись строки резюме, отвечает вопросу экрана 1' },
   { text: requestCopy.summaryPlace, mark: 'Утверждено', note: 'новое: подпись строки резюме, отвечает вопросу экрана 2' },
   { text: requestCopy.summaryPeople, mark: 'Утверждено', note: 'новое: подпись строки резюме, отвечает вопросу экрана 3' },
@@ -5820,6 +7712,163 @@ const profilePushOffRows: ReadonlyArray<StringSource> = [
 
 const profileBothOffRows: ReadonlyArray<StringSource> = profileChromeRows;
 
+
+/*
+ * Group 7, registration and publication: approved by the owner on 19 October 2026 after the reviews
+ * of 17 and 19 October and the independent audit. The form screen it starts from is the approved
+ * screen of groups 2B and 3 and keeps its own rows there; these rows list what this group adds.
+ */
+const authStartRows: ReadonlyArray<StringSource> = [
+  { text: requestCopy.finalNoteHint, mark: 'Решение', note: '`request.step.note.hint`; формулировка владельца 17 октября 2026 года, решение 1.18 (94)' },
+  { text: requestCopy.finalPublish, mark: 'Утверждено', note: '`request.publish` и `offer.publish`; утверждённый последний экран групп 2B и 3. Нажатие проверяется одним правилом перед публикацией (1.18 (105)): чего не хватает — то и спрашивается, иначе публикуется' },
+];
+
+const authRegisterRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.contextualTitle, mark: 'Утверждено', note: '`auth.contextual.title`' },
+  { text: authCopy.contextualBody.request, mark: 'Утверждено', note: '`auth.contextual.body`, по правкам владельца 17 и 19 октября 2026 года: сначала что ничего не потеряется, потом зачем нужны контакты' },
+  { text: authCopy.contextualBody.offer, mark: 'Утверждено', note: 'то же для разовой поездки водителя' },
+  { text: authCopy.contextualBody.recurring, mark: 'Утверждено', note: 'то же для регулярной поездки' },
+  { text: authCopy.name, mark: 'IA', note: '`auth.name`, IA §19.2; подсказка `auth.name.hint` снята (1.18 (99))' },
+  { text: authCopy.email, mark: 'IA', note: '`auth.email`, IA §19.2' },
+  { text: authCopy.phone, mark: 'IA', note: '`auth.phone`, IA §19.2; формат показан самим полем (1.18 (99))' },
+  { text: authCopy.phoneHint, mark: 'Утверждено', note: '`auth.phone.hint`: вторая фраза прежней подсказки (IA §19.5)' },
+  { text: authCopy.age, mark: 'IA', note: '`auth.age`, IA §19.2' },
+  { text: `${authCopy.termsLead} ${authCopy.terms}`, mark: 'IA', note: '`auth.terms`, IA §25.4' },
+  { text: authCopy.privacy, mark: 'IA', note: '`auth.privacy_link`, IA §25.4; ссылка, не флажок' },
+  { text: authCopy.continue, mark: 'PS', note: '`auth.continue`, PS §16.2' },
+  { text: authCopy.signInLink, mark: 'Утверждено', note: 'новый ключ `auth.sign_in.link`' },
+  { text: authCopy.nameRequired, mark: 'Утверждено', note: '`validation.name.required`, 5.2' },
+  { text: authCopy.emailFormat, mark: 'Утверждено', note: '`validation.email.format`, 5.2' },
+  { text: authCopy.phoneFormat, mark: 'Утверждено', note: '`validation.phone.format`, 5.2' },
+  { text: authCopy.ageRequired, mark: 'Утверждено', note: '`validation.age.required`, 5.2' },
+  { text: authCopy.termsRequired, mark: 'Утверждено', note: '`validation.terms.required`, 5.2' },
+];
+
+const authEmailSentRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.emailSentTitle, mark: 'Утверждено', note: '`auth.email_sent.title`' },
+  { text: 'Мы отправили ссылку на {email}. Перейдите по ней, чтобы подтвердить email.', mark: 'Утверждено', note: '`auth.email_sent.body`. Тот же экран и при регистрации с адресом, у которого уже есть аккаунт: отличается только письмо (1.18 (108))' },
+  { text: authCopy.linkLifetime, mark: 'Утверждено', note: '`auth.email_sent.lifetime`; 15 минут — образец (IA §19.4)' },
+  { text: authCopy.spam, mark: 'Утверждено', note: '`auth.email_sent.spam` (PS §16.2), решение 1.18 (98)' },
+  { text: emailResendWait(authSample.waitSeconds), mark: 'Утверждено', note: '`auth.email_sent.resend_wait`, с обратным отсчётом' },
+  { text: authCopy.resend, mark: 'PS', note: '`auth.email_sent.resend`, PS §16.2' },
+  { text: authCopy.resent, mark: 'Утверждено', note: '`auth.email_sent.resent`' },
+  { text: authCopy.changeEmail, mark: 'PS', note: '`auth.email_sent.change`, PS §16.2' },
+];
+
+const authLinkExpiredRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.linkExpiredTitle, mark: 'Утверждено', note: '`auth.email_link.expired.title`' },
+  { text: authCopy.linkExpiredBody, mark: 'Утверждено', note: '`auth.email_link.expired.body` (1.18 (102))' },
+  { text: authCopy.linkRequestNew, mark: 'IA', note: '`auth.email_link.request_new`, IA §19.4' },
+];
+
+const authLinkRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.linkPhoneTitle, mark: 'Утверждено', note: 'новый ключ `auth.email_link.title`: страница, которую открывает ссылка нового человека. Открытие ничего не подтверждает (1.18 (106))' },
+  { text: phoneBefore(maskPhone(authPerson.phone)), mark: 'Утверждено', note: '`auth.phone.before`: номер виден до отправки (IA §19.5)' },
+  { text: authCopy.phoneChange, mark: 'IA', note: '`auth.phone.change`, IA §27.11' },
+  { text: authCopy.linkConfirmAndCode, mark: 'Утверждено', note: 'новый ключ `auth.email_link.confirm_and_code`: одно нажатие человека подтверждает email и отправляет код; подпись называет оба последствия (1.18 (104), (106))' },
+  { text: authCopy.emailConfirmed, mark: 'Утверждено', note: '`auth.email_link.confirmed`: плашка на следующих шагах телефона — после нажатия, а не после открытия ссылки' },
+];
+
+const authCodeRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.codeTitle, mark: 'Утверждено', note: '`auth.phone.code_title`' },
+  { text: phoneSent(maskPhone(authPerson.phone)), mark: 'Утверждено', note: '`auth.phone.body`' },
+  { text: authCopy.phoneCode, mark: 'Утверждено', note: '`auth.phone.code`' },
+  { text: andPublish(authCopy.phoneConfirm), mark: 'Утверждено', note: 'новый ключ `auth.phone.confirm_and_publish`: когда код — последнее недостающее условие, это же нажатие публикует, и подпись говорит об этом (1.18 (104))' },
+  { text: authCopy.phoneConfirm, mark: 'Утверждено', note: '`auth.phone.confirm`: когда после кода ещё чего-то не хватает (дата прошла, уведомления выключены) — публикации нет, и подпись её не обещает' },
+  { text: phoneResendWait(authSample.waitSeconds), mark: 'Утверждено', note: '`auth.phone.resend_wait`' },
+  { text: authCopy.phoneResend, mark: 'IA', note: '`auth.phone.resend`, IA §19.5' },
+  { text: authCopy.phoneResent, mark: 'Утверждено', note: '`auth.phone.resent`' },
+  { text: codeFormat(authSample.codeLength), mark: 'Утверждено', note: '`validation.code.format`, 5.2' },
+  { text: authCopy.codeWrong, mark: 'Утверждено', note: '`validation.code.wrong`, 5.2' },
+  { text: authCopy.codeExpired, mark: 'Утверждено', note: '`validation.code.expired`' },
+  { text: authCopy.codeAttempts, mark: 'Утверждено', note: '`validation.code.attempts`, 5.2' },
+];
+
+const authPhoneUnavailableRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.smsFailed, mark: 'Утверждено', note: '`error.sms.send_failed`, 5.5' },
+  { text: authCopy.unsupportedCountry, mark: 'Утверждено', note: '`validation.phone.unsupported_country`, 5.2' },
+  { text: authCopy.phoneBlocked.request, mark: 'Утверждено', note: '`auth.phone.blocked`' },
+  { text: authCopy.retry, mark: 'IA', note: '`error.generic.retry`, IA §27.6' },
+  { text: authCopy.contactUs, mark: 'IA', note: '`access.restricted.contact`, IA §46.4' },
+];
+
+const authPublishedRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.published.request, mark: 'Утверждено', note: '`request.published`, отложено из группы 2B; только после нажатия, подпись которого называет публикацию' },
+  { text: authCopy.published.offer, mark: 'Утверждено', note: '`offer.published`, отложено из группы 3' },
+  { text: authCopy.published.recurring, mark: 'Утверждено', note: '`offer.published.recurring`, отложено из группы 3' },
+  { text: authCopy.doneVerified, mark: 'Утверждено', note: '`published.done.verified`; первая фраза под заголовком, когда публикацию завершил код из SMS' },
+  { text: authCopy.publishedNext.request, mark: 'Утверждено', note: '`request.published.next`' },
+  { text: authCopy.publishedNext.offer, mark: 'Утверждено', note: '`offer.published.next`' },
+  { text: authCopy.view.request, mark: 'Утверждено', note: '`published.view`' },
+];
+
+const authSignInRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.signInTitle, mark: 'Утверждено', note: '`auth.sign_in.title`' },
+  { text: authCopy.signInBody, mark: 'Утверждено', note: '`auth.sign_in.body` (1.18 (102))' },
+  { text: authCopy.email, mark: 'IA', note: '`auth.email`, IA §19.2' },
+  { text: authCopy.signInAction, mark: 'Утверждено', note: '`auth.sign_in.action`' },
+  { text: authCopy.lostEmailLink, mark: 'PS', note: '`auth.lost_email`, PS §16.3' },
+  { text: 'Если с адресом {email} есть аккаунт, мы отправили на него ссылку для входа.', mark: 'Утверждено', note: '`auth.email_sent.sign_in`: не раскрывает, есть ли аккаунт (IA §19.4)' },
+  { text: andPublish(authCopy.signIn), mark: 'Утверждено', note: 'новый ключ `auth.sign_in.confirm_and_publish`: на странице ссылки входа, когда вход — последнее недостающее условие ожидающей публикации (1.18 (104), (106))' },
+  { text: authCopy.signIn, mark: 'Утверждено', note: '`auth.sign_in.confirm`: вход без ожидающей публикации или когда после входа ещё чего-то не хватает — ничего не публикует' },
+  { text: authCopy.doneSignedIn, mark: 'Утверждено', note: '`published.done.signed_in`' },
+  { text: authCopy.signedInTitle, mark: 'Утверждено', note: 'новый ключ `auth.signed_in.title`: вход, после которого публиковать нечего' },
+];
+
+const authExistingEmailRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.existingTitle, mark: 'Утверждено', note: 'новый ключ `auth.existing.title`: страница ссылки из письма для адреса, у которого уже есть аккаунт. Видна только тому, кто открыл письмо в своей почте, поэтому никому постороннему не раскрывает аккаунт (1.18 (108))' },
+  { text: authCopy.existingBody, mark: 'Утверждено', note: 'новый ключ `auth.existing.body`: без повторной регистрации — телефон аккаунта уже подтверждён' },
+  { text: andPublish(authCopy.signIn), mark: 'Утверждено', note: '`auth.sign_in.confirm_and_publish`, если после входа больше ничего не нужно; иначе «Войти»' },
+];
+
+const authLostEmailRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.lostEmailTitle, mark: 'Утверждено', note: '`auth.lost_email.title`' },
+  { text: authCopy.lostEmailBody, mark: 'Утверждено', note: '`auth.lost_email.body`' },
+  { text: authCopy.phoneSend, mark: 'Утверждено', note: '`auth.phone.send`' },
+  { text: phoneSentRecovery(maskPhone(authPerson.phone)), mark: 'Утверждено', note: '`auth.lost_email.code_sent`' },
+  { text: authCopy.newEmailTitle, mark: 'Утверждено', note: '`auth.lost_email.new_email`' },
+  { text: authCopy.newEmailBody, mark: 'Утверждено', note: '`auth.lost_email.new_email.body`' },
+  { text: authCopy.newEmailAction, mark: 'Утверждено', note: '`auth.lost_email.send`' },
+  { text: authCopy.newEmailLinkTitle, mark: 'Утверждено', note: 'новый ключ `auth.lost_email.link_title`: страница ссылки на новый email' },
+  { text: andPublish(authCopy.confirmEmail), mark: 'Утверждено', note: 'новый ключ `auth.lost_email.confirm_and_publish`; без ожидающей публикации или при недостающем условии — «Подтвердить email»' },
+  { text: authCopy.lostBothLink, mark: 'Утверждено', note: '`auth.lost_both.link`' },
+  { text: authCopy.lostBoth.request, mark: 'Утверждено', note: '`auth.lost_both`' },
+  { text: authCopy.lostBothAction, mark: 'Утверждено', note: '`auth.lost_both.action`' },
+];
+
+const authLostEmailSmsRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.recoverySmsFailed, mark: 'Утверждено', note: 'новый ключ `auth.lost_email.sms_failed` (1.18 (108))' },
+  { text: authCopy.recoveryBlocked.request, mark: 'Утверждено', note: 'новый ключ `auth.lost_email.blocked`: почему сменить email нельзя, без обещания восстановления, и реальные пути — позже или с новыми контактами' },
+  { text: authCopy.retry, mark: 'IA', note: '`error.generic.retry`, IA §27.6' },
+  { text: authCopy.lostBothAction, mark: 'Утверждено', note: '`auth.lost_both.action`' },
+  { text: authCopy.contactUs, mark: 'IA', note: '`access.restricted.contact`, IA §46.4; помощь не обещает восстановления без подтверждения телефона' },
+];
+
+const authOtherDeviceRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.already.request, mark: 'Утверждено', note: '`auth.other_device`, по исправлению аудита 19 октября 2026 года (1.18 (107)): нейтральная иконка, не галочка успеха' },
+  { text: authCopy.alreadyBody.request, mark: 'Утверждено', note: '`auth.other_device.body`' },
+  { text: authCopy.alreadySignIn.request, mark: 'Утверждено', note: 'новый ключ `auth.other_device.sign_in`: это устройство не вошло в аккаунт, поэтому посмотреть объявление можно только после входа; такой вход ничего не публикует' },
+];
+
+const authNotificationsRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.notifyTitle, mark: 'Утверждено', note: '`publish.notifications.title`; решение 1.17 (92). Обязательный шаг для любого пути: проверяется одним правилом перед публикацией (1.18 (105))' },
+  { text: authCopy.notifyBody.request, mark: 'Утверждено', note: '`publish.notifications.body`' },
+  { text: authCopy.notifyEmailChoice, mark: 'IA', note: '`profile.notifications.email`, IA §20.2: выбор канала, ничего не меняется до нажатия' },
+  { text: authCopy.notifyPushChoice, mark: 'IA', note: '`profile.notifications.push`, IA §20.2; недоступен там, где уведомления в браузере не работают' },
+  { text: authCopy.notifyAndPublish, mark: 'Утверждено', note: 'новый ключ `publish.notifications.enable_and_publish`: нажатие включает выбранный канал и публикует — подпись называет оба последствия (1.18 (104))' },
+  { text: authCopy.notifyPushBlocked, mark: 'IA', note: '`push.blocked.title`, IA §27.14' },
+  { text: authCopy.notifyPushUnsupported, mark: 'Утверждено', note: '`publish.notifications.push_unsupported`' },
+  { text: authCopy.notifyPushInstall, mark: 'Утверждено', note: '`publish.notifications.push_install`' },
+  { text: authCopy.doneEmailOn, mark: 'Утверждено', note: '`published.done.email_on`' },
+];
+
+const authDatePassedRows: ReadonlyArray<StringSource> = [
+  { text: authCopy.phoneConfirm, mark: 'Утверждено', note: '`auth.phone.confirm`: дата уже прошла, поэтому код ничего не публикует и подпись этого не обещает' },
+  { text: authCopy.outdatedTitle, mark: 'Утверждено', note: 'новый ключ `publish.outdated.title` (1.18 (108)): состояние последнего экрана формы' },
+  { text: authCopy.outdatedBody, mark: 'Утверждено', note: 'новый ключ `publish.outdated.body`' },
+  { text: authCopy.outdatedAction, mark: 'Утверждено', note: 'новый ключ `publish.outdated.action`: ведёт к вопросу «когда» с сохранёнными остальными ответами' },
+];
+
 const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   catalog: [
     { text: copy.catalogTitle, mark: 'IA', note: 'IA §8' },
@@ -5949,6 +7998,23 @@ const sourcesBySample: Record<SampleId, ReadonlyArray<StringSource>> = {
   'profile-last-channel': profileChromeRows,
   'profile-both-off': profileBothOffRows,
   'notifications-desktop': notificationsLiveRows,
+
+  /* Group 7, registration and publication: assembled for its first review, nothing approved. */
+  'auth-new': authStartRows,
+  'auth-register': authRegisterRows,
+  'auth-email-sent': authEmailSentRows,
+  'auth-email-link': authLinkRows,
+  'auth-link-expired': authLinkExpiredRows,
+  'auth-phone': authCodeRows,
+  'auth-phone-unavailable': authPhoneUnavailableRows,
+  'auth-published': authPublishedRows,
+  'auth-sign-in': authSignInRows,
+  'auth-lost-email': authLostEmailRows,
+  'auth-other-device': authOtherDeviceRows,
+  'auth-notifications-off': authNotificationsRows,
+  'auth-date-passed': authDatePassedRows,
+  'auth-existing-email': authExistingEmailRows,
+  'auth-lost-email-sms': authLostEmailSmsRows,
 };
 
 function SourcePanel({ sample }: { sample: SampleId }) {
@@ -6052,6 +8118,18 @@ function SourcePanel({ sample }: { sample: SampleId }) {
           «Регулярная поездка заканчивается» — до итогового просмотра группы 6.
         </p>
       )}
+      {sample.startsWith('auth-') && (
+        <p>
+          Состояния 50–64 — один путь регистрации и публикации группы 7.{' '}
+          <strong>Группа утверждена владельцем 19 октября 2026 года</strong> после просмотров 17 и
+          19 октября и независимого аудита (решения 1.18 (94–109)). Одно правило перед любой
+          публикацией; публикует только нажатие, подпись которого это называет; ссылка из письма сама
+          ничего не подтверждает. Экран формы в начале пути — утверждённый экран групп 2B и 3.
+          Подставленные значения — 15 минут, 45 секунд, код из шести цифр — образцы, а не
+          утверждённые сроки и лимиты (IA §19.4, §19.5). Почты, SMS и сервера за экраном нет: их
+          ответы выбирают переключатели над экраном.
+        </p>
+      )}
       <dl className={styles.sourceList}>
         {rows.map((row) => (
           <div key={`${row.text}-${row.note ?? ''}`}>
@@ -6136,6 +8214,9 @@ export function CopyReview() {
        * the form keeps everything the person has typed, forwards and backwards alike.
        */
       default:
+        if (sample.startsWith('auth-')) {
+          return <RegistrationReview key={sample} sample={sample} textZoom={textZoom} />;
+        }
         if (sample.startsWith('notifications')) {
           return (
             <NotificationsScreen
@@ -6209,8 +8290,8 @@ export function CopyReview() {
   return (
     <div className={styles.reviewRoot}>
       <header className={styles.reviewHeader}>
-        <p>Временная поверхность проверки · группы 1, 2A, 2B, 3, 4, 5 и 6 просмотрены</p>
-        <h1>Проверка русской копии: храм, просьба пассажира, предложение водителя, карта поездок, «Мои поездки», уведомления и профиль</h1>
+        <p>Временная поверхность проверки · группы 1, 2A, 2B, 3, 4, 5, 6 и 7 просмотрены</p>
+        <h1>Проверка русской копии: храм, просьба пассажира, предложение водителя, карта поездок, «Мои поездки», уведомления, профиль и регистрация</h1>
         <p>
           Мобильные экраны шириной 390 px. Состояния 1–4 — первая группа после правок владельца от
           22 августа 2026 года. Состояния 5–14 — одна форма просьбы пассажира из четырёх смысловых
@@ -6269,6 +8350,19 @@ export function CopyReview() {
           страницей храма, изменение Условий, тексты push и два добавленных события — подходящее
           объявление и скорое окончание регулярной поездки.
         </p>
+        <p>
+          Состояния 50–64 — группа 7: регистрация, вход и проверка контактов в контексте публикации.
+          Человек без аккаунта заполнил форму и нажал «Опубликовать» (50); дальше — имя и контакты
+          (51), письмо со ссылкой (52), страница ссылки с «Подтвердить email и получить код» (53),
+          код из SMS и «Подтвердить и опубликовать» (55) — и объявление опубликовано (57). Ошибки
+          пути — 54 и 56. Путь Б (58–60) — вход по ссылке, вход по телефону без доступа к почте и
+          ссылка, открытая на другом устройстве. Путь В (61) — публикация, когда уведомления
+          выключены. Пограничные случаи (62–64) — прошедшая дата, email существующего аккаунта и SMS
+          при восстановлении. Перед любой публикацией действует одно правило; ответы почты, SMS и
+          сервера выбирают переключатели проверки: писем и SMS не отправляется, ничего не
+          сохраняется и не публикуется. <strong>Группа утверждена владельцем 19 октября 2026
+          года.</strong>
+        </p>
       </header>
       <nav className={styles.reviewControls} aria-label="Выбор экрана проверки">
         <div>{choose('church')}</div>
@@ -6276,8 +8370,9 @@ export function CopyReview() {
         <div>{choose('offer')}</div>
         <div>{choose('map')}</div>
         <div>{choose('trips')}</div>
+        <div>{choose('account')}</div>
         <div>
-          {choose('account')}
+          {choose('auth')}
           <button
             type="button"
             className={styles.zoomToggle}

@@ -786,7 +786,8 @@ describe('Notifications and profile review states', () => {
       .toContain('Регулярная поездка заканчивается 13 сентября. Её можно продлить ещё на 8 недель.');
     /* No internal word, no «серия» (copy 3.4), and no second page: the states stay 41–49. */
     expect(page.textContent).not.toMatch(/[Сс]ери[яи]/);
-    expect(document.querySelectorAll('nav[aria-label="Выбор экрана проверки"] button').length).toBe(50);
+    expect([...document.querySelectorAll('nav[aria-label="Выбор экрана проверки"] button')]
+      .filter((button) => /^4[1-9] · /.test(button.textContent ?? '')).length).toBe(9);
 
     /* «Открыть» leads to the board for a match and to the listings for an ending regular trip. */
     openEvent('match');
