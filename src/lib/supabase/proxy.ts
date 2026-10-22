@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getPublicSupabaseConfig } from './config';
+import { isSsrCookieEncodingSafe } from './cookie-boundary';
 
 function createAuthResponse(request: NextRequest) {
   const response = NextResponse.next({ request });
@@ -12,6 +13,7 @@ function createAuthResponse(request: NextRequest) {
 export async function updateAuthSession(request: NextRequest) {
   const config = getPublicSupabaseConfig();
   if (!config) return createAuthResponse(request);
+  if (!await isSsrCookieEncodingSafe(config.url, request.cookies.getAll())) return createAuthResponse(request);
 
   let response = createAuthResponse(request);
   const supabase = createServerClient(config.url, config.key, {

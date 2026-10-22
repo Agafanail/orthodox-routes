@@ -24,7 +24,7 @@ export async function requestEmailLinkAction(
   _previousState: EmailLinkActionState,
   formData: FormData,
 ): Promise<EmailLinkActionState> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient({ recoverMalformedCookies: true });
   const contextual = formData.get('context') === 'contextual';
   const dependencies = await getContextualServerDependencies();
   const appOrigin = getApplicationOrigin();
@@ -52,7 +52,7 @@ export async function requestEmailLinkAction(
 }
 
 export async function confirmEmailAction(formData: FormData) {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient({ recoverMalformedCookies: true });
   const result = await confirmEmailSignIn(supabase?.auth ?? null, {
     destination: formData.get('next'),
     tokenHash: formData.get('token_hash'),
@@ -75,7 +75,7 @@ export async function confirmEmailAction(formData: FormData) {
 }
 
 export async function signOutAction() {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient({ recoverMalformedCookies: true });
   const signedOut = await signOutCurrentSession(supabase?.auth ?? null);
   redirect(signedOut ? '/auth?status=signed-out' : '/auth?error=sign-out-failed');
 }
