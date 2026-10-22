@@ -12,9 +12,10 @@ The previous ordinary `api.complaint_target_context(text, uuid)` delegates uncha
 
 - `prepare_complaint_email_draft`: validate a known target/category and bounded text/email/language, bind two independent server-generated 256-bit secrets, and return only draft UUID, state, and expiry;
 - `verify_complaint_email_draft`: accept only the email capability, not the pre-email resume capability; record `email_verified` once and return only a minimal receipt;
+- `verify_complaint_email_draft_v2`: require the expected draft UUID and its current email capability together before mutation; future explicit browser confirmation must use this [target-bound contract](BACKEND_COMPLAINT_TARGETED_EMAIL_PROOF.md), not compare a token-only receipt after mutation;
 - `expire_complaint_email_drafts`: process at most 100 due rows per call with row locking/skip-locked behavior and return a count.
 
-All three have hardened definer search paths and five-second lock waits. Input is limited to 4,000 description characters and a normalized 254-character reply email, without control characters except description line breaks. These are defensive storage bounds, not public-form or operational activation. Category families and language codes are constrained in both preparation and storage.
+All have hardened definer search paths and five-second lock waits. The original token-only verification remains a compatible service-only bridge to the same target-bound transition. Input is limited to 4,000 description characters and a normalized 254-character reply email, without control characters except description line breaks. These are defensive storage bounds, not public-form or operational activation. Category families and language codes are constrained in both preparation and storage.
 
 The trusted server must derive the reporter account from verified session claims, or null for a guest; it must never forward a browser-provided actor identifier or use mailbox proof to log someone in. The service credential is the existing protected application-server boundary, not an ordinary-user credential or an owner-operation role. Application roles cannot call these writes directly, and the shared actor-parameterized helper/export helper are ungranted.
 
