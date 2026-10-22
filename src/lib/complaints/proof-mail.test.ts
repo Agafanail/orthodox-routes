@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+const mocks = vi.hoisted(() => ({ client: vi.fn(() => null) }));
+vi.mock('@/lib/supabase/server-privileged', () => ({ createPrivilegedSupabaseClient: mocks.client }));
 import { complaintProofCopy, COMPLAINT_PROOF_COPY_VERSION, parseComplaintProofJob,
   processComplaintProofMail, renderComplaintProofMail } from './proof-mail';
+import { createResendNotificationAdapter } from '@/lib/notifications/resend';
 
 const draftId = '10000000-0000-4000-8000-000000000001';
 const jobId = '10000000-0000-4000-8000-000000000002';
+const providerId = '10000000-0000-4000-8000-000000000003';
 const origin = 'https://orthodox.example';
 const languages = ['en', 'ru', 'it', 'ro', 'uk', 'de'] as const;
 function raw(overrides: Record<string, unknown> = {}) {
@@ -14,22 +18,34 @@ function raw(overrides: Record<string, unknown> = {}) {
 }
 function setup(options: { job?: unknown; completion?: unknown; claimError?: unknown } = {}) {
   let delivered = false;
+  const signals: AbortSignal[] = [];
   const rpc = vi.fn((name: string) => {
-    if (name === 'complaint_proof_mail_claim') {
-      if (delivered) return Promise.resolve({ data: null, error: null });
-      delivered = true;
-      return Promise.resolve({ data: options.job === undefined ? raw() : options.job, error: options.claimError ?? null });
-    }
-    return Promise.resolve({ data: options.completion === undefined ? true : options.completion, error: null });
+    return { abortSignal: (signal: AbortSignal) => {
+      signals.push(signal);
+      if (name === 'complaint_proof_mail_claim') {
+        if (delivered) return Promise.resolve({ data: null, error: null });
+        delivered = true;
+        return Promise.resolve({ data: options.job === undefined ? raw() : options.job, error: options.claimError ?? null });
+      }
+      return Promise.resolve({ data: options.completion === undefined ? true : options.completion, error: null });
+    } };
   });
-  const send = vi.fn().mockResolvedValue({ outcome: 'sent', providerReference: 'must-not-be-stored' });
+  const send = vi.fn().mockResolvedValue({ outcome: 'sent', providerAdapter: 'fake-email', providerCode: 'http_200',
+    providerReference: providerId, safeFailureClass: null });
   const dependencies = { appOrigin: origin, client: { schema: () => ({ rpc }) },
     adapter: { adapterId: 'fake-email', channel: 'email' as const, send } };
-  return { dependencies, rpc, send };
+  return { dependencies, rpc, send, signals };
 }
 afterEach(() => vi.useRealTimers());
 
 describe('complaint email-proof mail boundary', () => {
+  it('constructs the selected protected client with an actual per-request deadline', async () => {
+    mocks.client.mockClear(); const f = setup();
+    expect(await processComplaintProofMail(1, { adapter: f.dependencies.adapter, appOrigin: origin }))
+      .toEqual({ configured: false, claimed: 0, sent: 0, failed: 0 });
+    expect(mocks.client).toHaveBeenCalledExactlyOnceWith({ requestTimeoutMs: 5000 });
+    expect(f.rpc).not.toHaveBeenCalled();
+  });
   it('keeps versioned prepared text complete without runtime private interpolation', () => {
     expect(COMPLAINT_PROOF_COPY_VERSION).toBe(1);
     expect(Object.keys(complaintProofCopy).sort()).toEqual([...languages].sort());
@@ -105,7 +121,7 @@ describe('complaint email-proof mail boundary', () => {
     const calls = rpc.mock.calls as unknown as Array<[string, Record<string, unknown>]>;
     expect(calls[1][1]).toEqual({ p_job_id: jobId, p_lease_token: calls[0][1].p_lease_token, p_outcome: 'sent' });
     expect(calls[2][1].p_lease_token).not.toBe(calls[0][1].p_lease_token);
-    expect(JSON.stringify(calls)).not.toContain('must-not-be-stored');
+    expect(JSON.stringify(calls)).not.toContain(providerId);
     const delivery = send.mock.calls[0][0];
     expect(delivery.jobId).toBe(jobId);
     expect(delivery.safeParameters).toEqual({});
@@ -145,16 +161,68 @@ describe('complaint email-proof mail boundary', () => {
   it('bounds a stalled claim and does not dispatch after timeout', async () => {
     vi.useFakeTimers();
     const { dependencies, rpc, send } = setup();
-    rpc.mockImplementation(() => new Promise(() => {}));
+    let claimSignal: AbortSignal | undefined;
+    rpc.mockImplementation(() => ({ abortSignal: (signal: AbortSignal) => { claimSignal = signal; return new Promise(() => {}); } }));
     const processing = processComplaintProofMail(1, dependencies);
     await vi.advanceTimersByTimeAsync(5_001);
     expect(await processing).toEqual({ claimed: 0, configured: true, failed: 1, sent: 0 });
     expect(send).not.toHaveBeenCalled();
+    expect(claimSignal?.aborted).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
   });
   it('contains claim errors before delivery', async () => {
     const { dependencies, send } = setup({ claimError: { message: 'PRIVATE-DATABASE-ERROR' } });
     expect(await processComplaintProofMail(1, dependencies)).toEqual({ claimed: 0, configured: true, failed: 1, sent: 0 });
     expect(send).not.toHaveBeenCalled();
+  });
+  it('reserves a complete provider/completion window without extending the original lease', async () => {
+    const f = setup({ job: raw({ lease_until: new Date(Date.now() + 19_000).toISOString() }) });
+    expect(await processComplaintProofMail(1, f.dependencies)).toEqual({ configured: true, claimed: 1, sent: 0, failed: 1 });
+    expect(f.send).not.toHaveBeenCalled(); expect(f.rpc).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    { outcome: 'sent' },
+    { outcome: 'sent', providerAdapter: 'fake-email', providerCode: 'http_200', providerReference: 'private non-UUID', safeFailureClass: null },
+    { outcome: 'sent', providerAdapter: 'other-provider', providerCode: 'http_200', providerReference: providerId, safeFailureClass: null },
+    { outcome: 'sent', providerAdapter: 'fake-email', providerCode: 'http_500', providerReference: providerId, safeFailureClass: null },
+    { outcome: 'permanent_failure', providerAdapter: 'fake-email', providerCode: 'http_400', providerReference: null, safeFailureClass: 'private-provider-error' },
+  ])('never records an unvalidated provider acknowledgement as sent or permanent %#', async (result) => {
+    const { dependencies, send, rpc } = setup(); send.mockResolvedValue(result);
+    expect(await processComplaintProofMail(1, dependencies)).toEqual({ configured: true, claimed: 1, sent: 0, failed: 1 });
+    expect(rpc.mock.calls[1]).toEqual(['complaint_proof_mail_complete', expect.objectContaining({ p_outcome: 'temporary_failure' })]);
+    expect(JSON.stringify(rpc.mock.calls)).not.toContain('private');
+  });
+  it('preserves validated permanent provider refusal and successful selected Resend acknowledgement', async () => {
+    const failed = setup();
+    failed.send.mockResolvedValue({ outcome: 'permanent_failure', providerAdapter: 'fake-email', providerCode: 'http_400',
+      providerReference: null, safeFailureClass: 'provider_rejected' });
+    expect((await processComplaintProofMail(1, failed.dependencies)).sent).toBe(0);
+    expect(failed.rpc.mock.calls[1]).toEqual(['complaint_proof_mail_complete', expect.objectContaining({ p_outcome: 'permanent_failure' })]);
+    const success = setup();
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({ id: providerId }));
+    const adapter = createResendNotificationAdapter({ apiKey: 're_synthetic', appOrigin: origin, from: 'Orthodox Routes <proof@example.test>' }, fetcher);
+    expect(await processComplaintProofMail(1, { ...success.dependencies, adapter })).toEqual({ configured: true, claimed: 1, sent: 1, failed: 0 });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(success.rpc.mock.calls)).not.toContain(providerId);
+  });
+  it.each(['evaluated_at', 'expires_at', 'lease_until'])('rejects normalized impossible %s before dispatch', (field) => {
+    expect(parseComplaintProofJob(raw({ [field]: '2026-02-31T12:00:00Z' }))).toBeNull();
+  });
+  it('aborts acknowledged RPC signals and stops after an uncertain completion', async () => {
+    const successful = setup(); await processComplaintProofMail(1, successful.dependencies);
+    expect(successful.signals).toHaveLength(2);
+    expect(successful.signals.every((signal) => signal.aborted)).toBe(true);
+    vi.useFakeTimers(); const f = setup(); let completionSignal: AbortSignal | undefined;
+    f.rpc.mockImplementationOnce(() => ({ abortSignal: (signal: AbortSignal) => {
+      f.signals.push(signal); return Promise.resolve({ data: raw(), error: null });
+    } })).mockImplementationOnce(() => ({ abortSignal: (signal: AbortSignal) => {
+      completionSignal = signal; return new Promise(() => {});
+    } }));
+    const pending = processComplaintProofMail(5, f.dependencies);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await pending).toEqual({ configured: true, claimed: 1, sent: 0, failed: 1 });
+    expect(completionSignal?.aborted).toBe(true);
+    expect(f.rpc).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
