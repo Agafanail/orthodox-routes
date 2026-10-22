@@ -4,7 +4,7 @@
 - **Starting commit:** `3afa340363d5a9678ae7ba338eefa65ef0725992`
 - **Scope:** all remaining approved backend work required for the first public version
 - **Production access:** excluded
-- **Run state:** Active after the owner's explicit resume on 20 October 2026.
+- **Run state:** Active after the owner's explicit resume on 22 October 2026.
 
 ## Checkpoints
 
@@ -23,7 +23,7 @@
 
 ## Current checkpoint
 
-PR #80 (`ecaf978`, CI `39413111841`) merged verified-email binding guards after all four final-head checks/cleanup and completed review without findings. Current `codex/complaint-http-intake` work adds inactive exact-origin POST/UTF-8 JSON metadata checks and a bounded private body reader, still requiring the existing broker and independent session/proxy/cookie authority. A narrow shared-reader extraction preserves provider import/error/16 KiB/deadline contracts while request intake has a 64 KiB/five-second bound. All 1239 local tests and 77 focused request/shared-reader/provider cases passed; lint retained two existing warnings and build/type/diff passed after correcting two test-fixture inference types. Two opt-in Storage tests were skipped locally. Final-head CI/review remain required before merge. The HTTP intake transfer stash is an applied backup, not pending work to pop again.
+PR #81 (`fe71a17`, CI `39420054173`) merged bounded complaint HTTP intake/shared JSON reads after all four final-head checks/cleanup and completed review without findings. Current `codex/participation-status-fence` work serializes the existing positive-participation guards with account-status writers, rechecking eligibility after waits while preserving read-only projections and restricted account affordances. This is preparation for protected owner account lifecycle work, not its activation. All 1239 local tests passed (two opt-in Storage tests skipped); lint retained two existing warnings and build/script-syntax/diff passed. Docker remains unavailable locally on 22 October; actual disposable SQL race/replay verification and all final-head checks/review remain required. HTTP intake and verified-email transfer stashes are already integrated backups, not pending work to pop again.
 
 The 19 October Group 7 Product Scope/IA amendments are preserved: explicit publication-labelled presses, one complete publication gate, default new-account trip email, and no implicit email-link consumption. Production contextual publication alignment remains separate approved work as recorded by PR #74; these hardening/preparation slices do not implement its UI or silently change the current publication flow.
 
@@ -54,6 +54,8 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - The pinned existing synthetic-only staging project remains `INACTIVE` in authenticated provider metadata rechecked on 20 October 2026, without key retrieval or mutation. Owner-controlled resumption and an existing private `church-images` bucket are prerequisites for the remote image probe; do not retrieve its keys, change bucket settings, or claim remote success while unavailable. Independent local campaign work continues first.
 
 ## Verification state
+
+- PR #81 merged as `fe71a17`; final-head CI `39420054173` passed all four required jobs and cleanup/post-steps on `1f709aa`, with no review findings. All 1239 local tests and 77 focused request/shared-reader/provider cases passed; lint retained two existing warnings, build/type/diff passed, and two opt-in Storage tests were skipped locally. Metadata/body validation remains inactive and untrusted until composed with the broker and independent session/proxy/cookie authority. No public handler, provider activation, migration, dependency, operational rate value, or production operation changed.
 
 - PR #80 merged as `ecaf978`; final-head CI `39413111841` passed all four required jobs and cleanup/post-steps on `63810f4`, with no review findings. Actual synthetic SQL verifies stale Auth/contact eligibility and channel refusal, no stale enqueue/legacy/v3 destination disclosure, unchanged private source rows, independently stale destinations, restoration without retargeting, a real delivery-row wait across committed Auth change, and migration/composed-replay/ACL stability. Existing verified pre-account/account/browser cases passed. All 1193 local tests passed; lint retained two existing warnings, build/type/script-syntax/diff passed, and two opt-in Storage tests were skipped locally. No dependency, new ordinary/service grant, automatic contact synchronization, snapshot rewrite, recovery/protective-delay decision, provider/mailbox proof, or production operation changed.
 
