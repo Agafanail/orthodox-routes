@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   getContextualRegistrationConfig,
+  getComplaintMaintenanceSecret,
   getApplicationOrigin,
   getBirdSmsConfig,
   getNotificationWorkerSecret,
@@ -26,7 +27,7 @@ const originalBirdSmsSender = process.env.BIRD_SMS_SENDER;
 const notificationVariables = [
   'NOTIFICATION_WORKER_SECRET', 'RESEND_API_KEY', 'RESEND_NOTIFICATION_FROM',
   'RESEND_WEBHOOK_SECRET', 'VAPID_KEY_VERSION', 'VAPID_PRIVATE_KEY',
-  'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT', 'TRANSLATION_WORKER_SECRET',
+  'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT', 'TRANSLATION_WORKER_SECRET', 'COMPLAINT_MAINTENANCE_SECRET',
 ] as const;
 const originalNotificationVariables = Object.fromEntries(
   notificationVariables.map((name) => [name, process.env[name]]),
@@ -199,6 +200,27 @@ describe('translation worker configuration', () => {
     process.env.NOTIFICATION_WORKER_SECRET = 'shared-worker-secret-'.repeat(2);
     process.env.TRANSLATION_WORKER_SECRET = ` ${process.env.NOTIFICATION_WORKER_SECRET} `;
     expect(getTranslationWorkerSecret()).toBeNull();
+  });
+});
+
+describe('complaint maintenance configuration', () => {
+  it('requires a separate bounded printable server secret', () => {
+    const secret = 'synthetic-complaint-maintenance-secret-'.repeat(2);
+    process.env.COMPLAINT_MAINTENANCE_SECRET = ` ${secret} `;
+    expect(getComplaintMaintenanceSecret()).toBe(secret);
+    for (const invalid of ['', 'short', 'x'.repeat(257), 'x'.repeat(32) + '\nunsafe', 'x'.repeat(32) + ' unsafe', 'я'.repeat(32)]) {
+      process.env.COMPLAINT_MAINTENANCE_SECRET = invalid;
+      expect(getComplaintMaintenanceSecret()).toBeNull();
+    }
+    process.env.COMPLAINT_MAINTENANCE_SECRET = secret;
+    process.env.NOTIFICATION_WORKER_SECRET = ` ${secret} `;
+    expect(getComplaintMaintenanceSecret()).toBeNull();
+    delete process.env.NOTIFICATION_WORKER_SECRET;
+    process.env.TRANSLATION_WORKER_SECRET = secret;
+    expect(getComplaintMaintenanceSecret()).toBeNull();
+    delete process.env.TRANSLATION_WORKER_SECRET;
+    delete process.env.COMPLAINT_MAINTENANCE_SECRET;
+    expect(getComplaintMaintenanceSecret()).toBeNull();
   });
 });
 

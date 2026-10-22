@@ -218,3 +218,10 @@ export function getWebPushNotificationConfig(): WebPushNotificationConfig | null
   }
   return { keyVersion, privateKey, publicKey, subject };
 }
+
+export function getComplaintMaintenanceSecret() {
+  const secret = process.env.COMPLAINT_MAINTENANCE_SECRET?.trim();
+  const otherSecrets = [process.env.NOTIFICATION_WORKER_SECRET?.trim(), process.env.TRANSLATION_WORKER_SECRET?.trim()];
+  return secret && secret.length >= 32 && secret.length <= 256 && /^[\x21-\x7e]+$/.test(secret)
+    && !otherSecrets.includes(secret) ? secret : null;
+}
