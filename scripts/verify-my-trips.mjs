@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import { syntheticPlace } from './synthetic-geo.mjs';
 import { verifyComplaintEmailDrafts } from './verify-complaint-email-drafts.mjs';
 import { verifyComplaintProofMail } from './verify-complaint-proof-mail.mjs';
+import { verifyComplaintTargetedEmailProof } from './verify-complaint-targeted-email-proof.mjs';
 import { verifyAccountDeletionImpact } from './verify-account-deletion-impact.mjs';
 import { verifyComplaintRateBoundary } from './verify-complaint-rate-boundary.mjs';
 
@@ -1192,6 +1193,9 @@ await verifyComplaintEmailDrafts({ admin, anonymous, clients, identities, church
 
 await verifyComplaintProofMail({ admin, anonymous, clients, churchId: churches[0].id,
   runSql: (statement) => runSql(container, statement) });
+
+await verifyComplaintTargetedEmailProof({ admin, anonymous, clients, identities, churchId: churches[0].id,
+  runSql: (statement) => runSql(container, statement), runSqlAsync: (statement) => runSqlAsync(container, statement) });
 
 await verifyAccountDeletionImpact({ clients, identities, anonymous, admin, churches,
   listingRequestId: listingRequest.request_id, rpc, runSql: (statement) => runSql(container, statement) });
