@@ -19,6 +19,16 @@ becomes a guest. Competing Authorization input is refused: this cookie-based sea
 does not accept a browser bearer fallback. Missing configuration/client or framework
 errors also fail closed, including for apparent guests.
 
+Real disposable integration exposed an SSR SDK background-initialization rejection
+on malformed base64 UTF-8 before the normal `getUser` catch can run. The shared
+`supabase/cookie-boundary.ts` preflight now uses the installed SDK's own chunk combiner
+and decoder on session/PKCE storage only, before either the existing Next.js server
+client or Auth proxy constructs that SDK. This checks encoding safety, not JSON/JWT
+claims, session validity or identity. Readable legacy/current serialization remains
+compatible. Bad encoding starts no Auth client, produces no private diagnostic, and
+does not silently delete cookies into a guest. The complaint seam receives an unavailable
+client; ordinary response cache/referrer protections are preserved.
+
 Present session state requires `auth.getUser()` verification followed by the existing
 protected `current_eligibility` projection's boolean account-existence fact. It does
 not fetch `current_account` or private contacts merely to check existence. A verified
@@ -37,13 +47,13 @@ errors or eligibility payload are forwarded or logged.
 
 ## Verification and remaining work
 
-No-network tests exercise the real resolver/server seam with fake framework/Auth/RPC
+No-network tests exercise the real resolver/server/proxy seams with fake framework/Auth/RPC
 dependencies, including chunked names, configuration, ambiguity, forged input,
 pre-account guests, ineligible existing accounts, exceptions, malformed data and
 abort-ignoring deadlines. Required disposable account integration imports the actual
 resolver through Node 24 native TypeScript support and tests real SSR cookie persistence,
 Auth user verification, pre-account/existing-account association without eligibility,
-competing authority refusal and unusable session state using the parent's synthetic
+competing authority refusal, encoding preflight and readable unusable session state using the parent's synthetic
 identity. The module-detection warning does not justify a package-wide module change.
 
 Public HTTP composition, verified hosting/proxy network identity, encrypted retry-cookie

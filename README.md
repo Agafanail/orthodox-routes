@@ -253,6 +253,8 @@ The separate inactive [complaint mailbox-proof delivery contract](docs/BACKEND_C
 
 The inactive [complaint preparation broker](docs/BACKEND_COMPLAINT_PREPARATION.md) composes trusted-context/payload separation, HMAC attempt budgets, fixed-action Turnstile verification, and protected draft preparation. Bounded HTTP intake, encrypted retry-state serialization and the [SSR reporter boundary](docs/BACKEND_COMPLAINT_REPORTER.md) are now implemented as separate unwired prerequisites. Reporter identity is verified through Auth rather than cookie contents, without adding participation eligibility to reporting. Public route composition, verified proxy context, retry-cookie lifecycle, real provider/mailbox proof, complaint receipt and owner delivery remain unfinished.
 
+Server/proxy Auth construction now preflights only SSR session/PKCE cookie encoding with the installed SDK utilities. Undecodable bytes no longer reach background initialization, while readable legacy state still requires ordinary Auth verification. This does not authenticate cookie contents or silently clear failed session state into a guest.
+
 ## Restricted transition audit
 
 Church invitation delivery now claims one bounded lease at a time, validates authoritative relative timing, and contains provider/RPC waits without changing message, dispatch idempotency, membership, retry, or resend policy. Completion rechecks pending state and both deadlines after invitation/mail row locks; cancellation, acceptance, and expiry cannot be acknowledged late. See [invitation delivery bounds and rollout](docs/BACKEND_CHURCH_INVITE_DELIVERY.md). Real provider/worker/acceptance UI activation remains separate.

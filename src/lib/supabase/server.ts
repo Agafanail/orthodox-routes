@@ -1,12 +1,14 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getPublicSupabaseConfig } from './config';
+import { isSsrCookieEncodingSafe } from './cookie-boundary';
 
 export async function createServerSupabaseClient() {
   const config = getPublicSupabaseConfig();
   if (!config) return null;
 
   const cookieStore = await cookies();
+  if (!await isSsrCookieEncodingSafe(config.url, cookieStore.getAll())) return null;
 
   return createServerClient(config.url, config.key, {
     cookies: {
