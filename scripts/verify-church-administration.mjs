@@ -9,6 +9,7 @@ import { verifyHiddenScheduleRepairs } from './verify-hidden-schedule-repairs.mj
 import { verifyRecurringServiceShortening } from './verify-recurring-service-shortening.mjs';
 import { verifyChurchAdministrationExport } from './verify-church-administration-export.mjs';
 import { verifyChurchInviteDeadlines } from './verify-church-invite-deadlines.mjs';
+import { verifyParticipationAccountFence } from './verify-participation-account-fence.mjs';
 
 const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
@@ -209,6 +210,9 @@ try {
     p_client_key: randomUUID(), p_ride_email_enabled: false, p_web_push_enabled: false,
   });
   assert.equal((await rpc(clients[0], 'current_notification_preferences')).has_effective_external_channel, false);
+
+  await verifyParticipationAccountFence({ container, accountId: identities[0].id, churchArgs,
+    sql: (statement) => runSql(container, statement), literal: sqlLiteral });
 
   const anonymousCreate = await fetch(`${url}/rest/v1/rpc/create_church`, {
     method: 'POST', headers: { apikey: publicKey, 'content-type': 'application/json' },
