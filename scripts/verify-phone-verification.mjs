@@ -7,6 +7,7 @@ import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { verifyPhoneSmsLanguages } from './verify-phone-sms-languages.mjs';
 import { verifyPhoneDeliveryDeadlines } from './verify-phone-delivery-deadlines.mjs';
+import { verifyMandatoryPhoneSecurityEmail } from './verify-mandatory-phone-security-email.mjs';
 
 const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
@@ -455,6 +456,9 @@ try {
   const oldVerifiedPhone = (await rpc(clients[0], 'current_account')).phone;
   const newPhone = '+390000000180';
   const phoneChangeKey = randomUUID();
+  const originalNotificationPreferences = await rpc(clients[0], 'current_notification_preferences', {});
+  await rpc(clients[0], 'update_notification_preference', { p_client_key: randomUUID(),
+    p_ride_email_enabled: false, p_web_push_enabled: false, p_revoke_subscription_id: null });
   const requestedChange = await rpc(clients[0], 'request_phone_change', {
     p_client_key: phoneChangeKey,
     p_phone_e164: newPhone,
@@ -527,6 +531,12 @@ try {
       where recipient_account_id = '${identities[0].id}' and event_type = 'account.phone_changed';`),
     '1',
   );
+
+  await verifyMandatoryPhoneSecurityEmail({ sql: (statement) => runSql(container, statement), rpc, admin,
+    actor: clients[0], accountId: identities[0].id, expectedEmail: identities[0].email });
+  await rpc(clients[0], 'update_notification_preference', { p_client_key: randomUUID(),
+    p_ride_email_enabled: originalNotificationPreferences.ride_email_enabled,
+    p_web_push_enabled: originalNotificationPreferences.web_push_enabled, p_revoke_subscription_id: null });
 
   const phoneAuditRows = () => JSON.parse(runSql(container, `select coalesce(jsonb_agg(to_jsonb(audit)
     order by audit.event_key), '[]'::jsonb) from ops.audit_event as audit
