@@ -29,6 +29,14 @@ compatible. Bad encoding starts no Auth client, produces no private diagnostic, 
 does not silently delete cookies into a guest. The complaint seam receives an unavailable
 client; ordinary response cache/referrer protections are preserved.
 
+The existing explicit new-link, link-confirmation and sign-out POST actions may request
+recovery of undecodable local state. Before creating Auth they delete only this project's
+session/PKCE base and canonical chunk cookies, preserving contextual drafts, complaint
+retry cookies, other projects and harmless preferences. Failed/read-only cookie deletion
+fails closed. Healthy state is never reset. GET/proxy/reporting do not recover silently,
+and a reset is neither authenticated identity nor proof of provider session revocation:
+ordinary link/credential verification and sign-out outcomes remain authoritative.
+
 Present session state requires `auth.getUser()` verification followed by the existing
 protected `current_eligibility` projection's boolean account-existence fact. It does
 not fetch `current_account` or private contacts merely to check existence. A verified
@@ -53,7 +61,8 @@ pre-account guests, ineligible existing accounts, exceptions, malformed data and
 abort-ignoring deadlines. Required disposable account integration imports the actual
 resolver through Node 24 native TypeScript support and tests real SSR cookie persistence,
 Auth user verification, pre-account/existing-account association without eligibility,
-competing authority refusal, encoding preflight and readable unusable session state using the parent's synthetic
+competing authority refusal, encoding preflight, readable unusable state and fresh Auth
+resolution after exact synthetic cookie recovery using the parent's synthetic
 identity. The module-detection warning does not justify a package-wide module change.
 
 Public HTTP composition, verified hosting/proxy network identity, encrypted retry-cookie

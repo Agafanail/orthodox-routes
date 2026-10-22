@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { stringToBase64URL } from '@supabase/ssr';
-import { isSsrCookieEncodingSafe } from './cookie-boundary';
+import { isSsrCookieEncodingSafe, ssrAuthCookieNames } from './cookie-boundary';
 
 const url = 'https://synthetic.supabase.co', key = 'sb-synthetic-auth-token';
 const encoded = `base64-${stringToBase64URL('{"notIdentity":"Київ Żółć"}')}`;
@@ -27,5 +27,11 @@ describe('SSR encoding preflight, not session authentication', () => {
   });
   it('fails closed on invalid project configuration', async () => {
     expect(await isSsrCookieEncodingSafe('not-url', [])).toBe(false);
+  });
+  it('selects only this project session/PKCE names and canonical chunks for explicit recovery', () => {
+    const expected = [key, `${key}.0`, `${key}.12`, `${key}-code-verifier`, `${key}-code-verifier.1`];
+    expect(ssrAuthCookieNames(url, [...expected, 'other-cookie', `${key}.invalid`, `${key}.01`,
+      `${key}-unrelated`, 'sb-other-auth-token', '__Host-orthodox-routes-complaint-preparation']
+      .map((name) => ({ name })))).toEqual(expected);
   });
 });

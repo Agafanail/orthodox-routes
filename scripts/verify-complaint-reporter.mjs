@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServerClient } from '@supabase/ssr';
 import { createComplaintReporterResolver } from '../src/lib/complaints/reporter.ts';
-import { isSsrCookieEncodingSafe } from '../src/lib/supabase/cookie-boundary.ts';
+import { isSsrCookieEncodingSafe, ssrAuthCookieNames } from '../src/lib/supabase/cookie-boundary.ts';
 
 // Only the parent's disposable local identity/session is used. The production resolver
 // never calls getSession or treats these fixture tokens/cookie contents as authority.
@@ -40,5 +40,15 @@ export async function verifyComplaintReporter({ url, publicKey, signedInClient, 
   const unusable = ssr(readableInvalid);
   assert.deepEqual(await createComplaintReporterResolver({ client: unusable, supabaseUrl: url })([...readableInvalid.keys()], false),
     { status: 'unavailable' });
+  const recovered = new Map(tampered);
+  recovered.set('synthetic-unrelated-state', 'preserved');
+  for (const name of ssrAuthCookieNames(url, [...recovered.keys()].map((name) => ({ name })))) recovered.delete(name);
+  assert.equal(recovered.get('synthetic-unrelated-state'), 'preserved');
+  const fresh = ssr(recovered);
+  const restored = await fresh.auth.setSession({ access_token: fixtureSession.data.session.access_token,
+    refresh_token: fixtureSession.data.session.refresh_token });
+  assert.equal(restored.error, null);
+  assert.deepEqual(await createComplaintReporterResolver({ client: fresh, supabaseUrl: url })([...recovered.keys()], false),
+    { status: 'resolved', reporterAccountId: accountExists ? accountId : null });
   process.stdout.write(`Complaint reporter real SSR/Auth proof passed (${accountExists ? 'existing account without eligibility gate' : 'verified pre-account guest'}).\n`);
 }
