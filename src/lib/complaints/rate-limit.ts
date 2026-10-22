@@ -9,6 +9,20 @@ type Client = { schema(name: 'api'): { rpc(name: string, args: Record<string, un
 } } };
 type Input = { trustedNetworkAddress: unknown; replyEmail: unknown };
 
+export function canonicalComplaintNetworkAddress(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 64) return null;
+  const family = isIP(value);
+  if (!family) return null;
+  try {
+    if (family === 4) return value;
+    const canonical = new URL(`http://[${value}]/`).hostname.slice(1, -1);
+    const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canonical);
+    if (!mapped) return canonical;
+    const high = Number.parseInt(mapped[1], 16), low = Number.parseInt(mapped[2], 16);
+    return [high >> 8, high & 255, low >> 8, low & 255].join('.');
+  } catch { return null; }
+}
+
 // Server-only: callers must supply an address obtained from their verified hosting/proxy boundary.
 // This module deliberately never reads request headers, cookies, account IDs, or complaint content.
 export function deriveComplaintRateKeys(value: unknown, secret: unknown) {
@@ -19,21 +33,8 @@ export function deriveComplaintRateKeys(value: unknown, secret: unknown) {
     || typeof input.trustedNetworkAddress !== 'string' || input.trustedNetworkAddress.length > 64
     || typeof input.replyEmail !== 'string' || input.replyEmail.length > 512
     || /[\x00-\x1f\x7f]/.test(input.replyEmail)) return null;
-  const address = input.trustedNetworkAddress;
-  const family = isIP(address);
-  if (!family) return null;
-  let canonicalAddress = address;
-  try {
-    if (family === 6) {
-      canonicalAddress = new URL(`http://[${address}]/`).hostname.slice(1, -1);
-      const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canonicalAddress);
-      if (mapped) {
-        const high = Number.parseInt(mapped[1], 16);
-        const low = Number.parseInt(mapped[2], 16);
-        canonicalAddress = [high >> 8, high & 255, low >> 8, low & 255].join('.');
-      }
-    }
-  } catch { return null; }
+  const canonicalAddress = canonicalComplaintNetworkAddress(input.trustedNetworkAddress);
+  if (!canonicalAddress) return null;
   const email = parseEmail(input.replyEmail)?.toLowerCase();
   if (!email) return null;
   const key = (scope: string, value: string) => createHmac('sha256', secret)
