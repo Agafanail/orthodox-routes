@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
+import { verifyComplaintReporter } from './verify-complaint-reporter.mjs';
 
 const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
@@ -173,6 +174,9 @@ try {
   assert.equal(missingAccount.email_verified, true);
   assertReason(missingAccount, 'account_missing');
 
+  await verifyComplaintReporter({ url, publicKey, signedInClient: clientA,
+    accountId: identities[0].id, accountExists: false });
+
   const accountA = await rpc(clientA, 'create_account', {
     p_display_name: "  Дмитрий O'Нил-Smith  ",
     p_phone_e164: '+390000000001',
@@ -186,6 +190,9 @@ try {
   assertReason(accountA.eligibility, 'phone_not_verified');
   assertReason(accountA.eligibility, 'adult_declaration_missing');
   assertReason(accountA.eligibility, 'current_terms_unavailable');
+
+  await verifyComplaintReporter({ url, publicKey, signedInClient: clientA,
+    accountId: identities[0].id, accountExists: true });
 
   // An informational own-account preview must not require ride participation eligibility.
   const emptyDeletionImpact = await rpc(clientA, 'current_account_deletion_impact');

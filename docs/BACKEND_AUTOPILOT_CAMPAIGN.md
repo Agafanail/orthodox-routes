@@ -4,13 +4,13 @@
 - **Starting commit:** `3afa340363d5a9678ae7ba338eefa65ef0725992`
 - **Scope:** all remaining approved backend work required for the first public version
 - **Production access:** excluded
-- **Run state:** Active after the owner's explicit resume on 20 October 2026.
+- **Run state:** Active after the owner's explicit resume on 22 October 2026.
 
 ## Checkpoints
 
 | Checkpoint | Scope | Status | Evidence |
 | --- | --- | --- | --- |
-| 0 | Protect `main` with PR-only changes, strict required CI, no force push or deletion, and zero required approvals | Complete | GitHub branch protection verified on 19 September and reverified on 19 October 2026 |
+| 0 | Protect `main` with PR-only changes, strict required CI, no force push or deletion, and zero required approvals | Complete | GitHub branch protection reverified on 22 October 2026 |
 | 1 | Campaign recovery state and non-destructive current staging smoke | Complete | PR #8; commit `31436a3`; CI `35443915447` green; remote staging smoke passed with exact cleanup |
 | 2 | Agreement change proposal/answer workflow and remaining My Trips backend | Complete | PR #9; merge `24f70fa`; CI `35445507498` green |
 | 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | In progress | Foundation PRs #10–12 merged; invitation hardening PR #75 merge `c8aec24`, CI `39288037831`; ordinary post-lock lease/recovery PR #76 merge `68da212`, CI `39290858740`; hosting/provider acceptance remains |
@@ -23,7 +23,7 @@
 
 ## Current checkpoint
 
-PR #80 (`ecaf978`, CI `39413111841`) merged verified-email binding guards after all four final-head checks/cleanup and completed review without findings. Current `codex/complaint-http-intake` work adds inactive exact-origin POST/UTF-8 JSON metadata checks and a bounded private body reader, still requiring the existing broker and independent session/proxy/cookie authority. A narrow shared-reader extraction preserves provider import/error/16 KiB/deadline contracts while request intake has a 64 KiB/five-second bound. All 1239 local tests and 77 focused request/shared-reader/provider cases passed; lint retained two existing warnings and build/type/diff passed after correcting two test-fixture inference types. Two opt-in Storage tests were skipped locally. Final-head CI/review remain required before merge. The HTTP intake transfer stash is an applied backup, not pending work to pop again.
+PR #81 (`fe71a17`, CI `39420054173`) merged bounded complaint HTTP intake/shared JSON reads. PR #82's corrected `b7ae3ef` participation fence passed actual SQL replay/concurrency, Auth and verification jobs in CI `39809268993`; browser completion and final-head review remain pending, so it is not merged or complete. Current independent `codex/complaint-preparation-session` work adds verified SSR reporter resolution without an eligibility gate or private-contact prefetch. All 1284 local tests and 45 focused reporter/server cases passed; lint retained two existing warnings and build/type/script-syntax/diff passed. Two opt-in Storage tests were skipped locally. Actual SSR/Auth integration and all final-head checks/review remain required. Transfer stashes for HTTP intake, verified email and reporter state are applied backups, not pending work to pop again.
 
 The 19 October Group 7 Product Scope/IA amendments are preserved: explicit publication-labelled presses, one complete publication gate, default new-account trip email, and no implicit email-link consumption. Production contextual publication alignment remains separate approved work as recorded by PR #74; these hardening/preparation slices do not implement its UI or silently change the current publication flow.
 
@@ -51,9 +51,11 @@ Frontend visual redesign, production infrastructure/data/secrets, production leg
 - Initial operational church-upload limits require owner approval after staging measurements under Backend Architecture §18.3. Decoder ceilings alone do not activate uploads; finish independent processing/contracts/adapters and synthetic verification first.
 - Exact operational abuse-rate values require approval under Backend Architecture §20. The new complaint-preparation policy remains completely unset by default; trusted proxy/secret configuration, public broker enforcement, maintenance, and real proof are required before activation. Defensive configuration ceilings and synthetic fixtures are not approved deployment settings.
 - Docker is currently unavailable locally. Database replay and integration remain required in GitHub CI; linked isolated staging may be used only with synthetic fixtures and exact cleanup.
-- The pinned existing synthetic-only staging project remains `INACTIVE` in authenticated provider metadata rechecked on 20 October 2026, without key retrieval or mutation. Owner-controlled resumption and an existing private `church-images` bucket are prerequisites for the remote image probe; do not retrieve its keys, change bucket settings, or claim remote success while unavailable. Independent local campaign work continues first.
+- The pinned existing synthetic-only staging project remains `INACTIVE` in authenticated provider metadata rechecked on 22 October 2026, without key retrieval or mutation. Owner-controlled resumption and an existing private `church-images` bucket are prerequisites for the remote image probe; do not retrieve its keys, change bucket settings, or claim remote success while unavailable. Independent local campaign work continues first.
 
 ## Verification state
+
+- PR #81 merged as `fe71a17`; final-head CI `39420054173` passed all four required jobs and cleanup/post-steps on `1f709aa`, with no review findings. All 1239 local tests and 77 focused request/shared-reader/provider cases passed; lint retained two existing warnings, build/type/diff passed, and two opt-in Storage tests were skipped locally. No public handler, provider activation, migration, dependency, operational rate value, or production operation changed.
 
 - PR #80 merged as `ecaf978`; final-head CI `39413111841` passed all four required jobs and cleanup/post-steps on `63810f4`, with no review findings. Actual synthetic SQL verifies stale Auth/contact eligibility and channel refusal, no stale enqueue/legacy/v3 destination disclosure, unchanged private source rows, independently stale destinations, restoration without retargeting, a real delivery-row wait across committed Auth change, and migration/composed-replay/ACL stability. Existing verified pre-account/account/browser cases passed. All 1193 local tests passed; lint retained two existing warnings, build/type/script-syntax/diff passed, and two opt-in Storage tests were skipped locally. No dependency, new ordinary/service grant, automatic contact synchronization, snapshot rewrite, recovery/protective-delay decision, provider/mailbox proof, or production operation changed.
 
