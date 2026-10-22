@@ -8,6 +8,8 @@ The application calls service-only `api.notification_worker_claim_job_v3(lease, 
 
 Enqueue/claim/completion waits are bounded to five seconds; the default protected client also aborts requests at five seconds. Provider waits are bounded to twelve seconds, with the existing independent selected-adapter limits. Unsafe application origins fail before enqueue or destination leasing. The origin is credential-free HTTPS without path/query/fragment, not a caller-selected return URL.
 
+The selected Web Push adapter also enforces [connection-time public destinations and bounded native HTTPS](BACKEND_WEB_PUSH_EGRESS.md): ten seconds across DNS/TLS/upload/response headers, a 16 KiB header ceiling, status-only acknowledgement without body collection, and active request/response/agent cleanup. This replaces the library's socket-inactivity-only network timeout without replacing its encryption or VAPID implementation.
+
 Only fixed adapter identity, HTTP status class, known safe failure classes, and a strict successful email UUID acknowledgement reach completion. Push references remain null. Unknown/private adapter fields, exceptions, malformed success, and timeouts become a fixed temporary failure, never raw diagnostics. Actual selected Resend/VAPID results keep their existing classifications. No provider body, destination/key, message, or arbitrary error is returned in statistics or logged.
 
 ## PostgreSQL boundary

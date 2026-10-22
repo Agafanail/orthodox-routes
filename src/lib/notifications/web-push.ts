@@ -1,12 +1,13 @@
-import webPush from 'web-push';
+import type webPush from 'web-push';
 import type { WebPushNotificationConfig } from '@/lib/supabase/config';
 import { containedFailure, type NotificationProviderAdapter } from './adapter';
+import { sendBoundedWebPush } from './push-transport';
 
 type WebPushSender = typeof webPush.sendNotification;
 
 export function createWebPushNotificationAdapter(
   config: WebPushNotificationConfig,
-  sendNotification: WebPushSender = webPush.sendNotification,
+  sendNotification: WebPushSender = sendBoundedWebPush,
 ): NotificationProviderAdapter {
   return {
     adapterId: `web-push-vapid-${config.keyVersion}`,
