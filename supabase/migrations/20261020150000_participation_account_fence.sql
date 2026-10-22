@@ -36,12 +36,12 @@ begin
       'submit_passenger_response', 'submit_driver_response', 'answer_passenger_response',
       'confirm_ride_response', 'restore_passenger_request', 'propose_agreement_change', 'resolve_agreement_change',
       'create_church', 'invite_church_admin', 'accept_church_admin_invite', 'update_church_content',
-      'create_one_off_service', 'preview_one_off_service_cancellation', 'cancel_one_off_service',
+      'create_one_off_service', 'cancel_one_off_service',
       'request_church_archival', 'cancel_church_archival_request', 'update_church_address',
       'update_one_off_service_content', 'update_one_off_service_time', 'create_recurring_service',
-      'preview_recurring_service_date_cancellation', 'cancel_recurring_service_date',
+      'cancel_recurring_service_date',
       'reschedule_recurring_service_date', 'update_recurring_service_date_content',
-      'preview_recurring_service_future_cancellation', 'cancel_recurring_service_future',
+      'cancel_recurring_service_future',
       'correct_church_content_translation', 'update_church_public_contacts', 'prepare_church_image_replacement',
       'update_recurring_service_future_content', 'reschedule_recurring_service_future',
       'extend_recurring_service', 'shorten_recurring_service'
@@ -69,7 +69,7 @@ begin
     end if;
     execute definition;
   end loop;
-  if checked_count <> 36 then
+  if checked_count <> 33 then
     raise exception using errcode = '55000', message = 'Unexpected participation entry-point inventory.';
   end if;
 end;

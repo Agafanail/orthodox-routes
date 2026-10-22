@@ -3,7 +3,7 @@
 ## Implemented boundary
 
 Migration `20261020150000_participation_account_fence.sql` adds an unexposed
-`app.require_mutating_actor(boolean)` helper. The explicit inventory of 36 existing
+`app.require_mutating_actor(boolean)` helper. The explicit inventory of 33 existing
 positive-participation entry points uses it in exactly the former guard position,
 including conditional acceptance branches. It locks the actor's account `FOR SHARE`
 until transaction end, then rechecks the existing eligibility and, for transport,
@@ -18,7 +18,7 @@ execution to ordinary or service roles. This is not a new product eligibility ru
 
 The migration changes no public signature, existing ACL, security-definer flag,
 conditional decline path, business state, notification, or idempotency behavior.
-The original read helpers remain `STABLE` and do not lock rows. Read-only projections,
+The original read helpers and cancellation previews remain `STABLE` and do not lock rows. Read-only projections,
 existing agreement access/cancellation, and restricted self-export are not tightened.
 Private contacts, phone reservations, preferences, and agreement snapshots are not
 rewritten. Threat-specific access closure is not implemented by this fence.
