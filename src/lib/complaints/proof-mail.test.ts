@@ -208,6 +208,20 @@ describe('complaint email-proof mail boundary', () => {
   it.each(['evaluated_at', 'expires_at', 'lease_until'])('rejects normalized impossible %s before dispatch', (field) => {
     expect(parseComplaintProofJob(raw({ [field]: '2026-02-31T12:00:00Z' }))).toBeNull();
   });
+  it.each([null, {}, 'true', 1])('starts no later claim after malformed completion %#', async (completion) => {
+    const f = setup({ completion });
+    expect(await processComplaintProofMail(5, f.dependencies)).toEqual({ configured: true, claimed: 1, sent: 0, failed: 1 });
+    expect(f.send).toHaveBeenCalledTimes(1);
+    expect(f.rpc).toHaveBeenCalledTimes(2);
+    expect(f.signals.every((signal) => signal.aborted)).toBe(true);
+  });
+  it('preserves the existing next-claim behavior after an acknowledged refusal', async () => {
+    const f = setup({ completion: false });
+    expect(await processComplaintProofMail(5, f.dependencies)).toEqual({ configured: true, claimed: 1, sent: 0, failed: 1 });
+    expect(f.send).toHaveBeenCalledTimes(1);
+    expect(f.rpc).toHaveBeenCalledTimes(3);
+    expect(f.signals.every((signal) => signal.aborted)).toBe(true);
+  });
   it('aborts acknowledged RPC signals and stops after an uncertain completion', async () => {
     const successful = setup(); await processComplaintProofMail(1, successful.dependencies);
     expect(successful.signals).toHaveLength(2);

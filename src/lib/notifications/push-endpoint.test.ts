@@ -10,6 +10,12 @@ describe('Web Push connection destinations', () => {
     '::ffff:127.0.0.1', '::ffff:a9fe:a9fe', '2001::1', '2001:2::1',
     '2001:db8::1', '2002:a9fe:a9fe::1', '3fff::1', '5f00::1',
     '64:ff9b::a9fe:a9fe', '64:ff9b::127.0.0.1', '64:ff9b:1::808:808',
+    '2000::1', '2001:1000::1', '2001:11ff:ffff:ffff:ffff:ffff:ffff:ffff',
+    '2001:4e00::1', '2001:6000::1', '2001:c000::1', '2003:4000::1',
+    '2004::1', '2420::1', '2610:200::1', '261f::1', '2620:200::1',
+    '2640::1', '2810::1', '2a20::1', '2c10::1', '2d00::1', '2e00::1',
+    '3000::1', '3800::1', '3c00::1', '3e00::1', '3f00::1', '3f80::1',
+    '3fc0::1', '3fe0::1', '3ff0::1', '3ffe::1',
     'not-an-ip', '',
   ])('refuses non-public address %s', (address) => {
     expect(isPublicPushAddress(address)).toBe(false);
@@ -20,6 +26,15 @@ describe('Web Push connection destinations', () => {
     '::ffff:8.8.8.8', '::ffff:c000:9', '2606:4700::1111', '2001:4860:4860::8888',
     '2001:1::1', '2001:1::2', '2001:1::3', '2001:3::1', '2001:4:112::1',
     '2001:20::1', '2001:30::1', '64:ff9b::808:808', '64:ff9b::8.8.8.8',
+    '2001:200::1', '2001:400::1', '2001:600::1', '2001:800::1',
+    '2001:c00::1', '2001:e00::1', '2001:1200::1', '2001:1400::1',
+    '2001:1800::1', '2001:1a00::1', '2001:1c00::1', '2001:2000::1',
+    '2001:4000::1', '2001:4200::1', '2001:4400::1', '2001:4600::1',
+    '2001:4800::1', '2001:4a00::1', '2001:4c00::1', '2001:5000::1',
+    '2001:8000::1', '2001:a000::1', '2001:b000::1', '2003::1',
+    '2003:3fff:ffff:ffff:ffff:ffff:ffff:ffff', '2400::1', '2410::1',
+    '241f:ffff:ffff:ffff:ffff:ffff:ffff:ffff', '2600::1', '2610::1',
+    '2620::1', '2630::1', '2800::1', '2a00::1', '2a10::1', '2c00::1',
   ])('allows public address %s', (address) => {
     expect(isPublicPushAddress(address)).toBe(true);
   });
@@ -30,6 +45,7 @@ describe('Web Push connection destinations', () => {
     'https://push.example.test/\n', 'https://127.1/x', 'https://0x7f000001/x',
     'https://2130706433/x', 'https://[::ffff:127.0.0.1]/x',
     'https://169.254.169.254/latest/meta-data', 'https://[64:ff9b::a9fe:a9fe]/x',
+    'https://[3000::1]/private', 'https://[2001:1000::1]/private',
     'https://push.example.test/' + 'x'.repeat(2048), 'invalid',
   ])('rejects unsafe endpoint %s', (endpoint) => {
     expect(() => pushEndpoint(endpoint)).toThrow();
@@ -55,6 +71,8 @@ describe('Web Push connection destinations', () => {
     [], [{ address: '1.1.1.1', family: 4 }, { address: '127.0.0.1', family: 4 }],
     [{ address: '127.0.0.1', family: 4 }], [{ address: '1.1.1.1', family: 6 }],
     [{ address: 'not-an-ip', family: 4 }], [{ address: undefined, family: 4 }],
+    [{ address: '3000::1', family: 6 }],
+    [{ address: '2606:4700::1111', family: 6 }, { address: '2001:1000::1', family: 6 }],
   ])('fails closed for empty, mixed or invalid DNS results %#', (...records) => {
     const callback = vi.fn();
     const resolver: PushLookup = (_host, done) => done(null, records as never);
