@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { NotificationDeliveryJob, NotificationMessage, NotificationProviderAdapter } from '@/lib/notifications/adapter';
+import { normalizeNotificationDeliveryResult } from '@/lib/notifications/adapter';
 import { createResendNotificationAdapter } from '@/lib/notifications/resend';
 import { getApplicationOrigin, getResendNotificationConfig } from '@/lib/supabase/config';
 import { createPrivilegedSupabaseClient } from '@/lib/supabase/server-privileged';
+import { complaintDatabaseTimestamp } from './draft-receipt';
 
 type Language = NotificationDeliveryJob['language'];
 type Copy = Readonly<{ subject: string; body: string; action: string; ignore: string }>;
@@ -17,22 +19,20 @@ export const complaintProofCopy: Readonly<Record<Language, Copy>> = {
 export const COMPLAINT_PROOF_COPY_VERSION = 1;
 
 type RpcResult = { data: unknown; error: unknown };
-type Client = { schema(name: 'api'): { rpc(name: string, args: Record<string, unknown>): PromiseLike<RpcResult> } };
+type Client = { schema(name: 'api'): { rpc(name: string, args: Record<string, unknown>): {
+  abortSignal(signal: AbortSignal): PromiseLike<RpcResult>;
+} } };
 type Dependencies = { adapter?: NotificationProviderAdapter | null; client?: Client | null; appOrigin?: string | null };
 type Job = { draftId: string; jobId: string; attemptCount: number; email: string; language: Language;
   token: string; expiresAt: number; leaseUntil: number };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN = /^[0-9a-f]{64}$/;
-const DATE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/;
-function timestamp(value: unknown) {
-  return typeof value === 'string' && DATE.test(value) ? Date.parse(value) : NaN;
-}
 export function parseComplaintProofJob(value: unknown, now = Date.now(), claimElapsedMs = 0): Job | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
-  const evaluatedAt = timestamp(item.evaluated_at);
-  const draftDuration = timestamp(item.expires_at) - evaluatedAt;
-  const leaseDuration = timestamp(item.lease_until) - evaluatedAt;
+  const evaluatedAt = complaintDatabaseTimestamp(item.evaluated_at);
+  const draftDuration = complaintDatabaseTimestamp(item.expires_at) - evaluatedAt;
+  const leaseDuration = complaintDatabaseTimestamp(item.lease_until) - evaluatedAt;
   // Trust relative database durations, not synchronized host clocks. Subtract the entire RPC
   // round trip conservatively so network/lock latency can never extend a live server lease.
   const expiresAt = now + draftDuration - claimElapsedMs;
@@ -82,12 +82,23 @@ async function bounded<T>(task: PromiseLike<T>, milliseconds: number): Promise<T
     })]);
   } finally { clearTimeout(timer); }
 }
+async function boundedRpc(api: ReturnType<Client['schema']>, name: string, args: Record<string, unknown>): Promise<RpcResult | null> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const deadline = new Promise<null>((resolve) => {
+      timer = setTimeout(() => { controller.abort(); resolve(null); }, 5000);
+    });
+    return await Promise.race([deadline, api.rpc(name, args).abortSignal(controller.signal)]);
+  } finally { clearTimeout(timer); controller.abort(); }
+}
+
 export async function processComplaintProofMail(limit = 5, dependencies: Dependencies = {}) {
   const adapter = dependencies.adapter === undefined ? (() => {
     const config = getResendNotificationConfig();
     return config ? createResendNotificationAdapter(config) : null;
   })() : dependencies.adapter;
-  const client = dependencies.client === undefined ? createPrivilegedSupabaseClient() as Client | null : dependencies.client;
+  const client = dependencies.client === undefined ? createPrivilegedSupabaseClient({ requestTimeoutMs: 5000 }) as Client | null : dependencies.client;
   const origin = safeOrigin(dependencies.appOrigin === undefined ? getApplicationOrigin() : dependencies.appOrigin);
   const summary = { claimed: 0, configured: Boolean(adapter?.channel === 'email' && client && origin), failed: 0, sent: 0 };
   if (!summary.configured || !adapter || !client || !origin) return summary;
@@ -98,27 +109,29 @@ export async function processComplaintProofMail(limit = 5, dependencies: Depende
     try {
       const api = client.schema('api');
       const claimStarted = performance.now();
-      const claimed = await bounded(api.rpc('complaint_proof_mail_claim', { p_lease_token: leaseToken }), 5_000);
-      if (claimed.error) { summary.failed += 1; break; }
+      const claimed = await boundedRpc(api, 'complaint_proof_mail_claim', { p_lease_token: leaseToken });
+      if (!claimed || claimed.error) { summary.failed += 1; break; }
       if (claimed.data === null) break;
       const job = parseComplaintProofJob(claimed.data, Date.now(), Math.max(0, performance.now() - claimStarted));
       if (!job) { summary.failed += 1; break; }
       summary.claimed += 1;
-      // Leave a full send window; an almost expired draft must not send a known-dead link.
-      if (Math.min(job.expiresAt, job.leaseUntil) - Date.now() <= 15_000) { summary.failed += 1; break; }
+      // Reserve the 12-second send plus five-second completion wait and a small margin.
+      if (Math.min(job.expiresAt, job.leaseUntil) - Date.now() <= 20_000) { summary.failed += 1; break; }
       const delivery: NotificationDeliveryJob = { attemptCount: job.attemptCount, authKey: null, channel: 'email',
         destinationValue: job.email, eventType: 'complaint.email.proof', jobId: job.jobId, language: job.language,
         localizationKey: 'complaint.email.proof', notificationId: job.draftId, p256dhKey: null,
         safeParameters: {}, safeRoute: `/${job.language}/report/${job.draftId}`, vapidKeyVersion: null };
       let outcome: 'sent' | 'temporary_failure' | 'permanent_failure' = 'temporary_failure';
       try {
-        const result = await bounded(adapter.send(delivery, renderComplaintProofMail(job, origin)), 12_000);
-        if (['sent', 'temporary_failure', 'permanent_failure'].includes(result?.outcome)) outcome = result.outcome;
+        outcome = normalizeNotificationDeliveryResult(
+          await bounded(adapter.send(delivery, renderComplaintProofMail(job, origin)), 12_000), adapter,
+        ).outcome;
       } catch { /* An unknown transport result is retried under a fresh capability and attempt ID. */ }
-      const complete = await bounded(api.rpc('complaint_proof_mail_complete', {
+      const complete = await boundedRpc(api, 'complaint_proof_mail_complete', {
         p_job_id: job.jobId, p_lease_token: leaseToken, p_outcome: outcome,
-      }), 5_000);
-      if (!complete.error && complete.data === true && outcome === 'sent') summary.sent += 1;
+      });
+      if (!complete || complete.error || typeof complete.data !== 'boolean') { summary.failed += 1; break; }
+      if (complete.data === true && outcome === 'sent') summary.sent += 1;
       else summary.failed += 1;
     } catch { summary.failed += 1; break; }
   }

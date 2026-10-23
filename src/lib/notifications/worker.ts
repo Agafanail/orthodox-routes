@@ -9,9 +9,9 @@ import type {
   NotificationChannel,
   NotificationDeliveryJob,
   NotificationProviderAdapter,
-  NotificationDeliveryResult,
 } from './adapter';
-import { containedFailure } from './adapter';
+import { containedFailure, normalizeNotificationDeliveryResult } from './adapter';
+export { normalizeNotificationDeliveryResult } from './adapter';
 import { renderNotificationMessage } from './messages';
 import { createResendNotificationAdapter } from './resend';
 import { createWebPushNotificationAdapter } from './web-push';
@@ -38,8 +38,6 @@ const SAFE_ROUTE = /^\/[a-z0-9][a-z0-9/_-]{0,239}$/;
 const LANGUAGES = new Set(['en', 'ru', 'it', 'ro', 'uk', 'de']);
 const DATE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/;
 const timestamp = (value: unknown) => typeof value === 'string' && DATE.test(value) ? Date.parse(value) : NaN;
-const FAILURE_CLASSES = new Set(['provider_unavailable', 'provider_rate_limited', 'provider_rejected',
-  'invalid_provider_ack', 'vapid_key_unavailable', 'subscription_gone']);
 
 function secureOrigin(value: string | null) {
   if (!value) return null;
@@ -57,26 +55,6 @@ async function bounded<T>(task: PromiseLike<T>, milliseconds: number): Promise<T
       timer = setTimeout(() => reject(new Error('Notification worker deadline exceeded.')), milliseconds);
     })]);
   } finally { clearTimeout(timer); }
-}
-
-export function normalizeNotificationDeliveryResult(value: unknown, adapter: NotificationProviderAdapter): NotificationDeliveryResult {
-  const fallback = containedFailure(adapter.adapterId, 'temporary_failure', 'provider_unavailable');
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
-  const item = value as Record<string, unknown>;
-  const code = typeof item.providerCode === 'string' && /^http_[1-5][0-9]{2}$/.test(item.providerCode) ? item.providerCode : null;
-  if (item.providerAdapter !== adapter.adapterId || (item.providerCode !== null && !code)) return fallback;
-  if (item.outcome === 'sent') {
-    if (item.safeFailureClass !== null || !code?.startsWith('http_2') || (adapter.channel === 'web_push' && item.providerReference !== null)
-      || (adapter.channel === 'email'
-      && (typeof item.providerReference !== 'string' || !UUID.test(item.providerReference)))) return fallback;
-    return { outcome: 'sent', providerAdapter: adapter.adapterId, providerCode: code,
-      providerReference: adapter.channel === 'email' ? item.providerReference as string : null, safeFailureClass: null };
-  }
-  return (item.outcome === 'temporary_failure' || item.outcome === 'permanent_failure')
-    && item.providerReference === null && typeof item.safeFailureClass === 'string' && FAILURE_CLASSES.has(item.safeFailureClass)
-    ? containedFailure(adapter.adapterId, item.outcome,
-      item.safeFailureClass, code)
-    : fallback;
 }
 
 function safeParameters(value: unknown): value is Record<string, string | number | boolean | null> {

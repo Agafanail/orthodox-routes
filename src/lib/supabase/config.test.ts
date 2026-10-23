@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   getContextualRegistrationConfig,
   getComplaintMaintenanceSecret,
+  getComplaintProofWorkerSecret,
   getApplicationOrigin,
   getBirdSmsConfig,
   getNotificationWorkerSecret,
@@ -27,7 +28,7 @@ const originalBirdSmsSender = process.env.BIRD_SMS_SENDER;
 const notificationVariables = [
   'NOTIFICATION_WORKER_SECRET', 'RESEND_API_KEY', 'RESEND_NOTIFICATION_FROM',
   'RESEND_WEBHOOK_SECRET', 'VAPID_KEY_VERSION', 'VAPID_PRIVATE_KEY',
-  'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT', 'TRANSLATION_WORKER_SECRET', 'COMPLAINT_MAINTENANCE_SECRET',
+  'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT', 'TRANSLATION_WORKER_SECRET', 'COMPLAINT_MAINTENANCE_SECRET', 'COMPLAINT_PROOF_WORKER_SECRET',
 ] as const;
 const originalNotificationVariables = Object.fromEntries(
   notificationVariables.map((name) => [name, process.env[name]]),
@@ -221,6 +222,25 @@ describe('complaint maintenance configuration', () => {
     delete process.env.TRANSLATION_WORKER_SECRET;
     delete process.env.COMPLAINT_MAINTENANCE_SECRET;
     expect(getComplaintMaintenanceSecret()).toBeNull();
+  });
+});
+
+describe('complaint proof-worker configuration', () => {
+  it('requires a bounded secret distinct from every other worker', () => {
+    const secret = 'synthetic-complaint-proof-secret-'.repeat(2);
+    process.env.COMPLAINT_PROOF_WORKER_SECRET = ` ${secret} `;
+    expect(getComplaintProofWorkerSecret()).toBe(secret);
+    for (const name of ['NOTIFICATION_WORKER_SECRET', 'TRANSLATION_WORKER_SECRET', 'COMPLAINT_MAINTENANCE_SECRET'] as const) {
+      const previous = process.env[name]; process.env[name] = ` ${secret} `;
+      expect(getComplaintProofWorkerSecret()).toBeNull();
+      if (previous === undefined) delete process.env[name]; else process.env[name] = previous;
+    }
+    for (const invalid of ['', 'short', 'x'.repeat(257), 'x'.repeat(32) + '\nunsafe', 'x'.repeat(32) + ' unsafe', 'я'.repeat(32)]) {
+      process.env.COMPLAINT_PROOF_WORKER_SECRET = invalid;
+      expect(getComplaintProofWorkerSecret()).toBeNull();
+    }
+    delete process.env.COMPLAINT_PROOF_WORKER_SECRET;
+    expect(getComplaintProofWorkerSecret()).toBeNull();
   });
 });
 
