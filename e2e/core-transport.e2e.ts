@@ -283,19 +283,42 @@ test('protects the Core agreement boundary across real isolated browser sessions
       expect(await place.json()).toBeNull();
     });
 
-    await test.step('cancel, revoke disclosure immediately, and explicitly restore the request', async () => {
-      await passengerPage.getByRole('button', { name: 'Отменить договорённость' }).click();
-      await expect(passengerPage.getByRole('status')).toHaveText('Договорённость отменена. Доступ к контактам закрыт.');
+    await test.step('driver cancellation stays private until the passenger reviews and explicitly republishes', async () => {
+      await driverPage.getByRole('button', { name: 'Отменить договорённость' }).click();
+      await expect(driverPage.getByRole('status')).toHaveText('Договорённость отменена. Доступ к контактам закрыт.');
+      await passengerPage.reload();
+      await expect(passengerPage.getByText('Ваша просьба не опубликована', { exact: false })).toBeVisible();
 
       const passengerContacts = await rpc(passengerContext, data, 'get_agreement_contacts', { p_agreement_id: agreementId });
       const driverPlace = await rpc(driverContext, data, 'get_agreement_exact_place', { p_agreement_id: agreementId });
       expect(await passengerContacts.json()).toBeNull();
       expect(await driverPlace.json()).toBeNull();
 
+      // Review is a read, not publication. Desktop and mobile both keep the submit action
+      // behind the old conditions; no counterparty contact is included in those conditions.
+      await expect(passengerPage.getByRole('button', { name: 'Опубликовать снова' })).not.toBeVisible();
+      const before = await rpc(anonymousContext, data, 'list_active_passenger_requests', {}, false);
+      expect(await before.json()).toEqual([]);
+      await passengerPage.getByText('Снова искать поездку', { exact: true }).click();
+      const review = passengerPage.locator('[data-restoration-review]');
+      await expect(review.getByText(data.markers.passengerExactPlace, { exact: true })).toBeVisible();
+      await expect(review.getByText('Храм:', { exact: false })).toBeVisible();
+      await expect(review.getByText('Желаемое прибытие:', { exact: false })).toBeVisible();
+      await expect(review.getByText(driver.email, { exact: false })).toHaveCount(0);
+      await expect(passengerPage.getByRole('button', { name: 'Больше не искать поездку' })).toBeVisible();
+      await passengerPage.setViewportSize({ width: 390, height: 844 });
       await expect(passengerPage.getByRole('button', { name: 'Опубликовать снова' })).toBeVisible();
+      const stillPrivate = await rpc(anonymousContext, data, 'list_active_passenger_requests', {}, false);
+      expect(await stillPrivate.json()).toEqual([]);
+      await anonymousPage.reload();
+      expectMarkersAbsent(await anonymousPage.content(), [data.markers.passengerExactPlace, driver.email, driver.phone],
+        'Cancelled anonymous board');
       await passengerPage.getByRole('button', { name: 'Опубликовать снова' }).click();
       await expect(passengerPage.getByRole('status')).toHaveText('Запрос снова опубликован.');
       await expect(passengerPage.getByText('Запрос: 1 из 1 мест · опубликовано')).toBeVisible();
+      await expect(passengerPage.locator('[data-restoration-review]')).toHaveCount(0);
+      const closedContacts = await rpc(passengerContext, data, 'get_agreement_contacts', { p_agreement_id: agreementId });
+      expect(await closedContacts.json()).toBeNull();
     });
   } finally {
     await Promise.all([

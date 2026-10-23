@@ -304,19 +304,11 @@ export function CoreTransportBoard(props: Props) {
   const matchedOccurrences = props.showMatchesOnly
     ? props.driverOccurrences.filter((offer) => matchesOccurrence(matches, offer.occurrenceId))
     : props.driverOccurrences;
-  /*
-   * A driver withdrew and the passenger's own request went back on the board by itself. They may
-   * not have seen the withdrawal at all, so the page has to say both halves plainly: it ended,
-   * and you are published again. It stops being shown once that request is closed or arranged
-   * anew, so it never becomes permanent furniture.
-   */
-  const republished = props.agreements.filter((agreement) => agreement.status === 'cancelled'
+  const awaitingRestoration = props.agreements.filter((agreement) => agreement.status === 'cancelled'
     && agreement.currentRole === 'passenger'
     && agreement.cancelledByRole === 'driver'
     && props.ownedRequests.some((request) => request.requestId === agreement.requestId
-      && ['active', 'partial'].includes(request.status))
-    && !props.agreements.some((other) => other.requestId === agreement.requestId
-      && other.status === 'confirmed'));
+      && request.status === 'restore'));
   // Responses that are waiting on this person specifically, in either direction.
   const awaitingDecision = props.responses.filter((response) => (
     (response.status === 'await_passenger' && response.currentRole === 'passenger')
@@ -346,11 +338,11 @@ export function CoreTransportBoard(props: Props) {
         live further down the page, past the boards, where nobody looks unless they already know
         something is there.
       */}
-      {republished.length > 0 ? <ul className="mt-3 grid gap-2" data-republished>
-        {republished.map((agreement) => (
+      {awaitingRestoration.length > 0 ? <ul className="mt-3 grid gap-2" data-awaiting-restoration>
+        {awaitingRestoration.map((agreement) => (
           <li className="rounded-lg border border-amber-300 bg-amber-50 p-4" key={agreement.agreementId}>
             <p className="font-semibold text-amber-900">
-              {agreement.driverName} отменил договорённость. Ваша просьба снова опубликована.
+              {agreement.driverName} отменил договорённость. Ваша просьба не опубликована. Если машина всё ещё нужна, проверьте прежние условия в разделе «Мои публикации».
             </p>
           </li>
         ))}
@@ -521,7 +513,24 @@ export function CoreTransportBoard(props: Props) {
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         {props.ownedRequests.map((item) => <article className="rounded bg-stone-50 p-3" key={item.requestId}><p>Запрос: {item.remainingPassengers} из {item.totalPassengers} мест · {stateLabel(item.status)}</p>
           {['active', 'partial'].includes(item.status) ? <form action={cancelPassengerRequestAction}>{actionHidden(props.church.slug)}<input name="request_id" type="hidden" value={item.requestId} /><button className="text-amber-900" type="submit">Отменить запрос</button></form> : null}
-          {item.status === 'restore' ? <form action={restorePassengerRequestAction}>{actionHidden(props.church.slug)}<input name="request_id" type="hidden" value={item.requestId} /><button className="text-amber-900" type="submit">Опубликовать снова</button></form> : null}
+          {item.status === 'restore' ? <>
+            {item.restoration ? <details className="mt-2" data-restoration-review>
+              <summary className="cursor-pointer font-semibold text-amber-900">Снова искать поездку</summary>
+              <div className="mt-2 space-y-2">
+                <p>Проверьте прежние условия. Просьба появится на доске только после нажатия «Опубликовать снова».</p>
+                <p>Храм: {item.restoration.churchName}</p>
+                {item.restoration.serviceName ? <p>Богослужение: {item.restoration.serviceName}</p> : null}
+                <p>Желаемое прибытие: {date(item.restoration.desiredArrivalAt, item.restoration.timezone)} ({item.restoration.timezone})</p>
+                <p>Всего пассажиров: {item.totalPassengers}. Ещё нужна машина: {item.remainingPassengers}. Детей: {item.restoration.childrenCount}.</p>
+                <p>Детское кресло: {item.restoration.childSeatRequired ? 'нужно' : 'не нужно'}. Обратная дорога: {item.restoration.returnRequired ? 'нужна' : 'не нужна'}.</p>
+                <p>Ваши места встречи (точные адреса не публикуются):</p>
+                <ul>{item.restoration.places.map((address, index) => <li key={index}>{address}</li>)}</ul>
+                <p>Комментарий: {item.restoration.publicNote ?? 'не указан'}</p>
+                <form action={restorePassengerRequestAction}>{actionHidden(props.church.slug)}<input name="request_id" type="hidden" value={item.requestId} /><button className="font-semibold text-amber-900" type="submit">Опубликовать снова</button></form>
+              </div>
+            </details> : <p>Не удалось загрузить прежние условия. Обновите страницу перед повторной публикацией.</p>}
+            <form action={cancelPassengerRequestAction} className="mt-2">{actionHidden(props.church.slug)}<input name="request_id" type="hidden" value={item.requestId} /><button className="text-amber-900" type="submit">Больше не искать поездку</button></form>
+          </> : null}
         </article>)}
         {props.ownedOccurrences.map((item) => <article className="rounded bg-stone-50 p-3" key={item.occurrenceId}><p>Поездка: {item.availableSeats} свободно · {stateLabel(item.status)}</p>
           {['active', 'full'].includes(item.status) ? <form action={cancelDriverOccurrenceAction}>{actionHidden(props.church.slug)}<input name="occurrence_id" type="hidden" value={item.occurrenceId} /><button className="text-amber-900" type="submit">Отменить поездку</button></form> : null}

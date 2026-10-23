@@ -316,12 +316,21 @@ try {
   const afterCancellation = await rpc(anonymous, 'list_active_driver_occurrences', { p_church_id: churchId });
   assert.equal(afterCancellation.find((item) => item.occurrence_id === occurrence.occurrence_id).available_seats, 2);
   assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
+    .some((item) => item.request_id === request.request_id), false);
+  const owned = (await rpc(clients[0], 'current_transport_items')).passenger_requests
+    .find((item) => item.request_id === request.request_id);
+  assert.equal(owned.status, 'restore');
+  await rpc(clients[0], 'restore_passenger_request', {
+    p_request_id: request.request_id, p_client_key: randomUUID(),
+  });
+  assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
     .some((item) => item.request_id === request.request_id), true);
+  assert.equal(await rpc(clients[0], 'get_agreement_contacts', { p_agreement_id: agreement.agreement_id }), null);
 
   console.log('Remote staging Core smoke verification passed:');
   console.log('- isolated synthetic passenger, driver, and unrelated identities coordinated through the remote API');
   console.log('- the HTTPS deployment rendered remote public board data without exact places or contacts');
-  console.log('- ownership, public privacy, agreement, capacity, driver cancellation, republication, and disclosure held');
+  console.log('- ownership, public privacy, agreement, capacity, driver cancellation, explicit republication, and disclosure held');
   console.log('- phone eligibility used a database-owner staging fixture; real SMS delivery was not verified');
 } finally {
   const createdAccountIds = identities.flatMap((identity) => identity.id ? [identity.id] : []);
