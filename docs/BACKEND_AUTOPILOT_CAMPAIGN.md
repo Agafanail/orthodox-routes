@@ -4,13 +4,13 @@
 - **Starting commit:** `3afa340363d5a9678ae7ba338eefa65ef0725992`
 - **Scope:** all remaining approved backend work required for the first public version
 - **Production access:** excluded
-- **Run state:** Active after the owner's explicit resume on 22 October 2026.
+- **Run state:** Active after the owner's explicit resume on 23 October 2026.
 
 ## Checkpoints
 
 | Checkpoint | Scope | Status | Evidence |
 | --- | --- | --- | --- |
-| 0 | Protect `main` with PR-only changes, strict required CI, no force push or deletion, and zero required approvals | Complete | GitHub branch protection reverified on 22 October 2026 |
+| 0 | Protect `main` with PR-only changes, strict required CI, no force push or deletion, and zero required approvals | Complete | GitHub branch protection reverified on 23 October 2026 |
 | 1 | Campaign recovery state and non-destructive current staging smoke | Complete | PR #8; commit `31436a3`; CI `35443915447` green; remote staging smoke passed with exact cleanup |
 | 2 | Agreement change proposal/answer workflow and remaining My Trips backend | Complete | PR #9; merge `24f70fa`; CI `35445507498` green |
 | 3 | Durable notifications, preferences, email/Web Push contracts, delivery outbox, and provider-independent workers | In progress | Foundation PRs #10–12 merged; invitation hardening PR #75 merge `c8aec24`, CI `39288037831`; ordinary post-lock lease/recovery PR #76 merge `68da212`, CI `39290858740`; hosting/provider acceptance remains |
@@ -25,7 +25,11 @@
 
 PR #84 (`e353496`, CI `39816963767`) merged the unregistered preparation HTTP composition after all four main-based final-head jobs/cleanup and completed review without findings on `cf341c4`. It was retargeted from its temporary parent branch only after PR #83 merged; no check or required parent work was bypassed.
 
-Current `codex/complaint-targeted-email-proof` work adds the service-only expected-draft/current-proof check before mailbox verification mutation, retaining the original token-only signature as a compatible delegate. No public confirmation, login, complaint receipt or retention decision is activated. All 1346 local tests passed (two opt-in Storage tests skipped); lint retained two existing warnings, and production build/type/script-syntax/diff passed. Local Docker remains unavailable; new actual SQL role/mismatch/rotation/rollback/concurrency/deadline/replay proof and all final-head CI/review are required. Transfer stashes are applied backups, not pending work to pop again.
+PR #85 merged as `e03a945` on final head `917965c` after all four required CI jobs/cleanup in `39818943838`, actual target/proof/rotation/expiry/replay SQL verification and a complete implementation/security self-review with no known findings. The additional automated review has not completed; one retry was requested after over 90 minutes, and late findings remain tracked rather than claimed clear. The explicit solo-project campaign requires green protected CI and security review, not an additional reviewer approval. Branch protection was not changed or bypassed. Main push CI `39834330780` passed all four jobs and cleanup/post-steps.
+
+Current PR #86 (`codex/web-push-egress-boundary`) replaces only the selected VAPID adapter's unbounded network sender, preserving maintained encryption/signing and existing delivery policy. Early branch CI `39825206345` and main-integrated pre-correction CI `39943006833` passed all four jobs/cleanup, but were not merged after review identified reserved IPv6 acceptance on `3911160`. The correction permits only the IANA allocated prefixes, preserving special exclusions and rejecting gaps/literals/mixed DNS answers. All 1508 local tests and 164 focused cases passed, two opt-in Storage tests skipped; build/type/diff passed and lint retained two existing warnings. An initial concurrent full run hit one unrelated copy-review five-second timeout; the unchanged separately repeated suite passed. Final corrected-head CI and source/security review remain required before merge. No migration, dependency, provider activation, preference, UI or production operation changes.
+
+Already prepared downstream checkpoints remain unmerged and must be integrated sequentially with current main before final checks/merges: PR #87 `8b11b93` (verification controller/budgets, early CI `39825807394` green); PR #88 `c40283d` (bounded preparation maintenance, early CI `39827221027` green and additional review completed without findings); PR #89 `91a8faf` (single-job proof dispatch, early CI `39829575376` green); PR #90 `3208569` (mandatory phone-security email, early CI `39832379892` all four jobs/cleanup green and additional review completed without findings). No further parallel implementation branches are needed while this prepared stack is integrated. Transfer stashes are applied backups, not pending work to pop again.
 
 PR #83 local verification includes 1307 tests and 84 focused Auth/SSR/reporter cases, plus real Chromium malformed-cookie and explicit recovery checks on desktop/390x844: broken state is removed only by existing Auth actions, other state survives, and fresh PKCE state is generated. The browser Auth destination was verified as loopback-only and unavailable; no actual mailbox/login proof is claimed for that probe. Final corrected CI separately passed actual disposable SSR/Auth and scoped recovery proof.
 
@@ -47,6 +51,8 @@ The merged hiding review correction keeps existing equal-administrator schedule 
 Frontend visual redesign, production infrastructure/data/secrets, production legal copy, legal review, provider billing/account actions, and manual device/browser acceptance remain outside this backend campaign.
 
 ## Gates and blockers
+
+Three non-blocking owner questions were raised on 22 October about explicit passenger-request restoration after driver cancellation, external ride-note translation and the base complaint/owner-audit retention conflict. No explicit answers have arrived; a generic resume is not a product choice. Independent work continues. A possible ordinary notification enqueue/opt-out race is a separate unproven audit item, not a changed product rule or implemented fix.
 
 - **Product decision pending, not blocking independent checkpoints:** Product Scope V1 section 15.3 and IA V2 sections 14.2/48.1 require a fulfilled passenger request to wait for the passenger's explicit “search again” action after a driver cancellation. Migration `20260901090000_republish_when_the_driver_cancels.sql` instead republishes it automatically. Do not change or extend this behavior until the conflict is resolved.
 - **Translation scope conflict, not blocking church content:** IA V2 section 23.4 permits requested machine translation of ride notes, while Backend Architecture section 13 prohibits sending ride comments for translation. Do not implement ride-note translation until resolved explicitly.
