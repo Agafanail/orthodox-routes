@@ -130,7 +130,7 @@ export async function processComplaintProofMail(limit = 5, dependencies: Depende
       const complete = await boundedRpc(api, 'complaint_proof_mail_complete', {
         p_job_id: job.jobId, p_lease_token: leaseToken, p_outcome: outcome,
       });
-      if (!complete || complete.error) { summary.failed += 1; break; }
+      if (!complete || complete.error || typeof complete.data !== 'boolean') { summary.failed += 1; break; }
       if (complete.data === true && outcome === 'sent') summary.sent += 1;
       else summary.failed += 1;
     } catch { summary.failed += 1; break; }
