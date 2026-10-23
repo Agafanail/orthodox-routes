@@ -11,6 +11,7 @@ import { verifyComplaintProofMail } from './verify-complaint-proof-mail.mjs';
 import { verifyComplaintTargetedEmailProof } from './verify-complaint-targeted-email-proof.mjs';
 import { verifyAccountDeletionImpact } from './verify-account-deletion-impact.mjs';
 import { verifyComplaintRateBoundary } from './verify-complaint-rate-boundary.mjs';
+import { verifyComplaintVerificationBoundary } from './verify-complaint-verification-boundary.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 const sections = ['needs_response', 'upcoming', 'listings', 'history'];
@@ -1201,6 +1202,9 @@ await verifyAccountDeletionImpact({ clients, identities, anonymous, admin, churc
   listingRequestId: listingRequest.request_id, rpc, runSql: (statement) => runSql(container, statement) });
 
 await verifyComplaintRateBoundary({ admin, anonymous, clients,
+  runSql: (statement) => runSql(container, statement), runSqlAsync: (statement) => runSqlAsync(container, statement) });
+
+await verifyComplaintVerificationBoundary({ admin, anonymous, clients,
   runSql: (statement) => runSql(container, statement), runSqlAsync: (statement) => runSqlAsync(container, statement) });
 
 console.log('Account-scoped My Trips, public board boundaries, and minimal complaint context: authorization, snapshots, expiry, and privacy verification passed.');

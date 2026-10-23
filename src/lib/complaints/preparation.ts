@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { TurnstileAction, TurnstileOutcome } from '@/lib/anti-abuse/turnstile';
 import { parseEmail } from '@/lib/auth/flow';
 import { createComplaintRateLimiter, deriveComplaintRateKeys } from './rate-limit';
+import { parseComplaintDraftReceipt } from './draft-receipt';
 
 type RpcResult = { data: unknown; error: unknown };
 type Client = { schema(name: 'api'): { rpc(name: string, args: Record<string, unknown>): {
@@ -13,7 +14,6 @@ export type ComplaintPreparationResult = { status: 'unavailable' | 'rejected' | 
   | { status: 'pending_email' | 'email_verified' | 'expired'; draftId: string; expiresAt: string };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN = /^[0-9a-f]{64}$/;
-const DATE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/;
 const fields = ['targetType', 'targetId', 'category', 'description', 'replyEmail', 'language', 'challengeToken'];
 
 // Server-owned retry state, never a form payload. Keep the email capability private; the future
@@ -49,15 +49,7 @@ function parseInput(value: unknown) {
 }
 
 function receipt(value: unknown): ComplaintPreparationResult {
-  const item = record(value);
-  if (!item || Object.keys(item).length !== 3 || !['draft_id', 'status', 'expires_at'].every((key) => Object.hasOwn(item, key))
-    || typeof item.draft_id !== 'string' || !UUID.test(item.draft_id)
-    || typeof item.status !== 'string' || !['pending_email', 'email_verified', 'expired'].includes(item.status)
-    || typeof item.expires_at !== 'string' || !DATE.test(item.expires_at) || !Number.isFinite(Date.parse(item.expires_at))) {
-    return { status: 'unavailable' };
-  }
-  return { status: item.status as 'pending_email' | 'email_verified' | 'expired',
-    draftId: item.draft_id, expiresAt: item.expires_at };
+  return parseComplaintDraftReceipt(value) ?? { status: 'unavailable' };
 }
 
 async function bounded<T>(run: (signal: AbortSignal) => PromiseLike<T>): Promise<T | null> {

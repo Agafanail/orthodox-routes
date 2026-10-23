@@ -1,24 +1,15 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { createComplaintPreparationIntent, type ComplaintPreparationIntent } from './preparation';
+import { complaintDatabaseTimestamp } from './draft-receipt';
 
 const CONTEXT = 'orthodox-routes:complaint-preparation-retry:v1';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN = /^[0-9a-f]{64}$/;
 const PART = /^[A-Za-z0-9_-]+$/;
-const DATE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/;
 const MAX_AGE_MS = 900_000; // Existing unsubmitted draft ceiling, not a complaint retention policy.
 type State = ComplaintPreparationIntent & { issuedAt: number; expiresAt: number };
 const validTime = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 const validActor = (value: unknown): value is string | null => value === null || typeof value === 'string' && UUID.test(value);
-
-function databaseTimestamp(value: unknown) {
-  if (typeof value !== 'string' || !DATE.test(value)) return NaN;
-  // Validate the literal calendar/time before applying its zone: Date.parse otherwise
-  // normalizes impossible dates and 24:00 into a different day. Fractions stay conservative.
-  const calendar = new Date(`${value.slice(0, 19)}Z`);
-  if (!Number.isFinite(calendar.getTime()) || calendar.toISOString().slice(0, 19) !== value.slice(0, 19)) return NaN;
-  return Date.parse(value);
-}
 
 // Inactive Node/server-only codec. The caller supplies verified session context and a
 // dedicated random 32-byte hex secret; no cookies, headers, environment or I/O are read.
@@ -71,7 +62,7 @@ export function createComplaintPreparationRetryStore(secret: unknown) {
     restrict(ticket: unknown, reporterAccountId: unknown, databaseExpiry: unknown, now = Date.now()) {
       try {
         const state = read(ticket, reporterAccountId, now);
-        const expiry = databaseTimestamp(databaseExpiry);
+        const expiry = complaintDatabaseTimestamp(databaseExpiry);
         if (!state || !validActor(reporterAccountId) || !validTime(expiry) || expiry <= now) return null;
         return seal({ ...state, expiresAt: Math.min(state.expiresAt, expiry) }, reporterAccountId);
       } catch { return null; }

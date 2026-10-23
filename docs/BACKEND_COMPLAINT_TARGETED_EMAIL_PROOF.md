@@ -39,6 +39,11 @@ All created rows use exact fresh synthetic request UUIDs and are removed in fina
 The tests make no real provider send and are not mailbox-ownership proof outside that
 synthetic fixture.
 
+The separate [explicit verification boundary](BACKEND_COMPLAINT_EMAIL_VERIFICATION.md)
+now composes an unregistered same-origin POST controller, independent dormant attempt
+budgets and this v2 primitive. It remains inactive pending real trusted proxy/browser
+wiring and approved operational settings.
+
 This is an inactive protected primitive, not a public confirmation route, complaint
 receipt, Auth sign-in, account-contact change, owner delivery or retention decision.
 The future browser handler still needs explicit POST confirmation rather than token
