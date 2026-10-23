@@ -39,6 +39,47 @@ const base = {
 };
 
 describe('CoreTransportBoard', () => {
+  const restoredRequest = {
+    requestId: base.agreements[0].requestId, status: 'restore', totalPassengers: 3, remainingPassengers: 2,
+    restoration: {
+      churchName: 'Original church', desiredArrivalAt: '2026-11-01T09:00:00Z', timezone: 'UTC',
+      serviceName: 'Original service', childrenCount: 1, childSeatRequired: true, returnRequired: true,
+      publicNote: '<script>old note</script>', places: ['Owner meeting place', 'Owner alternative'],
+    },
+  };
+
+  it('requires opening old conditions before explicit republication and offers refusal', () => {
+    const html = renderToStaticMarkup(<CoreTransportBoard {...base} ownedRequests={[restoredRequest]}
+      agreements={[{ ...base.agreements[0], status: 'cancelled', cancelledByRole: 'driver', contactAvailable: false }]} />);
+    expect(html).toContain('Ваша просьба не опубликована');
+    expect(html).toContain('<details');
+    expect(html).toContain('Снова искать поездку</summary>');
+    expect(html).toContain('Original church');
+    expect(html).toContain('Original service');
+    expect(html).toContain('Ещё нужна машина: 2');
+    expect(html).toContain('Детей: 1');
+    expect(html).toContain('Детское кресло: нужно');
+    expect(html).toContain('Обратная дорога: нужна');
+    expect(html).toContain('Owner alternative');
+    expect(html).toContain('&lt;script&gt;old note&lt;/script&gt;');
+    expect(html).toContain('Опубликовать снова</button>');
+    expect(html).toContain('Больше не искать поездку</button>');
+    expect(html).not.toContain('Ваша просьба снова опубликована');
+    expect(html).not.toContain('Показать контакт и точное место');
+  });
+
+  it('fails closed when old conditions are unavailable but retains the refusal action', () => {
+    const html = renderToStaticMarkup(<CoreTransportBoard {...base} ownedRequests={[{ ...restoredRequest, restoration: undefined }]} />);
+    expect(html).not.toContain('Опубликовать снова</button>');
+    expect(html).toContain('Обновите страницу перед повторной публикацией');
+    expect(html).toContain('Больше не искать поездку');
+  });
+
+  it('never shows owner restoration places on an unsigned board', () => {
+    const html = renderToStaticMarkup(<CoreTransportBoard {...base} ownedRequests={[restoredRequest]} signedIn={false} />);
+    expect(html).not.toContain('Owner meeting place');
+    expect(html).not.toContain('data-restoration-review');
+  });
   it('does not preload protected disclosure into the ordinary participant board', () => {
     const html = renderToStaticMarkup(<CoreTransportBoard {...base} />);
     expect(html).toContain('Показать контакт и точное место');

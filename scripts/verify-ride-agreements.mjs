@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { syntheticPlace } from './synthetic-geo.mjs';
@@ -428,15 +429,14 @@ const secondAgreement = await rpc(clients[1], 'confirm_ride_response', {
 });
 assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
   .some((request) => request.request_id === secondRequest.request_id), false);
-// The driver withdraws while the ride is still ahead, so the passenger's own request goes back
-// on the board without them having to do anything: they may not have seen the withdrawal at all.
+// Driver cancellation must not imply passenger consent to publish a fulfilled request again.
 const secondCancelled = await rpc(clients[3], 'cancel_ride_agreement', {
   p_agreement_id: secondAgreement.agreement_id, p_client_key: secondCancelKey,
 });
-assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'active');
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'restore');
 assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
-  .some((request) => request.request_id === secondRequest.request_id), true,
-'A driver withdrawal puts the passenger request back on the public board.');
+  .some((request) => request.request_id === secondRequest.request_id), false,
+'A driver withdrawal leaves a fulfilled passenger request private.');
 // The original request is restored, never duplicated.
 assert.equal(runSql(container, `select count(*) from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), '1');
 // Cancelling again changes nothing. The same key replays the stored result rather than acting
@@ -449,15 +449,39 @@ await expectRpcFailure(clients[3], 'cancel_ride_agreement', {
 });
 assert.equal(runSql(container, `select status from app.ride_agreement where public_id = ${sqlLiteral(secondAgreement.agreement_id)}::uuid;`), 'cancelled',
 'A cancelled agreement never returns to confirmed.');
-assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'active');
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'restore');
 // The projection says which side ended it, which is what lets the passenger be told.
 assert.equal(runSql(container, `select cancelled_by_account_id = driver_account_id from app.ride_agreement where public_id = ${sqlLiteral(secondAgreement.agreement_id)}::uuid;`), 't');
-// Already published, so there is nothing left to restore by hand.
-await expectRpcFailure(clients[1], 'restore_passenger_request', {
+for (const actor of [anonymous, clients[3], clients[4]]) await expectRpcFailure(actor, 'restore_passenger_request', {
   p_client_key: randomUUID(), p_request_id: secondRequest.request_id,
 });
+const ownBeforeRestore = (await rpc(clients[1], 'current_transport_items')).passenger_requests
+  .find((request) => request.request_id === secondRequest.request_id);
+assert.equal(ownBeforeRestore.church_name, 'Synthetic Agreement Church');
+assert.equal(ownBeforeRestore.places[0].exact_address, 'Exact Beta');
+assert.equal((await rpc(clients[3], 'current_transport_items')).passenger_requests
+  .some((request) => request.request_id === secondRequest.request_id), false);
+assert.equal((await rpc(clients[4], 'current_transport_items')).passenger_requests
+  .some((request) => request.request_id === secondRequest.request_id), false);
+const restoreKey = randomUUID();
+const restored = await rpc(clients[1], 'restore_passenger_request', {
+  p_client_key: restoreKey, p_request_id: secondRequest.request_id,
+});
+assert.equal(restored.status, 'active');
+assert.deepEqual(await rpc(clients[1], 'restore_passenger_request', {
+  p_client_key: restoreKey, p_request_id: secondRequest.request_id,
+}), restored);
+const ownAfterRestore = (await rpc(clients[1], 'current_transport_items')).passenger_requests
+  .find((request) => request.request_id === secondRequest.request_id);
+assert.deepEqual({ ...ownAfterRestore, status: 'restore' }, ownBeforeRestore);
+assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
+  .some((request) => request.request_id === secondRequest.request_id), true);
+for (const actor of [clients[1], clients[3]]) {
+  assert.equal(await rpc(actor, 'get_agreement_contacts', { p_agreement_id: secondAgreement.agreement_id }), null);
+  assert.equal(await rpc(actor, 'get_agreement_exact_place', { p_agreement_id: secondAgreement.agreement_id }), null);
+}
 
-// ---------------------------------------------------------------- who cancelled decides
+// ------------------------------------------------------------ explicit passenger restoration
 
 /** Publishes a request, an occurrence, and confirms an agreement between them. */
 async function arrangedRide(arrivalAt, label) {
@@ -505,6 +529,58 @@ assert.equal(requestStatus(tooLate.request.request_id), 'expired',
   'A ride whose time has passed is never republished, even when the driver cancels.');
 assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
   .some((request) => request.request_id === tooLate.request.request_id), false);
+await expectRpcFailure(clients[0], 'restore_passenger_request', {
+  p_client_key: randomUUID(), p_request_id: tooLate.request.request_id,
+});
+
+// Refusal uses the existing author cancellation, without restoring capacity a second time.
+const refusal = await arrangedRide(isoAfter(12, 9), 'Refusal');
+await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: refusal.agreement.agreement_id, p_client_key: randomUUID(),
+});
+assert.equal(requestStatus(refusal.request.request_id), 'restore');
+assert.equal((await rpc(clients[0], 'cancel_passenger_request', {
+  p_request_id: refusal.request.request_id, p_client_key: randomUUID(),
+})).status, 'cancelled');
+await expectRpcFailure(clients[0], 'restore_passenger_request', {
+  p_client_key: randomUUID(), p_request_id: refusal.request.request_id,
+});
+assert.equal(runSql(container, `select confirmed_seats from app.driver_offer_occurrence
+  where public_id = ${sqlLiteral(refusal.occurrence.occurrence_id)}::uuid;`), '0');
+
+// A fully arranged group can retain another agreement while awaiting its author's decision.
+const groupArrival = isoAfter(13, 9);
+const group = await publishRequest(clients[0], groupArrival, 3, 'Restoration Group');
+const groupPlace = await placeId(group.request_id);
+const groupAgreements = [];
+for (const label of ['Group first', 'Group second', 'Group third']) {
+  const occurrence = await publishOccurrence(groupArrival, 1, label);
+  const response = await rpc(clients[3], 'submit_driver_response', {
+    p_client_key: randomUUID(), p_occurrence_id: occurrence.occurrence_id,
+    p_offered_passenger_count: 1, p_place_id: groupPlace, p_request_id: group.request_id,
+  });
+  groupAgreements.push(await rpc(clients[0], 'confirm_ride_response', {
+    p_client_key: randomUUID(), p_response_id: response.response_id,
+  }));
+}
+assert.equal(requestStatus(group.request_id), 'fulfilled');
+await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: groupAgreements[0].agreement_id, p_client_key: randomUUID(),
+});
+assert.equal(requestStatus(group.request_id), 'restore');
+assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
+  .some((request) => request.request_id === group.request_id), false);
+await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: groupAgreements[1].agreement_id, p_client_key: randomUUID(),
+});
+assert.equal(requestStatus(group.request_id), 'restore', 'Another cancellation cannot implicitly publish a hidden request.');
+assert.ok(await rpc(clients[0], 'get_agreement_contacts', { p_agreement_id: groupAgreements[2].agreement_id }));
+assert.equal((await rpc(clients[0], 'restore_passenger_request', {
+  p_client_key: randomUUID(), p_request_id: group.request_id,
+})).status, 'partial');
+assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
+  .find((request) => request.request_id === group.request_id).passenger_count, 2);
+assert.ok(await rpc(clients[0], 'get_agreement_contacts', { p_agreement_id: groupAgreements[2].agreement_id }));
 
 const passengerResponse = await rpc(clients[1], 'submit_passenger_response', {
   p_client_key: randomUUID(), p_occurrence_id: secondOccurrence.occurrence_id,
@@ -525,8 +601,8 @@ const bulkCancelled = await rpc(clients[3], 'cancel_driver_occurrence', {
 });
 assert.equal(bulkCancelled.cancelled_agreements, 1);
 assert.equal(await rpc(clients[1], 'get_agreement_contacts', { p_agreement_id: passengerAgreement.agreement_id }), null);
-// Cancelling the whole ride is the driver withdrawing, so the passenger goes back on the board.
-assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'active');
+// Whole-occurrence cancellation must respect the same explicit restoration boundary.
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'restore');
 
 const concurrencyArrival = isoAfter(9, 11);
 const concurrencyRequestA = await publishRequest(clients[0], concurrencyArrival, 1, 'Concurrent Alpha');
@@ -656,8 +732,19 @@ const stoppedSeries = await rpc(clients[3], 'stop_driver_series', {
 assert.equal(stoppedSeries.cancelled_occurrences, 1);
 assert.equal(stoppedSeries.cancelled_agreements, 1);
 assert.equal(await rpc(clients[0], 'get_agreement_contacts', { p_agreement_id: seriesAgreement.agreement_id }), null);
-// Stopping the schedule is the same withdrawal, so the same republication follows.
-assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(seriesRequest.request_id)}::uuid;`), 'active');
+// Stopping a schedule also leaves a fulfilled request private, without reopening disclosure.
+assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(seriesRequest.request_id)}::uuid;`), 'restore');
+
+const restorationDefinitions = () => runSql(container, `select jsonb_agg(jsonb_build_object(
+  'definition', md5(pg_get_functiondef(routine.oid)), 'acl', routine.proacl::text) order by routine.oid)
+  from pg_proc as routine where routine.oid in (
+    'app.cancel_ride_agreement_internal(uuid,uuid,timestamptz)'::regprocedure,
+    'api.current_transport_items()'::regprocedure);`);
+const expectedDefinitions = restorationDefinitions();
+runSql(container, readFileSync(new URL('../supabase/migrations/20261023120000_explicit_passenger_restoration.sql', import.meta.url), 'utf8'));
+assert.equal(restorationDefinitions(), expectedDefinitions);
+for (const role of ['anon', 'authenticated', 'service_role']) assert.equal(runSql(container,
+  `select has_function_privilege(${sqlLiteral(role)}, 'app.cancel_ride_agreement_internal(uuid,uuid,timestamptz)', 'EXECUTE')::text;`), 'false');
 
 const lifecycle = JSON.parse(runSql(container, `select ops.expire_transport_items(now() + interval '60 days');`));
 assert.ok(lifecycle.responses >= 1);
