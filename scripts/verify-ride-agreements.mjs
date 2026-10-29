@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { syntheticPlace } from './synthetic-geo.mjs';
+import { verifyPassengerRestorationDeadline } from './verify-passenger-restoration-deadline.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 
@@ -503,6 +504,14 @@ async function arrangedRide(arrivalAt, label) {
 }
 
 const requestStatus = (requestId) => runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(requestId)}::uuid;`);
+
+const deadlineRide = await arrangedRide(isoAfter(14, 9), 'Restoration deadline');
+await rpc(clients[3], 'cancel_ride_agreement', {
+  p_agreement_id: deadlineRide.agreement.agreement_id, p_client_key: randomUUID(),
+});
+await verifyPassengerRestorationDeadline({ requestId: deadlineRide.request.request_id, container,
+  attempt: (args) => callRpc(clients[0], 'restore_passenger_request', args),
+  sql: (statement) => runSql(container, statement), literal: sqlLiteral });
 
 // The passenger withdraws. They said they no longer need the ride, so nothing is assumed for
 // them: the request stays closed and their own «Опубликовать снова» remains the only way back.
