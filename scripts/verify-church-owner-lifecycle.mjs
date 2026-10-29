@@ -6,6 +6,7 @@ import { createOwnerQuery } from './church-owner-command.mjs';
 import { verifyChurchAdminRemoval } from './verify-church-admin-removal.mjs';
 import { verifyChurchOwnerInviteCancellation } from './verify-church-owner-invite-cancellation.mjs';
 import { verifyChurchAdminReplacement } from './verify-church-admin-replacement.mjs';
+import { verifyChurchAdministrationCases } from './verify-church-administration-cases.mjs';
 
 // This verifier has no remote URL/credential option: only the exact disposable local container.
 const inventory = spawnSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
@@ -503,6 +504,8 @@ try {
     expectRefusal, transportDigest, definitions, otherRole, waitForDatabaseCondition });
   await verifyChurchAdminReplacement({ sql, asyncSql, asOperator, literal, ids, execute, executeSql,
     expectRefusal, transportDigest, definitions, otherRole, waitForDatabaseCondition });
+  await verifyChurchAdministrationCases({ sql, asyncSql, asOperator, literal, ids, execute, executeSql,
+    expectRefusal, transportDigest, definitions, otherRole });
 } finally {
   // Exact synthetic fixture scope only; no remote target, truncation, or unrelated records.
   sql(`begin;
@@ -510,6 +513,7 @@ try {
     drop function if exists app.synthetic_owner_failure();
     delete from ops.audit_event where target_type = 'owner_operation' and target_id in (
       select id from ops.owner_operation where church_id = ${literal(ids.church)}::uuid);
+    delete from ops.church_administration_case where church_id = ${literal(ids.church)}::uuid;
     delete from ops.owner_operation where church_id = ${literal(ids.church)}::uuid;
     delete from ops.audit_event where target_id = ${literal(ids.churchPublic)}::uuid;
     delete from app.ride_agreement where id = ${literal(ids.agreement)}::uuid;
