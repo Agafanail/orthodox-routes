@@ -2,7 +2,7 @@
 -- participant cancels. Only its author can explicitly publish the same request again.
 -- Do not infer consent from historical active rows or rewrite their history.
 do $$
-declare definition text; previous_branch text; restored_branch text;
+declare definition text; previous_branch text; restored_branch text; route_anchor text;
 begin
   definition := pg_get_functiondef('app.cancel_ride_agreement_internal(uuid,uuid,timestamptz)'::regprocedure);
   previous_branch := $branch$          -- The driver withdrew and the passenger still needs the ride they asked for.
@@ -28,6 +28,23 @@ $obsolete$, '');
     execute definition;
   elsif position(restored_branch in definition) = 0 or position('driver_withdrew' in definition) > 0 then
     raise exception using errcode = '55000', message = 'Unexpected cancellation restoration definition.';
+  end if;
+
+  -- A cancellation recipient must reach the implemented church board, not the
+  -- still-unimplemented personal-area route. This carries no request/contact data.
+  definition := pg_get_functiondef('app.notify_ride_agreement_transition()'::regprocedure);
+  route_anchor := '''ride.cancelled'', ''ride_agreement'', new.public_id, ''/trips'',';
+  if position(route_anchor in definition) > 0 then
+    if length(definition) - length(replace(definition, route_anchor, '')) <> length(route_anchor) then
+      raise exception using errcode = '55000', message = 'Unexpected cancellation notification route.';
+    end if;
+    execute replace(definition, route_anchor,
+      '''ride.cancelled'', ''ride_agreement'', new.public_id,
+        (select case when char_length(church.slug) <= 231 then ''/churches/'' || church.slug else ''/churches'' end
+          from app.passenger_request as request join app.church as church on church.id = request.church_id
+          where request.id = new.passenger_request_id),');
+  elsif position('char_length(church.slug) <= 231' in definition) = 0 then
+    raise exception using errcode = '55000', message = 'Unexpected cancellation notification route.';
   end if;
 
   -- Reuse the existing author-only read, not a public or counterparty projection.

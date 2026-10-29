@@ -286,7 +286,13 @@ test('protects the Core agreement boundary across real isolated browser sessions
     await test.step('driver cancellation stays private until the passenger reviews and explicitly republishes', async () => {
       await driverPage.getByRole('button', { name: 'Отменить договорённость' }).click();
       await expect(driverPage.getByRole('status')).toHaveText('Договорённость отменена. Доступ к контактам закрыт.');
-      await passengerPage.reload();
+      const notifications = await rpc(passengerContext, data, 'current_notifications');
+      const cancellation = (await notifications.json()).find((item: { event_type: string; object_id: string }) => (
+        item.event_type === 'ride.cancelled' && item.object_id === agreementId
+      ));
+      expect(cancellation.safe_route).toBe(new URL(data.churchUrl).pathname);
+      const destination = await passengerPage.goto(cancellation.safe_route);
+      expect(destination?.status()).toBe(200);
       await expect(passengerPage.getByText('Ваша просьба не опубликована', { exact: false })).toBeVisible();
 
       const passengerContacts = await rpc(passengerContext, data, 'get_agreement_contacts', { p_agreement_id: agreementId });

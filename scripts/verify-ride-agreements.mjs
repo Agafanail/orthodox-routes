@@ -398,7 +398,8 @@ assert.equal(firstCancelled.status, 'cancelled');
 const passengerCancellationHistory = await rpc(clients[0], 'current_notifications');
 assert.ok(passengerCancellationHistory.some((notification) =>
   notification.event_type === 'ride.cancelled'
-  && notification.object_id === firstAgreement.agreement_id));
+  && notification.object_id === firstAgreement.agreement_id
+  && notification.safe_route === `/churches/agreement-test-${suffix}`));
 assert.ok(passengerCancellationHistory.filter((notification) =>
   notification.object_type === 'ride_agreement'
   && notification.object_id === firstAgreement.agreement_id)
@@ -433,6 +434,9 @@ assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_
 const secondCancelled = await rpc(clients[3], 'cancel_ride_agreement', {
   p_agreement_id: secondAgreement.agreement_id, p_client_key: secondCancelKey,
 });
+assert.equal((await rpc(clients[1], 'current_notifications'))
+  .find((notification) => notification.event_type === 'ride.cancelled'
+    && notification.object_id === secondAgreement.agreement_id).safe_route, `/churches/agreement-test-${suffix}`);
 assert.equal(runSql(container, `select status from app.passenger_request where public_id = ${sqlLiteral(secondRequest.request_id)}::uuid;`), 'restore');
 assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
   .some((request) => request.request_id === secondRequest.request_id), false,
@@ -503,9 +507,20 @@ const requestStatus = (requestId) => runSql(container, `select status from app.p
 // The passenger withdraws. They said they no longer need the ride, so nothing is assumed for
 // them: the request stays closed and their own «Опубликовать снова» remains the only way back.
 const byPassenger = await arrangedRide(isoAfter(9, 9), 'Withdrawn');
-await rpc(clients[0], 'cancel_ride_agreement', {
-  p_agreement_id: byPassenger.agreement.agreement_id, p_client_key: randomUUID(),
-});
+// Legacy SQL rows may have slugs longer than today's bounded application input.
+// Cancellation must remain possible without relaxing the notification safe-route contract.
+runSql(container, `update app.church set slug = repeat('x', 232) where public_id = ${sqlLiteral(churchId)}::uuid;`);
+try {
+  await rpc(clients[0], 'cancel_ride_agreement', {
+    p_agreement_id: byPassenger.agreement.agreement_id, p_client_key: randomUUID(),
+  });
+  assert.equal((await rpc(clients[3], 'current_notifications'))
+    .find((notification) => notification.event_type === 'ride.cancelled'
+      && notification.object_id === byPassenger.agreement.agreement_id).safe_route, '/churches');
+} finally {
+  runSql(container, `update app.church set slug = ${sqlLiteral(`agreement-test-${suffix}`)}
+    where public_id = ${sqlLiteral(churchId)}::uuid;`);
+}
 assert.equal(requestStatus(byPassenger.request.request_id), 'restore',
   'A passenger who cancels keeps their request closed until they publish it again.');
 assert.equal((await rpc(anonymous, 'list_active_passenger_requests', { p_church_id: churchId }))
@@ -739,7 +754,8 @@ const restorationDefinitions = () => runSql(container, `select jsonb_agg(jsonb_b
   'definition', md5(pg_get_functiondef(routine.oid)), 'acl', routine.proacl::text) order by routine.oid)
   from pg_proc as routine where routine.oid in (
     'app.cancel_ride_agreement_internal(uuid,uuid,timestamptz)'::regprocedure,
-    'api.current_transport_items()'::regprocedure);`);
+    'api.current_transport_items()'::regprocedure,
+    'app.notify_ride_agreement_transition()'::regprocedure);`);
 const expectedDefinitions = restorationDefinitions();
 runSql(container, readFileSync(new URL('../supabase/migrations/20261023120000_explicit_passenger_restoration.sql', import.meta.url), 'utf8'));
 assert.equal(restorationDefinitions(), expectedDefinitions);
