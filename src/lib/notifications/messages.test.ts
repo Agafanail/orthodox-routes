@@ -14,6 +14,16 @@ const job: NotificationDeliveryJob = {
 };
 
 describe('prepared notification copy', () => {
+  it.each(languages)('preserves the cancellation church destination in %s email and minimized push', (language) => {
+    const safeRoute = '/churches/synthetic-restoration-church';
+    const result = renderNotificationMessage({ ...job, language, safeRoute,
+      eventType: 'ride.cancelled', localizationKey: 'notifications.ride_cancelled' }, 'https://routes.example.org');
+    expect(result.email.text).toContain(`https://routes.example.org${safeRoute}`);
+    expect(result.email.html).toContain(`href="https://routes.example.org${safeRoute}"`);
+    expect(JSON.parse(result.push)).toEqual({ eventType: 'ride.cancelled', notificationId: job.notificationId, route: safeRoute });
+    expect(JSON.stringify(result)).not.toContain(job.destinationValue);
+    expect(JSON.stringify(result)).not.toContain('/trips');
+  });
   it('keeps every stable key versioned and complete in all six languages', () => {
     for (const [key, entry] of Object.entries(preparedNotificationCopy)) {
       expect(key).toMatch(/^[a-z][a-z0-9_.]+$/);

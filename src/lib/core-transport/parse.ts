@@ -129,6 +129,28 @@ export function parseCoreDriverOccurrences(value: unknown): CoreDriverOccurrence
   });
 }
 
+function restorationConditions(item: Record<string, unknown>, total: number): CoreOwnedRequest['restoration'] {
+  if (item.status !== 'restore') return undefined;
+  const churchName = string(item.church_name);
+  const desiredArrivalAt = string(item.desired_arrival_at);
+  const timezone = string(item.timezone);
+  const childrenCount = number(item.children_count);
+  const childSeatRequired = boolean(item.child_seat_required);
+  const returnRequired = boolean(item.return_required);
+  const places = Array.isArray(item.places) ? item.places.map((raw) => string(record(raw)?.exact_address)) : [];
+  if (!churchName || !desiredArrivalAt || !Number.isFinite(Date.parse(desiredArrivalAt)) || !timezone
+    || childrenCount === null || childrenCount < 0 || childrenCount > total
+    || childSeatRequired === null || returnRequired === null
+    || places.length < 1 || places.length > 3 || places.some((address) => !address)) return undefined;
+  try { new Intl.DateTimeFormat('ru', { timeZone: timezone }); } catch { return undefined; }
+  return {
+    churchName, desiredArrivalAt, timezone, childrenCount, childSeatRequired, returnRequired,
+    serviceName: string(item.service_name_snapshot) ?? undefined,
+    publicNote: string(item.public_note) ?? undefined,
+    places: places as string[],
+  };
+}
+
 export function parseCoreOwnedItems(value: unknown) {
   const root = record(value);
   const ownedRequests: CoreOwnedRequest[] = Array.isArray(root?.passenger_requests)
@@ -138,8 +160,11 @@ export function parseCoreOwnedItems(value: unknown) {
       const status = string(item?.status);
       const totalPassengers = number(item?.total_passengers);
       const remainingPassengers = number(item?.remaining_passengers);
+      const restoration = item && totalPassengers !== null ? restorationConditions(item, totalPassengers) : undefined;
       return requestId && status && totalPassengers !== null && remainingPassengers !== null
-        ? [{ requestId, status, totalPassengers, remainingPassengers }]
+        ? [{ requestId, status, totalPassengers, remainingPassengers,
+          ...(restoration ? { restoration } : {}),
+        }]
         : [];
     }) : [];
   const ownedOccurrences: CoreOwnedOccurrence[] = Array.isArray(root?.driver_occurrences)

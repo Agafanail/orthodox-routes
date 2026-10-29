@@ -54,6 +54,18 @@ export type CoreOwnedRequest = {
   status: string;
   totalPassengers: number;
   remainingPassengers: number;
+  /** Author-only review of the existing request; never a public listing/disclosure. */
+  restoration?: {
+    churchName: string;
+    desiredArrivalAt: string;
+    timezone: string;
+    serviceName?: string;
+    childrenCount: number;
+    childSeatRequired: boolean;
+    returnRequired: boolean;
+    publicNote?: string;
+    places: string[];
+  };
 };
 
 export type CoreOwnedOccurrence = {
