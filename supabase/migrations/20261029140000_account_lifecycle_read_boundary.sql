@@ -19,3 +19,20 @@ begin
   end if;
 end;
 $$;
+
+-- Eligibility is an existing own-subject diagnostic, not a private profile or a
+-- permission to access transport. Preserve its ineligible-state response shape.
+-- The fallback retains the original missing-Auth-subject refusal.
+do $$
+declare definition text; anchor text := 'app.current_eligibility_result(app.current_actor_id())';
+begin
+  definition := pg_get_functiondef('api.current_eligibility()'::regprocedure);
+  if position('coalesce(auth.uid(), app.current_actor_id())' in definition) = 0 then
+    if length(definition) - length(replace(definition, anchor, '')) <> length(anchor) then
+      raise exception using errcode = '55000', message = 'Unexpected eligibility diagnostic definition.';
+    end if;
+    execute replace(definition, anchor,
+      'app.current_eligibility_result(coalesce(auth.uid(), app.current_actor_id()))');
+  end if;
+end;
+$$;
