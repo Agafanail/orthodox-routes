@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 
 // Real authenticated HTTP RPC and a read-only row-lock barrier in the disposable CI database.
@@ -47,6 +48,13 @@ export async function verifyPassengerRestorationDeadline({ requestId, container,
     assert.equal(Boolean(restored.error), false); assert.equal(restored.data.status, 'active');
     const replay = await attempt({ p_request_id: requestId, p_client_key: clientKey });
     assert.equal(Boolean(replay.error), false); assert.deepEqual(replay.data, restored.data);
+    const definition = () => sql(`select md5(pg_get_functiondef(routine.oid)) || ':' || routine.proacl::text
+      from pg_proc as routine where routine.oid = 'api.restore_passenger_request(uuid,uuid)'::regprocedure;`);
+    const expectedDefinition = definition();
+    sql(readFileSync(new URL('../supabase/migrations/20261029130000_passenger_restoration_deadline.sql', import.meta.url), 'utf8'));
+    assert.equal(definition(), expectedDefinition);
+    for (const role of ['anon', 'authenticated', 'service_role']) assert.equal(sql(`select has_function_privilege(
+      ${literal(role)}, 'api.restore_passenger_request(uuid,uuid)', 'EXECUTE')::text;`), role === 'authenticated' ? 'true' : 'false');
     process.stdout.write('Passenger restoration deadline: actual HTTP row wait crossing expiry refused, no recorded success, future retry and idempotent replay passed.\n');
   } finally {
     if (!gate.stdin.writableEnded) gate.stdin.end('rollback;\n');
