@@ -201,6 +201,7 @@ The complete Core campaign passed its final local, migration, security/privacy, 
 - A restricted minimized audit foundation captures agreement events and private block transitions atomically, backfills known history without fabricating old transaction IDs, and rejects event rewrites. Public/client/service-role table access remains revoked. Case-scoped owner operations, remaining domain hooks, and legally approved retention/deletion remain separate work.
 - Existing positive-participation guards use an account lifecycle row fence so an ordinary status restriction and an in-flight action cannot bypass one another. Eligibility is rechecked after waits, while read-only projections, existing agreement access/cancellation and restricted self-export remain unchanged. This authorization preparation does not activate protected account restriction/restoration or deletion; see `BACKEND_PARTICIPATION_ACCOUNT_FENCE.md`.
 - Add minimal product analytics without advertising trackers.
+- The shared [private-read actor boundary](BACKEND_ACCOUNT_LIFECYCLE_READ_BOUNDARY.md) refuses deleting/deleted application subjects even while their Auth session remains valid, preserving restricted safe reads/cancellation/export and pre-account registration. Actual deletion/revocation/anonymization and owner activation remain separate.
 - Obtain appropriate legal review before broad public launch.
 
 ### 9. Full end-to-end coverage
