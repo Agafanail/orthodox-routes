@@ -7,6 +7,7 @@ import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { syntheticPlace } from './synthetic-geo.mjs';
 import { verifyPassengerRestorationDeadline } from './verify-passenger-restoration-deadline.mjs';
+import { verifyAccountLifecycleReadBoundary } from './verify-account-lifecycle-read-boundary.mjs';
 
 const supabaseCli = fileURLToPath(new URL('../node_modules/supabase/dist/supabase.js', import.meta.url));
 
@@ -366,6 +367,9 @@ assert.equal(passengerDisclosure.meeting_place.exact_address, 'Exact Alpha');
 assert.equal(passengerDisclosure.departure_place.exact_address, 'Exact driver origin first');
 assert.equal(typeof passengerDisclosure.departure_place.exact_point.lat, 'number');
 assert.equal(typeof passengerDisclosure.meeting_place.exact_point.lng, 'number');
+await verifyAccountLifecycleReadBoundary({ actor: clients[0], accountId: identities[0].id,
+  agreementId: firstAgreement.agreement_id, call: (name, args) => callRpc(clients[0], name, args),
+  sql: (statement) => runSql(container, statement), literal: sqlLiteral });
 assert.equal(await rpc(clients[4], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id }), null);
 assert.equal((await rpc(clients[3], 'get_agreement_exact_place', { p_agreement_id: firstAgreement.agreement_id })).exact_meeting_label, 'Exact Alpha');
 assert.equal(await rpc(clients[4], 'get_agreement_contacts', { p_agreement_id: firstAgreement.agreement_id }), null);
