@@ -178,7 +178,8 @@ export async function verifyNotificationDeadlines({ admin, actor, accountId, con
         'api.notification_worker_claim_jobs_v2(uuid,integer,text[])'::regprocedure);`);
     const expected = definitions();
     sql(readFileSync(new URL('../supabase/migrations/20261019150000_notification_delivery_deadlines.sql', import.meta.url), 'utf8')
-      + '\n' + readFileSync(new URL('../supabase/migrations/20261020130000_verified_email_binding.sql', import.meta.url), 'utf8'));
+      + '\n' + readFileSync(new URL('../supabase/migrations/20261020130000_verified_email_binding.sql', import.meta.url), 'utf8')
+      + '\n' + readFileSync(new URL('../supabase/migrations/20261029120000_notification_preference_handoff.sql', import.meta.url), 'utf8'));
     assert.equal(definitions(), expected);
     for (const role of ['anon', 'authenticated', 'service_role']) {
       assert.equal(sql(`select has_function_privilege('${role}', 'api.notification_worker_claim_job_v3(uuid,text[])', 'EXECUTE')::text;`),
