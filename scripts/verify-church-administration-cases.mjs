@@ -96,6 +96,24 @@ export async function verifyChurchAdministrationCases({ sql, asyncSql, asOperato
     from ops.church_administration_case where id = ${literal(caseId)}::uuid;`), 't');
   assert.equal(privateDigest(), beforePrivate); assert.equal(transportDigest(), beforeTransport);
 
+  // Earlier owner scenarios deliberately retain future synthetic transport. Resolve
+  // only this fixture's authors/church through ordinary authenticated cancellations;
+  // do not weaken the archival guard or assume those sources are already empty.
+  const fixtureAuthors = [ids.passenger, ids.driver, ids.replacementAccount].map((id) => `${literal(id)}::uuid`).join(',');
+  const cancelAsAuthor = (target, routine) => {
+    const value = sql(`begin; select set_config('request.jwt.claim.sub', ${literal(target.author)}, true);
+      set local role authenticated; select api.${routine}(${literal(target.public_id)}::uuid, ${literal(randomUUID())}::uuid); commit;`);
+    assert.equal(JSON.parse(value.split(/\r?\n/).at(-1)).status, 'cancelled');
+  };
+  const offers = JSON.parse(sql(`select coalesce(jsonb_agg(jsonb_build_object('public_id', public_id, 'author', author_account_id)), '[]')
+    from app.driver_offer_occurrence where church_id = ${literal(ids.church)}::uuid
+      and author_account_id in (${fixtureAuthors}) and status in ('active','full') and arrival_at > clock_timestamp();`));
+  for (const target of offers) cancelAsAuthor(target, 'cancel_driver_occurrence');
+  const requests = JSON.parse(sql(`select coalesce(jsonb_agg(jsonb_build_object('public_id', public_id, 'author', author_account_id)), '[]')
+    from app.passenger_request where church_id = ${literal(ids.church)}::uuid and author_account_id in (${fixtureAuthors})
+      and status in ('active','partial','restore') and desired_arrival_at > clock_timestamp();`));
+  for (const target of requests) cancelAsAuthor(target, 'cancel_passenger_request');
+  const archiveTransport = transportDigest();
   const archiveSql = () => `select ops.prepare_church_administration_archival(${literal(ids.churchPublic)}::uuid,
     ${literal(replaced.replacement_membership_id)}::uuid, 'SYNTHETIC-FINAL-ARCHIVE');`;
   const newRequest = randomUUID(); let archived;
@@ -114,7 +132,7 @@ export async function verifyChurchAdministrationCases({ sql, asyncSql, asOperato
   assert.equal(caseState(archival.preview.administration_case_id), 'resolved');
   assert.equal(sql(`select count(*) from app.church_admin_membership where church_id = ${literal(ids.church)}::uuid
     and status in ('active','transferring');`), '0');
-  assert.equal(privateDigest(), beforePrivate); assert.equal(transportDigest(), beforeTransport);
+  assert.equal(privateDigest(), beforePrivate); assert.equal(transportDigest(), archiveTransport);
   assert.equal(sql(`select count(*) from app.notification where event_type = 'church.admin.case_resolved'
     and object_public_id = ${literal(ids.churchPublic)}::uuid
     and safe_parameters = jsonb_build_object('church_id', ${literal(ids.churchPublic)}::uuid);`), '1');

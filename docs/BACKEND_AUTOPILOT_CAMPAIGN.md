@@ -4,7 +4,7 @@
 - **Starting commit:** `3afa340363d5a9678ae7ba338eefa65ef0725992`
 - **Scope:** all remaining approved backend work required for the first public version
 - **Production access:** excluded
-- **Run state:** Active after the owner's explicit resume on 29 October 2026.
+- **Run state:** Active after the owner's explicit resume on 30 October 2026.
 
 ## Checkpoints
 
@@ -50,6 +50,8 @@ PR #94 initial corrected CI `40858162569` exposed the established safe `current_
 Current branch `codex/church-administration-cases` starts from clean protected main `da57b3e`. The next coherent slice binds reviewed final-administrator replacement/allowed archival to restricted case metadata and the existing protected prepare/execute/attempt protocol. Preview preserves the seat; domain change, final-seat closure, case resolution, neutral notification and minimized audit are atomic. Fresh case decisions supersede old pending capabilities; future transport still prevents archival. Command/SQL tests cover isolation, preview, stale decisions, expiry, rollback, concurrent replay and exact cleanup. All 1633 local tests and 51 focused owner-command cases passed, two opt-in Storage tests skipped; type/build/script-syntax/diff passed and lint retained two existing warnings. Actual disposable SQL/full required CI and final security/privacy review remain required. No operator, account deletion, provider, retention or production action is activated. Continue the remaining independent deletion/intake/reconciliation and backend work after this checkpoint.
 
 PR #83 local verification includes 1307 tests and 84 focused Auth/SSR/reporter cases, plus real Chromium malformed-cookie and explicit recovery checks on desktop/390x844: broken state is removed only by existing Auth actions, other state survives, and fresh PKCE state is generated. The browser Auth destination was verified as loopback-only and unavailable; no actual mailbox/login proof is claimed for that probe. Final corrected CI separately passed actual disposable SSR/Auth and scoped recovery proof.
+
+PR #95 initial CI `40863218507` passed verify/database/browser and cleanup, then failed the new verifier's incorrect assumption of one future passenger request. Existing case replacement, superseded-decision, late-rollback and concurrent-replay assertions had passed before that point; full case archival/replay was not yet proved. On 30 October the verifier was corrected to resolve only the synthetic church's known authors through ordinary authenticated cancellation APIs before the isolated archival scenario. The archival guard itself is unchanged. Corrected full CI remains required.
 
 The 19 October Group 7 Product Scope/IA amendments are preserved: explicit publication-labelled presses, one complete publication gate, default new-account trip email, and no implicit email-link consumption. Production contextual publication alignment remains separate approved work as recorded by PR #74; these hardening/preparation slices do not implement its UI or silently change the current publication flow.
 
