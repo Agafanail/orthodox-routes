@@ -16,6 +16,8 @@ There are at most five attempts, with technical backoff from 30 seconds to four 
 
 ## Application runner and email
 
+The server runner is shared with prepared account-deletion mail through static purpose definitions in `notifications/email-proof.ts`. Complaint RPC names, `draftId` parsed shape, exported functions, prepared text, report path, fragment, limits and completion semantics are preserved. Neither sender can select its purpose from request data. Literal-calendar validation lives in a pure shared module so browser receipt parsing does not import privileged/server/provider code. This extraction activates no additional flow or provider.
+
 Claims include an authoritative database evaluation timestamp. The worker validates the maximum lease/draft durations against that instant, then translates them into local deadlines after conservatively subtracting the entire monotonic RPC round trip. Database/worker wall-clock skew therefore neither consumes valid attempts nor extends the server lease.
 
 The shared Resend adapter now rejects redirects, omits ambient credentials, limits acknowledgement bodies to 16 KiB, and bounds both fetch and body consumption to ten seconds with abort/stream cleanup. The existing durable idempotency prefix, wire message, successful UUID acknowledgement, and fixed retry classification remain unchanged for ordinary notifications and invitations.
