@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { verifyComplaintReporter } from './verify-complaint-reporter.mjs';
+import { verifyAccountDeletionConfirmation } from './verify-account-deletion-confirmation.mjs';
 
 const supabaseCli = fileURLToPath(
   new URL('../node_modules/supabase/dist/supabase.js', import.meta.url),
@@ -458,6 +459,8 @@ try {
   assert.deepEqual(exportA.places, []);
   assert.deepEqual(exportA.personal_blocks, []);
   assert.deepEqual(exportA.complaint_email_drafts, []);
+  assert.deepEqual(exportA.deletion_confirmations, []);
+  assert.deepEqual(exportB.deletion_confirmations, []);
   assert.deepEqual(exportA.church_administration, {
     schema_version: 1, memberships: [], invitations: [], events: [], archival_requests: [],
   });
@@ -474,6 +477,8 @@ try {
   assert.equal(exportB.account.email, identities[1].email);
   assert.equal(JSON.stringify(exportB).includes(identities[0].email), false);
 
+  await verifyAccountDeletionConfirmation({ admin, url, publicKey, password, container,
+    sql: (statement, options) => runSql(container, statement, options) });
   process.stdout.write(
     [
       'Account and eligibility foundation verification passed:',
