@@ -13,12 +13,16 @@ export async function verifyAccountLifecycleReadBoundary({ actor, accountId, agr
     ['get_agreement_contacts', { p_agreement_id: agreementId }],
     ['get_agreement_exact_place', { p_agreement_id: agreementId }],
     ['current_transport_items', {}], ['current_ride_agreements', {}], ['current_account', {}],
-    ['current_notifications', {}], ['list_saved_places', {}],
+    ['current_notifications', {}], ['list_saved_places', {}], ['current_account_deletion_confirmation', {}],
     ['export_current_account_data', {}], ['current_account_deletion_impact', {}],
     ['current_my_trips', {}], ['get_my_trip_details', { p_agreement_id: agreementId }],
   ];
   let savedPlaceId;
+  let deletionRequestId;
   try {
+    const deletionRequest = await call('request_account_deletion_confirmation', { p_client_key: randomUUID() });
+    assert.equal(Boolean(deletionRequest.error), false); assert.equal(typeof deletionRequest.data?.request_id, 'string');
+    deletionRequestId = deletionRequest.data.request_id;
     const saved = await call('save_place', { p_place: syntheticPlace(45.0611, 7.6721,
       'Lifecycle boundary synthetic saved entrance', 'Torino', { label: 'Synthetic lifecycle place' }) });
     assert.equal(Boolean(saved.error), false); assert.equal(typeof saved.data?.place_id, 'string');
@@ -73,5 +77,7 @@ export async function verifyAccountLifecycleReadBoundary({ actor, accountId, agr
       deleted_at = ${original.deleted_at ? `${literal(original.deleted_at)}::timestamptz` : 'null'} where ${target};`);
     if (savedPlaceId) sql(`delete from private.user_place where public_id = ${literal(savedPlaceId)}::uuid
       and owner_account_id = ${literal(accountId)}::uuid;`);
+    if (deletionRequestId) sql(`delete from ops.audit_event where target_type = 'deletion_request' and target_id = ${literal(deletionRequestId)}::uuid;
+      delete from ops.deletion_request where id = ${literal(deletionRequestId)}::uuid and subject_auth_id = ${literal(accountId)}::uuid;`);
   }
 }
