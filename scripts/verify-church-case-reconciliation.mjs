@@ -29,7 +29,7 @@ export async function verifyChurchCaseReconciliation({ sql, asyncSql, asOperator
   sql(asOperator(prepareSql(caseId, 'SYNTHETIC-TRANSFER-CASE', randomUUID())), 'P0002');
   const asAccount = (id, statement) => JSON.parse(sql(`begin;
     select set_config('request.jwt.claim.sub', ${literal(id)}, true); set local role authenticated;
-    select ${statement}; commit;`).split(/\r?\n/).at(-1));
+    select to_jsonb(${statement}); commit;`).split(/\r?\n/).at(-1));
   const incomingEmail = sql(`select email_normalized from private.account_contact where account_id = ${literal(ids.replacementAccount)}::uuid;`);
   const preference = JSON.parse(sql(`select to_jsonb(preference) from private.notification_preference as preference
     where account_id = ${literal(ids.replacementAccount)}::uuid;`));
