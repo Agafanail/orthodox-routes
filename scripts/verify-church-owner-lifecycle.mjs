@@ -7,6 +7,7 @@ import { verifyChurchAdminRemoval } from './verify-church-admin-removal.mjs';
 import { verifyChurchOwnerInviteCancellation } from './verify-church-owner-invite-cancellation.mjs';
 import { verifyChurchAdminReplacement } from './verify-church-admin-replacement.mjs';
 import { verifyChurchAdministrationCases } from './verify-church-administration-cases.mjs';
+import { verifyChurchCaseReconciliation } from './verify-church-case-reconciliation.mjs';
 
 // This verifier has no remote URL/credential option: only the exact disposable local container.
 const inventory = spawnSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
@@ -506,6 +507,8 @@ try {
     expectRefusal, transportDigest, definitions, otherRole, waitForDatabaseCondition });
   await verifyChurchAdministrationCases({ sql, asyncSql, asOperator, literal, ids, execute, executeSql,
     expectRefusal, transportDigest, definitions, otherRole });
+  await verifyChurchCaseReconciliation({ sql, asyncSql, asOperator, literal, ids, execute, executeSql,
+    expectRefusal, transportDigest, definitions, otherRole, waitForDatabaseCondition });
 } finally {
   // Exact synthetic fixture scope only; no remote target, truncation, or unrelated records.
   sql(`begin;

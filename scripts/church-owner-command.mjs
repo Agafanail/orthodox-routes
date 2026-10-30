@@ -8,7 +8,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const REFERENCE = /^[A-Z0-9][A-Z0-9._-]{3,63}$/;
 const GROUP = 'orthodox_routes_church_operator';
 const RESULT_STATUS = Object.freeze({ archive_church: 'archived', restore_church: 'published', hide_church: 'hidden',
-  remove_church_admin: 'removed', cancel_church_invite: 'cancelled', replace_church_admin: 'replaced' });
+  remove_church_admin: 'removed', cancel_church_invite: 'cancelled', replace_church_admin: 'replaced',
+  reconcile_church_administration_case: 'reconciled' });
 const ACTIONS = Object.keys(RESULT_STATUS);
 const failure = () => new Error('Protected church operation failed. Review the support case before retrying.');
 
@@ -21,7 +22,7 @@ export function parseOwnerArguments(args) {
     const key = args[index];
     if (key === '--execute' && !execute) { execute = true; continue; }
     if (key === '--support-deletion' && !supportDeletion) { supportDeletion = true; continue; }
-    if (!['--church', '--action', '--case', '--membership', '--invite', '--replacement'].includes(key) || values.has(key)
+    if (!['--church', '--action', '--case', '--membership', '--invite', '--replacement', '--administration-case'].includes(key) || values.has(key)
       || !args[index + 1] || args[index + 1].startsWith('--')) throw new Error('Invalid owner command arguments.');
     values.set(key, args[++index]);
   }
@@ -29,14 +30,18 @@ export function parseOwnerArguments(args) {
   const membershipId = values.get('--membership');
   const inviteId = values.get('--invite');
   const replacementAccountId = values.get('--replacement');
+  const administrationCaseId = values.get('--administration-case');
   if ((supportDeletion && !['archive_church', 'replace_church_admin'].includes(action))
     || !UUID.test(churchId ?? '') || !ACTIONS.includes(action)
     || !REFERENCE.test(reference ?? '') || (['remove_church_admin', 'replace_church_admin'].includes(action) || supportDeletion
       ? !UUID.test(membershipId ?? '') : membershipId !== undefined) || (action === 'cancel_church_invite'
       ? !UUID.test(inviteId ?? '') : inviteId !== undefined) || (action === 'replace_church_admin'
-      ? !UUID.test(replacementAccountId ?? '') : replacementAccountId !== undefined)) throw new Error('Invalid owner command arguments.');
+      ? !UUID.test(replacementAccountId ?? '') : replacementAccountId !== undefined)
+    || (action === 'reconcile_church_administration_case' ? !UUID.test(administrationCaseId ?? '')
+      : administrationCaseId !== undefined)) throw new Error('Invalid owner command arguments.');
   return { churchId, action, reference, execute, ...(membershipId ? { membershipId } : {}), ...(inviteId ? { inviteId } : {}),
-    ...(replacementAccountId ? { replacementAccountId } : {}), ...(supportDeletion ? { supportDeletion: true } : {}) };
+    ...(replacementAccountId ? { replacementAccountId } : {}), ...(supportDeletion ? { supportDeletion: true } : {}),
+    ...(administrationCaseId ? { administrationCaseId } : {}) };
 }
 
 /** Only explicitly supplied operational service/password files; no application URL/key fallback. */
@@ -127,11 +132,17 @@ function safePrepared(value, options) {
     || !['archive_church', 'replace_church_admin'].includes(options.action)
     || !UUID.test(options.membershipId ?? '') || preview.membership_id !== options.membershipId
     || preview.administrator_count !== 1 || !UUID.test(preview.administration_case_id ?? ''))) throw failure();
+  if (options.action === 'reconcile_church_administration_case' && (!UUID.test(options.administrationCaseId ?? '')
+    || preview.administration_case_id !== options.administrationCaseId || !UUID.test(preview.membership_id ?? '')
+    || !['replacement', 'archive'].includes(preview.resolution)
+    || (preview.resolution === 'archive' ? preview.status !== 'archived' : preview.administrator_count < 1))) throw failure();
   return { operation_id: value.operation_id, operation_type: value.operation_type, expires_at: value.expires_at,
     preview: { church_id: preview.church_id, slug: preview.slug, official_name: preview.official_name,
       status: preview.status, ...Object.fromEntries(counts.map((key) => [key, preview[key]])),
       ...(['remove_church_admin', 'replace_church_admin'].includes(options.action) || options.supportDeletion ? { membership_id: options.membershipId } : {}),
       ...(options.supportDeletion ? { administration_case_id: preview.administration_case_id } : {}),
+      ...(options.action === 'reconcile_church_administration_case' ? { administration_case_id: options.administrationCaseId,
+        membership_id: preview.membership_id, resolution: preview.resolution } : {}),
       ...(options.action === 'cancel_church_invite' ? { invite_id: options.inviteId } : {}),
       ...(options.action === 'replace_church_admin' ? { replacement_account_id: options.replacementAccountId } : {}) } };
 }
@@ -148,6 +159,9 @@ function prepareOperation(options, query) {
     throw failure();
   }
   switch (options.action) {
+    case 'reconcile_church_administration_case':
+      return query('select ops.prepare_church_case_reconciliation($1::uuid, $2::uuid, $3::text)',
+        [options.churchId, options.administrationCaseId, options.reference]);
     case 'replace_church_admin':
       return query('select ops.prepare_church_admin_replacement($1::uuid, $2::uuid, $3::uuid, $4::text)',
         [options.churchId, options.membershipId, options.replacementAccountId, options.reference]);
@@ -205,6 +219,8 @@ export async function runOwnerCommand(options, { query, confirm, output, interac
     const result = query('select ops.execute_church_lifecycle($1::uuid, $2::text, $3::uuid)',
       [safe.operation_id, prepared.token, attempt.attempt_id]);
     const expectedStatus = RESULT_STATUS[options.action];
+    if (options.action === 'reconcile_church_administration_case' && (result?.administration_case_id !== options.administrationCaseId
+      || result?.membership_id !== safe.preview.membership_id || result?.resolution !== safe.preview.resolution)) throw failure();
     if (result?.operation_id !== safe.operation_id || result.church_id !== options.churchId
       || result.status !== expectedStatus || (options.action === 'remove_church_admin'
         && result.membership_id !== options.membershipId) || (options.action === 'cancel_church_invite'
@@ -215,6 +231,8 @@ export async function runOwnerCommand(options, { query, confirm, output, interac
     output(JSON.stringify({ operation_id: safe.operation_id, church_id: options.churchId, status: expectedStatus,
       ...(['remove_church_admin', 'replace_church_admin'].includes(options.action) || options.supportDeletion ? { membership_id: options.membershipId } : {}),
       ...(options.supportDeletion ? { administration_case_id: safe.preview.administration_case_id } : {}),
+      ...(options.action === 'reconcile_church_administration_case' ? { administration_case_id: options.administrationCaseId,
+        membership_id: safe.preview.membership_id, resolution: safe.preview.resolution } : {}),
       ...(options.action === 'cancel_church_invite' ? { invite_id: options.inviteId } : {}),
       ...(options.action === 'replace_church_admin' ? { replacement_account_id: options.replacementAccountId,
         replacement_membership_id: result.replacement_membership_id } : {}) }));
