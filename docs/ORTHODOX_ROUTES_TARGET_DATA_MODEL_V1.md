@@ -620,6 +620,8 @@ Creation or state transitions set policy codes and `retention_due_at` values rat
 
 Participant access to the disclosed exact locations and contact snapshots ends immediately on cancellation or no later than 30 days after the scheduled ride time. The applicable exact ride geodata is then deleted or irreversibly anonymized under the approved retention policy. A user's own saved place is governed by the separate saved-place rule and lives until its owner deletes it; ride-disclosure expiry never silently removes it. A separately restricted legal hold for an already existing dispute may preserve only necessary evidence; it does not extend participant access or create a generic retention period.
 
+Initial confirmation clamps its existing contact/exact-data deadline to thirty days after the earlier occurrence/accepted-snapshot arrival, preserving the immutable relationship guard when requested and offered times differ. It never extends an existing valid deadline or rewrites historical rows; see the [executable correction](BACKEND_AGREEMENT_DISCLOSURE_DEADLINE.md).
+
 ## 21. Backup and restore relationships
 
 Database exports contain Storage object metadata and checksums, not the objects themselves. A backup manifest links:

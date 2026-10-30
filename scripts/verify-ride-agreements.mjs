@@ -206,6 +206,17 @@ async function placeId(requestId) {
   return requests.find((request) => request.request_id === requestId)?.place_options[0]?.place_id;
 }
 
+function assertDisclosureDeadline(agreementId) {
+  assert.equal(runSql(container, `select agreement.contact_visible_until = least(occurrence.arrival_at, snapshot.scheduled_arrival_at) + interval '30 days'
+    and agreement.exact_data_delete_due_at = agreement.contact_visible_until
+    and (select count(*) = 2 and bool_and(contact.visible_until = agreement.contact_visible_until)
+      from private.agreement_contact_snapshot as contact where contact.agreement_id = agreement.id)
+    from app.ride_agreement as agreement
+    join app.driver_offer_occurrence as occurrence on occurrence.id = agreement.driver_occurrence_id
+    join app.ride_condition_snapshot as snapshot on snapshot.id = agreement.active_snapshot_id
+    where agreement.public_id = ${sqlLiteral(agreementId)}::uuid;`), 't');
+}
+
 const firstArrival = isoAfter(7, 9);
 const firstRequest = await publishRequest(clients[0], firstArrival, 2, 'Alpha');
 const churchProjection = await rpc(anonymous, 'transport_church_by_slug', { p_slug: `agreement-test-${suffix}` });
@@ -234,7 +245,9 @@ const completedDraft = await rpc(clients[0], 'complete_contextual_transport_draf
 });
 assert.equal(completedDraft.status, 'completed');
 assert.equal(runSql(container, `select state || ':' || (payload is null)::text from private.contextual_draft where public_id = ${sqlLiteral(contextualDraftId)}::uuid;`), 'completed:true');
-const firstOccurrence = await publishOccurrence(firstArrival, 1, 'first');
+// Deterministically reproduce the minute-boundary browser fixture: a manual
+// offer may arrive later than the request without extending snapshot disclosure.
+const firstOccurrence = await publishOccurrence(new Date(Date.parse(firstArrival) + 60_000).toISOString(), 1, 'first');
 const firstPlaceId = await placeId(firstRequest.request_id);
 assert.ok(firstPlaceId);
 
@@ -343,6 +356,13 @@ const firstAgreement = await rpc(clients[0], 'confirm_ride_response', {
   p_client_key: firstConfirmKey, p_response_id: firstResponse.response_id,
 });
 assert.equal(firstAgreement.status, 'confirmed');
+assertDisclosureDeadline(firstAgreement.agreement_id);
+const confirmationDefinition = () => runSql(container, `select jsonb_build_object('definition', md5(pg_get_functiondef(oid)),
+  'acl', proacl::text, 'volatility', provolatile, 'definer', prosecdef, 'config', proconfig)
+  from pg_proc where oid = 'api.confirm_ride_response(uuid,uuid)'::regprocedure;`);
+const expectedConfirmationDefinition = confirmationDefinition();
+runSql(container, readFileSync(new URL('../supabase/migrations/20261030110000_agreement_disclosure_deadline.sql', import.meta.url), 'utf8'));
+assert.equal(confirmationDefinition(), expectedConfirmationDefinition);
 assert.ok((await rpc(clients[3], 'current_notifications')).some((notification) =>
   notification.event_type === 'ride.confirmed'
   && notification.object_id === firstAgreement.agreement_id
@@ -367,7 +387,8 @@ assert.equal(passengerDisclosure.meeting_place.exact_address, 'Exact Alpha');
 assert.equal(passengerDisclosure.departure_place.exact_address, 'Exact driver origin first');
 assert.equal(typeof passengerDisclosure.departure_place.exact_point.lat, 'number');
 assert.equal(typeof passengerDisclosure.meeting_place.exact_point.lng, 'number');
-const lifecycleReadRide = await arrangedRide(isoAfter(15, 9), 'Lifecycle read boundary');
+const lifecycleReadRide = await arrangedRide(isoAfter(15, 9), 'Lifecycle read boundary', -1);
+assertDisclosureDeadline(lifecycleReadRide.agreement.agreement_id);
 await verifyAccountLifecycleReadBoundary({ actor: clients[0], accountId: identities[0].id,
   cancellableAgreementId: lifecycleReadRide.agreement.agreement_id, restorableRequestId: lifecycleReadRide.request.request_id,
   agreementId: firstAgreement.agreement_id, call: (name, args) => callRpc(clients[0], name, args),
@@ -495,9 +516,9 @@ for (const actor of [clients[1], clients[3]]) {
 // ------------------------------------------------------------ explicit passenger restoration
 
 /** Publishes a request, an occurrence, and confirms an agreement between them. */
-async function arrangedRide(arrivalAt, label) {
+async function arrangedRide(arrivalAt, label, driverArrivalOffsetMinutes = 0) {
   const request = await publishRequest(clients[0], arrivalAt, 1, label);
-  const occurrence = await publishOccurrence(arrivalAt, 3, label);
+  const occurrence = await publishOccurrence(new Date(Date.parse(arrivalAt) + driverArrivalOffsetMinutes * 60_000).toISOString(), 3, label);
   const response = await rpc(clients[3], 'submit_driver_response', {
     p_client_key: randomUUID(), p_occurrence_id: occurrence.occurrence_id,
     p_offered_passenger_count: 1, p_place_id: await placeId(request.request_id),
