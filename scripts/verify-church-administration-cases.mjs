@@ -142,6 +142,7 @@ export async function verifyChurchAdministrationCases({ sql, asyncSql, asOperato
       'ops.church_administration_case'::regclass);`);
   const expectedConstraints = constraints();
   sql(readFileSync(new URL('../supabase/migrations/20261029150000_church_administration_cases.sql', import.meta.url), 'utf8'));
+  sql(readFileSync(new URL('../supabase/migrations/20261030090000_church_case_reconciliation.sql', import.meta.url), 'utf8'));
   assert.equal(definitions(), snapshot); assert.equal(constraints(), expectedConstraints); assert.deepEqual(execute(archival), archived);
   for (const role of ['anon', 'authenticated', 'service_role', 'orthodox_routes_church_operator']) {
     for (const signature of ['ops.bind_church_administration_case(uuid,uuid)', 'ops.complete_church_administration_case()']) {
